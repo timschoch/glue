@@ -20,5 +20,11 @@ jobs:
         id: release
         with:
           release-type: node
-      # Per-project deploy steps go below, each gated on:
-      #   if: steps.release.outputs.release_created == 'true'
+      # Deploy flow (product): main → Vercel preview, release → Vercel production.
+      # Vercel's production branch is `release`; a new release fast-forwards it.
+      - if: steps.release.outputs.release_created == 'true'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - if: steps.release.outputs.release_created == 'true'
+        run: git push origin HEAD:release
