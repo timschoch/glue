@@ -1,0 +1,380 @@
+{
+  "$comment": "Defaults for the naming skill and the naming gate. Stack files in stacks/<bundle>.json merge on top for each bundle the consumer picked. A consumer overrides them in .skilly/naming.json, same shape, only the keys it changes. Objects merge by key, null drops a key. Arrays append and dedupe, a leading - drops a default entry. scripts/config.mjs prints the merged result.",
+  "parts": ["project", "area", "entity", "role", "action", "attribute", "consumer"],
+  "discriminant": "kind",
+  "artifacts": {
+    "env": {
+      "parts": ["project", "area", "role", "consumer"],
+      "case": "SCREAMING_SNAKE",
+      "roles": ["KEY", "SECRET", "URL"],
+      "shape": "<PROJECT>_<AREA>_<KEY|SECRET|URL>[_FOR_<CONSUMER>]",
+      "examples": [
+        { "good": "COLIN_SYNC_KEY_FOR_TWENTY", "bad": "TWENTY_API_KEY", "why": "issuer first, then what the key is for, then who holds it" },
+        { "good": "COLIN_SYNC_URL", "bad": "COLIN_SYNC_URL_FOR_TWENTY", "why": "same value for every caller, so no consumer part" },
+        { "good": "GITHUB_WEBHOOK_SECRET", "bad": "GH_HOOK_KEY", "why": "full words, and a signing secret is SECRET not KEY" }
+      ]
+    },
+    "path": {
+      "parts": ["area", "entity(plural)"],
+      "case": "kebab",
+      "examples": [
+        { "good": "/api/testimonials", "bad": "/api/testimonial", "why": "a collection route is plural" },
+        { "good": "/api/case-studies", "bad": "/api/caseStudies", "why": "paths are kebab-case" },
+        { "good": "/api/testimonials/:id", "bad": "/api/getTestimonial", "why": "no verb in a path, the HTTP method is the verb" }
+      ]
+    },
+    "folder": {
+      "parts": ["area", "entity(plural)"],
+      "case": "kebab",
+      "examples": [
+        { "good": "src/api/testimonials/", "bad": "src/api/Testimonials/", "why": "folders are lowercase kebab-case" },
+        { "good": "src/components/case-studies/", "bad": "src/components/case_studies/", "why": "kebab, not snake" },
+        { "good": "src/lib/sync/", "bad": "src/lib/syncHelpers/", "why": "no noise word" }
+      ]
+    },
+    "file": {
+      "parts": ["entity", "action"],
+      "case": "kebab",
+      "examples": [
+        { "good": "testimonial.ts", "bad": "Testimonial.ts", "why": "the file is kebab-case even when the type inside is PascalCase" },
+        { "good": "add-testimonial.ts", "bad": "addTestimonial.ts", "why": "kebab, not camel" },
+        { "good": "testimonial-grid.tsx", "bad": "TestimonialGrid.tsx", "why": "a component file follows the same file rule" }
+      ]
+    },
+    "function": {
+      "parts": ["action", "entity"],
+      "case": "camelCase",
+      "examples": [
+        { "good": "addTestimonial", "bad": "testimonialAdd", "why": "verb first, then entity" },
+        { "good": "listTestimonials", "bad": "getAllTestimonials", "why": "one verb per meaning, list means many" },
+        { "good": "isPublished", "bad": "checkPublished", "why": "a boolean check starts with is, has, can or should" }
+      ]
+    },
+    "type": {
+      "parts": ["entity"],
+      "case": "PascalCase",
+      "examples": [
+        { "good": "Testimonial", "bad": "ITestimonial", "why": "no I prefix" },
+        { "good": "TestimonialStatus", "bad": "TTestimonialStatus", "why": "no T prefix" },
+        { "good": "Testimonial", "bad": "TestimonialData", "why": "no noise word" }
+      ]
+    },
+    "component": {
+      "parts": ["entity", "role"],
+      "case": "PascalCase",
+      "roles": ["grid", "list", "card", "form", "table", "page", "layout", "dialog"],
+      "examples": [
+        { "good": "TestimonialGrid", "bad": "GridTestimonial", "why": "entity first, then role" },
+        { "good": "TestimonialForm", "bad": "TestimonialEditor", "why": "role from the closed list" },
+        { "good": "CaseStudyCard", "bad": "CaseStudyCardComponent", "why": "the role already says it is a component" }
+      ]
+    },
+    "table": {
+      "parts": ["entity(plural)"],
+      "case": "snake_case",
+      "examples": [
+        { "good": "testimonials", "bad": "testimonial", "why": "a table stores many, so plural" },
+        { "good": "case_studies", "bad": "case-studies", "why": "snake, not kebab, in the database" },
+        { "good": "case_studies", "bad": "tbl_case_studies", "why": "no Hungarian prefix" }
+      ]
+    },
+    "field": {
+      "parts": ["attribute"],
+      "case": "snake_case",
+      "examples": [
+        { "good": "author_name", "bad": "authorName", "why": "snake in the database" },
+        { "good": "published", "bad": "is_published", "why": "stored boolean state is a bare adjective" },
+        { "good": "name", "bad": "testimonial_name", "why": "the table already says testimonial" }
+      ]
+    },
+    "event": {
+      "parts": ["entity", "action(past)"],
+      "case": "dot.case",
+      "examples": [
+        { "good": "testimonial.added", "bad": "addTestimonial", "why": "an event is a fact in the past, not a command" },
+        { "good": "testimonial.published", "bad": "testimonial.publish", "why": "past tense" },
+        { "good": "case-study.archived", "bad": "CaseStudyArchived", "why": "dot.case, entity in kebab" }
+      ]
+    }
+  },
+  "prefixes": {
+    "get": {
+      "meaning": "read one value, in memory, never empty",
+      "not": ["retrieve", "obtain", "fetch", "load", "read"],
+      "examples": [
+        { "good": "getUser", "bad": "retrieveUser" },
+        { "good": "getTotal", "bad": "obtainTotal" },
+        { "good": "getConfig", "bad": "fetchConfig" }
+      ]
+    },
+    "set": {
+      "meaning": "replace a value, returns nothing",
+      "not": ["put", "assign", "change", "update", "swap", "flip"],
+      "examples": [
+        { "good": "setTitle", "bad": "putTitle" },
+        { "good": "setStatus", "bad": "assignStatus" },
+        { "good": "setLocale", "bad": "changeLocale" }
+      ]
+    },
+    "add": {
+      "meaning": "put into a collection",
+      "not": ["insert", "append", "push", "attach", "include", "addTo"],
+      "examples": [
+        { "good": "addTestimonial", "bad": "insertTestimonial" },
+        { "good": "addTag", "bad": "appendTag" },
+        { "good": "addMember", "bad": "pushMember" }
+      ]
+    },
+    "remove": {
+      "meaning": "take out of a collection",
+      "not": ["drop", "pop", "delete", "detach", "exclude", "removeFrom"],
+      "examples": [
+        { "good": "removeTestimonial", "bad": "dropTestimonial" },
+        { "good": "removeTag", "bad": "deleteTag" },
+        { "good": "removeMember", "bad": "popMember" }
+      ]
+    },
+    "create": {
+      "meaning": "make a new record",
+      "not": ["make", "new", "build", "construct", "spawn", "init", "initialize"],
+      "examples": [
+        { "good": "createOrder", "bad": "makeOrder" },
+        { "good": "createUser", "bad": "newUser" },
+        { "good": "createInvoice", "bad": "buildInvoice" }
+      ]
+    },
+    "delete": {
+      "meaning": "destroy a record",
+      "not": ["destroy", "purge", "drop", "remove", "erase", "clear"],
+      "examples": [
+        { "good": "deleteOrder", "bad": "destroyOrder" },
+        { "good": "deleteUser", "bad": "removeUser" },
+        { "good": "deleteSession", "bad": "purgeSession" }
+      ]
+    },
+    "update": {
+      "meaning": "change part of a record",
+      "not": ["modify", "patch", "edit", "change"],
+      "examples": [
+        { "good": "updateOrder", "bad": "modifyOrder" },
+        { "good": "updateProfile", "bad": "editProfile" },
+        { "good": "updateStatus", "bad": "patchStatus" }
+      ]
+    },
+    "find": {
+      "meaning": "search, the result may be empty",
+      "not": ["search", "lookup", "get", "fetch", "retrieve"],
+      "examples": [
+        { "good": "findUser", "bad": "lookupUser" },
+        { "good": "findOrderById", "bad": "searchOrderById" },
+        { "good": "findMatch", "bad": "getMatchOrNull" }
+      ]
+    },
+    "list": {
+      "meaning": "return many",
+      "not": ["getAll", "fetchAll", "all", "retrieveAll", "findAll"],
+      "examples": [
+        { "good": "listUsers", "bad": "getAllUsers" },
+        { "good": "listOrders", "bad": "fetchAllOrders" },
+        { "good": "listTags", "bad": "allTags" }
+      ]
+    },
+    "fetch": {
+      "meaning": "get over the network",
+      "not": ["load", "request", "obtain", "retrieve", "get", "fetchAll"],
+      "examples": [
+        { "good": "fetchTestimonials", "bad": "loadTestimonials" },
+        { "good": "fetchProfile", "bad": "requestProfile" },
+        { "good": "fetchRates", "bad": "getRatesFromApi" }
+      ]
+    },
+    "parse": {
+      "meaning": "untrusted input to a typed value",
+      "not": ["convert", "decode", "read", "deserialize", "from"],
+      "examples": [
+        { "good": "parseDate", "bad": "convertDate" },
+        { "good": "parseConfig", "bad": "decodeConfig" },
+        { "good": "parseRow", "bad": "rowToRecord" }
+      ]
+    },
+    "format": {
+      "meaning": "typed value to text",
+      "not": ["convert", "stringify", "to"],
+      "examples": [
+        { "good": "formatDate", "bad": "convertDate" },
+        { "good": "formatPrice", "bad": "priceToString" },
+        { "good": "formatName", "bad": "stringifyName" }
+      ]
+    },
+    "from": {
+      "meaning": "build this from X",
+      "not": ["of", "as", "read", "deserialize"],
+      "examples": [
+        { "good": "fromRow", "bad": "ofRow" },
+        { "good": "fromJson", "bad": "asJson" },
+        { "good": "fromEnv", "bad": "readEnvInto" }
+      ]
+    },
+    "to": {
+      "meaning": "turn this into X",
+      "not": ["as", "into", "convert", "serialize", "stringify"],
+      "examples": [
+        { "good": "toJson", "bad": "asJson" },
+        { "good": "toRow", "bad": "intoRow" },
+        { "good": "toCents", "bad": "convertToCents" }
+      ]
+    },
+    "validate": {
+      "meaning": "check and report errors",
+      "not": ["verify", "check", "ensure", "assert", "confirm"],
+      "examples": [
+        { "good": "validateEmail", "bad": "checkEmail" },
+        { "good": "validateForm", "bad": "verifyForm" },
+        { "good": "validateInput", "bad": "ensureInput" }
+      ]
+    },
+    "handle": {
+      "meaning": "event handler",
+      "not": ["process", "on", "when", "callback"],
+      "examples": [
+        { "good": "handleSubmit", "bad": "processSubmit" },
+        { "good": "handleClick", "bad": "clickHandler" },
+        { "good": "handleWebhook", "bad": "webhookProcessor" }
+      ]
+    },
+    "on": {
+      "meaning": "event prop",
+      "not": ["when", "handle", "callback", "fn"],
+      "examples": [
+        { "good": "onSubmit", "bad": "submitCallback" },
+        { "good": "onChange", "bad": "whenChanged" },
+        { "good": "onClose", "bad": "closeFn" }
+      ]
+    },
+    "is": {
+      "meaning": "boolean check, state",
+      "not": ["check", "not", "has", "can", "should", "isNot"],
+      "examples": [
+        { "good": "isEmpty", "bad": "empty()" },
+        { "good": "isEnabled", "bad": "notDisabled" },
+        { "good": "isValid", "bad": "checkValid" }
+      ]
+    },
+    "has": {
+      "meaning": "boolean check, ownership",
+      "not": ["contains", "includes", "holds", "owns", "hasProperty"],
+      "examples": [
+        { "good": "hasAccess", "bad": "accessGranted" },
+        { "good": "hasChildren", "bad": "containsChildren" },
+        { "good": "hasTag", "bad": "includesTag" }
+      ]
+    },
+    "can": {
+      "meaning": "boolean check, permission or ability",
+      "not": ["allowed", "may", "isAble", "has", "canRun", "canPerform"],
+      "examples": [
+        { "good": "canRetry", "bad": "retryAllowed" },
+        { "good": "canEdit", "bad": "mayEdit" },
+        { "good": "canPublish", "bad": "publishable" }
+      ]
+    },
+    "should": {
+      "meaning": "boolean check, policy",
+      "not": ["needs", "must", "isRequired", "shouldBe"],
+      "examples": [
+        { "good": "shouldRefresh", "bad": "needsRefresh" },
+        { "good": "shouldRetry", "bad": "mustRetry" },
+        { "good": "shouldNotify", "bad": "notifyFlag" }
+      ]
+    }
+  },
+  "synonyms": {
+    "$comment": "Verb prefix to replace, keyed by the wrong prefix. Longest prefix wins. The gate suggests <value><Rest>; the value to means toRest or parseRest.",
+    "getAll": "list",
+    "fetchAll": "list",
+    "retrieve": "get",
+    "obtain": "get",
+    "insert": "add",
+    "append": "add",
+    "modify": "update",
+    "lookup": "find",
+    "destroy": "delete",
+    "convert": "to",
+    "decode": "parse",
+    "encode": "to",
+    "serialize": "to",
+    "stringify": "to",
+    "check": "validate",
+    "verify": "validate",
+    "ensure": "validate",
+    "assert": "validate",
+    "confirm": "validate",
+    "process": "handle",
+    "on": "handle",
+    "when": "handle",
+    "callback": "handle",
+    "fn": "handle",
+    "allowed": "can",
+    "may": "can",
+    "isAble": "can",
+    "hasProperty": "has",
+    "needs": "should",
+    "must": "should",
+    "isRequired": "should",
+    "shouldBe": "should"
+  },
+  "shortWords": {
+    "$comment": "Abbreviation to full word. Single letters are always banned, except _ and $.",
+    "opts": "options",
+    "ctx": "context",
+    "err": "error",
+    "msg": "message",
+    "idx": "index",
+    "cfg": "config",
+    "val": "value",
+    "num": "number",
+    "str": "string",
+    "obj": "object",
+    "arr": "array",
+    "fn": "function",
+    "cb": "callback",
+    "el": "element",
+    "evt": "event",
+    "btn": "button",
+    "tmp": "temporary",
+    "prev": "previous",
+    "curr": "current",
+    "acc": "accumulator",
+    "req": "request",
+    "res": "response",
+    "auth": "authentication",
+    "authn": "authentication",
+    "authz": "authorization",
+    "svc": "service",
+    "util": "utility",
+    "utilz": "utilities",
+    "cfgs": "configurations",
+    "envs": "environments",
+    "deps": "dependencies",
+    "pkg": "package",
+    "pkgs": "packages"
+  },
+  "noiseWords": ["Data", "Info", "Manager", "Processor", "Helper", "Util", "Utils", "List"],
+  "allow": {
+    "vendored": {
+      "paths": ["(^|/)(node_modules|dist|build|\\.next)/"],
+      "rules": "*",
+      "why": "Installed or built output. The repo does not write it."
+    },
+    "agentTooling": {
+      "paths": ["(^|/)(\\.agents|\\.claude|\\.skilly-hub)/"],
+      "rules": "*",
+      "why": "Skills and hub files that skilly vendors. Sync overwrites them."
+    },
+    "generated": {
+      "paths": ["\\.generated\\.[^/]*$", "\\.d\\.ts$"],
+      "rules": "*",
+      "why": "Generated code. The generator picks the names."
+    }
+  }
+}

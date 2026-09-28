@@ -1,0 +1,48 @@
+{
+  "linter": {
+    "rules": {
+      "style": {
+        "useFilenamingConvention": {
+          "level": "error",
+          "options": {
+            "strictCase": true,
+            "requireAscii": true,
+            "filenameCases": ["kebab-case"]
+          }
+        },
+        "useNamingConvention": {
+          "level": "error",
+          "options": {
+            "strictCase": true,
+            "conventions": [
+              {
+                "selector": { "kind": "interface" },
+                "match": "([^IT].*|[IT][a-z0-9].*)",
+                "formats": ["PascalCase"]
+              },
+              {
+                "selector": { "kind": "typeAlias" },
+                "match": "([^IT].*|[IT][a-z0-9].*)",
+                "formats": ["PascalCase"]
+              },
+              {
+                "selector": { "kind": "typeLike" },
+                "formats": ["PascalCase"]
+              },
+              {
+                "selector": { "kind": "function" },
+                "formats": ["camelCase"]
+              },
+              {
+                "selector": { "kind": "const", "scope": "global" },
+                "formats": ["CONSTANT_CASE", "camelCase"]
+              }
+            ]
+          }
+        },
+        "noEnum": "error",
+        "noMagicNumbers": "error"
+      }
+    }
+  }
+}
