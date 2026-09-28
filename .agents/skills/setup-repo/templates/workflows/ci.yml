@@ -1,0 +1,32 @@
+# The PR gate. One job running the ci stage of .skilly/verify.json: Actions
+# rounds every job up to the minute, so one 5-minute job beats five 1-minute ones.
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main] # rename if the default branch is not main
+
+# A newer push to the same ref cancels the run it superseded.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the changed-files steps diff against origin/main
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/* # swap for node-version-file once the repo pins one
+          cache: npm # keys off the lockfile
+      - run: npm ci # lockfile only; a resolution drift fails here, not in prod
+      # Browsers cost about a minute to install, so skip it in repos without e2e.
+      - if: hashFiles('playwright.config.*') != ''
+        run: npx playwright install --with-deps chromium
+      - run: node .agents/skills/verify/scripts/verify.mjs ci

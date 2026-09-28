@@ -1,0 +1,19 @@
+# The gate ladder lives in .skilly/verify.json and is run by the verify skill,
+# so this file and .github/workflows/ci.yml cannot list different checks.
+# Deterministic commands only — no LLM in a hook, ever.
+pre-commit:
+  commands:
+    lint-staged:
+      run: npx lint-staged
+commit-msg:
+  commands:
+    conventional:
+      run: node .claude/hooks/check-commit-msg.mjs {1}
+pre-push:
+  commands:
+    # Trunk guard first, so a push at the default branch fails before any work runs.
+    no-main:
+      run: node .claude/hooks/check-push-branch.mjs
+      use_stdin: true
+    verify:
+      run: node .agents/skills/verify/scripts/verify.mjs push

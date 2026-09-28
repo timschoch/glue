@@ -1,0 +1,25 @@
+# Product tier only: the long checks that must never gate a merge. Scheduled
+# runs get delayed under load, so keep this off the required-checks list.
+# verify exits 0 below the product tier, so an installed copy is inert elsewhere.
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC
+  workflow_dispatch: {} # so a failure can be re-run without waiting a day
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      # Every browser here, unlike the PR gate's single chromium.
+      - if: hashFiles('playwright.config.*') != ''
+        run: npx playwright install --with-deps
+      - run: node .agents/skills/verify/scripts/verify.mjs nightly
