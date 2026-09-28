@@ -1,5 +1,5 @@
 {
-  "tier": "sandbox",
+  "tier": "product",
   "bundles": [
     "workflow",
     "tech-tanstack",

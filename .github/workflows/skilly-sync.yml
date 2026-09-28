@@ -1,6 +1,6 @@
 name: skilly sync
 on:
-  schedule: [{ cron: "8 3 * * *" }]
+  schedule: [{ cron: '8 3 * * *' }]
   workflow_dispatch: {}
   pull_request: {}
 permissions:

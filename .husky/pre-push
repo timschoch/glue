@@ -1,0 +1,4 @@
+# Trunk guard first, so a push at the default branch fails before any work runs.
+node .claude/hooks/check-push-branch.mjs
+# Everything else is a step in .skilly/verify.json, never a line in this file.
+node .agents/skills/verify/scripts/verify.mjs push

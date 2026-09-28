@@ -47,5 +47,6 @@
       "esbuild",
       "lightningcss"
     ]
-  }
+  },
+  "packageManager": "pnpm@11.0.8"
 }
