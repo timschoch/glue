@@ -1,3 +1,0 @@
-# Format and lint the staged files. Deterministic commands only — no LLM in a
-# hook, ever. Target < 3 s: no typecheck, no tests.
-npx lint-staged
