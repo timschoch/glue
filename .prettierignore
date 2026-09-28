@@ -3,3 +3,10 @@ pnpm-lock.yaml
 yarn.lock.temp
 .output
 src/routeTree.gen.ts
+
+# skilly-owned files
+skills-lock.json
+.skilly
+.claude/rules
+.claude/skills
+.agents

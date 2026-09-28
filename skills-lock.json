@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "setup-project": {
+      "source": "timschoch/skilly",
+      "sourceType": "github",
+      "skillPath": "bundles/setup-project/skills/setup-project/SKILL.md",
+      "computedHash": "f1c4eabba68f5c5ba3ce17325519d13ab872be95aaa241d567fa7b740db5ee5b"
+    }
+  }
+}
