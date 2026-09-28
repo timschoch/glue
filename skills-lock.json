@@ -313,12 +313,6 @@
       "skillPath": "packages/react-router/skills/compositions/router-query/SKILL.md",
       "computedHash": "63fc32c213852863cb237c83c783a46d77f87e1551ef3e48abdda4c3667ba1e2"
     },
-    "setup-project": {
-      "source": "timschoch/skilly",
-      "sourceType": "github",
-      "skillPath": "bundles/setup-project/skills/setup-project/SKILL.md",
-      "computedHash": "f1c4eabba68f5c5ba3ce17325519d13ab872be95aaa241d567fa7b740db5ee5b"
-    },
     "skilly-cli": {
       "source": "timschoch/skilly",
       "sourceType": "github",
