@@ -20,6 +20,8 @@ export default [
       'prettier.config.js',
       'postcss.config.cjs',
       '.temp/**',
+      '.agents/**',
+      '.claude/**',
       '.output/**',
     ],
   },
