@@ -2,7 +2,7 @@ Closes #
 
 Decision: D<n>
 
-<!-- The id of a Decision in concept/decisions/. A new Decision in this PR counts. -->
+<!-- The id of a Decision in Glue's Concept database: `pnpm concept list decisions`. A new Decision: add it first with `pnpm concept add decisions`. -->
 
 ## What changes
 
