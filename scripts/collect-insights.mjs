@@ -86,7 +86,7 @@ function failingRuleLine(jobId) {
   return null
 }
 
-function checkFindings(repo, pr, since) {
+function runFindings(repo, pr, since) {
   const findings = []
   const runs = ghJson([
     'run',
@@ -198,7 +198,7 @@ export function fetchFindings(since) {
   ])
   const findings = []
   for (const pr of prs) {
-    findings.push(...checkFindings(repo, pr, since))
+    findings.push(...runFindings(repo, pr, since))
     findings.push(...commentFindings(pr, since))
     findings.push(...reviewFindings(pr, since))
   }
