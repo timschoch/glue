@@ -22,7 +22,7 @@
         },
         {
           "name": "workflow guards",
-          "run": "node --test scripts/ .claude/hooks/",
+          "run": "node --test 'scripts/*.test.mjs' '.claude/hooks/*.test.mjs'",
           "why": "Tests for the run guards: guard-workflow.mjs (Claude hook) and check-pr-workflow.mjs (PR gate). Plain node:test, no vitest needed."
         }
       ]
