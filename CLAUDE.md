@@ -43,6 +43,9 @@ Agents build Glue in a run. The Orchestrator plans and merges, Workers build, th
 
 - The Owner checks in every few hours. Work on what is not blocked.
 - Ask the Owner with a GitHub issue labelled `ready-for-human`: one question, the options, your pick.
+- Ask the Owner only what the Owner's role owns (see [Roles](#roles)). The Orchestrator accepts Decisions and plans rings itself.
+  - Bad: "D1 to D4 are `proposed`. Do you accept them? Can I start ring 1?"
+  - Good: "I accepted D1 to D4 and started ring 1."
 - Ask early for anything that takes the Owner time: credentials, sign-ups (agents have no email account), trials.
 - Halt the run only when all work is blocked or something broke badly. Halt: issue labelled `ready-for-human`, title starts with `HALT:`.
 
