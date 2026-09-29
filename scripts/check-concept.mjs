@@ -22,16 +22,6 @@ export const TYPES = {
 
 const DECISION_STATUSES = ['proposed', 'accepted', 'superseded']
 
-function stripQuotes(value) {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1)
-  }
-  return value
-}
-
 function isQuoted(value) {
   return (
     (value.startsWith('"') && value.endsWith('"')) ||
@@ -39,10 +29,14 @@ function isQuoted(value) {
   )
 }
 
+function stripQuotes(value) {
+  return isQuoted(value) ? value.slice(1, -1) : value
+}
+
 // A real YAML parser reads ": " inside an unquoted scalar as a nested
 // mapping and rejects it. Flag it here so any YAML parser can read these
 // files later.
-function needsQuoting(value) {
+function shouldQuote(value) {
   return !isQuoted(value) && value.includes(': ')
 }
 
@@ -74,7 +68,7 @@ function parseFrontmatter(raw) {
         .filter(Boolean)
       listKey = null
     } else {
-      if (needsQuoting(value.trim())) {
+      if (shouldQuote(value.trim())) {
         errors.push(`"${key}" must be quoted: the value contains ": ".`)
       }
       data[key] = stripQuotes(value.trim())
