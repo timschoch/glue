@@ -1,5 +1,5 @@
 // `pnpm concept`: read and add Glue's Concept records in the database.
-// See concept/README.md for the record types and their fields.
+// See src/db/concept-fields.ts for the record types and their fields.
 import { createDb } from '../src/db/client.ts'
 import {
   addConceptRecord,
@@ -8,24 +8,38 @@ import {
   showConceptRecord,
 } from '../src/db/concept-cli.ts'
 import type { ConceptFields, ConceptFolder } from '../src/db/concept-cli.ts'
+import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
 import type { DecisionStatus } from '../src/db/schema.ts'
-import { TYPES } from './check-concept.mjs'
 
 const FLAG_TO_FIELD: Record<string, string> = {
   'enforced-by': 'enforced_by',
   'superseded-by': 'superseded_by',
 }
 
+const KNOWN_FIELDS = new Set(
+  Object.values(CONCEPT_FIELDS)
+    .flatMap((type) => type.required as readonly string[])
+    .filter((field) => field !== 'id')
+    .concat(['product', 'body', 'status', 'superseded_by']),
+)
+
 function isConceptFolder(value: string | undefined): value is ConceptFolder {
-  return value !== undefined && value in TYPES
+  return value !== undefined && value in CONCEPT_FIELDS
 }
 
-function parseFlags(args: string[]): ConceptFields {
+export function parseFlags(args: string[]): ConceptFields {
   const flags: ConceptFields = {}
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
     if (!arg.startsWith('--')) continue
-    const key = FLAG_TO_FIELD[arg.slice(2)] ?? arg.slice(2)
+    const flagName = arg.slice(2)
+    const key = FLAG_TO_FIELD[flagName] ?? flagName
+    if (!KNOWN_FIELDS.has(key)) {
+      throw new Error(`unknown flag "--${flagName}"`)
+    }
+    if (index + 1 >= args.length) {
+      throw new Error(`"--${flagName}" needs a value`)
+    }
     const value = args[index + 1]
     index += 1
     flags[key] = key === 'evidence' ? value.split(',') : value
@@ -33,7 +47,7 @@ function parseFlags(args: string[]): ConceptFields {
   return flags
 }
 
-async function readStdin(): Promise<string> {
+async function collectStdin(): Promise<string> {
   const chunks: Buffer[] = []
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer)
   return Buffer.concat(chunks).toString('utf8').trim()
@@ -85,7 +99,7 @@ async function main() {
       const flags = parseFlags(flagArgs)
       const product = (flags.product as string | undefined) ?? 'glue'
       const bodyFlag = flags.body as string | undefined
-      const body = bodyFlag === '-' ? await readStdin() : (bodyFlag ?? '')
+      const body = bodyFlag === '-' ? await collectStdin() : (bodyFlag ?? '')
       delete flags.product
       delete flags.body
       const id = await addConceptRecord(db, product, folder, flags, body)
@@ -110,7 +124,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error.message)
-  process.exit(1)
-})
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error(error.message)
+    process.exit(1)
+  })
+}

@@ -1,10 +1,10 @@
 import { and, eq } from 'drizzle-orm'
 
-import { TYPES } from '../../scripts/check-concept.mjs'
+import { CONCEPT_FIELDS } from './concept-fields.ts'
 import type { ConceptDb } from './import-concept.ts'
 import * as schema from './schema.ts'
 
-export type ConceptFolder = keyof typeof TYPES
+export type ConceptFolder = keyof typeof CONCEPT_FIELDS
 export type ConceptFields = Record<string, string | string[] | undefined>
 
 const FOLDER_TABLES = {
@@ -16,7 +16,7 @@ const FOLDER_TABLES = {
 } as const
 
 const FOLDER_BY_PREFIX = Object.fromEntries(
-  Object.entries(TYPES).map(([folder, type]) => [type.prefix, folder]),
+  Object.entries(CONCEPT_FIELDS).map(([folder, type]) => [type.prefix, folder]),
 ) as Partial<Record<string, ConceptFolder>>
 
 function folderForId(id: string): ConceptFolder {
@@ -35,7 +35,7 @@ async function findProductId(db: ConceptDb, productSlug: string) {
   return products[0].id
 }
 
-async function ensureProductId(db: ConceptDb, productSlug: string) {
+async function addProductId(db: ConceptDb, productSlug: string) {
   const [product] = await db
     .insert(schema.products)
     .values({ slug: productSlug, name: productSlug })
@@ -57,7 +57,7 @@ async function nextRecordId(
     .select({ recordId: table.recordId })
     .from(table)
     .where(eq(table.productId, productId))
-  const prefix = TYPES[folder].prefix
+  const prefix = CONCEPT_FIELDS[folder].prefix
   const highest = rows.reduce((max, row) => {
     const number = Number(row.recordId.slice(prefix.length))
     return Number.isFinite(number) && number > max ? number : max
@@ -73,7 +73,9 @@ export async function listConceptRecords(
   folder?: ConceptFolder,
 ): Promise<ConceptListRow[]> {
   const productId = await findProductId(db, productSlug)
-  const folders = folder ? [folder] : (Object.keys(TYPES) as ConceptFolder[])
+  const folders = folder
+    ? [folder]
+    : (Object.keys(CONCEPT_FIELDS) as ConceptFolder[])
   const rows: ConceptListRow[] = []
   for (const currentFolder of folders) {
     const table = FOLDER_TABLES[currentFolder]
@@ -197,7 +199,7 @@ function isMissing(value: string | string[] | undefined) {
 }
 
 function validateFields(folder: ConceptFolder, fields: ConceptFields) {
-  const required = TYPES[folder].required.filter(
+  const required = CONCEPT_FIELDS[folder].required.filter(
     (field: string) => field !== 'id',
   )
   for (const field of required) {
@@ -212,7 +214,7 @@ function validateFields(folder: ConceptFolder, fields: ConceptFields) {
   }
 }
 
-async function insertDecision(
+async function addDecision(
   db: ConceptDb,
   productId: number,
   recordId: string,
@@ -307,16 +309,26 @@ async function insertDecision(
   }
 }
 
+function todayUtc() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export async function addConceptRecord(
   db: ConceptDb,
   productSlug: string,
   folder: ConceptFolder,
-  fields: ConceptFields,
+  inputFields: ConceptFields,
   body: string,
 ): Promise<string> {
+  const needsDateDefault =
+    (folder === 'decisions' || folder === 'insights') &&
+    isMissing(inputFields.date)
+  const fields = needsDateDefault
+    ? { ...inputFields, date: todayUtc() }
+    : inputFields
   validateFields(folder, fields)
 
-  const productId = await ensureProductId(db, productSlug)
+  const productId = await addProductId(db, productSlug)
   const recordId = await nextRecordId(db, productId, folder)
 
   switch (folder) {
@@ -360,7 +372,7 @@ export async function addConceptRecord(
       })
       break
     case 'decisions':
-      await insertDecision(db, productId, recordId, fields, body)
+      await addDecision(db, productId, recordId, fields, body)
       break
   }
 

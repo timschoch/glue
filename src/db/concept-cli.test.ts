@@ -115,6 +115,39 @@ describe('showConceptRecord', () => {
 })
 
 describe('addConceptRecord', () => {
+  it('defaults date to today (UTC) for an Insight without one', async () => {
+    const id = await addConceptRecord(
+      db,
+      'glue',
+      'insights',
+      {
+        title: 'Users bounce on the pricing page',
+        source: 'https://example.com/i2',
+      },
+      '',
+    )
+
+    const record = await showConceptRecord(db, 'glue', id)
+    expect(record.fields.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('keeps a given date for an Insight instead of defaulting', async () => {
+    const id = await addConceptRecord(
+      db,
+      'glue',
+      'insights',
+      {
+        title: 'Users bounce on the pricing page',
+        source: 'https://example.com/i2',
+        date: '2020-01-01',
+      },
+      '',
+    )
+
+    const record = await showConceptRecord(db, 'glue', id)
+    expect(record.fields.date).toBe('2020-01-01')
+  })
+
   it('inserts with the next free id and returns it', async () => {
     const id = await addConceptRecord(
       db,
