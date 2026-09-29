@@ -20,6 +20,15 @@
         ]
       },
       {
+        "matcher": "Bash|mcp__lean-ctx__ctx_shell|mcp__lean-ctx__shell|Write|Edit|NotebookEdit|mcp__lean-ctx__ctx_patch|mcp__lean-ctx__ctx_call",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-workflow.mjs\""
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit|NotebookEdit|mcp__lean-ctx__ctx_patch|mcp__lean-ctx__ctx_call",
         "hooks": [
           {

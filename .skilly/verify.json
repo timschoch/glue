@@ -19,6 +19,11 @@
           "run": "pnpm exec vitest run --changed origin/main --passWithNoTests",
           "target": "vitest.config.ts",
           "why": "Only the tests the diff reaches, so the push stays inside the budget. The full suite runs in CI."
+        },
+        {
+          "name": "workflow guards",
+          "run": "node --test scripts/ .claude/hooks/",
+          "why": "Tests for the run guards: guard-workflow.mjs (Claude hook) and check-pr-workflow.mjs (PR gate). Plain node:test, no vitest needed."
         }
       ]
     },
@@ -26,6 +31,11 @@
       "extends": "push",
       "budgetSeconds": 300,
       "steps": [
+        {
+          "name": "pr workflow",
+          "run": "node scripts/check-pr-workflow.mjs",
+          "why": "Issue link, Decision line, tests with source changes. Reads the PR body, so it runs in CI only; elsewhere it passes."
+        },
         { "name": "lint", "run": "pnpm run --if-present lint" },
         { "name": "unit", "run": "pnpm exec vitest run --passWithNoTests", "target": "vitest.config.ts" },
         { "name": "build", "run": "pnpm run --if-present build" },
