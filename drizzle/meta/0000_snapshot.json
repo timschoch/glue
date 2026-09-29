@@ -1,5 +1,5 @@
 {
-  "id": "906ca1aa-a79b-4c62-9f29-19324f86d082",
+  "id": "d4bcc215-163b-47ea-b5fe-f8cad743178c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -87,9 +87,24 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "decision_evidence_decision_id_insight_id_fact_id_unique": {
+          "name": "decision_evidence_decision_id_insight_id_fact_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "decision_id",
+            "insight_id",
+            "fact_id"
+          ]
+        }
+      },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "decision_evidence_exactly_one_check": {
+          "name": "decision_evidence_exactly_one_check",
+          "value": "num_nonnulls(\"decision_evidence\".\"insight_id\", \"decision_evidence\".\"fact_id\") = 1"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.decisions": {
@@ -160,6 +175,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
         }
       },
       "indexes": {},
@@ -216,7 +238,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "decisions_status_check": {
+          "name": "decisions_status_check",
+          "value": "\"decisions\".\"status\" in ('proposed', 'accepted', 'superseded')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.facts": {
@@ -263,6 +290,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
         }
       },
       "indexes": {},
@@ -346,6 +380,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
         }
       },
       "indexes": {},
@@ -423,6 +464,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
         }
       },
       "indexes": {},
@@ -506,6 +554,19 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
         }
       },
       "indexes": {},

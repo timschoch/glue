@@ -18,6 +18,7 @@ export type ConceptRecord = {
   path: string
   data: Record<string, unknown> | null
   errors: string[]
+  body: string
 }
 
 export function loadConcept(root: string): ConceptRecord[]

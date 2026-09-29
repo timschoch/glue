@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import type { ConceptRecord as FullConceptRecord } from '../../scripts/check-concept.mjs'
 import * as schema from './schema.ts'
 
-export type ConceptRecord = Pick<FullConceptRecord, 'folder' | 'data'>
+export type ConceptRecord = Pick<FullConceptRecord, 'folder' | 'data' | 'body'>
 
 export type ConceptDb = PgDatabase<any, typeof schema>
 
@@ -23,31 +23,10 @@ export async function importConcept(
     .returning({ id: schema.products.id })
   const productId = product.id
 
-  const goalIds = await upsertSimple(db, schema.goals, productId, records, 'goals', (data) => ({
-    title: String(data.title),
-    metric: String(data.metric),
-    source: String(data.source),
-  }))
-  const insightIds = await upsertSimple(
-    db,
-    schema.insights,
-    productId,
-    records,
-    'insights',
-    (data) => ({
-      title: String(data.title),
-      date: String(data.date),
-      source: String(data.source),
-    }),
-  )
-  const factIds = await upsertSimple(db, schema.facts, productId, records, 'facts', (data) => ({
-    title: String(data.title),
-    source: String(data.source),
-  }))
-  await upsertSimple(db, schema.guardrails, productId, records, 'guardrails', (data) => ({
-    title: String(data.title),
-    enforcedBy: String(data.enforced_by),
-  }))
+  const goalIds = await upsertGoals(db, productId, records)
+  const insightIds = await upsertInsights(db, productId, records)
+  const factIds = await upsertFacts(db, productId, records)
+  await upsertGuardrails(db, productId, records)
 
   const decisionRecords = records.filter(
     (record): record is ConceptRecord & { data: Record<string, unknown> } =>
@@ -55,7 +34,7 @@ export async function importConcept(
   )
 
   const decisionIds = new Map<string, number>()
-  for (const { data } of decisionRecords) {
+  for (const { data, body } of decisionRecords) {
     const recordId = String(data.id)
     const goalId = goalIds.get(String(data.goal))
     if (goalId === undefined) {
@@ -71,6 +50,7 @@ export async function importConcept(
         owner: String(data.owner),
         status: data.status as schema.DecisionStatus,
         goalId,
+        body,
       })
       .onConflictDoUpdate({
         target: [schema.decisions.productId, schema.decisions.recordId],
@@ -80,6 +60,7 @@ export async function importConcept(
           owner: String(data.owner),
           status: data.status as schema.DecisionStatus,
           goalId,
+          body,
         },
       })
       .returning({ id: schema.decisions.id })
@@ -106,6 +87,11 @@ export async function importConcept(
     for (const evidenceId of evidence as string[]) {
       const insightId = insightIds.get(evidenceId)
       const factId = factIds.get(evidenceId)
+      if (insightId === undefined && factId === undefined) {
+        throw new Error(
+          `decision ${recordId}: evidence "${evidenceId}" not found`,
+        )
+      }
       await db.insert(schema.decisionEvidence).values({
         decisionId,
         insightId: insightId ?? null,
@@ -115,35 +101,113 @@ export async function importConcept(
   }
 }
 
-async function upsertSimple<
-  TTable extends
-    | typeof schema.goals
-    | typeof schema.insights
-    | typeof schema.facts
-    | typeof schema.guardrails,
->(
+async function upsertGoals(
   db: ConceptDb,
-  table: TTable,
   productId: number,
   records: ConceptRecord[],
-  folder: ConceptRecord['folder'],
-  toFields: (data: Record<string, unknown>) => Record<string, unknown>,
 ) {
   const ids = new Map<string, number>()
   for (const record of records) {
-    if (record.folder !== folder || record.data == null) continue
-    const recordId = String(record.data.id)
-    // Drizzle can't narrow an insert/update shape from a union of table
-    // types; the columns are the same shape at runtime for every caller.
+    if (record.folder !== 'goals' || record.data == null) continue
+    const { data, body } = record
+    const recordId = String(data.id)
+    const fields = {
+      title: String(data.title),
+      metric: String(data.metric),
+      source: String(data.source),
+      body,
+    }
     const [row] = await db
-      .insert(table)
-      .values({ productId, recordId, ...toFields(record.data) } as never)
+      .insert(schema.goals)
+      .values({ productId, recordId, ...fields })
       .onConflictDoUpdate({
-        target: [table.productId, table.recordId],
-        set: toFields(record.data) as never,
+        target: [schema.goals.productId, schema.goals.recordId],
+        set: fields,
       })
-      .returning({ id: table.id })
+      .returning({ id: schema.goals.id })
     ids.set(recordId, row.id)
   }
   return ids
+}
+
+async function upsertInsights(
+  db: ConceptDb,
+  productId: number,
+  records: ConceptRecord[],
+) {
+  const ids = new Map<string, number>()
+  for (const record of records) {
+    if (record.folder !== 'insights' || record.data == null) continue
+    const { data, body } = record
+    const recordId = String(data.id)
+    const fields = {
+      title: String(data.title),
+      date: String(data.date),
+      source: String(data.source),
+      status: (data.status as schema.InsightStatus | undefined) ?? null,
+      body,
+    }
+    const [row] = await db
+      .insert(schema.insights)
+      .values({ productId, recordId, ...fields })
+      .onConflictDoUpdate({
+        target: [schema.insights.productId, schema.insights.recordId],
+        set: fields,
+      })
+      .returning({ id: schema.insights.id })
+    ids.set(recordId, row.id)
+  }
+  return ids
+}
+
+async function upsertFacts(
+  db: ConceptDb,
+  productId: number,
+  records: ConceptRecord[],
+) {
+  const ids = new Map<string, number>()
+  for (const record of records) {
+    if (record.folder !== 'facts' || record.data == null) continue
+    const { data, body } = record
+    const recordId = String(data.id)
+    const fields = {
+      title: String(data.title),
+      source: String(data.source),
+      body,
+    }
+    const [row] = await db
+      .insert(schema.facts)
+      .values({ productId, recordId, ...fields })
+      .onConflictDoUpdate({
+        target: [schema.facts.productId, schema.facts.recordId],
+        set: fields,
+      })
+      .returning({ id: schema.facts.id })
+    ids.set(recordId, row.id)
+  }
+  return ids
+}
+
+async function upsertGuardrails(
+  db: ConceptDb,
+  productId: number,
+  records: ConceptRecord[],
+) {
+  for (const record of records) {
+    if (record.folder !== 'guardrails' || record.data == null) continue
+    const { data, body } = record
+    const recordId = String(data.id)
+    const fields = {
+      title: String(data.title),
+      enforcedBy: String(data.enforced_by),
+      body,
+    }
+    await db
+      .insert(schema.guardrails)
+      .values({ productId, recordId, ...fields })
+      .onConflictDoUpdate({
+        target: [schema.guardrails.productId, schema.guardrails.recordId],
+        set: fields,
+      })
+  }
 }

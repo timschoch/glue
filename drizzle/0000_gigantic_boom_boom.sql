@@ -2,7 +2,9 @@ CREATE TABLE "decision_evidence" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "decision_evidence_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"decision_id" integer NOT NULL,
 	"insight_id" integer,
-	"fact_id" integer
+	"fact_id" integer,
+	CONSTRAINT "decision_evidence_decision_id_insight_id_fact_id_unique" UNIQUE("decision_id","insight_id","fact_id"),
+	CONSTRAINT "decision_evidence_exactly_one_check" CHECK (num_nonnulls("decision_evidence"."insight_id", "decision_evidence"."fact_id") = 1)
 );
 --> statement-breakpoint
 CREATE TABLE "decisions" (
@@ -15,7 +17,9 @@ CREATE TABLE "decisions" (
 	"status" text NOT NULL,
 	"goal_id" integer NOT NULL,
 	"superseded_by_id" integer,
-	CONSTRAINT "decisions_product_id_record_id_unique" UNIQUE("product_id","record_id")
+	"body" text DEFAULT '' NOT NULL,
+	CONSTRAINT "decisions_product_id_record_id_unique" UNIQUE("product_id","record_id"),
+	CONSTRAINT "decisions_status_check" CHECK ("decisions"."status" in ('proposed', 'accepted', 'superseded'))
 );
 --> statement-breakpoint
 CREATE TABLE "facts" (
@@ -24,6 +28,7 @@ CREATE TABLE "facts" (
 	"record_id" text NOT NULL,
 	"title" text NOT NULL,
 	"source" text NOT NULL,
+	"body" text DEFAULT '' NOT NULL,
 	CONSTRAINT "facts_product_id_record_id_unique" UNIQUE("product_id","record_id")
 );
 --> statement-breakpoint
@@ -34,6 +39,7 @@ CREATE TABLE "goals" (
 	"title" text NOT NULL,
 	"metric" text NOT NULL,
 	"source" text NOT NULL,
+	"body" text DEFAULT '' NOT NULL,
 	CONSTRAINT "goals_product_id_record_id_unique" UNIQUE("product_id","record_id")
 );
 --> statement-breakpoint
@@ -43,6 +49,7 @@ CREATE TABLE "guardrails" (
 	"record_id" text NOT NULL,
 	"title" text NOT NULL,
 	"enforced_by" text NOT NULL,
+	"body" text DEFAULT '' NOT NULL,
 	CONSTRAINT "guardrails_product_id_record_id_unique" UNIQUE("product_id","record_id")
 );
 --> statement-breakpoint
@@ -53,6 +60,8 @@ CREATE TABLE "insights" (
 	"title" text NOT NULL,
 	"date" date NOT NULL,
 	"source" text NOT NULL,
+	"status" text,
+	"body" text DEFAULT '' NOT NULL,
 	CONSTRAINT "insights_product_id_record_id_unique" UNIQUE("product_id","record_id")
 );
 --> statement-breakpoint
