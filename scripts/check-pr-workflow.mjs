@@ -1,15 +1,11 @@
 // PR gate for the run rules in CLAUDE.md. Runs as a `ci` step in
-// .skilly/verify.json. Checks the PR body and the changed files:
+// .skilly/verify.json, via check-pr-workflow.ts: it loads Decisions from
+// the database and calls `problems` below. Checks the PR body and the
+// changed files:
 //   - an issue link: "Closes #12", "Fixes #12" or "Refs #12"
 //   - a "Decision:" line naming the Decision the change implements
 //   - source changes come with test changes, or a "No-test-reason:" line
 // Outside a pull_request build it passes.
-import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { loadConcept } from './check-concept.mjs'
-
-const BOT_PREFIXES = ['dependabot/', 'renovate/', 'release-please--', 'skilly/']
 const SOURCE = /^src\/.*\.(ts|tsx)$/
 const GENERATED = /(^|\/)routeTree\.gen\.ts$/
 const TEST = /\.(test|spec)\.(ts|tsx|mjs|js)$|^e2e\//
@@ -64,40 +60,3 @@ export function problems({ body, files, decisions }) {
   }
   return found
 }
-
-function main() {
-  if (
-    process.env.GITHUB_EVENT_NAME !== 'pull_request' ||
-    !process.env.GITHUB_EVENT_PATH
-  )
-    return
-  const { pull_request: pr } = JSON.parse(
-    readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'),
-  )
-  if (BOT_PREFIXES.some((prefix) => pr.head.ref.startsWith(prefix))) return
-  const files = execFileSync(
-    'git',
-    ['diff', '--name-only', `${pr.base.sha}...${pr.head.sha}`],
-    {
-      encoding: 'utf8',
-    },
-  )
-    .split('\n')
-    .filter(Boolean)
-  const decisions = new Map(
-    loadConcept(join(process.cwd(), 'concept'))
-      .filter((record) => record.folder === 'decisions' && record.data?.id)
-      .map((record) => [record.data.id, record.data]),
-  )
-  const found = problems({ body: pr.body ?? '', files, decisions })
-  if (found.length === 0) return
-  console.error(
-    [
-      'PR workflow check failed. Fix the PR body or the change:',
-      ...found.map((line) => `  - ${line}`),
-    ].join('\n'),
-  )
-  process.exit(1)
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) main()
