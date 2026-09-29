@@ -1,0 +1,14 @@
+name: skilly sync
+on:
+  schedule: [{ cron: '8 3 * * *' }]
+  workflow_dispatch: {}
+  pull_request: {}
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  skilly:
+    uses: timschoch/skilly/.github/workflows/sync.yml@main
+    secrets:
+      SKILLY_APP_ID: ${{ secrets.SKILLY_APP_ID }}
+      SKILLY_APP_PRIVATE_KEY: ${{ secrets.SKILLY_APP_PRIVATE_KEY }}

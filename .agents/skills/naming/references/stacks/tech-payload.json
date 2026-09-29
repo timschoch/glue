@@ -1,0 +1,15 @@
+{
+  "$comment": "Naming defaults for consumers that pick the tech-payload bundle. Merged after references/naming.json, before .skilly/naming.json. Keys carry the payload/ prefix.",
+  "allow": {
+    "payload/migrations": {
+      "paths": ["(^|/)migrations/\\d{8}_\\d{6}(_[\\w-]+)?\\.(ts|js)$"],
+      "rules": "*",
+      "why": "payload migrate:create writes these files and picks their names."
+    },
+    "payload/generated": {
+      "paths": ["(^|/)payload-types\\.ts$", "(^|/)\\(payload\\)/admin/importMap\\.js$"],
+      "rules": "*",
+      "why": "payload generate:types and generate:importmap write these files."
+    }
+  }
+}

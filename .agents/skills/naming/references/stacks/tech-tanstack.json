@@ -1,0 +1,10 @@
+{
+  "$comment": "Naming defaults for consumers that pick the tech-tanstack bundle. Merged after references/naming.json, before .skilly/naming.json. Keys carry the tanstack/ prefix.",
+  "allow": {
+    "tanstack/route-tree": {
+      "paths": ["(^|/)routeTree\\.gen\\.ts$"],
+      "rules": "*",
+      "why": "The TanStack Router plugin writes routeTree.gen.ts and picks its name."
+    }
+  }
+}

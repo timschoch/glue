@@ -1,0 +1,17 @@
+{
+  "tier": "product",
+  "bundles": [
+    "workflow",
+    "tech-tanstack",
+    "tech-typescript",
+    "tech-react",
+    "tech-neon",
+    "tech-drizzle",
+    "tech-better-auth",
+    "tech-posthog",
+    "tech-vercel"
+  ],
+  "review": {
+    "bots": []
+  }
+}
