@@ -1,0 +1,97 @@
+/* Hallmark · component: record text · genre: modern-minimal · theme: custom (dense, calm, text first)
+ * Markdown from the record, as prose.
+ */
+
+.body {
+  max-width: var(--measure-prose);
+  line-height: var(--leading-prose);
+  overflow-wrap: anywhere;
+
+  & > * {
+    margin-block: 0;
+  }
+
+  & > * + * {
+    margin-block-start: var(--space-sm);
+  }
+
+  & :is(h2, h3, h4, h5, h6) {
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: 600;
+    line-height: var(--leading-ui);
+    text-wrap: balance;
+  }
+
+  & > * + :is(h2, h3, h4, h5, h6) {
+    margin-block-start: var(--space-lg);
+  }
+
+  & :is(ul, ol) {
+    padding-inline-start: var(--space-lg);
+  }
+
+  & li + li {
+    margin-block-start: var(--space-2xs);
+  }
+
+  & code {
+    padding-inline: var(--space-2xs);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    background: var(--color-paper-sunken);
+    border-radius: var(--radius-control);
+  }
+
+  & pre {
+    padding: var(--space-sm);
+    overflow-x: auto;
+    line-height: var(--leading-ui);
+    background: var(--color-paper-sunken);
+    border-radius: var(--radius-control);
+
+    & code {
+      padding: 0;
+      background: none;
+    }
+  }
+
+  & blockquote {
+    margin-inline: 0;
+    padding-inline-start: var(--space-md);
+    color: var(--color-ink-soft);
+    border-inline-start: 2px solid var(--color-rule-strong);
+  }
+
+  /* A wide table scrolls in its own box, the page does not. */
+  & table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    font-size: var(--text-sm);
+    line-height: var(--leading-ui);
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+
+  & :is(th, td) {
+    padding: var(--space-xs) var(--space-sm);
+    text-align: start;
+    border-block-end: 1px solid var(--color-rule);
+  }
+
+  & th {
+    font-weight: 500;
+    color: var(--color-muted);
+  }
+
+  & hr {
+    border: 0;
+    border-block-start: 1px solid var(--color-rule);
+  }
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-ink-soft);
+}

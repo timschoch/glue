@@ -1,0 +1,26 @@
+/* Hallmark · component: status · genre: modern-minimal · theme: custom (dense, calm, text first)
+ * A square and a word, so the status does not depend on colour.
+ */
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--color-ink-soft);
+
+  &::before {
+    content: '';
+    width: var(--space-xs);
+    height: var(--space-xs);
+    border: 1px solid currentColor;
+  }
+
+  &[data-status='accepted']::before {
+    background: currentColor;
+  }
+
+  &[data-status='superseded'] {
+    color: var(--color-muted);
+    text-decoration: line-through;
+  }
+}

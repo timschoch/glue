@@ -9,50 +9,135 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as SignedInRouteImport } from './routes/_signed-in'
+import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as SignUpRouteImport } from './routes/sign-up'
+import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
+import { Route as SignedInConceptRecordIdRouteImport } from './routes/_signed-in/concept.$recordId'
 
-const IndexRoute = IndexRouteImport.update({
+const SignedInRoute = SignedInRouteImport.update({
+  id: '/_signed-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignUpRoute = SignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignedInIndexRoute = SignedInIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInConceptRecordIdRoute = SignedInConceptRecordIdRouteImport.update({
+  id: '/concept/$recordId',
+  path: '/concept/$recordId',
+  getParentRoute: () => SignedInRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof SignedInIndexRoute
+  '/sign-in': typeof SignInRoute
+  '/sign-up': typeof SignUpRoute
+  '/concept/$recordId': typeof SignedInConceptRecordIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/sign-in': typeof SignInRoute
+  '/sign-up': typeof SignUpRoute
+  '/': typeof SignedInIndexRoute
+  '/concept/$recordId': typeof SignedInConceptRecordIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_signed-in': typeof SignedInRouteWithChildren
+  '/sign-in': typeof SignInRoute
+  '/sign-up': typeof SignUpRoute
+  '/_signed-in/': typeof SignedInIndexRoute
+  '/_signed-in/concept/$recordId': typeof SignedInConceptRecordIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/sign-in' | '/sign-up' | '/concept/$recordId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/sign-in' | '/sign-up' | '/' | '/concept/$recordId'
+  id:
+    | '__root__'
+    | '/_signed-in'
+    | '/sign-in'
+    | '/sign-up'
+    | '/_signed-in/'
+    | '/_signed-in/concept/$recordId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  SignedInRoute: typeof SignedInRouteWithChildren
+  SignInRoute: typeof SignInRoute
+  SignUpRoute: typeof SignUpRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_signed-in': {
+      id: '/_signed-in'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof SignedInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-up': {
+      id: '/sign-up'
+      path: '/sign-up'
+      fullPath: '/sign-up'
+      preLoaderRoute: typeof SignUpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_signed-in/': {
+      id: '/_signed-in/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof SignedInIndexRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/concept/$recordId': {
+      id: '/_signed-in/concept/$recordId'
+      path: '/concept/$recordId'
+      fullPath: '/concept/$recordId'
+      preLoaderRoute: typeof SignedInConceptRecordIdRouteImport
+      parentRoute: typeof SignedInRoute
     }
   }
 }
 
+interface SignedInRouteChildren {
+  SignedInIndexRoute: typeof SignedInIndexRoute
+  SignedInConceptRecordIdRoute: typeof SignedInConceptRecordIdRoute
+}
+
+const SignedInRouteChildren: SignedInRouteChildren = {
+  SignedInIndexRoute: SignedInIndexRoute,
+  SignedInConceptRecordIdRoute: SignedInConceptRecordIdRoute,
+}
+
+const SignedInRouteWithChildren = SignedInRoute._addFileChildren(
+  SignedInRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  SignedInRoute: SignedInRouteWithChildren,
+  SignInRoute: SignInRoute,
+  SignUpRoute: SignUpRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
