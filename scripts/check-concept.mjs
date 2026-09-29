@@ -43,7 +43,8 @@ function shouldQuote(value) {
 function parseFrontmatter(raw) {
   const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
   if (!match) return null
-  const [, frontmatter] = match
+  const [, frontmatter, rest] = match
+  const body = rest.trim()
   const data = {}
   const errors = []
   let listKey = null
@@ -75,7 +76,7 @@ function parseFrontmatter(raw) {
       listKey = null
     }
   }
-  return { data, errors }
+  return { data, errors, body }
 }
 
 export function loadConcept(root) {
@@ -98,6 +99,7 @@ export function loadConcept(root) {
         path: `${folder}/${file}`,
         data: parsed?.data ?? null,
         errors: parsed?.errors ?? [],
+        body: parsed?.body ?? '',
       })
     }
   }

@@ -14,7 +14,10 @@
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check .",
     "prepare": "husky",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "import-concept": "tsx scripts/import-concept.ts"
   },
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",
@@ -22,13 +25,16 @@
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@mantine/core": "^9.6.3",
     "@mantine/hooks": "^9.6.3",
+    "@neondatabase/serverless": "^1.1.0",
     "@tanstack/react-router": "latest",
     "@tanstack/react-start": "latest",
+    "drizzle-orm": "^0.45.3",
     "nitro": "3.0.260610-beta",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tanstack/eslint-config": "latest",
     "@tanstack/router-cli": "^1.132.0",
     "@types/culori": "^4.0.1",
@@ -37,6 +43,7 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.1",
     "culori": "^4.0.2",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9.20.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
@@ -44,6 +51,7 @@
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
     "prettier": "^3.8.1",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
     "vitest": "^5.0.2"
