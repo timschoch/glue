@@ -145,6 +145,9 @@ check "checks are shaped" "verify COMPLETED FAILURE" \
 
 check "PR author surfaced" "tim" "$(jq -r '.author' <<<"$open_snapshot")"
 
+check "head SHA surfaced for --match-head-commit" "abc1234" \
+  "$(jq -r '.headSha' <<<"$open_snapshot")"
+
 check "merged PR yields state MERGED" "MERGED" \
   "$(jq -r '.state' <<<"$merged_snapshot")"
 

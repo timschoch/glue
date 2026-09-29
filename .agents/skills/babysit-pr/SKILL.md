@@ -2,7 +2,7 @@
 name: babysit-pr
 description: 'Watch a PR until it is merge-ready: CI, review threads, fix-push loop. Use for "babysit", "watch the PR", "get it green".'
 disable-model-invocation: true
-argument-hint: <pr-number|url> [--merge]
+argument-hint: <pr-number|url> [--merge[=squash|merge]]
 ---
 
 Hold one PR until it is merge-ready: poll, classify, fix, push, poll again. Terminal states are **merged**, **closed**, **needs-user**. Nothing else ends the loop, not a push, not a green run, not a report.
@@ -21,11 +21,18 @@ Each pass:
 ## Rules
 
 - **Published and fresh only.** Act on review items whose `submittedAt` or `createdAt` is newer than `lastPushAt`. `pr-state.sh` drops `PENDING` reviews: a reviewer still drafting has not spoken yet. An item answered before the last push stays answered.
-- **Classify a failure, then act on the class.** `classify-failure.sh` prints `flaky` or `real` from log evidence, then the first 20 failing lines. `real`: patch the branch. `flaky`: rerun it with `gh run rerun <run-id> --failed`, budget **3 reruns per failing check**; budget spent means needs-user. While a failure reads `flaky`, leave tests, build scripts, CI config and dependency pins as they are. A patch that only silences infra hides the signal for everyone downstream.
+- **Classify a failure, then act on the class.** `classify-failure.sh` prints `flaky` or `real` from log evidence, then the first 20 failing lines. `real`: patch the branch. `flaky`: rerun it with `gh run rerun <run-id> --failed`. While a failure reads `flaky`, leave tests, build scripts, CI config and dependency pins as they are. A patch that only silences infra hides the signal for everyone downstream.
+- **CI budget: 3 attempts per PR.** An attempt is one fix push or one rerun made for a red check; a review-fix push is none. It fails when the checks settle red again.
+  - Third failed attempt: stop at needs-user, even with ideas left.
+  - Tell the user the failing checks, what each attempt changed, and the first 20 failing lines.
 - **Humans get the user's words, not yours.** A human reviewer is any `reviews[].author` that is neither the PR author nor flagged `isBot`. Surface their item to the user with a suggested reply, and wait for explicit confirmation before posting anything to GitHub. Bot items you act on and resolve yourself.
 - **Resolve what you fixed.** Once the fix is pushed: `bash scripts/resolve-thread.sh <threadId>`, using `threads[].id` from the snapshot.
-- **Merge is the user's call.** The sign-off rule (`.claude/rules/workflow-sign-off.md`): staged means done, committed means signed off. Stop at green and report. Run `gh pr merge <pr> --auto --squash` only when invoked with `--merge`, or when the user says merge in this session.
-- **Green is a milestone, not an exit.** No failing check, `mergeable: MERGEABLE`, no unresolved thread: report "ready to merge", then keep polling. Late review items still land while the PR is open.
+- **Merge is the user's call.** The sign-off rule (`.claude/rules/workflow-sign-off.md`): staged means done, committed means signed off. Merge mode starts only with `--merge`, or when the user says merge in this session. Without it, stop at green and report.
+- **Merge mode merges at green, never before.** Run `gh pr merge <pr> --squash --match-head-commit <headSha>`, `--merge` in place of `--squash` for `--merge=merge`. Then take one more snapshot: `MERGED` ends the loop.
+  - `headSha` comes from the green snapshot: a push that lands after it blocks the merge.
+  - Never `--auto`: on a repo without required checks it merges at once, before CI settles.
+  - Never `--delete-branch`.
+- **Green is a milestone, not an exit.** No failing check, `mergeable: MERGEABLE`, no unresolved thread: report "ready to merge", then keep polling. Late review items still land while the PR is open. Merge mode merges here instead.
 
 ## Reviewer set
 
@@ -51,4 +58,4 @@ Babysit-pr: fixes review thread <thread-url>
 
 ## Report
 
-Close every pass with: head SHA, check tally, mergeability, what was pushed, reruns spent, what is still open.
+Close every pass with: head SHA, check tally, mergeability, what was pushed, CI attempts spent out of 3, what is still open.

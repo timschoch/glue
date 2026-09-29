@@ -56,9 +56,18 @@ A wrong base produces a *smaller* diff, and a small diff is what a review report
 | `c`    | Commit — invoke the `/commit` skill (stage relevant files, write a conventional commit message, create the commit)                 |
 | `p`    | Push — `git push origin <current-branch>`                                                                                          |
 | `pr`   | Create PR — `gh pr create` following [PR creation protocol](#pr-creation-protocol) (title + body, `--base "$base"`)                |
-| `m`    | Merge — `gh pr merge --squash`, **except** an `epic/*` branch merging into the trunk, which uses `gh pr merge --merge`. Nothing more — do NOT add `--delete-branch`. Then offer a Slack summary (see below) |
+| `m`    | Merge — babysit the PR until it can merge, per [Merge protocol](#merge-protocol). Then offer a Slack summary (see below) |
 
 Squash is right for a ticket branch: it dies after merge. An epic merges with a merge commit — squashing would collapse the per-ticket commits that were the reason to open an epic, and release-please reads those commit messages to build the changelog.
+
+## Merge protocol
+
+Read `../babysit-pr/SKILL.md` next to this skill in full and follow it in merge mode. Its CI budget, merge command and terminal states apply unchanged.
+
+- Ticket branch: `--merge`, a squash merge.
+- `epic/*` branch into the trunk: `--merge=merge`, a merge commit.
+- `babysit-pr` not installed: stop, tell the user to run `npx -y github:timschoch/skilly add babysit-pr`. Never fall back to a bare `gh pr merge`.
+- Loop ends at needs-user or closed: the `m` step failed. Stop and pass its report on to the user.
 
 ## PR creation protocol
 

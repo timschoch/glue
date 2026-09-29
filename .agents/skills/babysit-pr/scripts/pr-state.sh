@@ -73,6 +73,7 @@ jq -n --argjson view "$view" --argjson threads "$threads" \
     number:           $view.number,
     author:           ($view.author.login // ""),
     state:            ($view.state // ""),
+    headSha:          ($view.headRefOid // ""),
     mergeable:        ($view.mergeable // ""),
     mergeStateStatus: ($view.mergeStateStatus // ""),
     reviewDecision:   ($view.reviewDecision // ""),
