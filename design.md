@@ -13,6 +13,7 @@ The locked design system for Glue. Every screen uses these tokens.
 - Dense, calm, text first. Typography carries the page. No illustrations, no gradients, no shadows.
 - Paper and ink: warm neutral surfaces, near-black text, one blue-black accent.
 - The accent marks what you can follow: links, record ids, the focus ring. Keep it below 5% of the screen.
+- Red is for an error only: the text of the error and the border of its field.
 - Light scheme only.
 
 ## Tokens
@@ -42,6 +43,16 @@ Change a value here, in [src/theme.ts](src/theme.ts) and in [src/styles.css](src
   --ramp-accent-7: oklch(44% 0.16 262);
   --ramp-accent-8: oklch(37% 0.14 262);
   --ramp-accent-9: oklch(29% 0.11 262);
+  --ramp-danger-0: oklch(97% 0.012 25);
+  --ramp-danger-1: oklch(93.5% 0.028 25);
+  --ramp-danger-2: oklch(88% 0.052 25);
+  --ramp-danger-3: oklch(80% 0.085 25);
+  --ramp-danger-4: oklch(70% 0.12 25);
+  --ramp-danger-5: oklch(60% 0.15 25);
+  --ramp-danger-6: oklch(52% 0.17 25);
+  --ramp-danger-7: oklch(44% 0.16 25);
+  --ramp-danger-8: oklch(37% 0.14 25);
+  --ramp-danger-9: oklch(29% 0.11 25);
 
   /* Colour roles: components use these, not the ramps */
   --color-paper: var(--ramp-neutral-1);
@@ -57,6 +68,7 @@ Change a value here, in [src/theme.ts](src/theme.ts) and in [src/styles.css](src
   --color-accent-wash: var(--ramp-accent-1);
   --color-accent-ink: var(--ramp-neutral-0);
   --color-focus: var(--ramp-accent-7);
+  --color-danger: var(--ramp-danger-7);
 
   /* Type */
   --font-display:
@@ -104,13 +116,14 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 | ---------------- | ------------- | --------------------------------------------------- |
 | `--font-display` | Newsreader    | Page headings and record titles. Weight 600, roman. |
 | `--font-body`    | IBM Plex Sans | All other text. Weight 400, labels 500.             |
-| `--font-mono`    | IBM Plex Mono | Record ids only, such as `D5`. Weight 500.          |
+| `--font-mono`    | IBM Plex Mono | Record ids, such as `D5`, and code. Weight 500.     |
 
 - Five sizes. `--text-md` is the body size. Record titles use `--text-lg`, the page heading uses `--text-xl`.
 - `--text-sm` for metadata and labels. `--text-xs` only for a short note, never for a sentence that people must read.
-- Headings: `--leading-title`. Labels, metadata and lists: `--leading-ui`. Paragraphs: `--leading-prose`.
+- Headings, labels, metadata and lists: `--leading-ui`. Paragraphs: `--leading-prose`.
+- `--leading-title` is only for large text that stays on one line, such as the name of the app. A record title wraps, so it is not such text.
 - Headings are never italic. Italic is for emphasis in a paragraph.
-- A long title wraps: `overflow-wrap: anywhere` and `min-width: 0`. Do not truncate a title, the title is the content.
+- A long title wraps: `overflow-wrap: anywhere`, `min-width: 0` and `text-wrap: balance`. Do not truncate a title, the title is the content.
 - Paragraphs are `--measure-prose` wide at most.
 - Numbers in a column: `font-variant-numeric: tabular-nums`.
 - Dates are ISO, `2026-09-29`, in a `<time>` element.
@@ -132,6 +145,7 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 | `--color-accent-wash`   | Text selection, selected row                                  |
 | `--color-accent-ink`    | Text on an accent background                                  |
 | `--color-focus`         | Focus ring, the same step as the Mantine focus ring           |
+| `--color-danger`        | Text of an error, border of a field with an error             |
 
 - Every text role has a contrast of 4.5:1 or more on `--color-paper` and `--color-paper-raised`.
 - Components use the roles. A colour or font value outside the token block is an error: add a token first.
@@ -154,11 +168,37 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 ## Component voice
 
 - Record reference: the id in `--font-mono` and `--color-accent`, then the title in `--color-ink`, both in one link. The id does not wrap. The underline shows on hover.
-- Status: a small square plus the word. Accepted is a filled square, proposed is an outline, superseded is an outline with the word struck through.
+- Status: a small square plus the word. Accepted is a filled square, proposed and draft are an outline, superseded is an outline with the word struck through.
 - Labels are sentence case and have no colon: `Goal`, `Evidence`. No uppercase labels with wide letter spacing.
+- Each value has its label, also in a line of metadata: `Status`, `Date`, `Owner`.
+- A list without records says so in one sentence, such as `No evidence yet`. Do not hide the label.
 - A link looks like a link, a button looks like a button. One primary button per screen at most.
 - Controls have `--radius-control`.
 - Text is plain and states facts. No marketing words, no exclamation marks, no made-up numbers.
+
+## Navigation
+
+- The page frame is one bar: the name of the app links to the overview, then the account and the sign-out button. It does not stick to the viewport.
+- The first link of a page skips to the content. It shows when it has the focus.
+- The overview links to its sections, each with the number of its records.
+- A record page starts with a breadcrumb: the overview, then the section of the record.
+- A link in text has `--color-accent` and an underline. A record reference has the underline on hover only, its id shows that it is a link.
+- The hover look is inside `@media (hover: hover)`. The pressed look is outside of it.
+- A link or button is 24 px high or more.
+
+## Forms
+
+- One column. The label is above its field. A hint is between the label and the field.
+- The text in a field is `--text-md`, so a phone does not zoom in.
+- The checks run on submit. Each bad field gets its error below it and the first bad field gets the focus. An error says how to fix the field.
+- An error of the whole form is above the fields, in `--color-danger`.
+- The button stays active until the request starts. During the request it is disabled and says what it does: `Signing in`.
+
+## States
+
+- Loading: one line of `--color-muted` text. No spinner, no skeleton.
+- Error: what did not load, how to go on, and a button that loads again.
+- Empty: what belongs in the place, in one or two sentences.
 
 ## Motion
 
@@ -180,15 +220,18 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 | `spacing`                                                  | `--space-*`                                    |
 | `radius.sm`, `radius.md`                                   | `--radius-control`, `--radius-card`            |
 | `--mantine-color-body`                                     | `--color-paper`                                |
+| `colors.red`, `--mantine-color-error`                      | `--ramp-danger-*`, `--color-danger`            |
 
 - In a CSS Module use the tokens from this file, not the `--mantine-*` variables.
 - In a Mantine prop use the theme key: `c="dimmed"`, `fz="sm"`, `gap="xs"`.
+- Buttons: `filled` for the one primary action, `default` for the others.
+- Do not use `autoContrast`, `darken` or `lighten` on a theme colour: they cannot read `oklch()`.
 
 ## Open
 
 These parts have no design. Design them and add them here before you use them.
 
 - Dark scheme
-- Colours for error, warning and success
-- Navigation between records
-- Forms and tables
+- Colours for warning and success
+- Tables outside the text of a record
+- Fields other than text, email and password

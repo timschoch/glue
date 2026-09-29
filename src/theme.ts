@@ -29,6 +29,18 @@ export const tokens = {
       'oklch(37% 0.14 262)',
       'oklch(29% 0.11 262)',
     ],
+    danger: [
+      'oklch(97% 0.012 25)',
+      'oklch(93.5% 0.028 25)',
+      'oklch(88% 0.052 25)',
+      'oklch(80% 0.085 25)',
+      'oklch(70% 0.12 25)',
+      'oklch(60% 0.15 25)',
+      'oklch(52% 0.17 25)',
+      'oklch(44% 0.16 25)',
+      'oklch(37% 0.14 25)',
+      'oklch(29% 0.11 25)',
+    ],
   },
   color: {
     paper: 'var(--ramp-neutral-1)',
@@ -44,6 +56,7 @@ export const tokens = {
     'accent-wash': 'var(--ramp-accent-1)',
     'accent-ink': 'var(--ramp-neutral-0)',
     focus: 'var(--ramp-accent-7)',
+    danger: 'var(--ramp-danger-7)',
   },
   font: {
     display:
@@ -96,7 +109,7 @@ const { ramp, font, text, leading, space, radius } = tokens
 export const theme = createTheme({
   primaryColor: 'accent',
   primaryShade: 7,
-  colors: { accent: ramp.accent, gray: ramp.neutral },
+  colors: { accent: ramp.accent, gray: ramp.neutral, red: ramp.danger },
   white: ramp.neutral[0],
   black: ramp.neutral[9],
   fontFamily: font.body,
@@ -113,10 +126,11 @@ export const theme = createTheme({
   headings: {
     fontFamily: font.display,
     fontWeight: '600',
+    // A record title is a heading that wraps to three lines and more.
     sizes: {
-      h1: { fontSize: text.xl, lineHeight: leading.title },
-      h2: { fontSize: text.lg, lineHeight: leading.title },
-      h3: { fontSize: text.md, lineHeight: leading.title },
+      h1: { fontSize: text.xl, lineHeight: leading.ui },
+      h2: { fontSize: text.lg, lineHeight: leading.ui },
+      h3: { fontSize: text.md, lineHeight: leading.ui },
     },
   },
   spacing: space,
@@ -124,12 +138,13 @@ export const theme = createTheme({
   defaultRadius: 'sm',
 })
 
-// Mantine takes its page and placeholder colours from the colour roles.
+// Mantine takes its page, placeholder and error colours from the colour roles.
 export const cssVariablesResolver: CSSVariablesResolver = () => ({
   variables: {},
   light: {
     '--mantine-color-body': 'var(--color-paper)',
     '--mantine-color-placeholder': 'var(--color-muted)',
+    '--mantine-color-error': 'var(--color-danger)',
   },
   dark: {},
 })

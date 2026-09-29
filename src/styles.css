@@ -30,6 +30,16 @@
   --ramp-accent-7: oklch(44% 0.16 262);
   --ramp-accent-8: oklch(37% 0.14 262);
   --ramp-accent-9: oklch(29% 0.11 262);
+  --ramp-danger-0: oklch(97% 0.012 25);
+  --ramp-danger-1: oklch(93.5% 0.028 25);
+  --ramp-danger-2: oklch(88% 0.052 25);
+  --ramp-danger-3: oklch(80% 0.085 25);
+  --ramp-danger-4: oklch(70% 0.12 25);
+  --ramp-danger-5: oklch(60% 0.15 25);
+  --ramp-danger-6: oklch(52% 0.17 25);
+  --ramp-danger-7: oklch(44% 0.16 25);
+  --ramp-danger-8: oklch(37% 0.14 25);
+  --ramp-danger-9: oklch(29% 0.11 25);
 
   /* Colour roles: components use these, not the ramps */
   --color-paper: var(--ramp-neutral-1);
@@ -45,6 +55,7 @@
   --color-accent-wash: var(--ramp-accent-1);
   --color-accent-ink: var(--ramp-neutral-0);
   --color-focus: var(--ramp-accent-7);
+  --color-danger: var(--ramp-danger-7);
 
   /* Type */
   --font-display:
@@ -87,6 +98,24 @@
 html,
 body {
   overflow-x: clip;
+}
+
+/* A link in text. A component with its own link look sets a class. */
+a {
+  color: var(--color-accent);
+  text-decoration-thickness: from-font;
+  text-underline-offset: var(--space-3xs);
+  transition: color var(--duration-micro) var(--ease-out);
+
+  &:active {
+    color: var(--color-accent-strong);
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      color: var(--color-accent-strong);
+    }
+  }
 }
 
 ::selection {
