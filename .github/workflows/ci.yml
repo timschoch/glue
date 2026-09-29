@@ -4,7 +4,7 @@ name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, edited] # edited: the pr workflow step reads the PR body
   push:
     branches: [main] # rename if the default branch is not main
 

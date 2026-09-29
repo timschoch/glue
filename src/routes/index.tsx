@@ -8,7 +8,7 @@ function Home() {
     <Container size="sm" py="xl">
       <Title order={1}>Glue</Title>
       <Text c="dimmed" mt="sm">
-        The concept hub for any app: why it is built the way it is.
+        The concept hub for any product: why it is built the way it is.
       </Text>
     </Container>
   )

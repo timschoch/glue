@@ -1,6 +1,6 @@
 # Glue
 
-The concept hub for any app. It records WHY an app is built the way it is — one structured source of truth for product ownership, UX research, architecture and guardrails.
+The concept hub for any product: an app, a website, a service. It records WHY a product is built the way it is — one structured source of truth for product ownership, UX research, architecture and guardrails.
 
 Humans and agents read and maintain it. It takes in real data and decisions, and syncs with other tools or holds the data itself. Built to become a SaaS.
 
