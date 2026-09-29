@@ -63,6 +63,31 @@ test('a complete seed passes', () => {
   })
 })
 
+test('loadConcept returns the trimmed body after the frontmatter', () => {
+  withRoot((root) => {
+    seed(root)
+    const [record] = loadConcept(root).filter(
+      (candidate) => candidate.data?.id === 'G1',
+    )
+    assert.equal(record.body, 'Body text.')
+  })
+})
+
+test('loadConcept defaults body to "" when there is none', () => {
+  withRoot((root) => {
+    const dir = join(root, 'facts')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(
+      join(dir, 'F1-no-body.md'),
+      ['---', 'id: F1', 'title: No body.', 'source: test', '---', ''].join(
+        '\n',
+      ),
+    )
+    const [record] = loadConcept(root)
+    assert.equal(record.body, '')
+  })
+})
+
 test('a missing required field fails', () => {
   withRoot((root) => {
     seed(root)
