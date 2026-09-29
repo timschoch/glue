@@ -1,0 +1,110 @@
+/* Hallmark · genre: modern-minimal · theme: custom (dense, calm, text first) · macrostructure: Index-First
+ * The design system: ../design.md. The tokens below match it, src/theme.test.ts checks that.
+ */
+/* Hallmark · pre-emit critique: P4 H4 E4 S5 R5 V4 */
+
+@import '@fontsource-variable/newsreader/opsz.css';
+@import '@fontsource-variable/ibm-plex-sans/wght.css';
+@import '@fontsource-variable/ibm-plex-sans/wght-italic.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+:root {
+  /* Ramps: 0 is the lightest step, 9 the darkest */
+  --ramp-neutral-0: oklch(99.2% 0.004 85);
+  --ramp-neutral-1: oklch(97.6% 0.006 85);
+  --ramp-neutral-2: oklch(95.2% 0.008 85);
+  --ramp-neutral-3: oklch(89% 0.01 85);
+  --ramp-neutral-4: oklch(80% 0.012 85);
+  --ramp-neutral-5: oklch(62% 0.014 85);
+  --ramp-neutral-6: oklch(47% 0.014 85);
+  --ramp-neutral-7: oklch(36% 0.014 85);
+  --ramp-neutral-8: oklch(28% 0.012 85);
+  --ramp-neutral-9: oklch(21% 0.012 85);
+  --ramp-accent-0: oklch(97% 0.012 262);
+  --ramp-accent-1: oklch(93.5% 0.028 262);
+  --ramp-accent-2: oklch(88% 0.052 262);
+  --ramp-accent-3: oklch(80% 0.085 262);
+  --ramp-accent-4: oklch(70% 0.12 262);
+  --ramp-accent-5: oklch(60% 0.15 262);
+  --ramp-accent-6: oklch(52% 0.17 262);
+  --ramp-accent-7: oklch(44% 0.16 262);
+  --ramp-accent-8: oklch(37% 0.14 262);
+  --ramp-accent-9: oklch(29% 0.11 262);
+
+  /* Colour roles: components use these, not the ramps */
+  --color-paper: var(--ramp-neutral-1);
+  --color-paper-raised: var(--ramp-neutral-0);
+  --color-paper-sunken: var(--ramp-neutral-2);
+  --color-rule: var(--ramp-neutral-3);
+  --color-rule-strong: var(--ramp-neutral-5);
+  --color-muted: var(--ramp-neutral-6);
+  --color-ink-soft: var(--ramp-neutral-7);
+  --color-ink: var(--ramp-neutral-9);
+  --color-accent: var(--ramp-accent-7);
+  --color-accent-strong: var(--ramp-accent-8);
+  --color-accent-wash: var(--ramp-accent-1);
+  --color-accent-ink: var(--ramp-neutral-0);
+  --color-focus: var(--ramp-accent-7);
+
+  /* Type */
+  --font-display:
+    'Newsreader Variable', 'Iowan Old Style', 'Palatino Linotype', serif;
+  --font-body: 'IBM Plex Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5625rem;
+  --leading-title: 1.25;
+  --leading-ui: 1.4;
+  --leading-prose: 1.55;
+
+  /* Space, 4 pt grid */
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+
+  /* Shape and measure */
+  --radius-control: 0.25rem;
+  --radius-card: 0.375rem;
+  --measure-prose: 68ch;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-micro: 120ms;
+  --duration-short: 220ms;
+}
+
+/* clip, not hidden: hidden makes a scroll container and breaks sticky */
+html,
+body {
+  overflow-x: clip;
+}
+
+::selection {
+  background: var(--color-accent-wash);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

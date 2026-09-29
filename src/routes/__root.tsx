@@ -7,6 +7,7 @@ import {
 
 import mantineCss from '@mantine/core/styles.css?url'
 import appCss from '../styles.css?url'
+import { cssVariablesResolver, theme } from '../theme'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -44,7 +45,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <MantineProvider>{children}</MantineProvider>
+        <MantineProvider
+          theme={theme}
+          cssVariablesResolver={cssVariablesResolver}
+        >
+          {children}
+        </MantineProvider>
 
         <Scripts />
       </body>
