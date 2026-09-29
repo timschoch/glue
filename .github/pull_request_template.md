@@ -1,6 +1,8 @@
 Closes #
 
-Decision:
+Decision: D<n>
+
+<!-- The id of a Decision in concept/decisions/. A new Decision in this PR counts. -->
 
 ## What changes
 
