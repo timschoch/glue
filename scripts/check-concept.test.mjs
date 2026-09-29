@@ -20,7 +20,7 @@ function seed(root) {
   })
   write(root, 'facts', 'F1-cheapest-form.md', {
     id: 'F1',
-    title: 'Ring 0: the cheapest form wins.',
+    title: 'Ring 0, the cheapest form wins.',
     source: 'CLAUDE.md#build-concentric',
   })
   write(root, 'decisions', 'D1-concept-files.md', {
@@ -152,5 +152,87 @@ test('a superseded Decision without superseded_by fails', () => {
     })
     const found = problems(loadConcept(root))
     assert.ok(found.some((line) => /needs "superseded_by"/.test(line)))
+  })
+})
+
+test('a Decision reference of the wrong type fails, even when the id exists', () => {
+  withRoot((root) => {
+    seed(root)
+    write(root, 'guardrails', 'R1-budget.md', {
+      id: 'R1',
+      title: 'Budget 0.',
+      enforced_by: 'none yet',
+    })
+    write(root, 'decisions', 'D2-wrong-types.md', {
+      id: 'D2',
+      title: 'Wrong reference types',
+      date: '2026-09-01',
+      owner: 'Orchestrator',
+      status: 'superseded',
+      goal: 'D1',
+      evidence: ['R1'],
+      superseded_by: 'G1',
+    })
+    const found = problems(loadConcept(root))
+    assert.ok(
+      found.some((line) => /goal "D1" must be a Goal \(G\) id/.test(line)),
+    )
+    assert.ok(
+      found.some((line) =>
+        /evidence "R1" must be an Insight \(I\) or Fact \(F\) id/.test(line),
+      ),
+    )
+    assert.ok(
+      found.some((line) =>
+        /superseded_by "G1" must be a Decision \(D\) id/.test(line),
+      ),
+    )
+  })
+})
+
+test('every .md file in a record folder is checked, even a badly named one', () => {
+  withRoot((root) => {
+    seed(root)
+    write(root, 'decisions', 'd4-lowercase-id.md', {
+      id: 'd4',
+      title: 'Lowercase id and file name',
+      date: '2026-09-01',
+      owner: 'Orchestrator',
+      status: 'proposed',
+      goal: 'G1',
+      evidence: ['I1'],
+    })
+    const found = problems(loadConcept(root))
+    assert.ok(
+      found.some((line) =>
+        /d4-lowercase-id\.md.*does not match folder/.test(line),
+      ),
+    )
+  })
+})
+
+test('an unquoted value with ": " inside fails, real YAML parsers reject it', () => {
+  withRoot((root) => {
+    seed(root)
+    const dir = join(root, 'facts')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(
+      join(dir, 'F2-unquoted-colon.md'),
+      [
+        '---',
+        'id: F2',
+        'title: Ring 0: the cheapest form wins.',
+        'source: CLAUDE.md#build-concentric',
+        '---',
+        'Body text.',
+        '',
+      ].join('\n'),
+    )
+    const found = problems(loadConcept(root))
+    assert.ok(
+      found.some((line) =>
+        /F2-unquoted-colon\.md.*"title" must be quoted/.test(line),
+      ),
+    )
   })
 })

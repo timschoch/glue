@@ -4,7 +4,8 @@
 //     folder or file name
 //   - two records share an id
 //   - a Decision's goal, evidence or superseded_by points to an id that
-//     does not exist
+//     does not exist, or exists as the wrong record type
+//   - a frontmatter value needs quoting for a YAML parser to read it
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -31,11 +32,26 @@ function stripQuotes(value) {
   return value
 }
 
+function isQuoted(value) {
+  return (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  )
+}
+
+// A real YAML parser reads ": " inside an unquoted scalar as a nested
+// mapping and rejects it. Flag it here so any YAML parser can read these
+// files later.
+function needsQuoting(value) {
+  return !isQuoted(value) && value.includes(': ')
+}
+
 function parseFrontmatter(raw) {
   const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
   if (!match) return null
   const [, frontmatter] = match
   const data = {}
+  const errors = []
   let listKey = null
   for (const line of frontmatter.split('\n')) {
     if (!line.trim()) continue
@@ -58,11 +74,14 @@ function parseFrontmatter(raw) {
         .filter(Boolean)
       listKey = null
     } else {
+      if (needsQuoting(value.trim())) {
+        errors.push(`"${key}" must be quoted: the value contains ": ".`)
+      }
       data[key] = stripQuotes(value.trim())
       listKey = null
     }
   }
-  return data
+  return { data, errors }
 }
 
 export function loadConcept(root) {
@@ -71,19 +90,20 @@ export function loadConcept(root) {
     const dir = join(root, folder)
     let files
     try {
-      files = readdirSync(dir).filter((file) => /^[A-Z]\d+-.*\.md$/.test(file))
+      files = readdirSync(dir).filter((file) => file.endsWith('.md'))
     } catch {
       files = []
     }
     for (const file of files) {
       const raw = readFileSync(join(dir, file), 'utf8')
-      const data = parseFrontmatter(raw)
+      const parsed = parseFrontmatter(raw)
       records.push({
         folder,
         type,
         file,
         path: `${folder}/${file}`,
-        data,
+        data: parsed?.data ?? null,
+        errors: parsed?.errors ?? [],
       })
     }
   }
@@ -95,10 +115,13 @@ export function problems(records) {
   const idOwners = new Map()
 
   for (const record of records) {
-    const { path, file, type, data } = record
+    const { path, file, type, data, errors } = record
     if (!data) {
       found.push(`${path}: missing YAML frontmatter.`)
       continue
+    }
+    for (const error of errors) {
+      found.push(`${path}: ${error}`)
     }
     for (const field of type.required) {
       const value = data[field]
@@ -138,18 +161,32 @@ export function problems(records) {
     if (data.status === 'superseded' && !data.superseded_by) {
       found.push(`${path}: superseded Decision needs "superseded_by".`)
     }
-    if (data.goal && !idOwners.has(data.goal)) {
-      found.push(`${path}: goal "${data.goal}" does not exist.`)
+    if (data.goal) {
+      if (!idOwners.has(data.goal)) {
+        found.push(`${path}: goal "${data.goal}" does not exist.`)
+      } else if (data.goal[0] !== 'G') {
+        found.push(`${path}: goal "${data.goal}" must be a Goal (G) id.`)
+      }
     }
     for (const evidence of data.evidence ?? []) {
       if (!idOwners.has(evidence)) {
         found.push(`${path}: evidence "${evidence}" does not exist.`)
+      } else if (!['I', 'F'].includes(evidence[0])) {
+        found.push(
+          `${path}: evidence "${evidence}" must be an Insight (I) or Fact (F) id.`,
+        )
       }
     }
-    if (data.superseded_by && !idOwners.has(data.superseded_by)) {
-      found.push(
-        `${path}: superseded_by "${data.superseded_by}" does not exist.`,
-      )
+    if (data.superseded_by) {
+      if (!idOwners.has(data.superseded_by)) {
+        found.push(
+          `${path}: superseded_by "${data.superseded_by}" does not exist.`,
+        )
+      } else if (data.superseded_by[0] !== 'D') {
+        found.push(
+          `${path}: superseded_by "${data.superseded_by}" must be a Decision (D) id.`,
+        )
+      }
     }
   }
 
