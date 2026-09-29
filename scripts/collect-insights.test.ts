@@ -42,9 +42,9 @@ describe('toInsights', () => {
     ]
     const [insight] = toInsights(findings, existing)
     expect(insight.id).toBe('I2')
-    expect(insight.frontmatter.status).toBe('draft')
-    expect(insight.frontmatter.source).toBe(findings[0].source)
-    expect(insight.frontmatter.date).toBe('2026-09-29')
+    expect(insight.status).toBe('draft')
+    expect(insight.source).toBe(findings[0].source)
+    expect(insight.date).toBe('2026-09-29')
   })
 
   it('skips a finding whose source already exists', () => {
@@ -103,6 +103,24 @@ describe('extractFailLine', () => {
   it('returns null when the log has no failure line', () => {
     const log = 'verify\t2026-09-29T00:00:00Z all steps passed'
     expect(extractFailLine(log)).toBeNull()
+  })
+
+  it('reads a FAIL <rule> line from the skilly gate', () => {
+    const log =
+      'skilly\t2026-09-29T00:00:00Z FAIL scripts/check-concept.mjs:45 verb-synonym: "needsQuoting" says needs, the repo says should'
+    expect(extractFailLine(log)).toBe(
+      'FAIL scripts/check-concept.mjs:45 verb-synonym: "needsQuoting" says needs, the repo says should',
+    )
+  })
+
+  it('prefers the FAIL <rule> line over the FAILED <step> line, since it names the rule', () => {
+    const log = [
+      'verify\t2026-09-29T00:00:01Z FAILED ci: skilly / gate, after 0.8s',
+      'skilly\t2026-09-29T00:00:00Z FAIL scripts/check-concept.mjs:45 verb-synonym: "needsQuoting" says needs, the repo says should',
+    ].join('\n')
+    expect(extractFailLine(log)).toBe(
+      'FAIL scripts/check-concept.mjs:45 verb-synonym: "needsQuoting" says needs, the repo says should',
+    )
   })
 })
 

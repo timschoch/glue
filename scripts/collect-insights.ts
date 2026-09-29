@@ -17,7 +17,8 @@ import * as schema from '../src/db/schema.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PRODUCT_SLUG = 'glue'
-const FAIL_LINE = /FAILED .+/
+const FAIL_LINE = /FAIL .+/
+const FAILED_STEP_LINE = /FAILED .+/
 
 export type Finding = {
   source: string
@@ -33,13 +34,10 @@ export type ExistingInsight = {
 
 export type DraftInsight = {
   id: string
-  frontmatter: {
-    id: string
-    title: string
-    date: string
-    source: string
-    status: 'draft'
-  }
+  title: string
+  date: string
+  source: string
+  status: 'draft'
   body: string
 }
 
@@ -59,13 +57,10 @@ export function toInsights(
     const id = `I${nextNumber}`
     insights.push({
       id,
-      frontmatter: {
-        id,
-        title: finding.title,
-        date: finding.date,
-        source: finding.source,
-        status: 'draft',
-      },
+      title: finding.title,
+      date: finding.date,
+      source: finding.source,
+      status: 'draft',
       body: finding.body,
     })
     usedSources.add(finding.source)
@@ -110,10 +105,10 @@ export async function addInsights(
     await db.insert(schema.insights).values({
       productId: product.id,
       recordId: draft.id,
-      title: draft.frontmatter.title,
-      date: draft.frontmatter.date,
-      source: draft.frontmatter.source,
-      status: draft.frontmatter.status,
+      title: draft.title,
+      date: draft.date,
+      source: draft.source,
+      status: draft.status,
       body: draft.body,
     })
   }
@@ -135,11 +130,15 @@ function jobUrl(repo: string, runId: number, jobId: number) {
 }
 
 export function extractFailLine(log: string): string | null {
-  for (const rawLine of log.split('\n')) {
-    const match = rawLine.split('\t').pop()?.match(FAIL_LINE)
-    if (match) return match[0].trim()
-  }
-  return null
+  const lines = log
+    .split('\n')
+    .map((rawLine) => rawLine.split('\t').pop() ?? '')
+  const ruleLine = lines.map((line) => line.match(FAIL_LINE)?.[0]).find(Boolean)
+  if (ruleLine) return ruleLine.trim()
+  const stepLine = lines
+    .map((line) => line.match(FAILED_STEP_LINE)?.[0])
+    .find(Boolean)
+  return stepLine ? stepLine.trim() : null
 }
 
 function failingRuleLine(jobId: number) {
@@ -328,8 +327,8 @@ async function main() {
   if (dryRun) {
     for (const draft of drafts) {
       console.log(`would insert Insight ${draft.id}`)
-      console.log(`  title: ${draft.frontmatter.title}`)
-      console.log(`  source: ${draft.frontmatter.source}`)
+      console.log(`  title: ${draft.title}`)
+      console.log(`  source: ${draft.source}`)
     }
     return
   }
@@ -339,4 +338,9 @@ async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main()
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error(error.message)
+    process.exit(1)
+  })
+}
