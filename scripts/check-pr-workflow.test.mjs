@@ -39,14 +39,14 @@ test('a Decision line without an id fails', () => {
   assert.match(found, /at least one Decision id/)
 })
 
-test('an unknown Decision id fails, naming it and where Decisions live', () => {
+test('an unknown Decision id fails, naming it and where to list them', () => {
   const [found] = problems({
     body: 'Closes #12\nDecision: D99',
     files: [],
     decisions,
   })
   assert.match(found, /D99/)
-  assert.match(found, /concept\/decisions/)
+  assert.match(found, /pnpm concept list decisions/)
 })
 
 test('a superseded Decision fails with a hint to its replacement', () => {
@@ -64,7 +64,7 @@ test('a PR may cite a Decision it adds itself', () => {
   assert.deepEqual(
     problems({
       body: 'Closes #12\nDecision: D42',
-      files: ['concept/decisions/D42-new.md'],
+      files: ['docs/adr/0042-new.md'],
       decisions: withNew,
     }),
     [],
