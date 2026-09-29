@@ -31,3 +31,5 @@ jobs:
       - if: hashFiles('playwright.config.*') != ''
         run: pnpm exec playwright install --with-deps chromium
       - run: node .agents/skills/verify/scripts/verify.mjs ci
+        env:
+          CONCEPT_DATABASE_URL: ${{ secrets.CONCEPT_DATABASE_URL }} # read-only role glue_ci: the PR gate checks Decision ids against Glue's Concept
