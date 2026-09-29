@@ -6,23 +6,48 @@
 // Outside a pull_request build it passes.
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { loadConcept } from './check-concept.mjs'
 
 const BOT_PREFIXES = ['dependabot/', 'renovate/', 'release-please--', 'skilly/']
 const SOURCE = /^src\/.*\.(ts|tsx)$/
 const GENERATED = /(^|\/)routeTree\.gen\.ts$/
 const TEST = /\.(test|spec)\.(ts|tsx|mjs|js)$|^e2e\//
+const DECISION_LINE = /^Decision:\s*(.+)$/im
+const DECISION_ID = /\bD\d+\b/g
 
-export function problems({ body, files }) {
+export function problems({ body, files, decisions }) {
   const found = []
   if (!/\b(Closes|Fixes|Resolves|Refs) #\d+/i.test(body)) {
     found.push(
       'Link the issue: "Closes #<n>" (or "Refs #<n>" when the issue stays open).',
     )
   }
-  if (!/^Decision:\s*\S+/im.test(body)) {
+  const decisionLine = body.match(DECISION_LINE)
+  if (!decisionLine) {
     found.push(
-      'Name the Decision this change implements: "Decision: <id or title>".',
+      'Name the Decision this change implements: "Decision: <id>", for example "Decision: D2".',
     )
+  } else {
+    const ids = decisionLine[1].match(DECISION_ID)
+    if (!ids) {
+      found.push(
+        'Name at least one Decision id in the "Decision:" line, for example "Decision: D2".',
+      )
+    } else {
+      for (const id of ids) {
+        const decision = decisions.get(id)
+        if (!decision) {
+          found.push(
+            `Decision "${id}" does not exist. Decisions live in concept/decisions/.`,
+          )
+        } else if (decision.status === 'superseded') {
+          found.push(
+            `Decision "${id}" is superseded by "${decision.superseded_by}". Cite that Decision instead.`,
+          )
+        }
+      }
+    }
   }
   const source = files.filter(
     (file) => SOURCE.test(file) && !GENERATED.test(file) && !TEST.test(file),
@@ -59,7 +84,12 @@ function main() {
   )
     .split('\n')
     .filter(Boolean)
-  const found = problems({ body: pr.body ?? '', files })
+  const decisions = new Map(
+    loadConcept(join(process.cwd(), 'concept'))
+      .filter((record) => record.folder === 'decisions' && record.data?.id)
+      .map((record) => [record.data.id, record.data]),
+  )
+  const found = problems({ body: pr.body ?? '', files, decisions })
   if (found.length === 0) return
   console.error(
     [
