@@ -43,7 +43,7 @@ function designCss(): string {
 
 // The ramp step that a colour role points at.
 function rampColor(role: ColorRole): string {
-  const reference = /^var\(--ramp-(neutral|accent)-(\d)\)$/.exec(
+  const reference = /^var\(--ramp-(neutral|accent|danger)-(\d)\)$/.exec(
     tokens.color[role],
   )
   if (!reference) throw new Error(`${role} does not point at a ramp step`)
@@ -89,17 +89,38 @@ describe('Mantine theme', () => {
     expect(merged.black).toBe(named['--ramp-neutral-9'])
   })
 
+  it('uses the danger ramp for red, so an error has the colour of the design', () => {
+    const variables = cssVariablesResolver(merged)
+
+    expect(merged.colors.red[7]).toBe(named['--ramp-danger-7'])
+    expect(named['--color-danger']).toBe('var(--ramp-danger-7)')
+    expect(variables.light['--mantine-color-error']).toBe('var(--color-danger)')
+  })
+
   it('uses the three font families', () => {
     expect(merged.fontFamily).toBe(named['--font-body'])
     expect(merged.fontFamilyMonospace).toBe(named['--font-mono'])
     expect(merged.headings.fontFamily).toBe(named['--font-display'])
   })
 
-  it('uses the type, space and radius steps', () => {
+  it('uses the type steps', () => {
     expect(merged.fontSizes.sm).toBe(named['--text-sm'])
     expect(merged.headings.sizes.h1.fontSize).toBe(named['--text-xl'])
     expect(merged.headings.sizes.h2.fontSize).toBe(named['--text-lg'])
     expect(merged.lineHeights.md).toBe(named['--leading-prose'])
+  })
+
+  // A record title is a heading that wraps to three lines and more.
+  it.each(['h1', 'h2', 'h3'] as const)(
+    'gives the heading %s the line height of text that wraps',
+    (heading) => {
+      expect(merged.headings.sizes[heading].lineHeight).toBe(
+        named['--leading-ui'],
+      )
+    },
+  )
+
+  it('uses the space and radius steps', () => {
     expect(merged.spacing.lg).toBe(named['--space-lg'])
     expect(merged.spacing['2xs']).toBe(named['--space-2xs'])
     expect(merged.defaultRadius).toBe('sm')
@@ -123,6 +144,7 @@ describe('colour contrast', () => {
     'muted',
     'accent',
     'accent-strong',
+    'danger',
   ] as const
 
   it.each(
@@ -151,7 +173,7 @@ describe('colour contrast', () => {
   })
 
   it('keeps every ramp step inside sRGB, so all screens show the same colour', () => {
-    const steps = [...tokens.ramp.neutral, ...tokens.ramp.accent]
+    const steps = Object.values(tokens.ramp).flat()
 
     expect(steps.filter((step) => !displayable(step))).toEqual([])
   })

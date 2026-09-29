@@ -1,0 +1,51 @@
+/* Hallmark · component: label and value pairs · genre: modern-minimal · theme: custom (dense, calm, text first)
+ * The label is above the value on a narrow screen and to the left of it from 36 rem.
+ */
+
+.fields {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+  font-variant-numeric: tabular-nums;
+
+  @media (min-width: 36rem) {
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--space-xs) var(--space-md);
+  }
+
+  &[data-inline] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2xs) var(--space-md);
+  }
+}
+
+.field {
+  display: grid;
+  /* Rows only. A column gap here would replace the gap of the subgrid. */
+  row-gap: var(--space-3xs);
+
+  @media (min-width: 36rem) {
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+
+  [data-inline] > & {
+    display: flex;
+    gap: var(--space-xs);
+  }
+}
+
+.label {
+  color: var(--color-muted);
+}
+
+.value {
+  min-width: 0;
+  max-width: var(--measure-prose);
+  margin: 0;
+  color: var(--color-ink-soft);
+  overflow-wrap: anywhere;
+}

@@ -1,4 +1,8 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Scripts,
+  createRootRouteWithContext,
+} from '@tanstack/react-router'
 import {
   ColorSchemeScript,
   MantineProvider,
@@ -7,9 +11,12 @@ import {
 
 import mantineCss from '@mantine/core/styles.css?url'
 import appCss from '../styles.css?url'
+import { PlainFrame } from '../components/page/page-frame.tsx'
+import { MissingPageState } from '../components/page/page-state.tsx'
+import type { RouterContext } from '../router-context.ts'
 import { cssVariablesResolver, theme } from '../theme'
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
       {
@@ -35,6 +42,11 @@ export const Route = createRootRoute({
     ],
   }),
   shellComponent: RootDocument,
+  notFoundComponent: () => (
+    <PlainFrame>
+      <MissingPageState />
+    </PlainFrame>
+  ),
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {

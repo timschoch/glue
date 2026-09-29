@@ -1,96 +1,81 @@
-import { MantineProvider } from '@mantine/core'
-import { renderToStaticMarkup } from 'react-dom/server'
+// @vitest-environment jsdom
+import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { DecisionCard } from './decision-card'
-import type { Decision } from './decision-card'
 
-const decision: Decision = {
+import type { DecisionSummary } from '../../db/concept.ts'
+import { renderInRouter, shownValue } from '../../test/render.tsx'
+import { DecisionCard } from './decision-card'
+
+const decision: DecisionSummary = {
   id: 'D42',
   title: 'Agents read the Concept through one export',
-  href: '/decisions/D42',
   date: '2026-01-15',
   owner: 'Owner',
   status: 'proposed',
-  goal: {
-    id: 'G7',
-    title: 'Agents build from the Concept',
-    href: '/goals/G7',
-  },
+  goal: { id: 'G7', title: 'Agents build from the Concept' },
   evidence: [
-    { id: 'I3', title: 'Agents skip long documents', href: '/insights/I3' },
-    { id: 'F9', title: 'An export is one request', href: '/facts/F9' },
+    { id: 'I3', title: 'Agents skip long documents' },
+    { id: 'F9', title: 'An export is one request' },
   ],
 }
 
-function renderCard(shown: Decision = decision): string {
-  return renderToStaticMarkup(
-    <MantineProvider>
-      <DecisionCard decision={shown} />
-    </MantineProvider>,
-  )
-}
-
-// What a reader sees of the first match: the first group, without its tags.
-function shownText(markup: string, pattern: RegExp): string {
-  const [, content = ''] = pattern.exec(markup) ?? []
-  return content
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function elementText(markup: string, tag: string): string {
-  return shownText(markup, new RegExp(`<${tag}(?: [^>]*)?>(.*?)</${tag}>`, 's'))
-}
-
-function linkText(markup: string, href: string): string {
-  return shownText(
-    markup,
-    new RegExp(`<a [^>]*href="${href}"[^>]*>(.*?)</a>`, 's'),
-  )
+function link(name: string) {
+  return screen.getByRole('link', { name }).getAttribute('href')
 }
 
 describe('DecisionCard', () => {
-  it('shows the id and the title as one link to the Decision, in a heading', () => {
-    const markup = renderCard()
+  it('shows the id and the title as one link to the Decision, in a heading', async () => {
+    await renderInRouter(<DecisionCard decision={decision} />)
 
-    expect(elementText(markup, 'h2')).toBe(
+    const heading = screen.getByRole('heading', { level: 3 })
+
+    expect(heading.textContent).toBe(
       'D42 Agents read the Concept through one export',
     )
-    expect(linkText(markup, '/decisions/D42')).toBe(
-      'D42 Agents read the Concept through one export',
+    expect(link('D42 Agents read the Concept through one export')).toBe(
+      '/concept/D42',
     )
   })
 
-  it('shows the status as a word, the date and the owner', () => {
-    const markup = renderCard()
+  it('shows the status, the date and the owner, each with a label', async () => {
+    await renderInRouter(<DecisionCard decision={decision} />)
 
-    expect(elementText(markup, 'p')).toBe('Proposed 2026-01-15 Owner')
-    // HTML attribute names have no case, React writes `dateTime`.
-    expect(markup).toMatch(/<time datetime="2026-01-15">/i)
+    expect(shownValue('Status')).toBe('Proposed')
+    expect(shownValue('Date')).toBe('2026-01-15')
+    expect(shownValue('Owner')).toBe('Owner')
+    expect(
+      screen
+        .getByText('2026-01-15', { selector: 'time' })
+        .getAttribute('datetime'),
+    ).toBe('2026-01-15')
   })
 
   it.each([
     ['accepted', 'Accepted'],
     ['superseded', 'Superseded'],
-  ] as const)('shows the status %s as %s', (status, word) => {
-    const markup = renderCard({ ...decision, status })
+  ] as const)('shows the status %s as %s', async (status, word) => {
+    await renderInRouter(<DecisionCard decision={{ ...decision, status }} />)
 
-    expect(elementText(markup, 'p')).toContain(word)
+    expect(shownValue('Status')).toBe(word)
   })
 
-  it('links the Goal and each evidence record, with a label', () => {
-    const markup = renderCard()
+  it('links the Goal and each evidence record, with a label', async () => {
+    await renderInRouter(<DecisionCard decision={decision} />)
 
-    expect(elementText(markup, 'dl')).toBe(
-      'Goal G7 Agents build from the Concept Evidence I3 Agents skip long documents F9 An export is one request',
+    expect(shownValue('Goal')).toBe('G7 Agents build from the Concept')
+    expect(
+      screen.getAllByRole('listitem').map((item) => item.textContent),
+    ).toEqual(['I3 Agents skip long documents', 'F9 An export is one request'])
+    expect(link('G7 Agents build from the Concept')).toBe('/concept/G7')
+    expect(link('I3 Agents skip long documents')).toBe('/concept/I3')
+    expect(link('F9 An export is one request')).toBe('/concept/F9')
+  })
+
+  it('says that a Decision has no evidence', async () => {
+    await renderInRouter(
+      <DecisionCard decision={{ ...decision, evidence: [] }} />,
     )
-    expect(linkText(markup, '/goals/G7')).toBe(
-      'G7 Agents build from the Concept',
-    )
-    expect(linkText(markup, '/insights/I3')).toBe(
-      'I3 Agents skip long documents',
-    )
-    expect(linkText(markup, '/facts/F9')).toBe('F9 An export is one request')
+
+    expect(shownValue('Evidence')).toBe('No evidence yet')
   })
 })

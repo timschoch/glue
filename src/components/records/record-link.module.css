@@ -1,0 +1,52 @@
+/* Hallmark · component: record reference · genre: modern-minimal · theme: custom (dense, calm, text first)
+ * states: default · hover · focus · active
+ * A heading sets --record-id-size, so the id is one step smaller than the title.
+ */
+
+.reference {
+  color: var(--color-ink);
+  text-decoration-line: none;
+  text-decoration-thickness: from-font;
+  overflow-wrap: anywhere;
+
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-line: underline;
+    }
+  }
+}
+
+.id {
+  font-family: var(--font-mono);
+  font-size: var(--record-id-size, var(--text-sm));
+  font-weight: 500;
+  color: var(--color-accent);
+  white-space: nowrap;
+  transition: color var(--duration-micro) var(--ease-out);
+
+  .reference:active & {
+    color: var(--color-accent-strong);
+  }
+
+  @media (hover: hover) {
+    .reference:hover & {
+      color: var(--color-accent-strong);
+    }
+  }
+}
+
+.name {
+  color: var(--color-ink);
+}
+
+.records {
+  display: grid;
+  gap: var(--space-2xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.empty {
+  color: var(--color-muted);
+}

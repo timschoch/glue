@@ -1,0 +1,32 @@
+/* Hallmark · component: page states · genre: modern-minimal · theme: custom (dense, calm, text first)
+ * states: loading · error · missing
+ * Text only. Nothing moves while the page loads.
+ */
+
+.state {
+  display: grid;
+  gap: var(--space-sm);
+  justify-items: start;
+}
+
+.title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.text {
+  max-width: var(--measure-prose);
+  margin: 0;
+  color: var(--color-ink-soft);
+  line-height: var(--leading-prose);
+}
+
+.action {
+  margin-block-start: var(--space-xs);
+}
+
+.loading {
+  margin: 0;
+  color: var(--color-muted);
+}

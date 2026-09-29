@@ -28,3 +28,6 @@ pnpm check    # Prettier
 - Every PR and every push to `main` gets a Vercel preview.
 - Production follows the `release` branch. Merge the release-please PR: the release workflow moves `release` forward and Vercel deploys it.
 - Database: Neon (via the Vercel Marketplace). `DATABASE_URL` is set on Vercel for all environments. Run `vercel env pull .env.local` to get it locally.
+- Sign-in: Neon Auth. Set these two settings on Vercel and in `.env.local`:
+  - `NEON_AUTH_BASE_URL`: the address of the Neon Auth service.
+  - `NEON_AUTH_COOKIE_SECRET`: 32 characters or more. Make it with `openssl rand -base64 32`.
