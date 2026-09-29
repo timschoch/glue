@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
+import { loadConcept, problems } from './check-concept.mjs'
 import { renderInsight, toInsights } from './collect-insights.mjs'
 
 const existing = [
@@ -95,4 +99,33 @@ test('renderInsight writes the frontmatter from concept/README.md plus status an
       '',
     ].join('\n'),
   )
+})
+
+test('a frontmatter value with ": " renders quoted, so check-concept.mjs accepts it', () => {
+  const [insight] = toInsights(
+    [
+      {
+        source: 'https://github.com/timschoch/glue/pull/13: retry',
+        title: 'Workflow guard overridden: no CI yet',
+        date: '2026-09-29',
+        body: 'Reason: no CI yet.',
+      },
+    ],
+    [],
+  )
+  const rendered = renderInsight(insight)
+  assert.match(rendered, /title: "Workflow guard overridden: no CI yet"/)
+  assert.match(
+    rendered,
+    /source: "https:\/\/github\.com\/timschoch\/glue\/pull\/13: retry"/,
+  )
+
+  const root = mkdtempSync(join(tmpdir(), 'collect-insights-'))
+  try {
+    mkdirSync(join(root, 'insights'), { recursive: true })
+    writeFileSync(join(root, 'insights', insight.file), rendered)
+    assert.deepEqual(problems(loadConcept(root)), [])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })

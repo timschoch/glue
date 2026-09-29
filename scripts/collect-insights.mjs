@@ -50,9 +50,16 @@ export function toInsights(findings, existing) {
   return insights
 }
 
+function shouldQuote(value) {
+  return typeof value === 'string' && value.includes(': ')
+}
+
 export function renderInsight(insight) {
   const frontmatter = Object.entries(insight.frontmatter)
-    .map(([key, value]) => `${key}: ${value}`)
+    .map(
+      ([key, value]) =>
+        `${key}: ${shouldQuote(value) ? JSON.stringify(value) : value}`,
+    )
     .join('\n')
   return `---\n${frontmatter}\n---\n${insight.body}\n`
 }
