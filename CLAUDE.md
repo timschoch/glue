@@ -100,7 +100,8 @@ A deliberate skip of a blocked shell command: `GLUE_OVERRIDE="<reason>"` in the 
 ## Docs
 
 - Domain language: [CONTEXT.md](CONTEXT.md)
-- Decisions: [docs/adr/](docs/adr/)
+- Glue's own Concept: Goals, Decisions, Insights, Facts, Guardrails in [concept/](concept/README.md). Read it before a ticket. Every ticket and PR names its Decision id.
+- Decisions about the repo's tooling that serve no Goal: [docs/adr/](docs/adr/)
 
 ## Agent skills
 

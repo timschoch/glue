@@ -24,6 +24,11 @@
           "name": "workflow guards",
           "run": "node --test 'scripts/*.test.mjs' '.claude/hooks/*.test.mjs'",
           "why": "Tests for the run guards: guard-workflow.mjs (Claude hook) and check-pr-workflow.mjs (PR gate). Plain node:test, no vitest needed."
+        },
+        {
+          "name": "concept",
+          "run": "node scripts/check-concept.mjs",
+          "why": "Glue's own Concept (ring 0: files in concept/). Broken ids or links would let PRs cite Decisions without a Goal or evidence."
         }
       ]
     },
