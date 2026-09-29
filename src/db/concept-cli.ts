@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 
 import { CONCEPT_FIELDS } from './concept-fields.ts'
-import type { ConceptDb } from './import-concept.ts'
+import type { ConceptDb } from './client.ts'
 import * as schema from './schema.ts'
 
 export type ConceptFolder = keyof typeof CONCEPT_FIELDS

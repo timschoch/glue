@@ -35,7 +35,7 @@ export function problems({ body, files, decisions }) {
         const decision = decisions.get(id)
         if (!decision) {
           found.push(
-            `Decision "${id}" does not exist. Decisions live in concept/decisions/.`,
+            `Decision "${id}" does not exist. List them with \`pnpm concept list decisions\`.`,
           )
         } else if (decision.status === 'superseded') {
           found.push(

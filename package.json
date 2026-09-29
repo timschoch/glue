@@ -17,7 +17,6 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "import-concept": "tsx scripts/import-concept.ts",
     "collect-insights": "tsx scripts/collect-insights.ts",
     "concept": "tsx scripts/concept.ts"
   },

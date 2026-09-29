@@ -4,8 +4,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import * as schema from '../src/db/schema.ts'
-import { importConcept } from '../src/db/import-concept.ts'
-import type { ConceptRecord } from '../src/db/import-concept.ts'
+import { addConceptRecord, setDecisionStatus } from '../src/db/concept-cli.ts'
 import { loadDecisions } from './load-decisions.ts'
 import { problems } from './check-pr-workflow.mjs'
 
@@ -16,56 +15,55 @@ beforeEach(async () => {
   client = new PGlite()
   db = drizzle(client, { schema })
   await migrate(db, { migrationsFolder: './drizzle' })
+  await addConceptRecord(
+    db,
+    'glue',
+    'goals',
+    {
+      title: 'Ship faster',
+      metric: 'lead time',
+      source: 'https://example.com/g1',
+    },
+    '',
+  )
+  await addConceptRecord(
+    db,
+    'glue',
+    'insights',
+    {
+      title: 'Users churn on slow loads',
+      date: '2026-01-01',
+      source: 'https://example.com/i1',
+    },
+    '',
+  )
 })
 
 afterEach(async () => {
   await client.close()
 })
 
-const goal: ConceptRecord = {
-  folder: 'goals',
-  data: {
-    id: 'G1',
-    title: 'Ship faster',
-    metric: 'lead time',
-    source: 'https://example.com/g1',
-  },
-  body: '',
-}
-
-const insight: ConceptRecord = {
-  folder: 'insights',
-  data: {
-    id: 'I1',
-    title: 'Users churn on slow loads',
-    date: '2026-01-01',
-    source: 'https://example.com/i1',
-  },
-  body: '',
-}
-
-function decision(data: Record<string, unknown>): ConceptRecord {
-  return {
-    folder: 'decisions',
-    data: {
+function addDecision(fields: Record<string, string | string[]>) {
+  return addConceptRecord(
+    db,
+    'glue',
+    'decisions',
+    {
       title: 'A decision',
       date: '2026-01-02',
       owner: 'tim',
+      status: 'accepted',
       goal: 'G1',
       evidence: ['I1'],
-      ...data,
+      ...fields,
     },
-    body: '',
-  }
+    '',
+  )
 }
 
 describe('loadDecisions', () => {
   it('reads an accepted Decision from the database', async () => {
-    await importConcept(
-      db,
-      [goal, insight, decision({ id: 'D1', status: 'accepted' })],
-      'glue',
-    )
+    await addDecision({})
 
     const decisions = await loadDecisions(db, 'glue')
 
@@ -79,16 +77,9 @@ describe('loadDecisions', () => {
   })
 
   it('reads a superseded Decision, naming its replacement', async () => {
-    await importConcept(
-      db,
-      [
-        goal,
-        insight,
-        decision({ id: 'D1', status: 'superseded', superseded_by: 'D2' }),
-        decision({ id: 'D2', status: 'accepted' }),
-      ],
-      'glue',
-    )
+    await addDecision({})
+    await addDecision({})
+    await setDecisionStatus(db, 'glue', 'D1', 'superseded', 'D2')
 
     const decisions = await loadDecisions(db, 'glue')
 
@@ -102,11 +93,7 @@ describe('loadDecisions', () => {
   })
 
   it('fails an unknown Decision id', async () => {
-    await importConcept(
-      db,
-      [goal, insight, decision({ id: 'D1', status: 'accepted' })],
-      'glue',
-    )
+    await addDecision({})
 
     const decisions = await loadDecisions(db, 'glue')
 

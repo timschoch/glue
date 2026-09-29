@@ -1,6 +1,5 @@
 // Concept record types: id prefix and required fields per folder.
-// See concept/README.md for the record shapes. Kept in sync with
-// scripts/check-concept.mjs by hand until concept/ is removed.
+// The one home of these shapes; concept-cli.ts validates against them.
 export const CONCEPT_FIELDS = {
   goals: { prefix: 'G', required: ['id', 'title', 'metric', 'source'] },
   decisions: {

@@ -9,64 +9,58 @@ import {
   setDecisionStatus,
   showConceptRecord,
 } from './concept-cli.ts'
-import type { ConceptRecord } from './import-concept.ts'
-import { importConcept } from './import-concept.ts'
 import * as schema from './schema.ts'
 
 let client: PGlite
 let db: ReturnType<typeof drizzle<typeof schema>>
 
-const goal: ConceptRecord = {
-  folder: 'goals',
-  data: {
-    id: 'G1',
-    title: 'Ship faster',
-    metric: 'lead time',
-    source: 'https://example.com/g1',
-  },
-  body: '',
-}
-
-const insight: ConceptRecord = {
-  folder: 'insights',
-  data: {
-    id: 'I1',
-    title: 'Users churn on slow loads',
-    date: '2026-01-01',
-    source: 'https://example.com/i1',
-  },
-  body: '',
-}
-
-const fact: ConceptRecord = {
-  folder: 'facts',
-  data: {
-    id: 'F1',
-    title: 'p95 load time is 3s',
-    source: 'https://example.com/f1',
-  },
-  body: '',
-}
-
-const decision: ConceptRecord = {
-  folder: 'decisions',
-  data: {
-    id: 'D1',
-    title: 'Cache the homepage',
-    date: '2026-01-02',
-    owner: 'tim',
-    status: 'accepted',
-    goal: 'G1',
-    evidence: ['I1', 'F1'],
-  },
-  body: 'Cache reads at the edge.',
-}
-
 beforeEach(async () => {
   client = new PGlite()
   db = drizzle(client, { schema })
   await migrate(db, { migrationsFolder: './drizzle' })
-  await importConcept(db, [goal, insight, fact, decision], 'glue')
+  await addConceptRecord(
+    db,
+    'glue',
+    'goals',
+    {
+      title: 'Ship faster',
+      metric: 'lead time',
+      source: 'https://example.com/g1',
+    },
+    '',
+  )
+  await addConceptRecord(
+    db,
+    'glue',
+    'insights',
+    {
+      title: 'Users churn on slow loads',
+      date: '2026-01-01',
+      source: 'https://example.com/i1',
+    },
+    '',
+  )
+  await addConceptRecord(
+    db,
+    'glue',
+    'facts',
+    { title: 'p95 load time is 3s', source: 'https://example.com/f1' },
+    '',
+  )
+  await addConceptRecord(
+    db,
+    'glue',
+    'decisions',
+    {
+      title: 'Cache the homepage',
+      date: '2026-01-02',
+      owner: 'tim',
+      status: 'accepted',
+      goal: 'G1',
+      evidence: ['I1', 'F1'],
+    },
+    'Cache reads at the edge.',
+  )
 })
 
 afterEach(async () => {

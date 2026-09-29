@@ -1,7 +1,7 @@
 import { alias } from 'drizzle-orm/pg-core'
 import { eq } from 'drizzle-orm'
 
-import type { ConceptDb } from '../src/db/import-concept.ts'
+import type { ConceptDb } from '../src/db/client.ts'
 import * as schema from '../src/db/schema.ts'
 
 export async function loadDecisions(db: ConceptDb, productSlug: string) {
