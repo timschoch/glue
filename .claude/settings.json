@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|mcp__lean-ctx__ctx_shell",
+        "matcher": "Bash|mcp__lean-ctx__ctx_shell|mcp__lean-ctx__shell",
         "hooks": [
           {
             "type": "command",
@@ -11,7 +11,7 @@
         ]
       },
       {
-        "matcher": "Bash|mcp__lean-ctx__ctx_shell",
+        "matcher": "Bash|mcp__lean-ctx__ctx_shell|mcp__lean-ctx__shell",
         "hooks": [
           {
             "type": "command",
