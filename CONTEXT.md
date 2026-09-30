@@ -41,12 +41,15 @@ Use these terms in code, docs, issues and UI. A new term goes here first. Layout
 
 The Mock in [mocks/user-sim](mocks/user-sim/README.md). It makes the numbers a measure reads.
 
-| Term    | Meaning                                                                                                             |
-| ------- | ------------------------------------------------------------------------------------------------------------------- |
-| Bot     | A simulated user with seeded traits. Uses the deployed Product through its accessibility tree, like a person.       |
-| Rule    | A behaviour model from UX research, for example choice overload. Changes what a Bot does, never tuned for a result. |
-| Journey | The Steps a Bot tries in one Product, in order.                                                                     |
-| Step    | One intent in a Journey, for example "accept a plan", with the accessible names to look for.                        |
+| Term      | Meaning                                                                                                             |
+| --------- | ------------------------------------------------------------------------------------------------------------------- |
+| Bot       | A simulated user with seeded traits. Uses the deployed Product through its accessibility tree, like a person.       |
+| Rule      | A behaviour model from UX research, for example choice overload. Changes what a Bot does, never tuned for a result. |
+| Journey   | The Steps a Bot tries in one Product, in order.                                                                     |
+| Step      | One intent in a Journey, for example "accept a plan", with the accessible names to look for.                        |
+| Struggle  | Per Rule, the chance to leave a Bot faced on one screen or on its whole walk. Sets its survey answer.               |
+| Technique | A step a novice cannot do from its name alone, for example stretch and fold. The worked example Rule reads it.      |
+| Demo      | A figure named for a Technique, for example a video with a caption. Without one, novices struggle more.             |
 
 ## Build run
 

@@ -4,12 +4,18 @@ import { VIEWPORTS, createBot, createRandom, getTimezone } from './bot.ts'
 import type { Bot, Random } from './bot.ts'
 import type { Action, Journey, Step } from './journey.ts'
 import { listChoiceGroups, parseScreen } from './screen.ts'
-import type { Screen } from './screen.ts'
+import {
+  NO_STRUGGLE,
+  addStruggle,
+  getStruggle,
+  toLeaveChance,
+} from './struggle.ts'
+import type { Struggle } from './struggle.ts'
 import { toSummary } from './summary.ts'
 import type { Outcome, Summary } from './summary.ts'
-import { choiceOverloadLeaveChance } from './rules/choice-overload.ts'
+import { getAnswer } from './survey.ts'
+import type { Answer } from './survey.ts'
 import { getChoice } from './rules/default-effect.ts'
-import { effortLeaveChance } from './rules/effort.ts'
 
 export type Options = {
   /** URL where each bot starts. */
@@ -92,20 +98,22 @@ async function fetchOutcome(
   context.on('requestfailed', (request) => pending.delete(request))
   const page = await context.newPage()
   page.setDefaultTimeout(STEP_TIMEOUT_MS)
+  const visit: Visit = { bot, random, identity, struggle: NO_STRUGGLE }
   let step = 0
   try {
     await page.goto(options.target)
     for (const [index, current] of options.journey.steps.entries()) {
       step = index
       if (!(await isFound(page, current))) return { end: 'missing', step }
-      const screen = await parseScreen(page)
-      if (random() < leaveChance(screen, bot)) return { end: 'left', step }
+      const struggle = getStruggle(await parseScreen(page), bot)
+      if (random() < toLeaveChance(struggle)) return { end: 'left', step }
+      visit.struggle = addStruggle(visit.struggle, struggle)
       for (const action of current.actions) {
-        await handleAction(page, action, { bot, random, identity })
+        await handleAction(page, action, visit)
       }
       await page.waitForLoadState()
     }
-    return { end: 'finished', step }
+    return { end: 'finished', step, answer: visit.answer }
   } catch {
     return { end: 'error', step }
   } finally {
@@ -118,16 +126,6 @@ async function fetchOutcome(
     }
     await context.close()
   }
-}
-
-/** Independent reasons to leave: 1 - (1 - a)(1 - b)... per choice set and effort. */
-function leaveChance(screen: Screen, bot: Bot): number {
-  const stay = screen.choiceSets.reduce(
-    (product, set) =>
-      product * (1 - choiceOverloadLeaveChance(set.choices, bot)),
-    1 - effortLeaveChance(screen, bot),
-  )
-  return 1 - stay
 }
 
 async function isFound(page: Page, step: Step): Promise<boolean> {
@@ -152,10 +150,26 @@ function getLocator(page: Page, action: Action) {
         .getByRole('radio')
         .or(page.getByRole('option'))
         .or(page.getByRole('button').and(page.locator('[aria-pressed]')))
+    case 'answer':
+      return page.getByRole('radiogroup', { name: action.question })
   }
 }
 
-type Visit = { bot: Bot; random: Random; identity: Identity }
+type Visit = {
+  bot: Bot
+  random: Random
+  identity: Identity
+  /** The struggle of the walk so far. */
+  struggle: Struggle
+  /** Set once the bot answers the survey. */
+  answer?: Answer
+}
+
+/** The bot answers the survey once, from the struggle of its walk so far. */
+function getSurveyAnswer(visit: Visit): Answer {
+  visit.answer ??= getAnswer(visit.struggle, visit.random)
+  return visit.answer
+}
 
 async function handleAction(
   page: Page,
@@ -167,7 +181,24 @@ async function handleAction(
       const value = action.value
         .replaceAll('{email}', visit.identity.email)
         .replaceAll('{password}', visit.identity.password)
+        .replaceAll('{comment}', () => getSurveyAnswer(visit).comment)
       await getLocator(page, action).first().fill(value)
+      return
+    }
+    case 'answer': {
+      const radios = await getLocator(page, action)
+        .first()
+        .getByRole('radio')
+        .all()
+      const index =
+        action.from === 'experience'
+          ? Math.min(
+              radios.length - 1,
+              Math.floor(visit.bot.experience * radios.length),
+            )
+          : getSurveyAnswer(visit).score - 1
+      if (!radios[index]) throw new Error(`No answer ${index + 1}`)
+      await radios[index].check()
       return
     }
     case 'click':
