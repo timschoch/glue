@@ -1,28 +1,47 @@
 import { createServerFn } from '@tanstack/react-start'
 
-import { sessionMiddleware } from '../authentication/session.functions.ts'
+import {
+  getAuthenticationServer,
+  getRequestCookies,
+} from '../authentication/neon-auth.server.ts'
+import { findSession } from '../authentication/session.ts'
 import { getSetting } from '../settings.server.ts'
 import { createDb } from './client.ts'
-import { findConcept, findRecord } from './concept.ts'
-import { isRecordId } from './record-id.ts'
+import { createConceptActions } from './concept-actions.ts'
+import type { ProposalInput, RecordInput } from './concept-actions.ts'
 
-// Glue shows the Concept of one Product.
-const productSlug = 'glue'
+// Each action looks for the session and parses its input itself.
+// The validators here only give the input its type.
+const actions = createConceptActions({
+  findSession: () =>
+    findSession(getAuthenticationServer(), getRequestCookies()),
+  getDb: () => createDb(getSetting('DATABASE_URL')),
+})
 
-function parseRecordId(input: unknown): string {
-  if (typeof input !== 'string' || !isRecordId(input)) {
-    throw new Error('This is not the id of a record.')
-  }
-  return input
-}
+export const fetchProducts = createServerFn({ method: 'GET' }).handler(() =>
+  actions.listProducts(undefined),
+)
 
 export const fetchConcept = createServerFn({ method: 'GET' })
-  .middleware([sessionMiddleware])
-  .handler(() => findConcept(createDb(getSetting('DATABASE_URL')), productSlug))
+  .validator((product: string) => product)
+  .handler(({ data }) => actions.findConcept(data))
 
 export const fetchRecord = createServerFn({ method: 'GET' })
-  .middleware([sessionMiddleware])
-  .validator(parseRecordId)
-  .handler(({ data }) =>
-    findRecord(createDb(getSetting('DATABASE_URL')), productSlug, data),
-  )
+  .validator((input: RecordInput) => input)
+  .handler(({ data }) => actions.findRecord(data))
+
+export const submitKeepInsight = createServerFn({ method: 'POST' })
+  .validator((input: RecordInput) => input)
+  .handler(({ data }) => actions.keepInsight(data))
+
+export const submitDiscardInsight = createServerFn({ method: 'POST' })
+  .validator((input: RecordInput) => input)
+  .handler(({ data }) => actions.discardInsight(data))
+
+export const submitAcceptDecision = createServerFn({ method: 'POST' })
+  .validator((input: RecordInput) => input)
+  .handler(({ data }) => actions.acceptDecision(data))
+
+export const submitDecision = createServerFn({ method: 'POST' })
+  .validator((input: ProposalInput) => input)
+  .handler(({ data }) => actions.proposeDecision(data))

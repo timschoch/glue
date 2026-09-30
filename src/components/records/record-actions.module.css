@@ -1,0 +1,35 @@
+/* Hallmark · component: record actions · genre: modern-minimal · theme: custom (dense, calm, text first)
+ * states: default · hover · focus · active · disabled · confirm · error
+ * One line of small buttons and links. A failure is below them.
+ */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+}
+
+/* A link target is 24 px high or more. */
+.link {
+  display: inline-block;
+  padding-block: var(--space-2xs);
+}
+
+.question {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--color-ink-soft);
+}
+
+.failure {
+  flex-basis: 100%;
+  color: var(--color-danger);
+  overflow-wrap: anywhere;
+
+  &:empty {
+    display: none;
+  }
+}

@@ -2,12 +2,21 @@ import { Title } from '@mantine/core'
 import { Link } from '@tanstack/react-router'
 
 import type { LinkedRecord } from '../../db/concept.ts'
+import { DecisionActions } from '../decisions/decision-actions.tsx'
+import { InsightTriage } from '../insights/insight-triage.tsx'
 import { RecordBody } from './record-body.tsx'
 import { RecordField, RecordFields } from './record-fields.tsx'
 import { RecordLink, RecordLinks, RecordTitle } from './record-link.tsx'
 import { recordSections } from './record-sections.ts'
 import { RecordStatus } from './record-status.tsx'
 import classes from './record-view.module.css'
+import type { RecordAction } from './use-record-action.ts'
+
+type Handlers = {
+  onKeep: RecordAction
+  onDiscard: RecordAction
+  onAccept: RecordAction
+}
 
 // Only a web address is a link. Other text stays text, so it cannot run code.
 function Source({ source }: { source: string }) {
@@ -148,7 +157,33 @@ function LinkFields({
   }
 }
 
-export function RecordView({ record }: { record: LinkedRecord }) {
+// A draft Insight and a Decision that is not superseded have actions.
+function Actions({
+  record,
+  onKeep,
+  onDiscard,
+  onAccept,
+}: { record: LinkedRecord } & Handlers) {
+  const actions =
+    record.kind === 'insight' && record.status === 'draft' ? (
+      <InsightTriage insight={record} onKeep={onKeep} onDiscard={onDiscard} />
+    ) : record.kind === 'decision' && record.status !== 'superseded' ? (
+      <DecisionActions decision={record} onAccept={onAccept} />
+    ) : undefined
+
+  return (
+    actions && (
+      <div role="group" aria-label="Actions">
+        {actions}
+      </div>
+    )
+  )
+}
+
+export function RecordView({
+  record,
+  ...handlers
+}: { record: LinkedRecord } & Handlers) {
   const section = recordSections[record.kind]
 
   return (
@@ -157,10 +192,17 @@ export function RecordView({ record }: { record: LinkedRecord }) {
         <nav aria-label="Breadcrumb">
           <ol className={classes.breadcrumb}>
             <li>
-              <Link to="/">Concept</Link>
+              <Link from="/$product" to="/$product" params={true}>
+                Concept
+              </Link>
             </li>
             <li>
-              <Link to="/" hash={section.id}>
+              <Link
+                from="/$product"
+                to="/$product"
+                params={true}
+                hash={section.id}
+              >
                 {section.name}
               </Link>
             </li>
@@ -172,6 +214,7 @@ export function RecordView({ record }: { record: LinkedRecord }) {
         <RecordFields inline>
           <OwnFields record={record} />
         </RecordFields>
+        <Actions record={record} {...handlers} />
       </header>
 
       <RecordBody body={record.body} />

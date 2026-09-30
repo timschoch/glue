@@ -13,11 +13,13 @@ export function RecordTitle({ record }: { record: RecordReference }) {
   )
 }
 
+// A link to a record of the Product of the page.
 export function RecordLink({ record }: { record: RecordReference }) {
   return (
     <Link
-      to="/concept/$recordId"
-      params={{ recordId: record.id }}
+      from="/$product"
+      to="/$product/concept/$recordId"
+      params={(current) => ({ ...current, recordId: record.id })}
       className={classes.reference}
     >
       <RecordTitle record={record} />

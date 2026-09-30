@@ -154,6 +154,15 @@ async function findProduct(db: ConceptDb, productSlug: string) {
   return found.at(0)
 }
 
+export type Product = Concept['product']
+
+export function listProducts(db: ConceptDb): Promise<Product[]> {
+  return db
+    .select({ slug: products.slug, name: products.name })
+    .from(products)
+    .orderBy(products.slug)
+}
+
 // The evidence of each Decision that matches, by the Decision's row id.
 async function listEvidence(db: ConceptDb, matches: SQL) {
   const rows = await db

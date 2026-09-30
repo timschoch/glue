@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 
 import type {
   Decision,
@@ -69,6 +70,12 @@ const guardrail: Guardrail = {
   body: 'A slow query stops the build.',
 }
 
+const handlers = {
+  onKeep: () => Promise.resolve(undefined),
+  onDiscard: () => Promise.resolve(undefined),
+  onAccept: () => Promise.resolve(undefined),
+}
+
 function path(name: string) {
   return screen.getByRole('link', { name }).getAttribute('href')
 }
@@ -83,7 +90,7 @@ function shownLinks(label: string) {
 
 describe('RecordView', () => {
   it('shows the id and the title as the heading of the page', async () => {
-    await renderInRouter(<RecordView record={decision} />)
+    await renderInRouter(<RecordView {...handlers} record={decision} />)
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
       'D5 The Concept lives in the database',
@@ -91,15 +98,15 @@ describe('RecordView', () => {
   })
 
   it.each([
-    [decision, 'Decisions', '/#decisions'],
-    [goal, 'Goals', '/#goals'],
-    [insight, 'Insights', '/#insights'],
-    [fact, 'Facts', '/#facts'],
-    [guardrail, 'Guardrails', '/#guardrails'],
+    [decision, 'Decisions', '/glue#decisions'],
+    [goal, 'Goals', '/glue#goals'],
+    [insight, 'Insights', '/glue#insights'],
+    [fact, 'Facts', '/glue#facts'],
+    [guardrail, 'Guardrails', '/glue#guardrails'],
   ])(
     'shows the way back to the overview and to its section',
     async (record, section, target) => {
-      await renderInRouter(<RecordView record={record} />)
+      await renderInRouter(<RecordView {...handlers} record={record} />)
 
       const breadcrumb = within(
         screen.getByRole('navigation', { name: 'Breadcrumb' }),
@@ -110,24 +117,24 @@ describe('RecordView', () => {
           .getAllByRole('link')
           .map((link) => [link.textContent, link.getAttribute('href')]),
       ).toEqual([
-        ['Concept', '/'],
+        ['Concept', '/glue'],
         [section, target],
       ])
     },
   )
 
   it('shows all fields of a Decision, with its Goal and its evidence', async () => {
-    await renderInRouter(<RecordView record={decision} />)
+    await renderInRouter(<RecordView {...handlers} record={decision} />)
 
     expect(shownValue('Status')).toBe('Accepted')
     expect(shownValue('Date')).toBe('2026-01-15')
     expect(shownValue('Owner')).toBe('Owner')
     expect(shownLinks('Goal')).toEqual([
-      ['G1 Agents build from the Concept', '/concept/G1'],
+      ['G1 Agents build from the Concept', '/glue/concept/G1'],
     ])
     expect(shownLinks('Evidence')).toEqual([
-      ['I1 Agents skip long documents', '/concept/I1'],
-      ['F2 An export is one request', '/concept/F2'],
+      ['I1 Agents skip long documents', '/glue/concept/I1'],
+      ['F2 An export is one request', '/glue/concept/F2'],
     ])
     expect(screen.queryByText('Superseded by')).toBeNull()
     expect(screen.queryByText('Supersedes')).toBeNull()
@@ -137,6 +144,7 @@ describe('RecordView', () => {
   it('links a Decision to the issue that builds it', async () => {
     await renderInRouter(
       <RecordView
+        {...handlers}
         record={{
           ...decision,
           issueUrl: 'https://github.com/timschoch/flexibeck-next/issues/4',
@@ -158,14 +166,18 @@ describe('RecordView', () => {
   ])(
     'shows the issue %s that is not a GitHub issue as it is',
     async (issueUrl) => {
-      await renderInRouter(<RecordView record={{ ...decision, issueUrl }} />)
+      await renderInRouter(
+        <RecordView {...handlers} record={{ ...decision, issueUrl }} />,
+      )
 
       expect(shownLinks('Issue')).toEqual([[issueUrl, issueUrl]])
     },
   )
 
   it('says that a Decision has no evidence', async () => {
-    await renderInRouter(<RecordView record={{ ...decision, evidence: [] }} />)
+    await renderInRouter(
+      <RecordView {...handlers} record={{ ...decision, evidence: [] }} />,
+    )
 
     expect(shownValue('Evidence')).toBe('No evidence yet')
   })
@@ -173,6 +185,7 @@ describe('RecordView', () => {
   it('links a Decision to the Decisions before and after it', async () => {
     await renderInRouter(
       <RecordView
+        {...handlers}
         record={{
           ...decision,
           status: 'superseded',
@@ -183,41 +196,43 @@ describe('RecordView', () => {
     )
 
     expect(shownLinks('Superseded by')).toEqual([
-      ['D9 The Concept has versions', '/concept/D9'],
+      ['D9 The Concept has versions', '/glue/concept/D9'],
     ])
     expect(shownLinks('Supersedes')).toEqual([
-      ['D2 The Concept lives in files', '/concept/D2'],
+      ['D2 The Concept lives in files', '/glue/concept/D2'],
     ])
   })
 
   it('shows all fields of a Goal, with the Decisions that serve it', async () => {
-    await renderInRouter(<RecordView record={goal} />)
+    await renderInRouter(<RecordView {...handlers} record={goal} />)
 
     expect(shownValue('Metric')).toBe('Share of tickets with a Decision')
     expect(shownValue('Source')).toBe('GitHub issues')
     expect(shownLinks('Decisions')).toEqual([
-      ['D5 The Concept lives in the database', '/concept/D5'],
+      ['D5 The Concept lives in the database', '/glue/concept/D5'],
     ])
   })
 
   it('shows all fields of an Insight, with the Decisions that cite it', async () => {
-    await renderInRouter(<RecordView record={insight} />)
+    await renderInRouter(<RecordView {...handlers} record={insight} />)
 
     expect(shownValue('Status')).toBe('Draft')
     expect(shownValue('Date')).toBe('2026-01-10')
     expect(shownLinks('Cited by')).toEqual([
-      ['D5 The Concept lives in the database', '/concept/D5'],
+      ['D5 The Concept lives in the database', '/glue/concept/D5'],
     ])
   })
 
   it('shows no status for an Insight without one', async () => {
-    await renderInRouter(<RecordView record={{ ...insight, status: null }} />)
+    await renderInRouter(
+      <RecordView {...handlers} record={{ ...insight, status: null }} />,
+    )
 
     expect(screen.queryByText('Status')).toBeNull()
   })
 
   it('shows a source that is a web address as a link', async () => {
-    await renderInRouter(<RecordView record={insight} />)
+    await renderInRouter(<RecordView {...handlers} record={insight} />)
 
     expect(path('https://example.com/research?round=2')).toBe(
       'https://example.com/research?round=2',
@@ -227,7 +242,9 @@ describe('RecordView', () => {
   it.each(['javascript:alert(1)', 'API contract', 'ftp://example.com/file'])(
     'shows the source %s as text',
     async (source) => {
-      await renderInRouter(<RecordView record={{ ...fact, source }} />)
+      await renderInRouter(
+        <RecordView {...handlers} record={{ ...fact, source }} />,
+      )
 
       expect(shownValue('Source')).toBe(source)
       expect(shownLinks('Source')).toEqual([])
@@ -235,22 +252,142 @@ describe('RecordView', () => {
   )
 
   it('shows all fields of a Fact, and says that no Decision cites it', async () => {
-    await renderInRouter(<RecordView record={fact} />)
+    await renderInRouter(<RecordView {...handlers} record={fact} />)
 
     expect(shownValue('Source')).toBe('API contract')
     expect(shownValue('Cited by')).toBe('No Decision cites this Fact yet')
   })
 
   it('says that no Decision serves a Goal', async () => {
-    await renderInRouter(<RecordView record={{ ...goal, decisions: [] }} />)
+    await renderInRouter(
+      <RecordView {...handlers} record={{ ...goal, decisions: [] }} />,
+    )
 
     expect(shownValue('Decisions')).toBe('No Decision serves this Goal yet')
   })
 
   it('shows what enforces a Guardrail', async () => {
-    await renderInRouter(<RecordView record={guardrail} />)
+    await renderInRouter(<RecordView {...handlers} record={guardrail} />)
 
     expect(shownValue('Enforced by')).toBe('verify ci')
+  })
+
+  describe('the actions', () => {
+    const actions = () => within(screen.getByRole('group', { name: 'Actions' }))
+
+    it.each([goal, fact, guardrail, { ...insight, status: null }])(
+      'has none for $kind $id',
+      async (record) => {
+        await renderInRouter(<RecordView {...handlers} record={record} />)
+
+        expect(screen.queryByRole('group', { name: 'Actions' })).toBeNull()
+      },
+    )
+
+    it('keeps a draft Insight on request', async () => {
+      const onKeep = vi.fn(() => Promise.resolve(undefined))
+      await renderInRouter(
+        <RecordView {...handlers} onKeep={onKeep} record={insight} />,
+      )
+
+      await userEvent.click(actions().getByRole('button', { name: 'Keep I1' }))
+
+      expect(onKeep).toHaveBeenCalledOnce()
+    })
+
+    it('discards a draft Insight after a second request', async () => {
+      const onDiscard = vi.fn(() => Promise.resolve(undefined))
+      await renderInRouter(
+        <RecordView {...handlers} onDiscard={onDiscard} record={insight} />,
+      )
+
+      await userEvent.click(
+        actions().getByRole('button', { name: 'Discard I1' }),
+      )
+      expect(onDiscard).not.toHaveBeenCalled()
+      await userEvent.click(
+        actions().getByRole('button', { name: 'Discard I1 for good' }),
+      )
+
+      expect(onDiscard).toHaveBeenCalledOnce()
+    })
+
+    it('links a draft Insight to the Decision form, as its evidence', async () => {
+      await renderInRouter(<RecordView {...handlers} record={insight} />)
+
+      expect(
+        actions()
+          .getByRole('link', { name: 'Propose a Decision from I1' })
+          .getAttribute('href'),
+      ).toBe('/glue/decisions/new?evidence=I1')
+    })
+
+    it('accepts a proposed Decision on request', async () => {
+      const onAccept = vi.fn(() => Promise.resolve(undefined))
+      await renderInRouter(
+        <RecordView
+          {...handlers}
+          onAccept={onAccept}
+          record={{ ...decision, status: 'proposed' }}
+        />,
+      )
+
+      await userEvent.click(
+        actions().getByRole('button', { name: 'Accept D5' }),
+      )
+
+      expect(onAccept).toHaveBeenCalledOnce()
+    })
+
+    it('says why a Decision was not accepted', async () => {
+      await renderInRouter(
+        <RecordView
+          {...handlers}
+          onAccept={() => Promise.resolve({ message: '"D5" is not proposed' })}
+          record={{ ...decision, status: 'proposed' }}
+        />,
+      )
+
+      await userEvent.click(
+        actions().getByRole('button', { name: 'Accept D5' }),
+      )
+
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        '"D5" is not proposed',
+      )
+    })
+
+    it.each(['proposed', 'accepted'] as const)(
+      'links a Decision that is %s to the form that supersedes it',
+      async (status) => {
+        await renderInRouter(
+          <RecordView {...handlers} record={{ ...decision, status }} />,
+        )
+
+        expect(
+          actions()
+            .getByRole('link', { name: 'Supersede D5' })
+            .getAttribute('href'),
+        ).toBe('/glue/decisions/new?supersedes=D5')
+      },
+    )
+
+    it('does not accept a Decision that is accepted', async () => {
+      await renderInRouter(<RecordView {...handlers} record={decision} />)
+
+      expect(actions().queryByRole('button', { name: 'Accept D5' })).toBeNull()
+    })
+
+    it('has none for a Decision that is superseded', async () => {
+      await renderInRouter(
+        <RecordView
+          {...handlers}
+          record={{ ...decision, status: 'superseded' }}
+        />,
+      )
+
+      expect(screen.queryByRole('group', { name: 'Actions' })).toBeNull()
+    })
   })
 
   describe('the body', () => {
@@ -264,7 +401,9 @@ describe('RecordView', () => {
     ].join('\n\n')
 
     it('shows Markdown as text with structure', async () => {
-      await renderInRouter(<RecordView record={{ ...decision, body }} />)
+      await renderInRouter(
+        <RecordView {...handlers} record={{ ...decision, body }} />,
+      )
 
       expect(screen.getByText('first').tagName).toBe('STRONG')
       expect(path('https://example.com/page')).toBe('https://example.com/page')
@@ -274,7 +413,9 @@ describe('RecordView', () => {
     })
 
     it('keeps the record title the only heading of level 1', async () => {
-      await renderInRouter(<RecordView record={{ ...decision, body }} />)
+      await renderInRouter(
+        <RecordView {...handlers} record={{ ...decision, body }} />,
+      )
 
       expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
       expect(
@@ -284,7 +425,7 @@ describe('RecordView', () => {
 
     it('does not run code from the text', async () => {
       const { container } = await renderInRouter(
-        <RecordView record={{ ...decision, body }} />,
+        <RecordView {...handlers} record={{ ...decision, body }} />,
       )
 
       expect(container.querySelector('script')).toBeNull()
@@ -294,6 +435,7 @@ describe('RecordView', () => {
     it('does not load an image from another site', async () => {
       const { container } = await renderInRouter(
         <RecordView
+          {...handlers}
           record={{
             ...insight,
             body: 'Before ![a pixel](https://evil.example/pixel.png) after.',
@@ -306,7 +448,9 @@ describe('RecordView', () => {
     })
 
     it('says that a record has no text', async () => {
-      await renderInRouter(<RecordView record={{ ...decision, body: '  ' }} />)
+      await renderInRouter(
+        <RecordView {...handlers} record={{ ...decision, body: '  ' }} />,
+      )
 
       expect(screen.getByText('This record has no text yet.')).toBeDefined()
     })
