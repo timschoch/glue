@@ -79,4 +79,12 @@ describe('GET /api/v1/openapi.json', () => {
       decision.patch.responses[200].content['application/json'].schema,
     ).toEqual(changed)
   })
+
+  it('describes the Decision that a new Decision supersedes', async () => {
+    const document = await handleGetOpenApi().json()
+
+    expect(
+      document.components.schemas.DecisionInput.properties.supersedes,
+    ).toMatchObject({ type: 'string' })
+  })
 })

@@ -14,8 +14,9 @@ import {
 
 // Each route below this one needs a session. This guard is for the pages:
 // the server functions that read the Concept check the session themselves.
-// So the guard asks the server once. When the network fails later, the page
-// frame stays and the page in it shows the error.
+// So the guard asks the server once, and the frame reads the Products once.
+// When the network fails later, the page frame stays and the page in it
+// shows the error.
 export const Route = createFileRoute('/_signed-in')({
   beforeLoad: async ({ context, location }) => {
     const session = await context.findSession()
@@ -27,6 +28,8 @@ export const Route = createFileRoute('/_signed-in')({
     }
     return { session }
   },
+  loader: ({ context }) => context.fetchProducts(),
+  staleTime: Infinity,
   component: SignedIn,
   pendingComponent: () => (
     <PlainFrame>
@@ -50,7 +53,11 @@ function SignedIn() {
   }
 
   return (
-    <PageFrame user={session.user} onSignOut={handleSignOut}>
+    <PageFrame
+      user={session.user}
+      products={Route.useLoaderData()}
+      onSignOut={handleSignOut}
+    >
       <Outlet />
     </PageFrame>
   )

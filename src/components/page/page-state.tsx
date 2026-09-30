@@ -1,5 +1,6 @@
 import { Button, Title } from '@mantine/core'
 import { Link, useRouter } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 
 import classes from './page-state.module.css'
 
@@ -36,14 +37,22 @@ export function RouteErrorState({ name }: { name: string }) {
   return <ErrorState name={name} onRetry={() => void router.invalidate()} />
 }
 
-function MissingState({ title, text }: { title: string; text: string }) {
+function MissingState({
+  title,
+  text,
+  children,
+}: {
+  title: string
+  text: string
+  children?: ReactNode
+}) {
   return (
     <div className={classes.state}>
       <Title order={1} className={classes.title}>
         {title}
       </Title>
       <p className={classes.text}>{text}</p>
-      <Link to="/">Go to the Concept</Link>
+      {children}
     </div>
   )
 }
@@ -53,6 +62,19 @@ export function MissingRecordState({ recordId }: { recordId: string }) {
     <MissingState
       title={`No record ${recordId}`}
       text="The Concept has no record with this id. The id of a record is a letter and a number, such as D5."
+    >
+      <Link from="/$product" to="/$product" params={true}>
+        Go to the Concept
+      </Link>
+    </MissingState>
+  )
+}
+
+export function MissingProductState({ product }: { product: string }) {
+  return (
+    <MissingState
+      title={`No Product ${product}`}
+      text="Check the address for a typing error, or pick a Product at the top of the page."
     />
   )
 }
@@ -62,6 +84,8 @@ export function MissingPageState() {
     <MissingState
       title="No page at this address"
       text="Check the address for a typing error, or start at the Concept."
-    />
+    >
+      <Link to="/">Go to the Concept</Link>
+    </MissingState>
   )
 }

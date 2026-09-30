@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -8,11 +8,27 @@ import { PageFrame } from './page-frame.tsx'
 
 const user = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
 
-function renderFrame(onSignOut = vi.fn(() => Promise.resolve())) {
+const products = [
+  { slug: 'flexibeck', name: 'flexibeck' },
+  { slug: 'glue', name: 'Glue' },
+]
+
+function renderFrame(
+  onSignOut = vi.fn(() => Promise.resolve()),
+  path?: string,
+) {
   return renderInRouter(
-    <PageFrame user={user} onSignOut={onSignOut}>
+    <PageFrame user={user} products={products} onSignOut={onSignOut}>
       <h1>The page</h1>
     </PageFrame>,
+    path,
+  )
+}
+
+function productSwitch() {
+  return within(screen.getByRole('banner')).getByRole<HTMLSelectElement>(
+    'combobox',
+    { name: 'Product' },
   )
 }
 
@@ -24,6 +40,12 @@ describe('PageFrame', () => {
       within(screen.getByRole('main')).getByRole('heading', { level: 1 })
         .textContent,
     ).toBe('The page')
+  })
+
+  it('has the live region that says the result of an action', async () => {
+    await renderFrame()
+
+    expect(within(screen.getByRole('main')).getByRole('status')).toBeDefined()
   })
 
   it('starts with a link that skips to the content', async () => {
@@ -44,6 +66,37 @@ describe('PageFrame', () => {
         .getByRole('link', { name: 'Glue' })
         .getAttribute('href'),
     ).toBe('/')
+  })
+
+  it('shows the Product of the page in the switch, with each other Product', async () => {
+    await renderFrame()
+
+    expect(productSwitch().value).toBe('glue')
+    expect(
+      within(productSwitch())
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['flexibeck', 'Glue'])
+  })
+
+  it('goes to the overview of the Product that the person picks', async () => {
+    const { router } = await renderFrame()
+
+    await userEvent.selectOptions(productSwitch(), 'flexibeck')
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/flexibeck'),
+    )
+    expect(productSwitch().value).toBe('flexibeck')
+  })
+
+  it('shows no Product in the switch when the address has an unknown one', async () => {
+    await renderFrame(undefined, '/nope')
+
+    expect(productSwitch().value).toBe('')
+    expect(within(productSwitch()).getAllByRole('option')[0].textContent).toBe(
+      'Pick a Product',
+    )
   })
 
   it('shows who is signed in', async () => {

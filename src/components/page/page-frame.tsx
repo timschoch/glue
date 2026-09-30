@@ -1,9 +1,11 @@
-import { Button } from '@mantine/core'
-import { Link } from '@tanstack/react-router'
+import { Button, NativeSelect } from '@mantine/core'
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 import type { User } from '../../authentication/session.ts'
+import type { Product } from '../../db/concept.ts'
+import { Announcer } from './announcer.tsx'
 import classes from './page-frame.module.css'
 
 type SignOut = 'idle' | 'pending' | 'failed'
@@ -13,13 +15,47 @@ export function PlainFrame({ children }: { children: ReactNode }) {
   return <main className={classes.plain}>{children}</main>
 }
 
+// Shows the Product of the page and goes to the overview of another one.
+function ProductSwitch({ products }: { products: ReadonlyArray<Product> }) {
+  const { product } = useParams({ strict: false })
+  const navigate = useNavigate()
+  const known = products.some(({ slug }) => slug === product)
+
+  return (
+    <NativeSelect
+      aria-label="Product"
+      classNames={{ root: classes.switch, input: classes.product }}
+      value={known ? product : ''}
+      onChange={(event) =>
+        navigate({
+          to: '/$product',
+          params: { product: event.currentTarget.value },
+        })
+      }
+    >
+      {!known && (
+        <option value="" disabled>
+          Pick a Product
+        </option>
+      )}
+      {products.map(({ slug, name }) => (
+        <option key={slug} value={slug}>
+          {name}
+        </option>
+      ))}
+    </NativeSelect>
+  )
+}
+
 // The frame of each page that needs a session.
 export function PageFrame({
   user,
+  products,
   onSignOut,
   children,
 }: {
   user: User
+  products: ReadonlyArray<Product>
   onSignOut: () => Promise<void>
   children: ReactNode
 }) {
@@ -42,9 +78,12 @@ export function PageFrame({
       </a>
       <header className={classes.header}>
         <div className={classes.bar}>
-          <Link to="/" className={classes.product}>
-            Glue
-          </Link>
+          <div className={classes.place}>
+            <Link to="/" className={classes.app}>
+              Glue
+            </Link>
+            <ProductSwitch products={products} />
+          </div>
           <div className={classes.account}>
             <span className={classes.user}>{user.name}</span>
             <Button
@@ -62,7 +101,7 @@ export function PageFrame({
         </div>
       </header>
       <main id="content" tabIndex={-1} className={classes.content}>
-        {children}
+        <Announcer>{children}</Announcer>
       </main>
     </>
   )

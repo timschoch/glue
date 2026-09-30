@@ -1,6 +1,7 @@
 /* Hallmark · component: Concept overview · genre: modern-minimal · theme: custom (dense, calm, text first)
  * states: default · hover · focus · active · empty
  * Decisions are cards. The other records are rows on one surface.
+ * A draft Insight has its triage in its row.
  */
 
 .page {
@@ -42,8 +43,25 @@
   scroll-margin-top: var(--space-md);
 }
 
+/* The name of the section, then the action that adds a record to it. */
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2xs) var(--space-md);
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+}
+
 .name {
   text-wrap: balance;
+}
+
+.triage {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
 }
 
 .records {

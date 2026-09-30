@@ -6,7 +6,15 @@ import {
   submitSignOut,
   submitSignUp,
 } from './authentication/session.functions.ts'
-import { fetchConcept, fetchRecord } from './db/concept.functions.ts'
+import {
+  fetchConcept,
+  fetchProducts,
+  fetchRecord,
+  submitAcceptDecision,
+  submitDiscardInsight,
+  submitKeepInsight,
+  submitProposeDecision,
+} from './db/concept.functions.ts'
 import { createRouterContext } from './router-context.ts'
 import type { Server, SessionMemory } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
@@ -14,8 +22,13 @@ import { routeTree } from './routeTree.gen'
 // The routes reach the server only through these functions.
 const server: Server = {
   fetchSession: () => fetchSession(),
-  fetchConcept: () => fetchConcept(),
-  fetchRecord: (recordId) => fetchRecord({ data: recordId }),
+  fetchProducts: () => fetchProducts(),
+  fetchConcept: (product) => fetchConcept({ data: product }),
+  fetchRecord: (record) => fetchRecord({ data: record }),
+  keepInsight: (insight) => submitKeepInsight({ data: insight }),
+  discardInsight: (insight) => submitDiscardInsight({ data: insight }),
+  acceptDecision: (decision) => submitAcceptDecision({ data: decision }),
+  proposeDecision: (proposal) => submitProposeDecision({ data: proposal }),
   signIn: (credentials) => submitSignIn({ data: credentials }),
   signUp: (account) => submitSignUp({ data: account }),
   signOut: () => submitSignOut(),

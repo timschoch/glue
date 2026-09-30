@@ -8,6 +8,7 @@ import {
   ErrorState,
   LoadingState,
   MissingPageState,
+  MissingProductState,
   MissingRecordState,
 } from './page-state.tsx'
 
@@ -50,13 +51,28 @@ function overviewPath() {
 }
 
 describe('MissingRecordState', () => {
-  it('names the id that has no record and links to the overview', async () => {
-    await renderInRouter(<MissingRecordState recordId="D99" />)
+  it('names the id that has no record and links to the overview of the Product', async () => {
+    await renderInRouter(<MissingRecordState recordId="D99" />, '/flexibeck')
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
       'No record D99',
     )
-    expect(overviewPath()).toBe('/')
+    expect(overviewPath()).toBe('/flexibeck')
+  })
+})
+
+describe('MissingProductState', () => {
+  it('names the Product that Glue does not know and says how to go on', async () => {
+    await renderInRouter(<MissingProductState product="nope" />, '/nope')
+
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      'No Product nope',
+    )
+    expect(
+      screen.getByText(
+        'Check the address for a typing error, or pick a Product at the top of the page.',
+      ),
+    ).toBeDefined()
   })
 })
 
