@@ -14,9 +14,11 @@ import {
 
 // Each route below this one needs a session. This guard is for the pages:
 // the server functions that read the Concept check the session themselves.
+// So the guard asks the server once. When the network fails later, the page
+// frame stays and the page in it shows the error.
 export const Route = createFileRoute('/_signed-in')({
   beforeLoad: async ({ context, location }) => {
-    const session = await context.fetchSession()
+    const session = await context.findSession()
     if (!session) {
       throw redirect({
         to: '/sign-in',

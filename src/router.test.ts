@@ -2,7 +2,8 @@
 import { createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { RouterContext } from './router-context.ts'
+import { createRouterContext } from './router-context.ts'
+import type { RouterContext, Server, SessionMemory } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
 
 const session = {
@@ -26,7 +27,7 @@ const guardrail = {
   body: '',
 }
 
-function context(overrides: Partial<RouterContext> = {}): RouterContext {
+function context(overrides: Partial<Server> = {}): Server {
   return {
     fetchSession: vi.fn(() => Promise.resolve(undefined)),
     fetchConcept: vi.fn(() => Promise.resolve(concept)),
@@ -38,13 +39,18 @@ function context(overrides: Partial<RouterContext> = {}): RouterContext {
   }
 }
 
-async function load(path: string, routerContext: RouterContext) {
+async function open(path: string, server: Server, memory?: SessionMemory) {
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: [path] }),
-    context: routerContext,
+    context: createRouterContext(server, memory),
   })
   await router.load()
+  return router
+}
+
+async function load(path: string, server: Server) {
+  const router = await open(path, server)
   return router.state.location
 }
 
@@ -94,6 +100,96 @@ describe('a Concept route with a session', () => {
 
     expect(location.pathname).toBe('/concept/R1')
     expect(routerContext.fetchRecord).toHaveBeenCalledWith('R1')
+  })
+})
+
+describe('the session of a signed-in person', () => {
+  const offline = () => Promise.reject(new Error('offline'))
+  const credentials = { email: 'ada@example.com', password: 'correct horse' }
+
+  // A server that knows the session for the first request only.
+  function serverWithOneAnswer(
+    next: Server['fetchSession'],
+    overrides: Partial<Server> = {},
+  ) {
+    return context({
+      fetchSession: vi
+        .fn<Server['fetchSession']>()
+        .mockResolvedValueOnce(session)
+        .mockImplementation(next),
+      ...overrides,
+    })
+  }
+
+  function statuses(router: Awaited<ReturnType<typeof open>>) {
+    return router.state.matches.map((match) => [match.routeId, match.status])
+  }
+
+  it('comes from the server once, not on each navigation', async () => {
+    const server = serverWithOneAnswer(offline)
+    const router = await open('/', server)
+
+    await router.navigate({
+      to: '/concept/$recordId',
+      params: { recordId: 'R1' },
+    })
+
+    expect(router.state.location.pathname).toBe('/concept/R1')
+    expect(server.fetchSession).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the page frame when the network fails, the error is at the record', async () => {
+    const server = serverWithOneAnswer(offline, { fetchRecord: vi.fn(offline) })
+    const router = await open('/', server)
+
+    await router.navigate({
+      to: '/concept/$recordId',
+      params: { recordId: 'R1' },
+    })
+
+    expect(statuses(router)).toEqual([
+      ['__root__', 'success'],
+      ['/_signed-in', 'success'],
+      ['/_signed-in/concept/$recordId', 'error'],
+    ])
+  })
+
+  it('comes with the page from the server, so the browser does not ask again', async () => {
+    const server = context({ fetchSession: vi.fn(offline) })
+
+    const router = await open('/concept/R1', server, { session })
+
+    expect(router.state.location.pathname).toBe('/concept/R1')
+    expect(server.fetchSession).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['sign-in', (routes: RouterContext) => routes.signIn(credentials)],
+    [
+      'sign-up',
+      (routes: RouterContext) => routes.signUp({ name: 'Ada', ...credentials }),
+    ],
+    ['sign-out', (routes: RouterContext) => routes.signOut()],
+  ])('comes from the server again after a %s', async (_name, change) => {
+    const server = serverWithOneAnswer(() => Promise.resolve(undefined))
+    const router = await open('/', server)
+
+    await change(router.options.context)
+    await router.navigate({
+      to: '/concept/$recordId',
+      params: { recordId: 'R1' },
+    })
+
+    expect(router.state.location.pathname).toBe('/sign-in')
+  })
+
+  it('does not send the person away from sign-in after the session ended', async () => {
+    const server = serverWithOneAnswer(() => Promise.resolve(undefined))
+    const router = await open('/', server)
+
+    await router.navigate({ to: '/sign-in' })
+
+    expect(router.state.location.pathname).toBe('/sign-in')
   })
 })
 

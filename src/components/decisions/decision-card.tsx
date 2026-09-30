@@ -9,7 +9,7 @@ import classes from './decision-card.module.css'
 export function DecisionCard({ decision }: { decision: DecisionSummary }) {
   return (
     <article className={classes.card}>
-      <Title order={3} size="h2" className={classes.title}>
+      <Title order={3} className={classes.title}>
         <RecordLink record={decision} />
       </Title>
       <RecordFields inline>

@@ -17,8 +17,6 @@
 }
 
 .title {
-  --record-id-size: var(--text-md);
-
   min-width: 0;
   max-width: var(--measure-prose);
   overflow-wrap: anywhere;

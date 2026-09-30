@@ -98,6 +98,8 @@ Change a value here, in [src/theme.ts](src/theme.ts) and in [src/styles.css](src
   --radius-control: 0.25rem;
   --radius-card: 0.375rem;
   --measure-prose: 68ch;
+  --measure-form: 26rem;
+  --measure-page: 60rem;
 
   /* Motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -118,13 +120,13 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 | `--font-body`    | IBM Plex Sans | All other text. Weight 400, labels 500.             |
 | `--font-mono`    | IBM Plex Mono | Record ids, such as `D5`, and code. Weight 500.     |
 
-- Five sizes. `--text-md` is the body size. Record titles use `--text-lg`, the page heading uses `--text-xl`.
+- Five sizes. `--text-md` is the body size and the size of a record title in a list. Section headings use `--text-lg`, the page heading uses `--text-xl`.
 - `--text-sm` for metadata and labels. `--text-xs` only for a short note, never for a sentence that people must read.
 - Headings, labels, metadata and lists: `--leading-ui`. Paragraphs: `--leading-prose`.
 - `--leading-title` is only for large text that stays on one line, such as the name of the app. A record title wraps, so it is not such text.
 - Headings are never italic. Italic is for emphasis in a paragraph.
 - A long title wraps: `overflow-wrap: anywhere`, `min-width: 0` and `text-wrap: balance`. Do not truncate a title, the title is the content.
-- Paragraphs are `--measure-prose` wide at most.
+- Paragraphs are `--measure-prose` wide at most. A page is `--measure-page` wide at most, a page with only a form or a message `--measure-form`.
 - Numbers in a column: `font-variant-numeric: tabular-nums`.
 - Dates are ISO, `2026-09-29`, in a `<time>` element.
 
@@ -184,7 +186,7 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 - A record page starts with a breadcrumb: the overview, then the section of the record.
 - A link in text has `--color-accent` and an underline. A record reference has the underline on hover only, its id shows that it is a link.
 - The hover look is inside `@media (hover: hover)`. The pressed look is outside of it.
-- A link or button is 24 px high or more.
+- A link or button is 24 px high or more. A link in a smaller line gets `--space-2xs` of padding above and below.
 
 ## Forms
 
