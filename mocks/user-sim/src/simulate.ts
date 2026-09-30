@@ -122,7 +122,9 @@ async function fetchOutcome(
   try {
     await page.goto(options.target)
     for (const [index, current] of steps.entries()) {
+      if (network.rateLimitedStep !== undefined) break
       step = index
+      network.step = index
       if (
         current.optional &&
         !(await isShown(page, current, steps[index + 1]))
@@ -132,10 +134,11 @@ async function fetchOutcome(
       }
       if (!(await isFound(page, current))) {
         // A rate limit is the product turning the bot away, not a missing step.
-        const isRateLimited =
-          network.isRateLimited ||
-          (await page.getByText(RATE_LIMIT_TEXT).count()) > 0
-        return { end: isRateLimited ? 'error' : 'missing', step, skipped }
+        if ((await page.getByText(RATE_LIMIT_TEXT).count()) > 0) {
+          network.rateLimitedStep ??= step
+        }
+        if (network.rateLimitedStep !== undefined) break
+        return { end: 'missing', step, skipped }
       }
       const screen = await parseScreen(page, listQuestions(current))
       const struggle = getStruggle(screen, bot)
@@ -148,9 +151,12 @@ async function fetchOutcome(
       }
       await page.waitForLoadState()
     }
+    if (network.rateLimitedStep !== undefined) {
+      return { end: 'error', step: network.rateLimitedStep, skipped }
+    }
     return { end: 'finished', step, answer: visit.answer, skipped }
   } catch {
-    return { end: 'error', step, skipped }
+    return { end: 'error', step: network.rateLimitedStep ?? step, skipped }
   } finally {
     // Leave like a closed tab: pagehide lets the product's posthog-js send its
     // queue. Then wait until those requests are done, or the time is up.
@@ -170,10 +176,13 @@ async function fetchOutcome(
 
 /** What the bot sees of the traffic between its browser context and the product. */
 type Network = {
-  pending: Set<Request>
+  /** The step the bot is on. */
+  step: number
+  /** Each open request, with the step that sent it. */
+  pending: Map<Request, number>
   lastRequestAt: number
-  /** The product answered a request with HTTP 429. */
-  isRateLimited: boolean
+  /** The step the product rate-limited: its request got HTTP 429, or its screen says so. */
+  rateLimitedStep?: number
 }
 
 /** Adds the bot header to the product's requests and follows the context's traffic. */
@@ -191,12 +200,12 @@ async function createNetwork(
       }),
   )
   const network: Network = {
-    pending: new Set(),
+    step: 0,
+    pending: new Map(),
     lastRequestAt: 0,
-    isRateLimited: false,
   }
   context.on('request', (request) => {
-    network.pending.add(request)
+    network.pending.set(request, network.step)
     network.lastRequestAt = Date.now()
   })
   context.on('requestfinished', (request) => network.pending.delete(request))
@@ -206,7 +215,8 @@ async function createNetwork(
       response.status() === TOO_MANY_REQUESTS &&
       new URL(response.url()).origin === origin
     ) {
-      network.isRateLimited = true
+      network.rateLimitedStep ??=
+        network.pending.get(response.request()) ?? network.step
     }
   })
   return network
