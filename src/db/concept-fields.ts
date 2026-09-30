@@ -1,5 +1,5 @@
 // Concept record types: id prefix and required fields per folder.
-// The one home of these shapes; concept-cli.ts validates against them.
+// The one home of these shapes; concept-records.ts validates against them.
 export const CONCEPT_FIELDS = {
   goals: { prefix: 'G', required: ['id', 'title', 'metric', 'source'] },
   decisions: {

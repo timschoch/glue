@@ -4,7 +4,10 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import * as schema from '../src/db/schema.ts'
-import { addConceptRecord, setDecisionStatus } from '../src/db/concept-cli.ts'
+import {
+  addConceptRecord,
+  setDecisionStatus,
+} from '../src/db/concept-records.ts'
 import { loadDecisions } from './load-decisions.ts'
 import { problems } from './check-pr-workflow.mjs'
 

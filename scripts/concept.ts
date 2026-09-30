@@ -1,15 +1,17 @@
 // `pnpm concept`: read and add Glue's Concept records in the database.
 // See src/db/concept-fields.ts for the record types and their fields.
 import { createDb } from '../src/db/client.ts'
+import type { ConceptDb } from '../src/db/client.ts'
 import {
   addConceptRecord,
   listConceptRecords,
   setDecisionStatus,
   showConceptRecord,
-} from '../src/db/concept-cli.ts'
-import type { ConceptFields, ConceptFolder } from '../src/db/concept-cli.ts'
+} from '../src/db/concept-records.ts'
+import type { ConceptFields, ConceptFolder } from '../src/db/concept-records.ts'
 import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
 import type { DecisionStatus } from '../src/db/schema.ts'
+import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
   'enforced-by': 'enforced_by',
@@ -20,7 +22,7 @@ const KNOWN_FIELDS = new Set(
   Object.values(CONCEPT_FIELDS)
     .flatMap((type) => type.required as readonly string[])
     .filter((field) => field !== 'id')
-    .concat(['product', 'body', 'status', 'superseded_by']),
+    .concat(['product', 'body', 'status', 'superseded_by', 'name']),
 )
 
 function isConceptFolder(value: string | undefined): value is ConceptFolder {
@@ -119,8 +121,45 @@ async function main() {
       )
       return
     }
+    case 'token':
+      await handleTokenCommand(db, rest)
+      return
     default:
       throw new Error(`unknown command "${command}"`)
+  }
+}
+
+// Tokens for the Concept HTTP API, one Product each.
+async function handleTokenCommand(db: ConceptDb, [command, ...rest]: string[]) {
+  switch (command) {
+    case 'create': {
+      const flags = parseFlags(rest)
+      const product = flags.product as string | undefined
+      const name = flags.name as string | undefined
+      if (!product || !name) {
+        throw new Error('token create needs --product and --name')
+      }
+      const { token } = await createToken(db, product, name)
+      console.log(token)
+      console.error('Copy the token now. Glue stores only its hash.')
+      return
+    }
+    case 'list':
+      for (const token of await listTokens(db)) {
+        const created = token.createdAt.toISOString().slice(0, 10)
+        console.log([token.id, token.product, token.name, created].join('  '))
+      }
+      return
+    case 'revoke': {
+      const [id] = rest
+      const deleted = /^\d+$/.test(id) && (await deleteToken(db, Number(id)))
+      if (!deleted) {
+        throw new Error(`token "${id}" not found`)
+      }
+      return
+    }
+    default:
+      throw new Error(`unknown token command "${command}"`)
   }
 }
 

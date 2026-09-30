@@ -5,6 +5,11 @@ import type { ConceptDb } from './client.ts'
 import * as schema from './schema.ts'
 
 export type ConceptFolder = keyof typeof CONCEPT_FIELDS
+
+// A record breaks a rule: a missing field, or a link to a record that does
+// not exist. The HTTP API answers it with 400.
+export class InvalidRecordError extends Error {}
+
 export type ConceptFields = Record<string, string | string[] | undefined>
 
 const FOLDER_TABLES = {
@@ -35,7 +40,7 @@ async function findProductId(db: ConceptDb, productSlug: string) {
   return products[0].id
 }
 
-async function addProductId(db: ConceptDb, productSlug: string) {
+export async function addProductId(db: ConceptDb, productSlug: string) {
   const [product] = await db
     .insert(schema.products)
     .values({ slug: productSlug, name: productSlug })
@@ -203,14 +208,15 @@ function validateFields(folder: ConceptFolder, fields: ConceptFields) {
     (field: string) => field !== 'id',
   )
   for (const field of required) {
-    if (isMissing(fields[field])) throw new Error(`"${field}" is required`)
+    if (isMissing(fields[field]))
+      throw new InvalidRecordError(`"${field}" is required`)
   }
   if (
     folder === 'decisions' &&
     fields.status === 'superseded' &&
     isMissing(fields.superseded_by)
   ) {
-    throw new Error('a superseded Decision needs "superseded_by"')
+    throw new InvalidRecordError('a superseded Decision needs "superseded_by"')
   }
 }
 
@@ -231,7 +237,8 @@ async function addDecision(
         eq(schema.goals.recordId, goalRecordId),
       ),
     )
-  if (goalRows.length === 0) throw new Error(`goal "${goalRecordId}" not found`)
+  if (goalRows.length === 0)
+    throw new InvalidRecordError(`goal "${goalRecordId}" not found`)
   const [goalRow] = goalRows
 
   let supersededById: number | null = null
@@ -247,7 +254,9 @@ async function addDecision(
         ),
       )
     if (rows.length === 0)
-      throw new Error(`decision "${supersededByRecordId}" not found`)
+      throw new InvalidRecordError(
+        `decision "${supersededByRecordId}" not found`,
+      )
     supersededById = rows[0].id
   }
 
@@ -282,7 +291,7 @@ async function addDecision(
       evidenceRows.push({ factId: factRows[0].id })
       continue
     }
-    throw new Error(`evidence "${evidenceId}" not found`)
+    throw new InvalidRecordError(`evidence "${evidenceId}" not found`)
   }
 
   const [decisionRow] = await db
@@ -387,12 +396,12 @@ export async function setDecisionStatus(
   supersededByRecordId?: string,
 ): Promise<void> {
   if (!schema.decisionStatuses.includes(status)) {
-    throw new Error(
+    throw new InvalidRecordError(
       `status "${status}" must be one of ${schema.decisionStatuses.join(', ')}`,
     )
   }
   if (status === 'superseded' && !supersededByRecordId) {
-    throw new Error('a superseded Decision needs "superseded_by"')
+    throw new InvalidRecordError('a superseded Decision needs "superseded_by"')
   }
 
   const productId = await findProductId(db, productSlug)
@@ -405,7 +414,8 @@ export async function setDecisionStatus(
         eq(schema.decisions.recordId, id),
       ),
     )
-  if (decisionRows.length === 0) throw new Error(`decision "${id}" not found`)
+  if (decisionRows.length === 0)
+    throw new InvalidRecordError(`decision "${id}" not found`)
   const [decisionRow] = decisionRows
 
   let supersededById: number | null = null
@@ -420,7 +430,9 @@ export async function setDecisionStatus(
         ),
       )
     if (rows.length === 0)
-      throw new Error(`decision "${supersededByRecordId}" not found`)
+      throw new InvalidRecordError(
+        `decision "${supersededByRecordId}" not found`,
+      )
     supersededById = rows[0].id
   }
 
