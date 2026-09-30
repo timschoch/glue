@@ -7,6 +7,7 @@ import type { ConceptDb } from '../src/db/client.ts'
 import {
   addConceptRecord,
   listConceptRecords,
+  setAnalyticsProject,
   setDecisionStatus,
   setGoalMeasure,
   showConceptRecord,
@@ -19,6 +20,7 @@ import type { DecisionStatus } from '../src/db/schema.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
+  'analytics-project': 'analytics_project',
   'enforced-by': 'enforced_by',
   'superseded-by': 'superseded_by',
 }
@@ -27,7 +29,15 @@ const KNOWN_FIELDS = new Set(
   Object.values(CONCEPT_FIELDS)
     .flatMap((type) => type.required as readonly string[])
     .filter((field) => field !== 'id')
-    .concat(['product', 'body', 'status', 'superseded_by', 'name', 'measure']),
+    .concat([
+      'product',
+      'body',
+      'status',
+      'superseded_by',
+      'name',
+      'measure',
+      'analytics_project',
+    ]),
 )
 
 function parseMeasure(value: string): GoalMeasure {
@@ -154,9 +164,29 @@ async function main() {
     case 'token':
       await handleTokenCommand(db, rest)
       return
+    case 'product':
+      await handleProductCommand(db, rest)
+      return
     default:
       throw new Error(`unknown command "${command}"`)
   }
+}
+
+// `product set <slug> --analytics-project <key>`: the analytics project the
+// Product's Goals are measured from. An empty key removes it.
+async function handleProductCommand(
+  db: ConceptDb,
+  [command, slug, ...rest]: string[],
+) {
+  if (command !== 'set') {
+    throw new Error(`unknown product command "${command}"`)
+  }
+  const flags = parseFlags(rest)
+  const analyticsProject = flags.analytics_project as string | undefined
+  if (!slug || analyticsProject === undefined) {
+    throw new Error('product set needs <slug> and --analytics-project')
+  }
+  await setAnalyticsProject(db, slug, analyticsProject || null)
 }
 
 // Tokens for the Concept HTTP API, one Product each.

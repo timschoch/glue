@@ -50,6 +50,7 @@ describe('GET /api/v1/openapi.json', () => {
         'GoalUpdate',
         'GoalMeasure',
         'MeasuredInsight',
+        'SkippedGoal',
         'InsightInput',
         'FactInput',
         'Error',

@@ -9,6 +9,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
 import type { GoalMeasure } from './goal-measure.ts'
@@ -17,6 +18,9 @@ export const products = pgTable('products', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
   slug: text('slug').notNull().unique(),
   name: text('name').notNull(),
+  // The Product's project key in its analytics tool. Goals read their funnel
+  // from this project only, so one Product cannot read another's analytics.
+  analyticsProject: text('analytics_project'),
 })
 
 // A token gives HTTP API access to the Concept of one Product.
@@ -67,7 +71,14 @@ export const insights = pgTable(
     status: text('status').$type<InsightStatus | null>(),
     body: text('body').notNull().default(''),
   },
-  (table) => [unique().on(table.productId, table.recordId)],
+  (table) => [
+    unique().on(table.productId, table.recordId),
+    // The measure run writes one Insight per query, also when two runs
+    // overlap. Other sources are free text and may repeat.
+    uniqueIndex('insights_measure_source_unique')
+      .on(table.productId, table.source)
+      .where(sql`${table.source} like 'mock-analytics://%'`),
+  ],
 )
 
 export const facts = pgTable(

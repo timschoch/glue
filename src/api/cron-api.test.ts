@@ -3,8 +3,9 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { addConceptRecord } from '../db/concept-records.ts'
+import { addConceptRecord, setAnalyticsProject } from '../db/concept-records.ts'
 import * as schema from '../db/schema.ts'
+import { measureGoals } from '../measure/measure-goals.ts'
 import type { MetricSource } from '../measure/metric-source.ts'
 import { handleMeasureCron } from './cron-api.ts'
 
@@ -42,7 +43,6 @@ beforeEach(async () => {
         source: 'okr',
         measure: {
           source: 'mock-analytics',
-          project: product,
           steps: ['signed-up', 'paid'],
           target: 0.25,
           window_days: 7,
@@ -50,6 +50,7 @@ beforeEach(async () => {
       },
       '',
     )
+    await setAnalyticsProject(db, product, `phc_${product}`)
   }
 })
 
@@ -57,14 +58,21 @@ afterEach(async () => {
   await client.close()
 })
 
-function callCron(authorization?: string) {
+let measureCalls = 0
+
+function callCron(
+  authorization?: string,
+  cronSecret: string | undefined = CRON_SECRET,
+) {
   const headers = new Headers()
   if (authorization) headers.set('authorization', authorization)
   return handleMeasureCron({
-    db,
     request: new Request('http://localhost/api/cron/measure', { headers }),
-    source,
-    cronSecret: CRON_SECRET,
+    cronSecret,
+    measure: () => {
+      measureCalls += 1
+      return measureGoals({ db, source, now: new Date() })
+    },
   })
 }
 
@@ -75,6 +83,14 @@ describe('GET /api/cron/measure', () => {
 
   it('answers 401 with a wrong secret', async () => {
     expect((await callCron('Bearer wrong')).status).toBe(401)
+  })
+
+  it('answers 401 and measures nothing when CRON_SECRET is not set', async () => {
+    measureCalls = 0
+
+    expect((await callCron('Bearer ', '')).status).toBe(401)
+    expect((await callCron('Bearer undefined', undefined)).status).toBe(401)
+    expect(measureCalls).toBe(0)
   })
 
   it('measures the Goals of every Product', async () => {

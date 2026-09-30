@@ -2,16 +2,16 @@
 // See vercel.json for the schedule.
 import { createHash, timingSafeEqual } from 'node:crypto'
 
-import type { ConceptDb } from '../db/client.ts'
-import { measureGoals } from '../measure/measure-goals.ts'
-import type { MetricSource } from '../measure/metric-source.ts'
+import type { measureGoals } from '../measure/measure-goals.ts'
 
 function hashText(value: string) {
   return createHash('sha256').update(value).digest()
 }
 
 // Compares in constant time, so the answer time does not leak the secret.
-function isCronRequest(request: Request, cronSecret: string) {
+// Without a secret no request passes.
+function isCronRequest(request: Request, cronSecret: string | undefined) {
+  if (!cronSecret) return false
   const authorization = request.headers.get('authorization') ?? ''
   return timingSafeEqual(
     hashText(authorization),
@@ -19,20 +19,19 @@ function isCronRequest(request: Request, cronSecret: string) {
   )
 }
 
-// The daily measure run over the Goals of every Product.
+// The daily measure run over the Goals of every Product. `measure` runs only
+// after the secret matched, so an unauthorized call reads no other setting.
 export async function handleMeasureCron(input: {
-  db: ConceptDb
   request: Request
-  source: MetricSource
-  cronSecret: string
+  cronSecret: string | undefined
+  measure: () => ReturnType<typeof measureGoals>
 }) {
-  const { db, request, source, cronSecret } = input
+  const { request, cronSecret, measure } = input
   if (!isCronRequest(request, cronSecret)) {
     return Response.json(
       { error: { code: 'unauthorized', message: 'send the cron secret' } },
       { status: 401 },
     )
   }
-  const insights = await measureGoals({ db, source, now: new Date() })
-  return Response.json({ insights })
+  return Response.json(await measure())
 }

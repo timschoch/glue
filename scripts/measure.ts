@@ -28,13 +28,16 @@ export function parseMeasureArgs(args: string[]): MeasureArgs {
 
 async function main() {
   const { productSlug, dryRun } = parseMeasureArgs(process.argv.slice(2))
-  const insights = await measureGoals({
+  const { insights, skipped } = await measureGoals({
     db: createDb(getSetting('DATABASE_URL')),
     source: createMetricSource(),
     now: new Date(),
     productSlug,
     dryRun,
   })
+  for (const goal of skipped) {
+    console.error(`${goal.product} ${goal.goal} skipped: ${goal.reason}`)
+  }
   for (const insight of insights) {
     const id = insight.id ?? 'dry run'
     console.log(`${insight.product} ${id}: ${insight.title}`)

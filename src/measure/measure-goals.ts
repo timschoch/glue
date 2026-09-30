@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import type { ConceptDb } from '../db/client.ts'
 import { addConceptRecord } from '../db/concept-records.ts'
+import { goalMeasureSchema } from '../db/goal-measure.ts'
 import type { GoalMeasure } from '../db/goal-measure.ts'
 import { decisions, goals, insights, products } from '../db/schema.ts'
 import type { FunnelResult, MetricSource } from './metric-source.ts'
@@ -35,6 +36,12 @@ export const measuredInsightSchema = z
 
 export type MeasuredInsight = z.infer<typeof measuredInsightSchema>
 
+export const skippedGoalSchema = z
+  .object({ product: z.string(), goal: z.string(), reason: z.string() })
+  .meta({ id: 'SkippedGoal' })
+
+export type SkippedGoal = z.infer<typeof skippedGoalSchema>
+
 type Window = { from: Date; to: Date }
 
 // The funnel of one window: the results per breakdown value, and the users
@@ -47,9 +54,10 @@ type WindowFunnel = {
 
 type MeasuredGoal = {
   productId: number
-  product: string
+  productSlug: string
+  analyticsProject: string
   goalId: number
-  goal: string
+  goalRecordId: string
   measure: GoalMeasure
 }
 
@@ -65,11 +73,11 @@ function windowBefore(end: Date, days: number): Window {
 
 async function fetchWindowFunnel(
   source: MetricSource,
-  measure: GoalMeasure,
+  { analyticsProject, measure }: MeasuredGoal,
   window: Window,
 ): Promise<WindowFunnel> {
   const results = await source.fetchFunnel({
-    project: measure.project,
+    project: analyticsProject,
     steps: measure.steps,
     ...window,
     ...(measure.breakdown && { breakdown: measure.breakdown }),
@@ -164,18 +172,17 @@ function formatWindowSection(
 // A URL-like reference to the query. It is also the key that keeps a second
 // run over the same Goal and window from writing the Insight again.
 function formatQueryReference(
-  goal: string,
-  measure: GoalMeasure,
+  { analyticsProject, goalRecordId, measure }: MeasuredGoal,
   window: Window,
 ) {
   const query = [
-    `goal=${goal}`,
+    `goal=${goalRecordId}`,
     `steps=${measure.steps.join(',')}`,
     `from=${formatDay(window.from)}`,
     `to=${formatDay(window.to)}`,
     ...(measure.breakdown ? [`breakdown=${measure.breakdown}`] : []),
   ].join('&')
-  return `${measure.source}://${measure.project}/funnel?${query}`
+  return `${measure.source}://${analyticsProject}/funnel?${query}`
 }
 
 async function hasInsight(db: ConceptDb, productId: number, source: string) {
@@ -196,16 +203,18 @@ async function listAcceptedDecisions(db: ConceptDb, goalId: number) {
   )
 }
 
+// The Goals to measure, and the ones that cannot be measured with the reason.
 async function listMeasuredGoals(
   db: ConceptDb,
   productSlug: string | undefined,
-): Promise<MeasuredGoal[]> {
+) {
   const rows = await db
     .select({
       productId: products.id,
-      product: products.slug,
+      productSlug: products.slug,
+      analyticsProject: products.analyticsProject,
       goalId: goals.id,
-      goal: goals.recordId,
+      goalRecordId: goals.recordId,
       measure: goals.measure,
     })
     .from(goals)
@@ -217,9 +226,28 @@ async function listMeasuredGoals(
       ),
     )
     .orderBy(goals.id)
-  return rows.flatMap(({ measure, ...row }) =>
-    measure ? [{ ...row, measure }] : [],
-  )
+  const measured: MeasuredGoal[] = []
+  const skipped: SkippedGoal[] = []
+  for (const { analyticsProject, measure, ...row } of rows) {
+    const skip = (reason: string) =>
+      skipped.push({
+        product: row.productSlug,
+        goal: row.goalRecordId,
+        reason,
+      })
+    // A measure stored under an older schema no longer parses.
+    const parsed = goalMeasureSchema.safeParse(measure)
+    if (!parsed.success) {
+      skip(`the measure is not valid: ${z.prettifyError(parsed.error)}`)
+    } else if (!analyticsProject) {
+      skip(
+        `the Product has no analytics project: pnpm concept product set ${row.productSlug} --analytics-project <key>`,
+      )
+    } else {
+      measured.push({ ...row, analyticsProject, measure: parsed.data })
+    }
+  }
+  return { measured, skipped }
 }
 
 // The Insight the Goal's last window calls for, or null when there is none
@@ -228,15 +256,16 @@ async function measureGoal(
   db: ConceptDb,
   source: MetricSource,
   now: Date,
-  { productId, goalId, goal, measure }: MeasuredGoal,
+  measured: MeasuredGoal,
 ) {
+  const { productId, goalId, goalRecordId, measure } = measured
   const lastWindow = windowBefore(now, measure.window_days)
-  const reference = formatQueryReference(goal, measure, lastWindow)
+  const reference = formatQueryReference(measured, lastWindow)
   if (await hasInsight(db, productId, reference)) return null
 
   const [last, before] = await Promise.all(
     [lastWindow, windowBefore(lastWindow.from, measure.window_days)].map(
-      (window) => fetchWindowFunnel(source, measure, window),
+      (window) => fetchWindowFunnel(source, measured, window),
     ),
   )
   const findings = listFindings(measure, last, before)
@@ -244,15 +273,15 @@ async function measureGoal(
 
   const { steps, window_days: days } = measure
   const title = [
-    `${goal} ${steps[0]} → ${steps[steps.length - 1]}: ${percent.format(conversion(last.counts))}`,
+    `${goalRecordId} ${steps[0]} → ${steps[steps.length - 1]}: ${percent.format(conversion(last.counts))}`,
     ...findings,
   ].join(', ')
   const accepted = await listAcceptedDecisions(db, goalId)
   const body = [
-    `Goal ${goal}, target ${percent.format(measure.target)} from ${steps[0]} to ${steps[steps.length - 1]}. Query: ${reference}`,
+    `Goal ${goalRecordId}, target ${percent.format(measure.target)} from ${steps[0]} to ${steps[steps.length - 1]}. Query: ${reference}`,
     formatWindowSection(`Last ${days} days`, measure, last),
     formatWindowSection(`The ${days} days before`, measure, before),
-    `## Decisions accepted for ${goal}`,
+    `## Decisions accepted for ${goalRecordId}`,
     accepted.length === 0
       ? 'None.'
       : accepted
@@ -262,34 +291,54 @@ async function measureGoal(
   return { title, source: reference, body }
 }
 
+// The new Insight's id, or null when an overlapping run wrote it first.
+async function addMeasuredInsight(
+  db: ConceptDb,
+  goal: MeasuredGoal,
+  draft: { title: string; source: string; body: string },
+  now: Date,
+) {
+  const fields = {
+    title: draft.title,
+    source: draft.source,
+    date: formatDay(now),
+    status: 'draft',
+  }
+  try {
+    return await addConceptRecord(
+      db,
+      goal.productSlug,
+      'insights',
+      fields,
+      draft.body,
+    )
+  } catch (error) {
+    if (await hasInsight(db, goal.productId, draft.source)) return null
+    throw error
+  }
+}
+
 export async function measureGoals(options: {
   db: ConceptDb
   source: MetricSource
   now: Date
   productSlug?: string
   dryRun?: boolean
-}): Promise<MeasuredInsight[]> {
+}): Promise<{ insights: MeasuredInsight[]; skipped: SkippedGoal[] }> {
   const { db, source, now, productSlug, dryRun = false } = options
+  const { measured, skipped } = await listMeasuredGoals(db, productSlug)
   const written: MeasuredInsight[] = []
-  for (const measured of await listMeasuredGoals(db, productSlug)) {
-    const draft = await measureGoal(db, source, now, measured)
+  for (const goal of measured) {
+    const draft = await measureGoal(db, source, now, goal)
     if (!draft) continue
-    const { product, goal } = measured
-    const id = dryRun
-      ? null
-      : await addConceptRecord(
-          db,
-          product,
-          'insights',
-          {
-            title: draft.title,
-            source: draft.source,
-            date: formatDay(now),
-            status: 'draft',
-          },
-          draft.body,
-        )
-    written.push({ product, goal, id, ...draft })
+    const id = dryRun ? null : await addMeasuredInsight(db, goal, draft, now)
+    if (!dryRun && id === null) continue
+    written.push({
+      product: goal.productSlug,
+      goal: goal.goalRecordId,
+      id,
+      ...draft,
+    })
   }
-  return written
+  return { insights: written, skipped }
 }

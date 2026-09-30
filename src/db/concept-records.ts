@@ -414,6 +414,21 @@ export async function addConceptRecord(
   return recordId
 }
 
+// null removes it: the Product's Goals are not measured.
+export async function setAnalyticsProject(
+  db: ConceptDb,
+  productSlug: string,
+  analyticsProject: string | null,
+): Promise<void> {
+  const updated = await db
+    .update(schema.products)
+    .set({ analyticsProject })
+    .where(eq(schema.products.slug, productSlug))
+    .returning({ id: schema.products.id })
+  if (updated.length === 0)
+    throw new Error(`product "${productSlug}" not found`)
+}
+
 // null removes the measure: Glue stops measuring the Goal.
 export async function setGoalMeasure(
   db: ConceptDb,

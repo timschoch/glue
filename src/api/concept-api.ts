@@ -19,6 +19,7 @@ import { findProductByToken } from '../db/tokens.ts'
 import {
   measureGoals,
   measuredInsightSchema,
+  skippedGoalSchema,
 } from '../measure/measure-goals.ts'
 import type { MetricSource } from '../measure/metric-source.ts'
 
@@ -98,7 +99,10 @@ export const updateSchemas = {
 }
 
 export const measureResultSchema = z
-  .object({ insights: z.array(measuredInsightSchema) })
+  .object({
+    insights: z.array(measuredInsightSchema),
+    skipped: z.array(skippedGoalSchema),
+  })
   .meta({ id: 'MeasureResult' })
 
 const errorCodes = [
@@ -304,17 +308,18 @@ export function handleUpdateRecord(input: ApiRequest) {
   })
 }
 
-// Measures the Goals of the Product now and returns the Insights it wrote.
+// Measures the Goals of the Product now. Returns the Insights it wrote and
+// the Goals it could not measure.
 export function handleMeasureProduct(
   input: ApiRequest & { source: MetricSource },
 ) {
   return handleApiRequest(input, async () => {
-    const insights = await measureGoals({
+    const result = await measureGoals({
       db: input.db,
       source: input.source,
       now: new Date(),
       productSlug: input.params.product,
     })
-    return Response.json({ insights })
+    return Response.json(result)
   })
 }

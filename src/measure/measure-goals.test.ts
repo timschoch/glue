@@ -4,7 +4,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { findConcept, findRecord } from '../db/concept.ts'
-import { addConceptRecord } from '../db/concept-records.ts'
+import { addConceptRecord, setAnalyticsProject } from '../db/concept-records.ts'
 import type { GoalMeasure } from '../db/goal-measure.ts'
 import * as schema from '../db/schema.ts'
 import { measureGoals } from './measure-goals.ts'
@@ -23,7 +23,6 @@ const STEPS = ['signed-up', 'activated', 'paid']
 
 const measure: GoalMeasure = {
   source: 'mock-analytics',
-  project: 'phc_demo',
   steps: STEPS,
   target: 0.25,
   window_days: 7,
@@ -39,8 +38,12 @@ afterEach(async () => {
   await client.close()
 })
 
-function addGoal(goalMeasure: GoalMeasure | undefined, product = 'flexibeck') {
-  return addConceptRecord(
+async function addGoal(
+  goalMeasure: GoalMeasure,
+  product = 'flexibeck',
+  analyticsProject: string | null = 'phc_demo',
+) {
+  await addConceptRecord(
     db,
     product,
     'goals',
@@ -52,6 +55,7 @@ function addGoal(goalMeasure: GoalMeasure | undefined, product = 'flexibeck') {
     },
     '',
   )
+  await setAnalyticsProject(db, product, analyticsProject)
 }
 
 function funnel(counts: number[], breakdown: string | null = null) {
@@ -78,11 +82,17 @@ function createFakeSource(windows: {
   return { source, queries }
 }
 
-function runMeasure(
+async function runMeasure(
   source: MetricSource,
   options: { productSlug?: string; dryRun?: boolean } = {},
 ) {
-  return measureGoals({ db, source, now: NOW, ...options })
+  const { insights } = await measureGoals({ db, source, now: NOW, ...options })
+  return insights
+}
+
+const belowTarget = {
+  current: [funnel([100, 50, 10])],
+  previous: [funnel([100, 50, 10])],
 }
 
 describe('measureGoals', () => {
@@ -198,6 +208,62 @@ describe('measureGoals', () => {
     expect(second).toEqual([])
     const concept = await findConcept(db, 'flexibeck')
     expect(concept?.insights.map((insight) => insight.id)).toEqual(['I1'])
+  })
+
+  it('writes one Insight when two runs overlap', async () => {
+    await addGoal(measure)
+    const { source } = createFakeSource(belowTarget)
+
+    const runs = await Promise.all([runMeasure(source), runMeasure(source)])
+
+    expect(runs.flat()).toHaveLength(1)
+    const concept = await findConcept(db, 'flexibeck')
+    expect(concept?.insights.map((insight) => insight.id)).toEqual(['I1'])
+  })
+
+  it('keeps a measure source unique per Product, other sources may repeat', async () => {
+    const addInsight = (source: string) =>
+      addConceptRecord(db, 'flexibeck', 'insights', { title: 'x', source }, '')
+    const measureSource = 'mock-analytics://phc_demo/funnel?goal=G1'
+
+    await addInsight('Owner feedback')
+    await addInsight('Owner feedback')
+    await addInsight(measureSource)
+
+    await expect(addInsight(measureSource)).rejects.toThrow()
+  })
+
+  it('skips a Goal of a Product without an analytics project', async () => {
+    await addGoal(measure, 'flexibeck', null)
+    const { source, queries } = createFakeSource(belowTarget)
+
+    const result = await measureGoals({ db, source, now: NOW })
+
+    expect(queries).toEqual([])
+    expect(result).toEqual({
+      insights: [],
+      skipped: [
+        {
+          product: 'flexibeck',
+          goal: 'G1',
+          reason:
+            'the Product has no analytics project: pnpm concept product set flexibeck --analytics-project <key>',
+        },
+      ],
+    })
+  })
+
+  it('skips a Goal whose stored measure is no longer valid', async () => {
+    await addGoal(measure)
+    await client.query(`update goals set measure = '{"source": "posthog"}'`)
+    const { source, queries } = createFakeSource(belowTarget)
+
+    const { insights, skipped } = await measureGoals({ db, source, now: NOW })
+
+    expect(queries).toEqual([])
+    expect(insights).toEqual([])
+    expect(skipped).toMatchObject([{ product: 'flexibeck', goal: 'G1' }])
+    expect(skipped[0].reason).toMatch(/^the measure is not valid: /)
   })
 
   it('writes nothing in a dry run, but returns what it would write', async () => {

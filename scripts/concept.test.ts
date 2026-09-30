@@ -31,10 +31,15 @@ describe('parseFlags', () => {
     })
   })
 
+  it('parses the --analytics-project of a Product', () => {
+    expect(parseFlags(['--analytics-project', 'phc_demo'])).toEqual({
+      analytics_project: 'phc_demo',
+    })
+  })
+
   it('parses --measure as the JSON of a Goal measure', () => {
     const measure = {
       source: 'mock-analytics',
-      project: 'phc_demo',
       steps: ['signed-up', 'paid'],
       target: 0.25,
       window_days: 7,
@@ -52,7 +57,7 @@ describe('parseFlags', () => {
   })
 
   it('rejects a --measure without its steps', () => {
-    const measure = { source: 'mock-analytics', project: 'phc_demo' }
+    const measure = { source: 'mock-analytics', target: 0.25 }
 
     expect(() => parseFlags(['--measure', JSON.stringify(measure)])).toThrow(
       /steps/,

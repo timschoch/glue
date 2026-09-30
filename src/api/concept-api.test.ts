@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { addConceptRecord } from '../db/concept-records.ts'
+import { addConceptRecord, setAnalyticsProject } from '../db/concept-records.ts'
 import * as schema from '../db/schema.ts'
 import { createToken } from '../db/tokens.ts'
 import {
@@ -404,7 +404,6 @@ describe('paths that name no record', () => {
 describe('Goals', () => {
   const measure = {
     source: 'mock-analytics',
-    project: 'phc_demo',
     steps: ['signed-up', 'paid'],
     target: 0.25,
     window_days: 7,
@@ -433,6 +432,20 @@ describe('Goals', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.error.message).toContain('target')
+  })
+
+  // The Product's analytics project is set with the CLI, not per Goal, so a
+  // token cannot read another Product's analytics.
+  it('answers 400 for a measure that names an analytics project', async () => {
+    const response = await call(
+      handleUpdateRecord,
+      'PATCH',
+      { ...params, recordId: 'G1' },
+      { measure: { ...measure, project: 'phc_other' } },
+    )
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toContain('project')
   })
 
   it('sets and removes the measure of a Goal', async () => {
@@ -467,10 +480,12 @@ describe('Goals', () => {
 })
 
 describe('POST /measure', () => {
+  const projects: string[] = []
   // Every funnel converts 10% from the first to the last step.
   const source: MetricSource = {
-    fetchFunnel: ({ steps }) =>
-      Promise.resolve([
+    fetchFunnel: ({ project, steps }) => {
+      projects.push(project)
+      return Promise.resolve([
         {
           breakdown: null,
           steps: steps.map((event, index) => ({
@@ -478,10 +493,13 @@ describe('POST /measure', () => {
             count: index === 0 ? 100 : 10,
           })),
         },
-      ]),
+      ])
+    },
   }
 
   beforeEach(async () => {
+    projects.length = 0
+    await setAnalyticsProject(db, 'flexibeck', 'phc_flexibeck')
     await call(
       handleUpdateRecord,
       'PATCH',
@@ -489,7 +507,6 @@ describe('POST /measure', () => {
       {
         measure: {
           source: 'mock-analytics',
-          project: 'phc_demo',
           steps: ['signed-up', 'paid'],
           target: 0.25,
           window_days: 7,
@@ -526,6 +543,8 @@ describe('POST /measure', () => {
           title: expect.stringContaining('below the target of 25%'),
         },
       ],
+      skipped: [],
     })
+    expect(new Set(projects)).toEqual(new Set(['phc_flexibeck']))
   })
 })
