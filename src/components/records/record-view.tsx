@@ -20,10 +20,12 @@ function Source({ source }: { source: string }) {
   )
 }
 
-// https://github.com/owner/name/issues/4 reads as owner/name#4.
+// https://github.com/owner/name/issues/4 reads as owner/name#4. Other URLs stay as they are.
 function formatIssueReference(issueUrl: string) {
-  const [owner, name, , number] = new URL(issueUrl).pathname.split('/').slice(1)
-  return `${owner}/${name}#${number}`
+  const match = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\/(\d+)$/.exec(
+    issueUrl,
+  )
+  return match ? `${match[1]}#${match[2]}` : issueUrl
 }
 
 function Day({ date }: { date: string }) {
@@ -118,7 +120,7 @@ function LinkFields({
           )}
           {record.issueUrl && (
             <RecordField label="Issue">
-              <a href={record.issueUrl}>
+              <a href={record.issueUrl} className={classes.source}>
                 {formatIssueReference(record.issueUrl)}
               </a>
             </RecordField>

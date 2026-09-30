@@ -152,6 +152,18 @@ describe('RecordView', () => {
     ])
   })
 
+  it.each([
+    'https://github.com/timschoch',
+    'https://gitlab.com/timschoch/glue/-/issues/4',
+  ])(
+    'shows the issue %s that is not a GitHub issue as it is',
+    async (issueUrl) => {
+      await renderInRouter(<RecordView record={{ ...decision, issueUrl }} />)
+
+      expect(shownLinks('Issue')).toEqual([[issueUrl, issueUrl]])
+    },
+  )
+
   it('says that a Decision has no evidence', async () => {
     await renderInRouter(<RecordView record={{ ...decision, evidence: [] }} />)
 
