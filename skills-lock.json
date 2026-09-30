@@ -35,7 +35,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/audit-skilly-workflow/SKILL.md",
-      "computedHash": "f1ff96eb7d865377973b61178e0a57b2a3b3a7c0a25b1df528f30347a7acc993"
+      "computedHash": "ff790d8f58bf96f7afe58e96ab65357a46870a20b34a3dbaf137ea83e5ba1c12"
     },
     "babysit-pr": {
       "source": "timschoch/skilly",
@@ -253,7 +253,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/naming/SKILL.md",
-      "computedHash": "0c7a189520065d62a6758df315b62aabd6d8fcbcb8a1f523b623d674fe606259"
+      "computedHash": "b501a15ea05d44f1aa2b9381e14e3cb44d0d11c794df5cc85192779eecbde4ed"
     },
     "neon": {
       "source": "neondatabase/agent-skills",
@@ -518,7 +518,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/verify/SKILL.md",
-      "computedHash": "dbce3d68c601de32b0f98be07d8314553a539bd968d44d777b802a112330ea9e"
+      "computedHash": "0f413bcb9af23efef547d603db1784d286abf0cfe66c979d8bd430ee72d54d21"
     },
     "wait-what": {
       "source": "timschoch/mattpocock-skills",

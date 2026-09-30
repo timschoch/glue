@@ -2,9 +2,16 @@
 
 Rule numbers refer to [SKILL.md](../SKILL.md).
 
-## Machine: the CI gate `naming`
+## Machine: the gate `naming`
 
-`bundles/workflow/rules/naming.sh` in the hub, run on the files changed in the PR. It reads [naming.json](naming.json) merged with the stack files and the repo's `.skilly/naming.json` (merge order in [SKILL.md](../SKILL.md), Per-project overrides).
+[scripts/check.mjs](../scripts/check.mjs), on the files the branch changes over its base branch. `skilly / gate` runs it in CI; the `naming` step in the `verify` push stage runs it before the push.
+
+```sh
+node .agents/skills/naming/scripts/check.mjs            # files changed over the base branch
+node .agents/skills/naming/scripts/check.mjs <files...>  # these files
+```
+
+It reads [naming.json](naming.json) merged with the stack files and the repo's `.skilly/naming.json` (merge order in [SKILL.md](../SKILL.md), Per-project overrides).
 
 The gate checks declared names only. It skips a destructured key without a rename, like `{ req }`, because the object's owner picked it. In `{ req: request }` it checks `request`.
 

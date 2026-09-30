@@ -133,7 +133,7 @@ export function listGates(root, workflows) {
     if (/commitlint|semantic-pull-request|conventional-commit/i.test(findText(path) ?? '')) commitOthers.push(relative(root, path));
   }
 
-  const verifyFile = parseJson(join(root, '.skilly', 'verify.json'));
+  const verifyStages = readVerifyStages(root);
 
   const namingOthers = [];
   for (const file of readdirSync(root)) {
@@ -148,8 +148,21 @@ export function listGates(root, workflows) {
     },
     naming: { skilly: existsSync(join(root, '.agents', 'skills', 'naming')), others: namingOthers },
     // Stage -> steps that hooks and CI run through the verify skill.
-    verify: verifyFile?.stages ? { file: '.skilly/verify.json', stages: verifyFile.stages } : null,
+    verify: verifyStages ? { file: '.skilly/verify.json', stages: verifyStages } : null,
   };
+}
+
+// The stages hooks and CI run: the verify skill's defaults with the repo's file merged on top, as
+// `verify.mjs --config` prints them. Without the skill, the repo's file as it stands.
+function readVerifyStages(root) {
+  const script = join(root, '.agents', 'skills', 'verify', 'scripts', 'verify.mjs');
+  if (!existsSync(script)) return parseJson(join(root, '.skilly', 'verify.json'))?.stages ?? null;
+  try {
+    const output = execFileSync(process.execPath, [script, '--config'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return JSON.parse(output).stages ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // --- findings ----------------------------------------------------------------------
