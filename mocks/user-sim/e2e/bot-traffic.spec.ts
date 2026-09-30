@@ -34,7 +34,11 @@ async function serve(
 }
 
 test('a rate limit counts as an error, not as a missing step @smoke', async () => {
-  for (const status of [429, 200]) {
+  // A 429 goes on the step that sent the request, the text on the step it hides.
+  for (const [status, step] of [
+    [429, 0],
+    [200, 1],
+  ]) {
     const product = await serve((request, response) => {
       response.setHeader('content-type', 'text/html')
       if (request.url === '/') {
@@ -51,10 +55,49 @@ test('a rate limit counts as an error, not as a missing step @smoke', async () =
         users: USERS,
         seed: SEED,
       })
-      expect(summary.steps[1]).toMatchObject({ missing: 0, errors: USERS })
+      expect(summary.steps[step]).toMatchObject({ missing: 0, errors: USERS })
     } finally {
       product.close()
     }
+  }
+})
+
+test('a 429 counts as an error on the step that sent the request @smoke', async () => {
+  const product = await serve((request, response) => {
+    if (request.method === 'POST') {
+      response.statusCode = 429
+      response.end()
+      return
+    }
+    response.setHeader('content-type', 'text/html')
+    response.end(
+      request.url === '/'
+        ? '<a href="/sign-up">Start</a>'
+        : `<button onclick="fetch('/account', { method: 'POST' }).then(() => {
+             document.body.innerHTML = '<a href=&quot;/plan&quot;>Pick a recipe</a>'
+           })">Create account</button>`,
+    )
+  })
+  try {
+    const summary = await simulate({
+      target: `${product.origin}/`,
+      journey: {
+        ...journey,
+        steps: [
+          ...journey.steps,
+          {
+            intent: 'pick a recipe',
+            actions: [{ kind: 'click', role: 'link', name: 'Pick a recipe' }],
+          },
+        ],
+      },
+      users: USERS,
+      seed: SEED,
+    })
+    expect(summary.steps[1]).toMatchObject({ errors: USERS })
+    expect(summary.steps[2]).toMatchObject({ reached: 0, errors: 0 })
+  } finally {
+    product.close()
   }
 })
 
