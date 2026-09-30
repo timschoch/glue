@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { addConceptRecord } from '../db/concept-records.ts'
+import { addConceptRecord, setAnalyticsProject } from '../db/concept-records.ts'
 import * as schema from '../db/schema.ts'
 import { createToken } from '../db/tokens.ts'
 import {
@@ -11,9 +11,11 @@ import {
   handleGetConcept,
   handleGetRecord,
   handleListRecords,
-  handleUpdateDecision,
+  handleMeasureProduct,
+  handleUpdateRecord,
 } from './concept-api.ts'
 import type { ApiRequest } from './concept-api.ts'
+import type { MetricSource } from '../measure/metric-source.ts'
 
 let client: PGlite
 let db: ReturnType<typeof drizzle<typeof schema>>
@@ -304,7 +306,7 @@ describe('Decisions', () => {
     })
 
     const updated = await call(
-      handleUpdateDecision,
+      handleUpdateRecord,
       'PATCH',
       { ...params, recordId: 'D1' },
       { status: 'superseded', superseded_by: 'D2' },
@@ -323,7 +325,7 @@ describe('Decisions', () => {
     await call(handleAddRecord, 'POST', params, decision)
 
     const response = await call(
-      handleUpdateDecision,
+      handleUpdateRecord,
       'PATCH',
       { ...params, recordId: 'D1' },
       { status: 'superseded' },
@@ -334,7 +336,7 @@ describe('Decisions', () => {
 
   it('answers 404 for a Decision that does not exist', async () => {
     const response = await call(
-      handleUpdateDecision,
+      handleUpdateRecord,
       'PATCH',
       { product: 'flexibeck', folder: 'decisions', recordId: 'D9' },
       { status: 'accepted' },
@@ -376,14 +378,173 @@ describe('paths that name no record', () => {
     expect(response.status).toBe(404)
   })
 
-  it('answers 404 for a Goal added over the API', async () => {
+  it('answers 404 for a Guardrail added over the API', async () => {
     const response = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'goals' },
-      { title: 'Grow', metric: 'users', source: 'okr' },
+      { product: 'flexibeck', folder: 'guardrails' },
+      { title: 'No paid tools', enforced_by: 'review' },
     )
 
     expect(response.status).toBe(404)
+  })
+
+  it('answers 404 for an update to a Fact', async () => {
+    const response = await call(
+      handleUpdateRecord,
+      'PATCH',
+      { product: 'flexibeck', folder: 'facts', recordId: 'F1' },
+      { title: 'p95 load time is 2s' },
+    )
+
+    expect(response.status).toBe(404)
+  })
+})
+
+describe('Goals', () => {
+  const measure = {
+    source: 'mock-analytics',
+    steps: ['signed-up', 'paid'],
+    target: 0.25,
+    window_days: 7,
+  }
+  const params = { product: 'flexibeck', folder: 'goals' }
+
+  it('adds a Goal with a measure', async () => {
+    const added = await call(handleAddRecord, 'POST', params, {
+      title: 'More users pay',
+      metric: 'signup to paid',
+      source: 'okr',
+      measure,
+    })
+
+    expect(added.status).toBe(201)
+    expect(added.body).toMatchObject({ kind: 'goal', id: 'G2', measure })
+  })
+
+  it('answers 400 for a measure with a target above 1', async () => {
+    const response = await call(handleAddRecord, 'POST', params, {
+      title: 'More users pay',
+      metric: 'signup to paid',
+      source: 'okr',
+      measure: { ...measure, target: 25 },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toContain('target')
+  })
+
+  // The Product's analytics project is set with the CLI, not per Goal, so a
+  // token cannot read another Product's analytics.
+  it('answers 400 for a measure that names an analytics project', async () => {
+    const response = await call(
+      handleUpdateRecord,
+      'PATCH',
+      { ...params, recordId: 'G1' },
+      { measure: { ...measure, project: 'phc_other' } },
+    )
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toContain('project')
+  })
+
+  it('sets and removes the measure of a Goal', async () => {
+    const set = await call(
+      handleUpdateRecord,
+      'PATCH',
+      { ...params, recordId: 'G1' },
+      { measure },
+    )
+    expect(set.status).toBe(200)
+    expect(set.body).toMatchObject({ id: 'G1', measure })
+
+    const removed = await call(
+      handleUpdateRecord,
+      'PATCH',
+      { ...params, recordId: 'G1' },
+      { measure: null },
+    )
+    expect(removed.body).toMatchObject({ id: 'G1', measure: null })
+  })
+
+  it('answers 404 for a Goal that does not exist', async () => {
+    const response = await call(
+      handleUpdateRecord,
+      'PATCH',
+      { ...params, recordId: 'G9' },
+      { measure },
+    )
+
+    expect(response.status).toBe(404)
+  })
+})
+
+describe('POST /measure', () => {
+  const projects: string[] = []
+  // Every funnel converts 10% from the first to the last step.
+  const source: MetricSource = {
+    fetchFunnel: ({ project, steps }) => {
+      projects.push(project)
+      return Promise.resolve([
+        {
+          breakdown: null,
+          steps: steps.map((event, index) => ({
+            event,
+            count: index === 0 ? 100 : 10,
+          })),
+        },
+      ])
+    },
+  }
+
+  beforeEach(async () => {
+    projects.length = 0
+    await setAnalyticsProject(db, 'flexibeck', 'phc_flexibeck')
+    await call(
+      handleUpdateRecord,
+      'PATCH',
+      { product: 'flexibeck', folder: 'goals', recordId: 'G1' },
+      {
+        measure: {
+          source: 'mock-analytics',
+          steps: ['signed-up', 'paid'],
+          target: 0.25,
+          window_days: 7,
+        },
+      },
+    )
+  })
+
+  it('answers 401 without a token', async () => {
+    const response = await handleMeasureProduct({
+      db,
+      request: request('POST'),
+      params: { product: 'flexibeck' },
+      source,
+    })
+
+    expect(response.status).toBe(401)
+  })
+
+  it('measures the Goals of the Product and returns the new Insights', async () => {
+    const response = await handleMeasureProduct({
+      db,
+      request: request('POST', { token }),
+      params: { product: 'flexibeck' },
+      source,
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      insights: [
+        {
+          id: 'I1',
+          goal: 'G1',
+          title: expect.stringContaining('below the target of 25%'),
+        },
+      ],
+      skipped: [],
+    })
+    expect(new Set(projects)).toEqual(new Set(['phc_flexibeck']))
   })
 })

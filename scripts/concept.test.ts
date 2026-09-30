@@ -31,6 +31,39 @@ describe('parseFlags', () => {
     })
   })
 
+  it('parses the --analytics-project of a Product', () => {
+    expect(parseFlags(['--analytics-project', 'phc_demo'])).toEqual({
+      analytics_project: 'phc_demo',
+    })
+  })
+
+  it('parses --measure as the JSON of a Goal measure', () => {
+    const measure = {
+      source: 'mock-analytics',
+      steps: ['signed-up', 'paid'],
+      target: 0.25,
+      window_days: 7,
+    }
+
+    expect(parseFlags(['--measure', JSON.stringify(measure)])).toEqual({
+      measure,
+    })
+  })
+
+  it('rejects a --measure that is not JSON', () => {
+    expect(() => parseFlags(['--measure', '{target: 1}'])).toThrow(
+      /"--measure" must be JSON/,
+    )
+  })
+
+  it('rejects a --measure without its steps', () => {
+    const measure = { source: 'mock-analytics', target: 0.25 }
+
+    expect(() => parseFlags(['--measure', JSON.stringify(measure)])).toThrow(
+      /steps/,
+    )
+  })
+
   it('rejects an unknown flag', () => {
     expect(() => parseFlags(['--titel', 'x'])).toThrow(/unknown flag "--titel"/)
   })

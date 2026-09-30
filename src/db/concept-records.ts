@@ -3,6 +3,8 @@ import { and, eq, sql } from 'drizzle-orm'
 import { CONCEPT_FIELDS } from './concept-fields.ts'
 import type { ConceptDb } from './client.ts'
 import { sortById } from './concept.ts'
+import { goalMeasureSchema } from './goal-measure.ts'
+import type { GoalMeasure } from './goal-measure.ts'
 import * as schema from './schema.ts'
 
 export type ConceptFolder = keyof typeof CONCEPT_FIELDS
@@ -11,7 +13,10 @@ export type ConceptFolder = keyof typeof CONCEPT_FIELDS
 // not exist. The HTTP API answers it with 400.
 export class InvalidRecordError extends Error {}
 
-export type ConceptFields = Record<string, string | string[] | undefined>
+export type ConceptFields = Record<
+  string,
+  string | string[] | GoalMeasure | undefined
+>
 
 const FOLDER_TABLES = {
   goals: schema.goals,
@@ -195,7 +200,7 @@ export async function showConceptRecord(
   }
 }
 
-function isMissing(value: string | string[] | undefined) {
+function isMissing(value: ConceptFields[string]) {
   return (
     value === undefined ||
     value === '' ||
@@ -346,10 +351,10 @@ export async function addConceptRecord(
   inputFields: ConceptFields,
   body: string,
 ): Promise<string> {
-  const needsDateDefault =
+  const shouldDefaultDate =
     (folder === 'decisions' || folder === 'insights') &&
     isMissing(inputFields.date)
-  const fields = needsDateDefault
+  const fields = shouldDefaultDate
     ? { ...inputFields, date: todayUtc() }
     : inputFields
   validateFields(folder, fields)
@@ -365,6 +370,10 @@ export async function addConceptRecord(
         title: fields.title as string,
         metric: fields.metric as string,
         source: fields.source as string,
+        measure:
+          fields.measure === undefined
+            ? null
+            : goalMeasureSchema.parse(fields.measure),
         body,
       })
       break
@@ -403,6 +412,41 @@ export async function addConceptRecord(
   }
 
   return recordId
+}
+
+// null removes it: the Product's Goals are not measured.
+export async function setAnalyticsProject(
+  db: ConceptDb,
+  productSlug: string,
+  analyticsProject: string | null,
+): Promise<void> {
+  const updated = await db
+    .update(schema.products)
+    .set({ analyticsProject })
+    .where(eq(schema.products.slug, productSlug))
+    .returning({ id: schema.products.id })
+  if (updated.length === 0)
+    throw new Error(`product "${productSlug}" not found`)
+}
+
+// null removes the measure: Glue stops measuring the Goal.
+export async function setGoalMeasure(
+  db: ConceptDb,
+  productSlug: string,
+  id: string,
+  measure: GoalMeasure | null,
+): Promise<void> {
+  const validMeasure = goalMeasureSchema.nullable().parse(measure)
+  const productId = await findProductId(db, productSlug)
+  const updated = await db
+    .update(schema.goals)
+    .set({ measure: validMeasure })
+    .where(
+      and(eq(schema.goals.productId, productId), eq(schema.goals.recordId, id)),
+    )
+    .returning({ id: schema.goals.id })
+  if (updated.length === 0)
+    throw new InvalidRecordError(`goal "${id}" not found`)
 }
 
 export async function setDecisionStatus(

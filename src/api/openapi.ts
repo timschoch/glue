@@ -14,9 +14,10 @@ import {
 } from '../db/concept.ts'
 import type { ConceptFolder } from '../db/concept-records.ts'
 import {
-  decisionUpdateSchema,
   errorSchema,
   inputSchemas,
+  measureResultSchema,
+  updateSchemas,
 } from './concept-api.ts'
 
 const PRODUCT_PATH = '/api/v1/products/{product}'
@@ -35,13 +36,15 @@ const folders: Record<ConceptFolder, FolderSchemas> = {
     name: 'Goal',
     record: goalSchema,
     summary: conceptSummarySchemas.goals,
+    input: inputSchemas.goals,
+    update: updateSchemas.goals,
   },
   decisions: {
     name: 'Decision',
     record: decisionSchema,
     summary: conceptSummarySchemas.decisions,
     input: inputSchemas.decisions,
-    update: decisionUpdateSchema,
+    update: updateSchemas.decisions,
   },
   insights: {
     name: 'Insight',
@@ -131,7 +134,7 @@ const folderPaths = Object.entries(folders).map(
       ...(update && {
         patch: {
           operationId: `update${name}`,
-          summary: `Change the status of one of the ${folder}`,
+          summary: `Change one of the ${folder}`,
           requestParams: { path: z.object({ product, recordId }) },
           requestBody: jsonContent(update),
           responses: {
@@ -168,6 +171,21 @@ const openApiDocument = createDocument({
           requestParams: { path: z.object({ product }) },
           responses: {
             200: { description: 'The Concept', ...jsonContent(conceptSchema) },
+            ...readErrorResponses,
+          },
+        },
+      },
+      [`${PRODUCT_PATH}/measure`]: {
+        post: {
+          operationId: 'measureGoals',
+          summary:
+            'Measure the Goals of the Product now and write draft Insights',
+          requestParams: { path: z.object({ product }) },
+          responses: {
+            200: {
+              description: 'The Insights this run wrote',
+              ...jsonContent(measureResultSchema),
+            },
             ...readErrorResponses,
           },
         },

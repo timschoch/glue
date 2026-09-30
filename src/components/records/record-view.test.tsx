@@ -35,6 +35,7 @@ const goal: Goal = {
   title: 'Agents build from the Concept',
   metric: 'Share of tickets with a Decision',
   source: 'GitHub issues',
+  measure: null,
   body: 'Each ticket names its Decision.',
   decisions: [{ id: 'D5', title: 'The Concept lives in the database' }],
 }

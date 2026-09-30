@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { handleGetRecord, handleUpdateDecision } from '../../api/concept-api.ts'
+import { handleGetRecord, handleUpdateRecord } from '../../api/concept-api.ts'
 import { createDb } from '../../db/client.ts'
 import { getSetting } from '../../settings.server.ts'
 
@@ -16,7 +16,7 @@ export const Route = createFileRoute(
           params,
         }),
       PATCH: ({ request, params }) =>
-        handleUpdateDecision({
+        handleUpdateRecord({
           db: createDb(getSetting('DATABASE_URL')),
           request,
           params,

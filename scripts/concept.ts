@@ -1,19 +1,26 @@
 // `pnpm concept`: read and add Glue's Concept records in the database.
 // See src/db/concept-fields.ts for the record types and their fields.
+import { z } from 'zod'
+
 import { createDb } from '../src/db/client.ts'
 import type { ConceptDb } from '../src/db/client.ts'
 import {
   addConceptRecord,
   listConceptRecords,
+  setAnalyticsProject,
   setDecisionStatus,
+  setGoalMeasure,
   showConceptRecord,
 } from '../src/db/concept-records.ts'
 import type { ConceptFields, ConceptFolder } from '../src/db/concept-records.ts'
 import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
+import { goalMeasureSchema } from '../src/db/goal-measure.ts'
+import type { GoalMeasure } from '../src/db/goal-measure.ts'
 import type { DecisionStatus } from '../src/db/schema.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
+  'analytics-project': 'analytics_project',
   'enforced-by': 'enforced_by',
   'superseded-by': 'superseded_by',
 }
@@ -22,8 +29,36 @@ const KNOWN_FIELDS = new Set(
   Object.values(CONCEPT_FIELDS)
     .flatMap((type) => type.required as readonly string[])
     .filter((field) => field !== 'id')
-    .concat(['product', 'body', 'status', 'superseded_by', 'name']),
+    .concat([
+      'product',
+      'body',
+      'status',
+      'superseded_by',
+      'name',
+      'measure',
+      'analytics_project',
+    ]),
 )
+
+function parseMeasure(value: string): GoalMeasure {
+  let json: unknown
+  try {
+    json = JSON.parse(value)
+  } catch {
+    throw new Error('"--measure" must be JSON')
+  }
+  const result = goalMeasureSchema.safeParse(json)
+  if (!result.success) {
+    throw new Error(`"--measure": ${z.prettifyError(result.error)}`)
+  }
+  return result.data
+}
+
+function parseFlagValue(key: string, value: string) {
+  if (key === 'evidence') return value.split(',')
+  if (key === 'measure') return parseMeasure(value)
+  return value
+}
 
 function isConceptFolder(value: string | undefined): value is ConceptFolder {
   return value !== undefined && value in CONCEPT_FIELDS
@@ -44,7 +79,7 @@ export function parseFlags(args: string[]): ConceptFields {
     }
     const value = args[index + 1]
     index += 1
-    flags[key] = key === 'evidence' ? value.split(',') : value
+    flags[key] = parseFlagValue(key, value)
   }
   return flags
 }
@@ -112,6 +147,11 @@ async function main() {
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
       const product = (flags.product as string | undefined) ?? 'glue'
+      if (id.startsWith('G')) {
+        if (!flags.measure) throw new Error('set G<n> needs --measure')
+        await setGoalMeasure(db, product, id, flags.measure as GoalMeasure)
+        return
+      }
       await setDecisionStatus(
         db,
         product,
@@ -124,9 +164,29 @@ async function main() {
     case 'token':
       await handleTokenCommand(db, rest)
       return
+    case 'product':
+      await handleProductCommand(db, rest)
+      return
     default:
       throw new Error(`unknown command "${command}"`)
   }
+}
+
+// `product set <slug> --analytics-project <key>`: the analytics project the
+// Product's Goals are measured from. An empty key removes it.
+async function handleProductCommand(
+  db: ConceptDb,
+  [command, slug, ...rest]: string[],
+) {
+  if (command !== 'set') {
+    throw new Error(`unknown product command "${command}"`)
+  }
+  const flags = parseFlags(rest)
+  const analyticsProject = flags.analytics_project as string | undefined
+  if (!slug || analyticsProject === undefined) {
+    throw new Error('product set needs <slug> and --analytics-project')
+  }
+  await setAnalyticsProject(db, slug, analyticsProject || null)
 }
 
 // Tokens for the Concept HTTP API, one Product each.

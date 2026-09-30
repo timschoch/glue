@@ -4,6 +4,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
+import { goalMeasureSchema } from './goal-measure.ts'
 import { isRecordId } from './record-id.ts'
 import * as schema from './schema.ts'
 
@@ -21,6 +22,7 @@ export const goalSchema = z
     ...recordReferenceSchema.shape,
     metric: z.string(),
     source: z.string(),
+    measure: goalMeasureSchema.nullable(),
     body: z.string(),
     decisions: z.array(recordReferenceSchema),
   })
@@ -281,6 +283,7 @@ async function findGoal(
     title: goal.title,
     metric: goal.metric,
     source: goal.source,
+    measure: goal.measure,
     body: goal.body,
     decisions: sortById(served),
   }
