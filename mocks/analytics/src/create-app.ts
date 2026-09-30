@@ -1,9 +1,10 @@
 import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bearerAuth } from 'hono/bearer-auth'
+import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 
-import { parsePayload, toEventRows } from './capture.ts'
+import { PayloadTooLargeError, parsePayload, toEventRows } from './capture.ts'
 import { toFunnelResults } from './funnel.ts'
 import type { FunnelQuery } from './funnel.ts'
 import { events } from './schema.ts'
@@ -12,6 +13,12 @@ import type { AnalyticsDatabase } from './schema.ts'
 // The paths posthog-js and posthog-node post events to. With `strict: false`
 // each matches with and without the trailing slash the clients send.
 const capturePaths = ['/e', '/i/v0/e', '/batch', '/capture']
+
+// Largest capture body on the wire. MAX_PAYLOAD_BYTES caps it after gzip.
+const MAX_BODY_BYTES = 5 * 1024 * 1024
+
+// Rows per insert. Postgres takes at most 65535 bind parameters per query.
+const INSERT_CHUNK_ROWS = 1000
 
 // PostHog's default funnel window: 14 days.
 const DEFAULT_WINDOW_HOURS = 336
@@ -25,19 +32,44 @@ export function createApp(options: {
 
   app.use(cors())
 
+  const tooLarge = { error: 'payload too large' }
   for (const path of capturePaths) {
-    app.post(path, async (context) => {
-      const payload = await parsePayload(context.req.raw).catch(() => null)
-      const rows = toEventRows(payload, new Date())
-      if (!rows) return context.json({ error: 'invalid event payload' }, 400)
-      if (rows.length > 0) await database.insert(events).values(rows)
-      return context.json({ status: 1 })
-    })
+    app.post(
+      path,
+      bodyLimit({
+        maxSize: MAX_BODY_BYTES,
+        onError: (context) => context.json(tooLarge, 413),
+      }),
+      async (context) => {
+        let payload: unknown
+        try {
+          payload = await parsePayload(context.req.raw)
+        } catch (error) {
+          if (error instanceof PayloadTooLargeError) {
+            return context.json(tooLarge, 413)
+          }
+          return context.json({ error: 'invalid event payload' }, 400)
+        }
+        const rows = toEventRows(payload, new Date())
+        if (!rows) return context.json({ error: 'invalid event payload' }, 400)
+        for (let start = 0; start < rows.length; start += INSERT_CHUNK_ROWS) {
+          await database
+            .insert(events)
+            .values(rows.slice(start, start + INSERT_CHUNK_ROWS))
+        }
+        return context.json({ status: 1 })
+      },
+    )
   }
 
   // No feature flags: posthog-js only needs a well-formed answer.
   app.all('/decide', (context) => context.json(emptyFlags))
   app.all('/flags', (context) => context.json(emptyFlags))
+  // No remote config either. posthog-js fetches both forms.
+  app.get('/array/:token/config', (context) => context.json({}))
+  app.get('/array/:token/config.js', (context) =>
+    context.body('{}', 200, { 'Content-Type': 'text/javascript' }),
+  )
 
   app.use('/api/*', bearerAuth({ token: readKey }))
 

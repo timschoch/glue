@@ -39,8 +39,11 @@ export function toFunnelResults(
   const windowLength = windowHours * MILLISECONDS_PER_HOUR
 
   const eventsByUser = new Map<string, FunnelEvent[]>()
+  // Same timestamp: the earlier step in the funnel goes first.
   const sorted = [...events].sort(
-    (left, right) => left.timestamp.getTime() - right.timestamp.getTime(),
+    (left, right) =>
+      left.timestamp.getTime() - right.timestamp.getTime() ||
+      steps.indexOf(left.name) - steps.indexOf(right.name),
   )
   for (const event of sorted) {
     const userEvents = eventsByUser.get(event.distinctId) ?? []
@@ -62,10 +65,13 @@ export function toFunnelResults(
       if (start.name !== steps[0]) return
       const deadline = start.timestamp.getTime() + windowLength
       let reached = 1
-      for (const next of userEvents.slice(startIndex + 1)) {
-        if (next.timestamp.getTime() > deadline || reached === steps.length) {
-          break
-        }
+      for (
+        let index = startIndex + 1;
+        index < userEvents.length && reached < steps.length;
+        index++
+      ) {
+        const next = userEvents[index]
+        if (next.timestamp.getTime() > deadline) break
         if (next.name === steps[reached]) reached++
       }
       if (reached > depth) {

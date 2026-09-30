@@ -180,6 +180,17 @@ describe('funnel', () => {
     ).toEqual([{ breakdown: null, counts: [1, 1] }])
   })
 
+  it('orders steps with the same timestamp by their place in the funnel', async () => {
+    await captureEvents([
+      { event: 'created_concept', user: 'ada', at: '2026-09-01T10:00:00Z' },
+      { event: 'signed_up', user: 'ada', at: '2026-09-01T10:00:00Z' },
+    ])
+
+    expect(
+      await queryCounts({ steps: ['signed_up', 'created_concept'] }),
+    ).toEqual([{ breakdown: null, counts: [1, 1] }])
+  })
+
   it('splits users by the breakdown property of their first step', async () => {
     await captureEvents([
       {
@@ -275,6 +286,20 @@ describe('capture in posthog-js formats', () => {
     expect(await querySignups()).toEqual([{ breakdown: null, counts: [1] }])
   })
 
+  it('reads raw gzip bytes with no compression marker', async () => {
+    const response = await app.request(
+      '/i/v0/e/?ver=1.435.0&sent_at=1790000000000',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: gzipSync(JSON.stringify([event])),
+      },
+    )
+
+    expect(response.status).toBe(200)
+    expect(await querySignups()).toEqual([{ breakdown: null, counts: [1] }])
+  })
+
   it('reads a base64 form body', async () => {
     const data = Buffer.from(JSON.stringify(event)).toString('base64')
     const response = await app.request('/e/?compression=base64', {
@@ -287,6 +312,48 @@ describe('capture in posthog-js formats', () => {
     expect(await querySignups()).toEqual([{ breakdown: null, counts: [1] }])
   })
 
+  it('stores a batch larger than one insert can take', async () => {
+    const eventCount = 14_000
+    const response = await app.request('/batch/', {
+      method: 'POST',
+      body: JSON.stringify({
+        api_key: project,
+        batch: Array.from({ length: eventCount }, (_, index) => ({
+          event: 'signed_up',
+          distinct_id: `user-${index}`,
+          timestamp: '2026-09-01T10:00:00Z',
+        })),
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await querySignups()).toEqual([
+      { breakdown: null, counts: [eventCount] },
+    ])
+  })
+
+  it('answers 413 to a body over the size limit', async () => {
+    const response = await app.request('/e/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: 'x'.repeat(6 * 1024 * 1024),
+    })
+
+    expect(response.status).toBe(413)
+  })
+
+  it('answers 413 to gzip that inflates past the size limit', async () => {
+    const bomb = gzipSync(Buffer.alloc(64 * 1024 * 1024, ' '))
+    const response = await app.request('/i/v0/e/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: bomb,
+    })
+
+    expect(bomb.byteLength).toBeLessThan(1024 * 1024)
+    expect(response.status).toBe(413)
+  })
+
   it('answers 400 to an event without a project key', async () => {
     const response = await app.request('/capture/', {
       method: 'POST',
@@ -294,6 +361,18 @@ describe('capture in posthog-js formats', () => {
     })
 
     expect(response.status).toBe(400)
+  })
+
+  it('answers the remote config requests with an empty object', async () => {
+    for (const path of [
+      `/array/${project}/config`,
+      `/array/${project}/config.js`,
+    ]) {
+      const response = await app.request(path)
+
+      expect(response.status).toBe(200)
+      expect(await response.text()).toBe('{}')
+    }
   })
 
   it('answers flag requests with no flags, and allows browsers', async () => {

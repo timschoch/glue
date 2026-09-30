@@ -8,8 +8,8 @@ Must not import from Glue's `src/`, and `src/` must not import from it.
 
 Capture, no auth, CORS open:
 
-- `POST /e/`, `/i/v0/e/`, `/batch/`, `/capture/`: single event, array, or `{ batch }`. Bodies: JSON, `compression=gzip-js`, `Content-Encoding: gzip`, `compression=base64` form (`data=`). Project key from `api_key`, `token` or `properties.token`.
-- `/decide/`, `/flags/`: no flags.
+- `POST /e/`, `/i/v0/e/`, `/batch/`, `/capture/`: single event, array, or `{ batch }`. Bodies: JSON, gzip found by its magic bytes (posthog-js sends it as `text/plain` with no marker), `compression=base64` form (`data=`). 5 MB on the wire, 20 MB after gzip, else 413. Project key from `api_key`, `token` or `properties.token`.
+- `/decide/`, `/flags/`: no flags. `/array/<token>/config` and `config.js`: `{}`.
 
 Query, `Authorization: Bearer $MOCK_ANALYTICS_READ_KEY`:
 
@@ -38,7 +38,7 @@ pnpm --filter mock-analytics test
 Own Vercel project:
 
 - Root directory: `mocks/analytics`
-- Framework preset: Hono (entry `src/index.ts`, default export)
+- Framework preset: Hono. Entry `src/index.ts`: the preset needs its import from `hono` and the default export. `tsconfig.json` `rewriteRelativeImportExtensions` turns the `.ts` imports into `.js` in the build.
 - Env: `MOCK_ANALYTICS_DATABASE_URL`, `MOCK_ANALYTICS_READ_KEY`
 
 Migrations: `MOCK_ANALYTICS_DATABASE_URL=… pnpm --filter mock-analytics db:migrate`. Schema change: edit `src/schema.ts`, run `db:generate`.

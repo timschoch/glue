@@ -1,34 +1,54 @@
+import { promisify } from 'node:util'
+import { gunzip } from 'node:zlib'
+
 import type { events } from './schema.ts'
+
+const gunzipAsync = promisify(gunzip)
 
 type EventRow = typeof events.$inferInsert
 type JsonObject = Record<string, unknown>
 
-// Reads a capture body the way posthog-js and posthog-node send it:
-// gzip (`compression=gzip-js` or `Content-Encoding: gzip`), a `data=` form
-// field in base64, or plain JSON.
-export async function parsePayload(request: Request): Promise<unknown> {
-  const compression = new URL(request.url).searchParams.get('compression')
-  const isGzip =
-    compression === 'gzip-js' ||
-    request.headers.get('content-encoding') === 'gzip'
-  if (isGzip && request.body) {
-    const stream = request.body.pipeThrough(new DecompressionStream('gzip'))
-    return JSON.parse(await new Response(stream).text())
-  }
+// Largest body the capture API inflates to. posthog-js batches stay far below.
+const MAX_PAYLOAD_BYTES = 20 * 1024 * 1024
 
-  const body = await request.text()
+// The first two bytes of every gzip stream.
+const GZIP_MAGIC = [0x1f, 0x8b]
+
+export class PayloadTooLargeError extends Error {}
+
+// Reads a capture body the way posthog-js and posthog-node send it: gzip
+// (found by its magic bytes, since posthog-js sends raw gzip as text/plain
+// with no marker), a `data=` form field in base64, or plain JSON.
+export async function parsePayload(request: Request): Promise<unknown> {
+  const bytes = new Uint8Array(await request.arrayBuffer())
+  const isGzip = bytes[0] === GZIP_MAGIC[0] && bytes[1] === GZIP_MAGIC[1]
+  const body = isGzip ? await inflate(bytes) : new TextDecoder().decode(bytes)
+
   const isForm =
-    compression === 'base64' ||
+    new URL(request.url).searchParams.get('compression') === 'base64' ||
     (request.headers.get('content-type') ?? '').includes(
       'application/x-www-form-urlencoded',
     )
-  if (!isForm) return JSON.parse(body)
+  if (isGzip || !isForm) return JSON.parse(body)
 
   const data = new URLSearchParams(body).get('data') ?? ''
   const isJson = data.startsWith('{') || data.startsWith('[')
   return JSON.parse(
     isJson ? data : Buffer.from(data, 'base64').toString('utf8'),
   )
+}
+
+// Stops at MAX_PAYLOAD_BYTES, so a gzip bomb cannot fill the memory.
+async function inflate(bytes: Uint8Array): Promise<string> {
+  try {
+    const inflated = await gunzipAsync(bytes, {
+      maxOutputLength: MAX_PAYLOAD_BYTES,
+    })
+    return inflated.toString('utf8')
+  } catch (error) {
+    if (error instanceof RangeError) throw new PayloadTooLargeError()
+    throw error
+  }
 }
 
 // Turns a single event, an array of events or a `{ batch }` envelope into rows.
