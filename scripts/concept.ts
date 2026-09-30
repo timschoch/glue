@@ -1,15 +1,20 @@
 // `pnpm concept`: read and add Glue's Concept records in the database.
 // See src/db/concept-fields.ts for the record types and their fields.
+import { z } from 'zod'
+
 import { createDb } from '../src/db/client.ts'
 import type { ConceptDb } from '../src/db/client.ts'
 import {
   addConceptRecord,
   listConceptRecords,
   setDecisionStatus,
+  setGoalMeasure,
   showConceptRecord,
 } from '../src/db/concept-records.ts'
 import type { ConceptFields, ConceptFolder } from '../src/db/concept-records.ts'
 import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
+import { goalMeasureSchema } from '../src/db/goal-measure.ts'
+import type { GoalMeasure } from '../src/db/goal-measure.ts'
 import type { DecisionStatus } from '../src/db/schema.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 
@@ -22,8 +27,28 @@ const KNOWN_FIELDS = new Set(
   Object.values(CONCEPT_FIELDS)
     .flatMap((type) => type.required as readonly string[])
     .filter((field) => field !== 'id')
-    .concat(['product', 'body', 'status', 'superseded_by', 'name']),
+    .concat(['product', 'body', 'status', 'superseded_by', 'name', 'measure']),
 )
+
+function parseMeasure(value: string): GoalMeasure {
+  let json: unknown
+  try {
+    json = JSON.parse(value)
+  } catch {
+    throw new Error('"--measure" must be JSON')
+  }
+  const result = goalMeasureSchema.safeParse(json)
+  if (!result.success) {
+    throw new Error(`"--measure": ${z.prettifyError(result.error)}`)
+  }
+  return result.data
+}
+
+function parseFlagValue(key: string, value: string) {
+  if (key === 'evidence') return value.split(',')
+  if (key === 'measure') return parseMeasure(value)
+  return value
+}
 
 function isConceptFolder(value: string | undefined): value is ConceptFolder {
   return value !== undefined && value in CONCEPT_FIELDS
@@ -44,7 +69,7 @@ export function parseFlags(args: string[]): ConceptFields {
     }
     const value = args[index + 1]
     index += 1
-    flags[key] = key === 'evidence' ? value.split(',') : value
+    flags[key] = parseFlagValue(key, value)
   }
   return flags
 }
@@ -112,6 +137,11 @@ async function main() {
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
       const product = (flags.product as string | undefined) ?? 'glue'
+      if (id.startsWith('G')) {
+        if (!flags.measure) throw new Error('set G<n> needs --measure')
+        await setGoalMeasure(db, product, id, flags.measure as GoalMeasure)
+        return
+      }
       await setDecisionStatus(
         db,
         product,

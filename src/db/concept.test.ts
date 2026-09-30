@@ -216,6 +216,7 @@ describe('findRecord', () => {
       title: 'Ship faster',
       metric: 'lead time',
       source: 'https://example.com/g1',
+      measure: null,
       body: 'Why the goal exists.',
       decisions: [
         { id: 'D1', title: 'Cache the homepage' },

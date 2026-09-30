@@ -14,9 +14,11 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
 import { Route as SignedInConceptRecordIdRouteImport } from './routes/_signed-in/concept.$recordId'
+import { Route as ApiCronMeasureRouteImport } from './routes/api/cron.measure'
 import { Route as ApiV1OpenapiDotjsonRouteImport } from './routes/api/v1.openapi[.]json'
 import { Route as ApiV1ProductsProductFolderRouteImport } from './routes/api/v1.products.$product.$folder'
 import { Route as ApiV1ProductsProductConceptRouteImport } from './routes/api/v1.products.$product.concept'
+import { Route as ApiV1ProductsProductMeasureRouteImport } from './routes/api/v1.products.$product.measure'
 import { Route as ApiV1ProductsProductFolderRecordIdRouteImport } from './routes/api/v1.products.$product.$folder.$recordId'
 
 const SignedInRoute = SignedInRouteImport.update({
@@ -43,6 +45,11 @@ const SignedInConceptRecordIdRoute = SignedInConceptRecordIdRouteImport.update({
   path: '/concept/$recordId',
   getParentRoute: () => SignedInRoute,
 } as any)
+const ApiCronMeasureRoute = ApiCronMeasureRouteImport.update({
+  id: '/api/cron/measure',
+  path: '/api/cron/measure',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1OpenapiDotjsonRoute = ApiV1OpenapiDotjsonRouteImport.update({
   id: '/api/v1/openapi.json',
   path: '/api/v1/openapi.json',
@@ -60,6 +67,12 @@ const ApiV1ProductsProductConceptRoute =
     path: '/api/v1/products/$product/concept',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1ProductsProductMeasureRoute =
+  ApiV1ProductsProductMeasureRouteImport.update({
+    id: '/api/v1/products/$product/measure',
+    path: '/api/v1/products/$product/measure',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1ProductsProductFolderRecordIdRoute =
   ApiV1ProductsProductFolderRecordIdRouteImport.update({
     id: '/$recordId',
@@ -72,9 +85,11 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/concept/$recordId': typeof SignedInConceptRecordIdRoute
+  '/api/cron/measure': typeof ApiCronMeasureRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
   '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
+  '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
   '/api/v1/products/$product/$folder/$recordId': typeof ApiV1ProductsProductFolderRecordIdRoute
 }
 export interface FileRoutesByTo {
@@ -82,9 +97,11 @@ export interface FileRoutesByTo {
   '/sign-up': typeof SignUpRoute
   '/': typeof SignedInIndexRoute
   '/concept/$recordId': typeof SignedInConceptRecordIdRoute
+  '/api/cron/measure': typeof ApiCronMeasureRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
   '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
+  '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
   '/api/v1/products/$product/$folder/$recordId': typeof ApiV1ProductsProductFolderRecordIdRoute
 }
 export interface FileRoutesById {
@@ -94,9 +111,11 @@ export interface FileRoutesById {
   '/sign-up': typeof SignUpRoute
   '/_signed-in/': typeof SignedInIndexRoute
   '/_signed-in/concept/$recordId': typeof SignedInConceptRecordIdRoute
+  '/api/cron/measure': typeof ApiCronMeasureRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
   '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
+  '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
   '/api/v1/products/$product/$folder/$recordId': typeof ApiV1ProductsProductFolderRecordIdRoute
 }
 export interface FileRouteTypes {
@@ -106,9 +125,11 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/concept/$recordId'
+    | '/api/cron/measure'
     | '/api/v1/openapi.json'
     | '/api/v1/products/$product/$folder'
     | '/api/v1/products/$product/concept'
+    | '/api/v1/products/$product/measure'
     | '/api/v1/products/$product/$folder/$recordId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -116,9 +137,11 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/'
     | '/concept/$recordId'
+    | '/api/cron/measure'
     | '/api/v1/openapi.json'
     | '/api/v1/products/$product/$folder'
     | '/api/v1/products/$product/concept'
+    | '/api/v1/products/$product/measure'
     | '/api/v1/products/$product/$folder/$recordId'
   id:
     | '__root__'
@@ -127,9 +150,11 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/_signed-in/'
     | '/_signed-in/concept/$recordId'
+    | '/api/cron/measure'
     | '/api/v1/openapi.json'
     | '/api/v1/products/$product/$folder'
     | '/api/v1/products/$product/concept'
+    | '/api/v1/products/$product/measure'
     | '/api/v1/products/$product/$folder/$recordId'
   fileRoutesById: FileRoutesById
 }
@@ -137,9 +162,11 @@ export interface RootRouteChildren {
   SignedInRoute: typeof SignedInRouteWithChildren
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
+  ApiCronMeasureRoute: typeof ApiCronMeasureRoute
   ApiV1OpenapiDotjsonRoute: typeof ApiV1OpenapiDotjsonRoute
   ApiV1ProductsProductFolderRoute: typeof ApiV1ProductsProductFolderRouteWithChildren
   ApiV1ProductsProductConceptRoute: typeof ApiV1ProductsProductConceptRoute
+  ApiV1ProductsProductMeasureRoute: typeof ApiV1ProductsProductMeasureRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -179,6 +206,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInConceptRecordIdRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/api/cron/measure': {
+      id: '/api/cron/measure'
+      path: '/api/cron/measure'
+      fullPath: '/api/cron/measure'
+      preLoaderRoute: typeof ApiCronMeasureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/openapi.json': {
       id: '/api/v1/openapi.json'
       path: '/api/v1/openapi.json'
@@ -198,6 +232,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/products/$product/concept'
       fullPath: '/api/v1/products/$product/concept'
       preLoaderRoute: typeof ApiV1ProductsProductConceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/products/$product/measure': {
+      id: '/api/v1/products/$product/measure'
+      path: '/api/v1/products/$product/measure'
+      fullPath: '/api/v1/products/$product/measure'
+      preLoaderRoute: typeof ApiV1ProductsProductMeasureRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/products/$product/$folder/$recordId': {
@@ -243,9 +284,11 @@ const rootRouteChildren: RootRouteChildren = {
   SignedInRoute: SignedInRouteWithChildren,
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
+  ApiCronMeasureRoute: ApiCronMeasureRoute,
   ApiV1OpenapiDotjsonRoute: ApiV1OpenapiDotjsonRoute,
   ApiV1ProductsProductFolderRoute: ApiV1ProductsProductFolderRouteWithChildren,
   ApiV1ProductsProductConceptRoute: ApiV1ProductsProductConceptRoute,
+  ApiV1ProductsProductMeasureRoute: ApiV1ProductsProductMeasureRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

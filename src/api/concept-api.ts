@@ -11,9 +11,16 @@ import {
   addConceptRecord,
   InvalidRecordError,
   setDecisionStatus,
+  setGoalMeasure,
 } from '../db/concept-records.ts'
+import { goalMeasureSchema } from '../db/goal-measure.ts'
 import { decisionStatuses, insightStatuses } from '../db/schema.ts'
 import { findProductByToken } from '../db/tokens.ts'
+import {
+  measureGoals,
+  measuredInsightSchema,
+} from '../measure/measure-goals.ts'
+import type { MetricSource } from '../measure/metric-source.ts'
 
 export type ApiRequest = {
   db: ConceptDb
@@ -23,6 +30,24 @@ export type ApiRequest = {
 
 const text = z.string().min(1)
 const body = z.string().default('')
+
+export const goalInputSchema = z
+  .object({
+    title: text,
+    metric: text,
+    source: text,
+    measure: goalMeasureSchema.optional(),
+    body,
+  })
+  .meta({ id: 'GoalInput' })
+
+export const goalUpdateSchema = z
+  .object({
+    measure: goalMeasureSchema
+      .nullable()
+      .meta({ description: 'null stops measuring the Goal' }),
+  })
+  .meta({ id: 'GoalUpdate' })
 
 export const insightInputSchema = z
   .object({
@@ -60,10 +85,21 @@ export const decisionUpdateSchema = z
 
 // The folders a client may add records to.
 export const inputSchemas = {
+  goals: goalInputSchema,
   insights: insightInputSchema,
   decisions: decisionInputSchema,
   facts: factInputSchema,
 }
+
+// The folders a client may change records in.
+export const updateSchemas = {
+  goals: goalUpdateSchema,
+  decisions: decisionUpdateSchema,
+}
+
+export const measureResultSchema = z
+  .object({ insights: z.array(measuredInsightSchema) })
+  .meta({ id: 'MeasureResult' })
 
 const errorCodes = [
   'invalid-request',
@@ -243,21 +279,42 @@ export function handleAddRecord(input: ApiRequest) {
   })
 }
 
-export function handleUpdateDecision(input: ApiRequest) {
+export function handleUpdateRecord(input: ApiRequest) {
   return handleApiRequest(input, async () => {
     const { db, request, params } = input
-    if (params.folder !== 'decisions') {
+    if (!isKeyOf(updateSchemas, params.folder)) {
       throw new ApiError('not-found', `cannot update ${params.folder} here`)
     }
-    const decision = await findFolderRecord(input)
-    const update = decisionUpdateSchema.parse(await parseJson(request))
-    await setDecisionStatus(
-      db,
-      params.product,
-      decision.id,
-      update.status,
-      update.superseded_by,
-    )
-    return Response.json(await findRecord(db, params.product, decision.id))
+    const record = await findFolderRecord(input)
+    const json = await parseJson(request)
+    if (params.folder === 'goals') {
+      const { measure } = goalUpdateSchema.parse(json)
+      await setGoalMeasure(db, params.product, record.id, measure)
+    } else {
+      const update = decisionUpdateSchema.parse(json)
+      await setDecisionStatus(
+        db,
+        params.product,
+        record.id,
+        update.status,
+        update.superseded_by,
+      )
+    }
+    return Response.json(await findRecord(db, params.product, record.id))
+  })
+}
+
+// Measures the Goals of the Product now and returns the Insights it wrote.
+export function handleMeasureProduct(
+  input: ApiRequest & { source: MetricSource },
+) {
+  return handleApiRequest(input, async () => {
+    const insights = await measureGoals({
+      db: input.db,
+      source: input.source,
+      now: new Date(),
+      productSlug: input.params.product,
+    })
+    return Response.json({ insights })
   })
 }

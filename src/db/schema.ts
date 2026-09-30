@@ -4,11 +4,14 @@ import {
   check,
   date,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core'
+
+import type { GoalMeasure } from './goal-measure.ts'
 
 export const products = pgTable('products', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
@@ -41,6 +44,7 @@ export const goals = pgTable(
     title: text('title').notNull(),
     metric: text('metric').notNull(),
     source: text('source').notNull(),
+    measure: jsonb('measure').$type<GoalMeasure>(),
     body: text('body').notNull().default(''),
   },
   (table) => [unique().on(table.productId, table.recordId)],
