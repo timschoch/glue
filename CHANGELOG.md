@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0](https://github.com/timschoch/glue/compare/v1.0.0...v1.1.0) (2026-09-30)
+
+
+### Features
+
+* **downstream:** accepted Decisions open a GitHub issue in the Product's repository ([#57](https://github.com/timschoch/glue/issues/57)) ([f697831](https://github.com/timschoch/glue/commit/f6978317f077fc589e7bfd30203208cbf7ccd643))
+* **measure:** measure Goals from mock analytics into draft Insights ([#51](https://github.com/timschoch/glue/issues/51)) ([45e4743](https://github.com/timschoch/glue/commit/45e47434d9258c696757690b6fbab3ad559ff0ed))
+* **mocks:** add user-sim, browser bots whose choices depend on the screen ([#64](https://github.com/timschoch/glue/issues/64)) ([bfa6cc8](https://github.com/timschoch/glue/commit/bfa6cc8e7573871848043ab91e7f2f33c3c29e9c))
+
+
+### Bug Fixes
+
+* **guard:** a test file is not a UI change ([#63](https://github.com/timschoch/glue/issues/63)) ([e5204f8](https://github.com/timschoch/glue/commit/e5204f8eccea6ba8229f7cdb9d4e5881174c5d6f))
+* **release:** run the release PR's required checks instead of faking them ([#67](https://github.com/timschoch/glue/issues/67)) ([3aa5748](https://github.com/timschoch/glue/commit/3aa57483f5f91e6078bc61875e9029fe1192bc1d)), closes [#66](https://github.com/timschoch/glue/issues/66)
+
 ## 1.0.0 (2026-09-30)
 
 

@@ -9,31 +9,24 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  pull-requests: write
-  statuses: write
+  contents: write # push HEAD:release below
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # A PR opened with GITHUB_TOKEN triggers no workflows, so the
+      # required checks would never report. The App token makes them fire.
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          app-id: ${{ secrets.SKILLY_APP_ID }}
+          private-key: ${{ secrets.SKILLY_APP_PRIVATE_KEY }}
       - uses: googleapis/release-please-action@v5
         id: release
         with:
           release-type: node
-      # The release PR only bumps the version and CHANGELOG.md of a main that
-      # already passed the gate, so it skips the gate: pass the required checks.
-      # Found by label: the `pr` output stays empty when the PR was only updated.
-      - env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          sha=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --label 'autorelease: pending' \
-            --json headRefOid --jq '.[0].headRefOid // empty')
-          [ -n "$sha" ] || exit 0
-          for context in 'verify' 'skilly / gate'; do
-            gh api "repos/$GITHUB_REPOSITORY/statuses/$sha" -f state=success \
-              -f context="$context" -f description='Release PR: gate already ran on main'
-          done
+          token: ${{ steps.app-token.outputs.token }}
       # Deploy flow (product): main → Vercel preview, release → Vercel production.
       # Vercel's production branch is `release`; a new release fast-forwards it.
       - if: steps.release.outputs.release_created == 'true'
