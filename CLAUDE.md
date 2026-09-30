@@ -89,7 +89,7 @@ Build the smallest Glue that runs the whole cycle, then widen every part of it t
 The Orchestrator merges a PR only when all of these hold. [guard-workflow.mjs](.claude/hooks/guard-workflow.mjs) blocks `gh pr merge` otherwise.
 
 1. Required checks green. The `pr workflow` step of `verify` wants an issue link, a `Decision:` line and a test change with source changes: [check-pr-workflow.mjs](scripts/check-pr-workflow.mjs).
-2. UI change (`src/**/*.tsx`, `src/**/*.css`): run [interface-review](.agents/skills/interface-review/SKILL.md) `pr <n>` with a rendered review, then comment `interface-review: Approve` or `interface-review: Block` on the PR.
+2. UI change (`src/**/*.tsx`, `src/**/*.css`, not `*.test.tsx`): run [interface-review](.agents/skills/interface-review/SKILL.md) `pr <n>` with a rendered review, then comment `interface-review: Approve` or `interface-review: Block` on the PR.
 3. After the merge: log review findings as Insights.
 
 A deliberate skip of a blocked shell command: `GLUE_OVERRIDE="<reason>"` in the command. It is logged to `.temp/overrides.jsonl` and goes into the ring report.

@@ -100,6 +100,14 @@ test('UI changes need a fresh interface-review Approve', () => {
   assert.equal(mergeProblem({ role: 'orchestrator', pr: approved }), null)
 })
 
+test('a test file is not a UI change', () => {
+  const testOnly = {
+    ...greenPr,
+    files: ['src/components/records/record-view.test.tsx'],
+  }
+  assert.equal(mergeProblem({ role: 'orchestrator', pr: testOnly }), null)
+})
+
 test('an interface-review verdict holds until a UI file changes after it', () => {
   const commit = (committedDate, files, isMerge = false) => ({
     committedDate,

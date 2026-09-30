@@ -18,7 +18,7 @@ export const PROTECTED = [
   /^\.agents\/skills\//,
 ]
 // A change to these files is a UI change: interface-review must approve it.
-export const UI_FILE = /^src\/.*\.(tsx|css)$/
+export const UI_FILE = /^src\/(?!.*\.test\.tsx$).*\.(tsx|css)$/
 const RELEASE_BRANCH = 'release-please--'
 const REVIEW_MARKER = /interface-review:\s*(Approve|Block)/i
 
