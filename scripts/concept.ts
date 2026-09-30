@@ -10,6 +10,7 @@ import {
   listConceptRecords,
   setAnalyticsProject,
   setProductRepository,
+  setSocialHandle,
   showConceptRecord,
   updateDecision,
   updateGoal,
@@ -27,6 +28,7 @@ import type { DownstreamIssue } from '../src/github/downstream-issue.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
   'analytics-project': 'analytics_project',
+  'social-handle': 'social_handle',
   'enforced-by': 'enforced_by',
   'superseded-by': 'superseded_by',
 }
@@ -45,6 +47,7 @@ const KNOWN_FIELDS = new Set(
       'measure',
       'analytics_project',
       'repository',
+      'social_handle',
     ]),
 )
 
@@ -243,9 +246,10 @@ export async function runConcept(
   }
 }
 
-// `product set <slug> --analytics-project <key> --repository owner/name`:
-// the analytics project the Product's Goals are measured from (an empty key
-// removes it) and the GitHub repository that builds the Product.
+// `product set <slug> --analytics-project <key> --repository owner/name
+// --social-handle <handle>`: the analytics project the Product's Goals are
+// measured from, the GitHub repository that builds the Product, and its
+// handle in the social channel. An empty key or handle removes it.
 async function handleProductCommand(
   db: ConceptDb,
   [command, slug, ...rest]: string[],
@@ -256,15 +260,24 @@ async function handleProductCommand(
   const flags = parseFlags(rest)
   const analyticsProject = flags.analytics_project as string | undefined
   const repository = flags.repository as string | undefined
-  if (!slug || (analyticsProject === undefined && !repository)) {
+  const socialHandle = flags.social_handle as string | undefined
+  if (
+    !slug ||
+    (analyticsProject === undefined &&
+      !repository &&
+      socialHandle === undefined)
+  ) {
     throw new Error(
-      'product set needs <slug> and --analytics-project or --repository owner/name',
+      'product set needs <slug> and --analytics-project, --repository owner/name or --social-handle',
     )
   }
   if (analyticsProject !== undefined) {
     await setAnalyticsProject(db, slug, analyticsProject || null)
   }
   if (repository) await setProductRepository(db, slug, repository)
+  if (socialHandle !== undefined) {
+    await setSocialHandle(db, slug, socialHandle || null)
+  }
 }
 
 // Tokens for the Concept HTTP API, one Product each.

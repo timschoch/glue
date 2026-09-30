@@ -615,6 +615,21 @@ export async function setAnalyticsProject(
   if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 
+// null removes it: Glue stops reading the Product's comments. A new handle is
+// read from its first comment.
+export async function setSocialHandle(
+  db: ConceptDb,
+  productSlug: string,
+  socialHandle: string | null,
+): Promise<void> {
+  const updated = await db
+    .update(schema.products)
+    .set({ socialHandle, commentsReadUntil: null })
+    .where(eq(schema.products.slug, productSlug))
+    .returning({ id: schema.products.id })
+  if (updated.length === 0) throw new ProductNotFoundError(productSlug)
+}
+
 export const goalChangeSchema = z.object({
   measure: goalMeasureSchema.nullable().optional().meta({
     description:

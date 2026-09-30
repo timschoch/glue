@@ -5,6 +5,9 @@ type Setting =
   | 'NEON_AUTH_COOKIE_SECRET'
   | 'MOCK_ANALYTICS_URL'
   | 'MOCK_ANALYTICS_READ_KEY'
+  | 'MOCK_SOCIAL_URL'
+  | 'MOCK_SOCIAL_READ_KEY'
+  | 'HF_TOKEN'
   | 'CRON_SECRET'
 
 // Settings come from the environment and stay on the server.

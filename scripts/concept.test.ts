@@ -146,6 +146,22 @@ describe('runConcept', () => {
     expect(lines).toContain('status: open')
     expect(lines).toContain('baseline: null')
   })
+  it('sets the social handle of a Product, and an empty handle removes it', async () => {
+    const findHandle = async () => {
+      const [row] = await db
+        .select({ handle: schema.products.socialHandle })
+        .from(schema.products)
+        .where(eq(schema.products.slug, 'flexibeck'))
+      return row.handle
+    }
+
+    await run('product', 'set', 'flexibeck', '--social-handle', 'flexibeck')
+    const handle = await findHandle()
+    await run('product', 'set', 'flexibeck', '--social-handle', '')
+
+    expect(handle).toBe('flexibeck')
+    expect(await findHandle()).toBeNull()
+  })
 })
 
 describe('parseFlags', () => {

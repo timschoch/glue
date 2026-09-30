@@ -1,6 +1,6 @@
 {
-  "id": "d4bcc215-163b-47ea-b5fe-f8cad743178c",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "8ebf33da-0f8a-4f37-acfb-1fcb7797d75d",
+  "prevId": "b86bb65e-8929-4f75-9e7d-0815bfaa707f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -78,7 +78,7 @@
       "uniqueConstraints": {
         "decision_evidence_decision_id_insight_id_fact_id_unique": {
           "name": "decision_evidence_decision_id_insight_id_fact_id_unique",
-          "nullsNotDistinct": false,
+          "nullsNotDistinct": true,
           "columns": ["decision_id", "insight_id", "fact_id"]
         }
       },
@@ -166,6 +166,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "''"
+        },
+        "issue_url": {
+          "name": "issue_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -343,6 +349,37 @@
           "primaryKey": false,
           "notNull": true
         },
+        "measure": {
+          "name": "measure",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "baseline": {
+          "name": "baseline",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latest_value": {
+          "name": "latest_value",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "measured_at": {
+          "name": "measured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "body": {
           "name": "body",
           "type": "text",
@@ -372,7 +409,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "goals_status_check": {
+          "name": "goals_status_check",
+          "value": "\"goals\".\"status\" in ('open', 'achieved')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.guardrails": {
@@ -517,7 +559,30 @@
           "default": "''"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "insights_measure_source_unique": {
+          "name": "insights_measure_source_unique",
+          "columns": [
+            {
+              "expression": "product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"insights\".\"source\" like 'mock-analytics://%'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "insights_product_id_products_id_fk": {
           "name": "insights_product_id_products_id_fk",
@@ -573,6 +638,30 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "analytics_project": {
+          "name": "analytics_project",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "repository": {
+          "name": "repository",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "social_handle": {
+          "name": "social_handle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comments_read_until": {
+          "name": "comments_read_until",
+          "type": "timestamp (3) with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -583,6 +672,123 @@
           "name": "products_slug_unique",
           "nullsNotDistinct": false,
           "columns": ["slug"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.record_counters": {
+      "name": "record_counters",
+      "schema": "",
+      "columns": {
+        "product_id": {
+          "name": "product_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "folder": {
+          "name": "folder",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_number": {
+          "name": "last_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "record_counters_product_id_products_id_fk": {
+          "name": "record_counters_product_id_products_id_fk",
+          "tableFrom": "record_counters",
+          "tableTo": "products",
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "record_counters_product_id_folder_pk": {
+          "name": "record_counters_product_id_folder_pk",
+          "columns": ["product_id", "folder"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tokens": {
+      "name": "tokens",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "tokens_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hash": {
+          "name": "hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "tokens_product_id_products_id_fk": {
+          "name": "tokens_product_id_products_id_fk",
+          "tableFrom": "tokens",
+          "tableTo": "products",
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "tokens_hash_unique": {
+          "name": "tokens_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": ["hash"]
         }
       },
       "policies": {},
