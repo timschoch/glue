@@ -53,7 +53,7 @@ export const flexibeck: Journey = {
       intent: 'answer the survey',
       actions: [
         { kind: 'answer', question: /how easy/i, from: 'seq' },
-        { kind: 'fill', label: /what was hard/i, value: '{comment}' },
+        { kind: 'fill', label: /what was hard/i, value: '{remark}' },
         { kind: 'click', role: 'button', name: /send answer/i },
       ],
     },

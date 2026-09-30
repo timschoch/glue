@@ -5,7 +5,8 @@ import type { Answer } from './survey.ts'
  * - finished: it did the last step
  * - left: it found the step and chose to leave
  * - missing: it did not find the step
- * - error: an action on the step failed or timed out
+ * - error: an action on the step failed or timed out, or the product rate-limited
+ *   the bot
  */
 export type Outcome = {
   end: 'finished' | 'left' | 'missing' | 'error'
@@ -33,7 +34,7 @@ export type Summary = {
     answers: number
     /** SEQ mean, null without answers. */
     mean: number | null
-    comments: number
+    remarks: number
   }
 }
 
@@ -70,7 +71,7 @@ export function toSummary(
           ? null
           : answers.reduce((sum, answer) => sum + answer.score, 0) /
             answers.length,
-      comments: answers.filter((answer) => answer.comment !== '').length,
+      remarks: answers.filter((answer) => answer.remark !== '').length,
     },
   }
 }

@@ -66,14 +66,24 @@ function listChoiceKinds(page: Page): Array<ChoiceKind> {
 /**
  * Groups of choices, in this order: radios of one radiogroup, radios of one
  * fieldset, options of one listbox, toggle buttons of one group or toolbar.
- * Plain buttons such as Continue or Cancel are never choices.
+ * Plain buttons such as Continue or Cancel are never choices. Radio groups named
+ * by one of `questions` are left out.
  */
 export async function listChoiceGroups(
   page: Page,
+  questions: Array<string | RegExp> = [],
 ): Promise<Array<ChoiceGroup>> {
+  const isQuestion = async (container: Locator) => {
+    for (const question of questions) {
+      const group = page.getByRole('radiogroup', { name: question })
+      if ((await container.and(group).count()) > 0) return true
+    }
+    return false
+  }
   const groups: Array<ChoiceGroup> = []
   for (const kind of listChoiceKinds(page)) {
     for (const container of await kind.containers.all()) {
+      if (await isQuestion(container)) continue
       const choices = await kind.choices(container).all()
       if (choices.length === 0) continue
       const picked = kind.picked(container)
@@ -90,8 +100,12 @@ export async function listChoiceGroups(
   return groups
 }
 
-export async function parseScreen(page: Page): Promise<Screen> {
-  const groups = await listChoiceGroups(page)
+/** `questions`: the radio groups the step answers, so they are no choices. */
+export async function parseScreen(
+  page: Page,
+  questions: Array<string | RegExp> = [],
+): Promise<Screen> {
+  const groups = await listChoiceGroups(page, questions)
   const required = page
     .getByRole('textbox')
     .or(page.getByRole('combobox'))

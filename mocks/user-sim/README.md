@@ -13,9 +13,13 @@ pnpm exec playwright install chromium   # once
 pnpm --filter user-sim simulate --target <url> --journey flexibeck --users <n> --seed <s> [--concurrency <c>]
 ```
 
-Prints per step how many bots reached it, did not find it (`not found`) or had an action fail on it (`error`), how many finished, and the survey answers. The same seed gives the same bots and the same choices.
+Prints per step how many bots reached it, did not find it (`not found`) or got an error on it (`error`), how many finished, and the survey answers. The same seed gives the same bots and the same choices. An error is a failed action, or a rate limit: HTTP 429 from the product, or the text "Too many requests" on the screen.
 
-A bot leaves like a closed tab: it opens `about:blank`, so the product's posthog-js sends its queue on `pagehide`. It then waits up to 5 seconds for those requests before it closes the browser context.
+A live target is any host other than `localhost` or `127.0.0.1`. On a live target a run has at most 50 users and 2 at the same time, and a new bot starts 2 seconds after the one before it ([src/traffic.ts](src/traffic.ts)). The run prints each cap it applies, for example `user-sim: capped concurrency 4 → 2 on a live target`.
+
+Every request to the target's origin carries the header `x-glue-bot: 1`, so the product can tell bots from people. Requests to other origins, for example analytics, do not carry it: a custom header makes the browser send a CORS preflight, which a host that does not allow the header fails.
+
+A bot leaves like a closed tab: it opens `about:blank`, so the product's posthog-js sends its queue on `pagehide`. It then waits until those requests are done and no new request came for 0.5 seconds, for 5 seconds at most, before it closes the browser context.
 
 ## Bots
 
@@ -30,13 +34,13 @@ Each bot draws its traits from the seed:
 
 ## Journeys
 
-One file per Product in [src/journeys/](src/journeys/). A journey is a list of steps. Each step is an intent ("accept a plan") with the actions for it, found by accessible role and name: `fill`, `click`, `choose`, `answer`. `choose` picks one choice in each choice group on the screen. `answer` answers one named radio group for the bot itself: its own experience, or its SEQ score. A step whose targets are not on the screen within 10 seconds counts as not found, and the bot leaves.
+One file per Product in [src/journeys/](src/journeys/). A journey is a list of steps. Each step is an intent ("accept a plan") with the actions for it, found by accessible role and name: `fill`, `click`, `choose`, `answer`. `choose` picks one choice in each choice group on the screen. `answer` answers one named radio group for the bot itself: its own experience, or its SEQ score. That radio group is not a choice, so it adds no choice overload. In a `fill` value, `{email}` and `{password}` become the bot's own, and `{remark}` its Remark. A step whose targets are not on the screen within 10 seconds counts as not found, and the bot leaves.
 
 The flexibeck journey follows the live screens of https://flexibeck.vercel.app: start planning, sign up, pick a recipe, set availability, set the start time, accept a plan, do the first reminder, answer the survey.
 
 ## Rules
 
-On each step the bot reads the screen through the accessibility tree ([src/screen.ts](src/screen.ts)): the choice groups with their count of choices and preselected choice, required inputs, visible text length, and the techniques the text names that have no demo. A demo is a `figure` whose accessible name names the technique, for example a video in a figure with a `figcaption`. A bare `video` has no role in the accessibility tree, so it does not count. The bot never reads product source or event names.
+On each step the bot reads the screen through the accessibility tree ([src/screen.ts](src/screen.ts)): the choice groups with their count of choices and preselected choice, required inputs, visible text length, and the techniques the text names that have no demo. A demo is a captioned image or video (an accessible `figure`) whose name names the technique, for example a video in a figure with a `figcaption`. A bare `video` has no role in the accessibility tree, so it does not count. The bot never reads product source or event names.
 
 A choice group is one of these, and each is a decision of its own:
 
@@ -62,7 +66,7 @@ Neither the product team nor Glue tunes the rules to get a result. A change to a
 
 ## Survey
 
-A bot that reaches a survey answers the Single Ease Question (SEQ, 1 very hard to 7 very easy; Sauro and Dumas 2009) from the struggle of its whole walk: no struggle scores 7, more struggle scores lower, with up to half a point of noise ([src/survey.ts](src/survey.ts)). With a chance as high as its struggle, it writes a comment from a short scripted list for the Rule it struggled with most, for example `A video of each step would help`. Scripted comments are allowed for the role play (Insight I21, Decision D23). The summary adds the count of answers, the SEQ mean and the count of comments.
+A bot that reaches a survey answers the Single Ease Question (SEQ, 1 very hard to 7 very easy; Sauro and Dumas 2009) from the struggle of its whole walk: no struggle scores 7, more struggle scores lower, with up to half a point of noise ([src/survey.ts](src/survey.ts)). With a chance as high as its struggle, it writes a Remark from a short scripted list for the Rule it struggled with most, for example `A video of each step would help`. Scripted Remarks are allowed for the role play (Insight I21, Decision D23). flexibeck sends the Remark in the event property `comment`. The summary adds the count of answers, the SEQ mean and the count of Remarks.
 
 ## Tests
 

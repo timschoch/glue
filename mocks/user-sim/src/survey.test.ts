@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createRandom } from './bot.ts'
-import { COMMENTS, getAnswer } from './survey.ts'
+import { REMARKS, getAnswer } from './survey.ts'
 import { NO_STRUGGLE } from './struggle.ts'
 
 const SAMPLES = 200
@@ -26,9 +26,9 @@ describe('survey answer', () => {
     }
   })
 
-  it('scores a walk without struggle as very easy, without a comment', () => {
+  it('scores a walk without struggle as very easy, without a remark', () => {
     for (const answer of listAnswers(NO_STRUGGLE)) {
-      expect(answer).toEqual({ score: 7, comment: '' })
+      expect(answer).toEqual({ score: 7, remark: '' })
     }
   })
 
@@ -40,19 +40,19 @@ describe('survey answer', () => {
     )
   })
 
-  it('comments on the reason it struggled most with', () => {
+  it('remarks on the reason it struggled most with', () => {
     const answers = listAnswers({
       'choice-overload': 0.1,
       effort: 0.2,
       'worked-example': 0.6,
     })
-    const comments = answers
-      .map((answer) => answer.comment)
-      .filter((comment) => comment !== '')
-    expect(comments.length).toBeGreaterThan(0)
-    expect(comments.length).toBeLessThan(SAMPLES)
-    for (const comment of comments) {
-      expect(COMMENTS['worked-example']).toContain(comment)
+    const remarks = answers
+      .map((answer) => answer.remark)
+      .filter((remark) => remark !== '')
+    expect(remarks.length).toBeGreaterThan(0)
+    expect(remarks.length).toBeLessThan(SAMPLES)
+    for (const remark of remarks) {
+      expect(REMARKS['worked-example']).toContain(remark)
     }
   })
 

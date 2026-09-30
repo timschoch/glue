@@ -6,7 +6,7 @@ export type Role = Parameters<Page['getByRole']>[0]
 export type Action =
   /**
    * Types into the control labelled `label`. `{email}` and `{password}` become the
-   * bot's own, `{comment}` its survey comment.
+   * bot's own, `{remark}` its survey Remark.
    */
   | { kind: 'fill'; label: string | RegExp; value: string }
   | { kind: 'click'; role: Role; name: string | RegExp }
@@ -22,3 +22,10 @@ export type Action =
 export type Step = { intent: string; actions: Array<Action> }
 
 export type Journey = { product: string; steps: Array<Step> }
+
+/** The questions a step answers. Their radio groups are no choices that add struggle. */
+export function listQuestions(step: Step): Array<string | RegExp> {
+  return step.actions.flatMap((action) =>
+    action.kind === 'answer' ? [action.question] : [],
+  )
+}

@@ -10,16 +10,20 @@ const CONCURRENCY = 8
 const TIMEOUT_MS = 90_000
 const SCORES = [1, 2, 3, 4, 5, 6, 7]
 const EXPERIENCES = ['Novice', 'Intermediate', 'Experienced']
+const TECHNIQUES = ['Stretch and fold', 'Laminate the dough', 'Pre-shape']
 
-type Answer = { experience: string; score: number; comment: string }
+type Answer = { experience: string; score: number; remark: string }
 
 /** Sign up, a technical step with or without a demo, then the SEQ. */
 function formatPage(url: URL, experience: string): string {
-  const step = `<h2>Stretch and fold</h2>${
-    url.searchParams.get('demo') === '1'
-      ? '<figure><video controls></video><figcaption>Stretch and fold, step by step</figcaption></figure>'
-      : ''
-  }`
+  const step = TECHNIQUES.map(
+    (technique) =>
+      `<h2>${technique}</h2>${
+        url.searchParams.get('demo') === '1'
+          ? `<figure><video controls></video><figcaption>${technique}, step by step</figcaption></figure>`
+          : ''
+      }`,
+  ).join('')
   const demo = `<input type="hidden" name="demo" value="${url.searchParams.get('demo')}">`
   if (url.pathname === '/step') {
     return `${step}<form action="/survey">${demo}
@@ -31,7 +35,7 @@ function formatPage(url: URL, experience: string): string {
       (score) =>
         `<label><input type="radio" name="score" value="${score}" required> ${score}</label>`,
     ).join('')
-    return `${step}<form action="/thanks">${demo}
+    return `<form action="/thanks">${demo}
       <input type="hidden" name="experience" value="${experience}">
       <div role="radiogroup" aria-label="How easy was your first bake?">${radios}</div>
       <label>What was hard? <textarea name="comment"></textarea></label>
@@ -65,7 +69,7 @@ const journey: Journey = {
       intent: 'answer the survey',
       actions: [
         { kind: 'answer', question: /how easy/i, from: 'seq' },
-        { kind: 'fill', label: /what was hard/i, value: '{comment}' },
+        { kind: 'fill', label: /what was hard/i, value: '{remark}' },
         { kind: 'click', role: 'button', name: 'Send answer' },
       ],
     },
@@ -86,7 +90,8 @@ test('bots answer the SEQ, and a technical step without a demo scores lower for 
       answers[url.searchParams.get('demo') ?? '0'].push({
         experience,
         score: Number(url.searchParams.get('score')),
-        comment: url.searchParams.get('comment') ?? '',
+        // Like flexibeck, the form sends the Remark as `comment`.
+        remark: url.searchParams.get('comment') ?? '',
       })
     }
     response.setHeader('content-type', 'text/html')
@@ -115,8 +120,8 @@ test('bots answer the SEQ, and a technical step without a demo scores lower for 
     expect(without.survey.mean).toBeCloseTo(
       getMean(answers['0'].map((answer) => answer.score)),
     )
-    expect(answers['0'].filter((answer) => answer.comment !== '')).toHaveLength(
-      without.survey.comments,
+    expect(answers['0'].filter((answer) => answer.remark !== '')).toHaveLength(
+      without.survey.remarks,
     )
 
     // Bots tell their own experience: all three levels show up.
@@ -131,7 +136,7 @@ test('bots answer the SEQ, and a technical step without a demo scores lower for 
           .map((answer) => answer.score),
       )
     expect(noviceScores('1')).toBeGreaterThan(noviceScores('0'))
-    expect(answers['0'].map((answer) => answer.comment)).toContain(
+    expect(answers['0'].map((answer) => answer.remark)).toContain(
       'A video of each step would help',
     )
   } finally {

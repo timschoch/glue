@@ -59,4 +59,21 @@ describe('listTechniques', () => {
   it('finds nothing in a text without techniques', () => {
     expect(listNames('Mix and knead by hand. Rest. Bake.')).toEqual([])
   })
+
+  it('finds shaping as a step name, a list item and an instruction', () => {
+    for (const text of [
+      'Shape',
+      'Thu 07:56 Shape · 15 min',
+      'Shape the dough into a boule',
+      'Now shape your loaf',
+      'Shaping takes practice',
+    ]) {
+      expect(listNames(text)).toEqual(['shaping'])
+    }
+  })
+
+  it('does not take shape in its everyday sense for shaping', () => {
+    expect(listNames('Shape your week around the bake')).toEqual([])
+    expect(listNames('Your starter is in good shape')).toEqual([])
+  })
 })

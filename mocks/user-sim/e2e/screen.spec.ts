@@ -27,6 +27,24 @@ test('parses choices, the preselected one, required inputs and text @smoke', asy
   expect(screen.textLength).toBeLessThan(60)
 })
 
+test('leaves out the radio groups the step answers @smoke', async ({
+  page,
+}) => {
+  const radios = [1, 2, 3, 4, 5, 6, 7]
+    .map((score) => `<label><input type="radio" name="seq"> ${score}</label>`)
+    .join('')
+  await page.setContent(`
+    <div role="radiogroup" aria-label="How easy was your first bake?">${radios}</div>
+    <div role="radiogroup" aria-label="Day">
+      <label><input type="radio" name="day"> Monday</label>
+      <label><input type="radio" name="day"> Tuesday</label>
+    </div>`)
+
+  expect((await parseScreen(page, [/how easy/i])).choiceSets).toEqual([
+    { choices: 2, preselected: null },
+  ])
+})
+
 test('counts the techniques on the screen that have no demo @smoke', async ({
   page,
 }) => {

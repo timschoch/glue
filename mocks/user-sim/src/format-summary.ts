@@ -33,7 +33,7 @@ export function formatSummary(summary: Summary): string {
     ...(survey.mean === null
       ? []
       : [
-          `survey: answers ${survey.answers}, SEQ mean ${survey.mean.toFixed(MEAN_DIGITS)}, comments ${survey.comments}`,
+          `survey: answers ${survey.answers}, SEQ mean ${survey.mean.toFixed(MEAN_DIGITS)}, remarks ${survey.remarks}`,
         ]),
   ].join('\n')
 }

@@ -18,7 +18,14 @@ export type Technique = { name: string; pattern: RegExp }
 const TECHNIQUES: Array<Technique> = [
   { name: 'stretch and fold', pattern: /\bstretch(?:es)? and folds?\b/i },
   { name: 'lamination', pattern: /\blaminat(?:e|es|ed|ing|ion)\b/i },
-  { name: 'shaping', pattern: /\b(?:pre-?)?shap(?:e|es|ed|ing)\b/i },
+  {
+    name: 'shaping',
+    // "Shape" alone is too common ("shape your week", "in good shape"). It counts
+    // as a pre-shape, as "shaping", on dough, or as the name of a task: "Shape"
+    // at the end of a line or before punctuation, as in flexibeck's plan list.
+    pattern:
+      /\b(?:[Pp]re-?[Ss]hap(?:e|es|ed|ing)|[Ss]haping|[Ss]hape[sd]? (?:the|your) (?:dough|loaf|loaves|boule|batard)|Shape(?=\s*(?:$|[·.,:;!?])))/m,
+  },
 ]
 
 /** Leave chance per technique without a demo, for a full novice. */
