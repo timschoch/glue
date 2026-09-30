@@ -88,6 +88,21 @@ export async function setProductRepository(
   if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 
+// The number after the highest number that a record id of the folder has
+// now. D19 is higher than D9, so the number decides, not the text.
+function numberAfterHighestId(productId: number, folder: ConceptFolder) {
+  return sql`(
+    select coalesce(max(substring("record_id" from 2)::integer), 0) + 1
+    from ${sql.identifier(folder)}
+    where "product_id" = ${productId}::integer and "record_id" ~ '^[A-Z][0-9]+$'
+  )`
+}
+
+// The counter of a folder after the step to its next number. Older code adds
+// a record with the highest id plus 1 and does not move the counter. Thus
+// the step starts from the higher of the counter and the highest id.
+const NEXT_COUNTER_NUMBER = sql`greatest("record_counters"."last_number", excluded."last_number" - 1) + 1`
+
 // The next id of the folder, as a part of the statement that adds the
 // record. The counter only grows, so the id of a discarded record does not
 // come back, and two statements never read the same number.
@@ -96,10 +111,14 @@ function nextRecordId(db: ConceptDb, productId: number, folder: ConceptFolder) {
   const counter = db.$with('counter').as(
     db
       .insert(recordCounters)
-      .values({ productId, folder, lastNumber: 1 })
+      .values({
+        productId,
+        folder,
+        lastNumber: numberAfterHighestId(productId, folder),
+      })
       .onConflictDoUpdate({
         target: [recordCounters.productId, recordCounters.folder],
-        set: { lastNumber: sql`${recordCounters.lastNumber} + 1` },
+        set: { lastNumber: NEXT_COUNTER_NUMBER },
       })
       .returning({ lastNumber: recordCounters.lastNumber }),
   )
@@ -398,10 +417,13 @@ async function addDecisionRows(
     with ${oldDecision}
     counter as (
       insert into "record_counters" ("product_id", "folder", "last_number")
-      select ${productId}::integer, 'decisions', 1
+      select
+        ${productId}::integer,
+        'decisions',
+        ${numberAfterHighestId(productId, 'decisions')}
       ${supersedes ? sql`from old_decision` : sql``}
       on conflict ("product_id", "folder")
-      do update set "last_number" = "record_counters"."last_number" + 1
+      do update set "last_number" = ${NEXT_COUNTER_NUMBER}
       returning "last_number"
     ),
     added_decision as (

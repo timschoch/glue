@@ -204,6 +204,7 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 - The text in a field is `--text-md`, so a phone does not zoom in.
 - The checks run on submit. Each bad field gets its error below it and the first bad field gets the focus. An error says how to fix the field.
 - An error of the whole form is above the fields, in `--color-danger`.
+- A form that saved a record goes to the page of the record. The polite live region says the result, `Proposed D4.`, and the heading of the page gets the focus.
 - The button stays active until the request starts. During the request it is disabled and says what it does: `Signing in`.
 - One of a few: a native select. Its first option says what to pick, `Pick a Goal`, and has no value.
 - One or more of many: a group of checkboxes in a `<fieldset>`, the `<legend>` is the label. The list has the border of a field and scrolls from 20 rem height. An error is below the list and the group points to it with `aria-describedby`.

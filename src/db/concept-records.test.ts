@@ -602,7 +602,9 @@ describe('acceptDecision', () => {
     expect(record.supersededBy).toBe(id)
   })
 
-  it('supersedes a Decision once when two status changes come at the same time', async () => {
+  // PGlite runs one statement at a time. This test proves the condition in
+  // the statement, not that two statements can run at the same time.
+  it('supersedes a Decision once when a second status change follows', async () => {
     const first = await addConceptRecord(db, 'glue', 'decisions', proposal, '')
     const second = await addConceptRecord(db, 'glue', 'decisions', proposal, '')
 
@@ -626,7 +628,9 @@ describe('acceptDecision', () => {
     )
   })
 
-  it('accepts a Decision once when two requests come at the same time', async () => {
+  // PGlite runs one statement at a time. This test proves the condition in
+  // the statement, not that two statements can run at the same time.
+  it('accepts a Decision once when a second request follows', async () => {
     await setProductRepository(db, 'glue', 'timschoch/glue-next')
     const id = await addConceptRecord(db, 'glue', 'decisions', proposal, '')
 
@@ -792,7 +796,9 @@ describe('a Decision that supersedes another', () => {
     expect(rows).toHaveLength(2)
   })
 
-  it('supersedes a Decision once when two requests come at the same time', async () => {
+  // PGlite runs one statement at a time. This test proves the condition in
+  // the statement, not that two statements can run at the same time.
+  it('supersedes a Decision once when a second request follows', async () => {
     const requests = await Promise.allSettled([
       addConceptRecord(db, 'glue', 'decisions', successor, ''),
       addConceptRecord(db, 'glue', 'decisions', successor, ''),
@@ -813,7 +819,9 @@ describe('a Decision that supersedes another', () => {
 })
 
 describe('the id of a new record', () => {
-  it('is different for two records that come at the same time', async () => {
+  // PGlite runs one statement at a time. This test proves that each
+  // statement takes its own number, not that two can run at the same time.
+  it('is different for two records that follow each other', async () => {
     const fact = { title: 'The cache holds 1 GB', source: 'contract' }
 
     const ids = await Promise.all([
@@ -822,5 +830,80 @@ describe('the id of a new record', () => {
     ])
 
     expect(ids.sort()).toEqual(['F2', 'F3'])
+  })
+
+  // Older code adds a record with the highest id plus 1 and does not move
+  // the counter.
+  it('goes on after an Insight that came in without the counter', async () => {
+    const [{ id: productId }] = await db.select().from(schema.products)
+    const insight = {
+      productId,
+      title: 'Users ask for dark mode',
+      date: '2026-01-03',
+      source: 'support',
+    }
+    await db.insert(schema.insights).values([
+      { ...insight, recordId: 'I9' },
+      { ...insight, recordId: 'I19' },
+    ])
+
+    const fields = { title: insight.title, source: insight.source }
+    const ids = [
+      await addConceptRecord(db, 'glue', 'insights', fields, ''),
+      await addConceptRecord(db, 'glue', 'insights', fields, ''),
+    ]
+
+    expect(ids).toEqual(['I20', 'I21'])
+  })
+
+  it('goes on after a Decision that came in without the counter', async () => {
+    const [{ id: productId }] = await db.select().from(schema.products)
+    const [{ id: goalId }] = await db.select().from(schema.goals)
+    const decision = {
+      productId,
+      goalId,
+      title: 'Cache the search page',
+      date: '2026-01-03',
+      owner: 'tim',
+      status: 'proposed' as const,
+    }
+    await db.insert(schema.decisions).values([
+      { ...decision, recordId: 'D9' },
+      { ...decision, recordId: 'D19' },
+    ])
+
+    const fields = {
+      title: decision.title,
+      owner: 'tim',
+      status: 'proposed',
+      goal: 'G1',
+      evidence: ['I1'],
+    }
+    const ids = [
+      await addConceptRecord(db, 'glue', 'decisions', fields, ''),
+      await addConceptRecord(db, 'glue', 'decisions', fields, ''),
+    ]
+
+    expect(ids).toEqual(['D20', 'D21'])
+  })
+
+  it('goes on after a record that came in before the first counter', async () => {
+    const [{ id: productId }] = await db.select().from(schema.products)
+    await db.insert(schema.guardrails).values({
+      productId,
+      recordId: 'R4',
+      title: 'No query over 200ms',
+      enforcedBy: 'none yet',
+    })
+
+    const id = await addConceptRecord(
+      db,
+      'glue',
+      'guardrails',
+      { title: 'No page over 1 MB', enforced_by: 'none yet' },
+      '',
+    )
+
+    expect(id).toBe('R5')
   })
 })

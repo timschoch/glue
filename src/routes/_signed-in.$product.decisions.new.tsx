@@ -6,7 +6,9 @@ import {
   MissingRecordState,
   RouteErrorState,
 } from '../components/page/page-state.tsx'
+import { useAnnouncer } from '../components/page/announcer.tsx'
 import { useWrite } from '../components/page/use-write.ts'
+import { recordTitleId } from '../components/records/record-sections.ts'
 import { isRecordId } from '../db/record-id.ts'
 
 // An id from the address, when it is the id of a record of one of the kinds.
@@ -68,8 +70,17 @@ function NewDecision() {
   const { product } = Route.useParams()
   const { session, proposeDecision } = Route.useRouteContext()
   const navigate = Route.useNavigate()
+  const { announce } = useAnnouncer()
   const propose = useWrite(proposeDecision, async (added) => {
     if (!added) return
+    // The form is gone after the save: the title of the new Decision takes
+    // the focus.
+    announce(
+      superseded
+        ? `Accepted ${added.id}, superseded ${superseded.id}.`
+        : `Proposed ${added.id}.`,
+      recordTitleId,
+    )
     await navigate({
       to: '/$product/concept/$recordId',
       params: { product, recordId: added.id },

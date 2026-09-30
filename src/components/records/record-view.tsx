@@ -8,7 +8,11 @@ import { useAnnouncer } from '../page/announcer.tsx'
 import { RecordBody } from './record-body.tsx'
 import { RecordField, RecordFields } from './record-fields.tsx'
 import { RecordLink, RecordLinks, RecordTitle } from './record-link.tsx'
-import { insightsNameId, recordSections } from './record-sections.ts'
+import {
+  insightsNameId,
+  recordSections,
+  recordTitleId,
+} from './record-sections.ts'
 import { RecordStatus } from './record-status.tsx'
 import classes from './record-view.module.css'
 import type { RecordAction } from './use-record-action.ts'
@@ -18,10 +22,6 @@ type Handlers = {
   onDiscard: RecordAction
   onAccept: RecordAction
 }
-
-// The id of the heading of the page. The focus goes there after an action,
-// because the button of the action is gone then.
-const titleId = 'record-title'
 
 // Only a web address is a link. Other text stays text, so it cannot run code.
 function Source({ source }: { source: string }) {
@@ -208,14 +208,14 @@ function Actions({
       <InsightTriage
         insight={record}
         citedBy={record.decisions.map(({ id }) => id)}
-        onKeep={announced('Kept', onKeep, titleId)}
+        onKeep={announced('Kept', onKeep, recordTitleId)}
         // The page of a discarded draft is gone: the overview comes next.
         onDiscard={announced('Discarded', onDiscard, insightsNameId)}
       />
     ) : record.kind === 'decision' && record.status !== 'superseded' ? (
       <DecisionActions
         decision={record}
-        onAccept={announced('Accepted', onAccept, titleId)}
+        onAccept={announced('Accepted', onAccept, recordTitleId)}
       />
     ) : undefined
 
@@ -236,6 +236,7 @@ export function RecordView({
   ...handlers
 }: { record: LinkedRecord; issueMissing?: boolean } & Handlers) {
   const section = recordSections[record.kind]
+  const { claimFocus } = useAnnouncer()
 
   return (
     <article className={classes.page}>
@@ -259,7 +260,14 @@ export function RecordView({
             </li>
           </ol>
         </nav>
-        <Title order={1} id={titleId} tabIndex={-1} className={classes.title}>
+        <Title
+          order={1}
+          id={recordTitleId}
+          tabIndex={-1}
+          // The title of a Decision takes the focus after the form saved it.
+          ref={claimFocus}
+          className={classes.title}
+        >
           <RecordTitle record={record} />
         </Title>
         <RecordFields inline>

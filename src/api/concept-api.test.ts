@@ -461,7 +461,7 @@ describe('Decisions', () => {
     expect(response.status).toBe(404)
   })
 
-  it('gives two Decisions that come at the same time different ids', async () => {
+  it('gives two Decisions that follow each other different ids', async () => {
     const params = { product: 'flexibeck', folder: 'decisions' }
     const responses = await Promise.all([
       call(handleAddRecord, 'POST', params, decision),
