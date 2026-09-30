@@ -27,6 +27,7 @@ const decision: Decision = {
   ],
   supersededBy: null,
   supersedes: [],
+  issueUrl: null,
 }
 
 const goal: Goal = {
@@ -130,7 +131,38 @@ describe('RecordView', () => {
     ])
     expect(screen.queryByText('Superseded by')).toBeNull()
     expect(screen.queryByText('Supersedes')).toBeNull()
+    expect(screen.queryByText('Issue')).toBeNull()
   })
+
+  it('links a Decision to the issue that builds it', async () => {
+    await renderInRouter(
+      <RecordView
+        record={{
+          ...decision,
+          issueUrl: 'https://github.com/timschoch/flexibeck-next/issues/4',
+        }}
+      />,
+    )
+
+    expect(shownLinks('Issue')).toEqual([
+      [
+        'timschoch/flexibeck-next#4',
+        'https://github.com/timschoch/flexibeck-next/issues/4',
+      ],
+    ])
+  })
+
+  it.each([
+    'https://github.com/timschoch',
+    'https://gitlab.com/timschoch/glue/-/issues/4',
+  ])(
+    'shows the issue %s that is not a GitHub issue as it is',
+    async (issueUrl) => {
+      await renderInRouter(<RecordView record={{ ...decision, issueUrl }} />)
+
+      expect(shownLinks('Issue')).toEqual([[issueUrl, issueUrl]])
+    },
+  )
 
   it('says that a Decision has no evidence', async () => {
     await renderInRouter(<RecordView record={{ ...decision, evidence: [] }} />)

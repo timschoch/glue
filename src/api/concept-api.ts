@@ -4,7 +4,7 @@
 import { z } from 'zod'
 
 import type { ConceptDb } from '../db/client.ts'
-import { findConcept, findRecord } from '../db/concept.ts'
+import { decisionSchema, findConcept, findRecord } from '../db/concept.ts'
 import type { LinkedRecord } from '../db/concept.ts'
 import { CONCEPT_FIELDS } from '../db/concept-fields.ts'
 import {
@@ -16,6 +16,8 @@ import {
 import { goalMeasureSchema } from '../db/goal-measure.ts'
 import { decisionStatuses, insightStatuses } from '../db/schema.ts'
 import { findProductByToken } from '../db/tokens.ts'
+import type { GithubClient } from '../github/client.ts'
+import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import {
   measureGoals,
   measuredInsightSchema,
@@ -28,6 +30,9 @@ export type ApiRequest = {
   request: Request
   params: { product: string; folder?: string; recordId?: string }
 }
+
+// A request that can accept a Decision, and so open its downstream issue.
+type ChangeRequest = ApiRequest & { github: GithubClient }
 
 const text = z.string().min(1)
 const body = z.string().default('')
@@ -83,6 +88,18 @@ export const decisionUpdateSchema = z
     superseded_by: text.optional(),
   })
   .meta({ id: 'DecisionUpdate' })
+
+// A Decision after an add or a status change. An accepted Decision opens
+// its issue downstream. When GitHub fails, the change stays and
+// `issueError` says why the issue is missing.
+export const changedDecisionSchema = decisionSchema
+  .extend({
+    issueError: z.string().optional().meta({
+      description:
+        'Why the issue is missing. The next status change or `pnpm concept downstream` opens it',
+    }),
+  })
+  .meta({ id: 'ChangedDecision' })
 
 // The folders a client may add records to.
 export const inputSchemas = {
@@ -241,6 +258,22 @@ async function findFolderRecord({
   return record
 }
 
+async function findChangedDecision(
+  { db, github, params }: ChangeRequest,
+  recordId: string,
+) {
+  const issue = await createDownstreamIssue(
+    db,
+    github,
+    params.product,
+    recordId,
+  )
+  const decision = await findRecord(db, params.product, recordId)
+  return issue.kind === 'failed'
+    ? { ...decision, issueError: issue.message }
+    : decision
+}
+
 export function handleGetConcept(input: ApiRequest) {
   return handleApiRequest(input, async () =>
     Response.json(await findConcept(input.db, input.params.product)),
@@ -261,7 +294,7 @@ export function handleGetRecord(input: ApiRequest) {
   )
 }
 
-export function handleAddRecord(input: ApiRequest) {
+export function handleAddRecord(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
     const { db, request, params } = input
     if (!isKeyOf(inputSchemas, params.folder)) {
@@ -277,13 +310,15 @@ export function handleAddRecord(input: ApiRequest) {
       fields,
       recordBody,
     )
-    return Response.json(await findRecord(db, params.product, recordId), {
-      status: 201,
-    })
+    const record =
+      params.folder === 'decisions'
+        ? await findChangedDecision(input, recordId)
+        : await findRecord(db, params.product, recordId)
+    return Response.json(record, { status: 201 })
   })
 }
 
-export function handleUpdateRecord(input: ApiRequest) {
+export function handleUpdateRecord(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
     const { db, request, params } = input
     if (!isKeyOf(updateSchemas, params.folder)) {
@@ -294,17 +329,17 @@ export function handleUpdateRecord(input: ApiRequest) {
     if (params.folder === 'goals') {
       const { measure } = goalUpdateSchema.parse(json)
       await setGoalMeasure(db, params.product, record.id, measure)
-    } else {
-      const update = decisionUpdateSchema.parse(json)
-      await setDecisionStatus(
-        db,
-        params.product,
-        record.id,
-        update.status,
-        update.superseded_by,
-      )
+      return Response.json(await findRecord(db, params.product, record.id))
     }
-    return Response.json(await findRecord(db, params.product, record.id))
+    const update = decisionUpdateSchema.parse(json)
+    await setDecisionStatus(
+      db,
+      params.product,
+      record.id,
+      update.status,
+      update.superseded_by,
+    )
+    return Response.json(await findChangedDecision(input, record.id))
   })
 }
 

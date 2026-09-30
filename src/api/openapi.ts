@@ -14,6 +14,7 @@ import {
 } from '../db/concept.ts'
 import type { ConceptFolder } from '../db/concept-records.ts'
 import {
+  changedDecisionSchema,
   errorSchema,
   inputSchemas,
   measureResultSchema,
@@ -29,6 +30,8 @@ type FolderSchemas = {
   summary: z.ZodType
   input?: z.ZodType
   update?: z.ZodType
+  // The record as an add or an update returns it, when it differs.
+  changed?: z.ZodType
 }
 
 const folders: Record<ConceptFolder, FolderSchemas> = {
@@ -45,6 +48,7 @@ const folders: Record<ConceptFolder, FolderSchemas> = {
     summary: conceptSummarySchemas.decisions,
     input: inputSchemas.decisions,
     update: updateSchemas.decisions,
+    changed: changedDecisionSchema,
   },
   insights: {
     name: 'Insight',
@@ -94,7 +98,7 @@ const readErrorResponses = {
 }
 
 const folderPaths = Object.entries(folders).map(
-  ([folder, { name, record, summary, input, update }]) => ({
+  ([folder, { name, record, summary, input, update, changed = record }]) => ({
     [`${PRODUCT_PATH}/${folder}`]: {
       get: {
         operationId: `list${name}s`,
@@ -115,7 +119,7 @@ const folderPaths = Object.entries(folders).map(
           requestParams: { path: z.object({ product }) },
           requestBody: jsonContent(input),
           responses: {
-            201: { description: 'The new record', ...jsonContent(record) },
+            201: { description: 'The new record', ...jsonContent(changed) },
             ...errorResponses,
           },
         },
@@ -138,7 +142,10 @@ const folderPaths = Object.entries(folders).map(
           requestParams: { path: z.object({ product, recordId }) },
           requestBody: jsonContent(update),
           responses: {
-            200: { description: 'The changed record', ...jsonContent(record) },
+            200: {
+              description: 'The changed record',
+              ...jsonContent(changed),
+            },
             400: errorResponses[400],
             ...readErrorResponses,
           },

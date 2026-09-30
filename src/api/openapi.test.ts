@@ -57,4 +57,26 @@ describe('GET /api/v1/openapi.json', () => {
       ]),
     )
   })
+
+  it('describes the downstream issue of a Decision', async () => {
+    const document = await handleGetOpenApi().json()
+    const { schemas } = document.components
+    const decisions = document.paths['/api/v1/products/{product}/decisions']
+    const decision =
+      document.paths['/api/v1/products/{product}/decisions/{recordId}']
+    const changed = { $ref: '#/components/schemas/ChangedDecision' }
+
+    expect(schemas.Decision.properties.issueUrl).toMatchObject({
+      anyOf: [{ type: 'string', format: 'uri' }, { type: 'null' }],
+    })
+    expect(schemas.ChangedDecision.properties.issueError).toMatchObject({
+      type: 'string',
+    })
+    expect(
+      decisions.post.responses[201].content['application/json'].schema,
+    ).toEqual(changed)
+    expect(
+      decision.patch.responses[200].content['application/json'].schema,
+    ).toEqual(changed)
+  })
 })

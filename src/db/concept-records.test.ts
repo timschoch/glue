@@ -7,9 +7,12 @@ import {
   addConceptRecord,
   listConceptRecords,
   setDecisionStatus,
+  setProductRepository,
   showConceptRecord,
 } from './concept-records.ts'
 import * as schema from './schema.ts'
+import { createDownstreamIssue } from '../github/downstream-issue.ts'
+import { createFakeGithub } from '../test/github.ts'
 
 let client: PGlite
 let db: ReturnType<typeof drizzle<typeof schema>>
@@ -130,6 +133,20 @@ describe('showConceptRecord', () => {
     )
   })
 
+  it('shows the issue of a Decision once it has one', async () => {
+    await setProductRepository(db, 'glue', 'timschoch/glue')
+    expect((await showConceptRecord(db, 'glue', 'D1')).fields.issue).toBe(
+      undefined,
+    )
+
+    await createDownstreamIssue(db, createFakeGithub().github, 'glue', 'D1')
+
+    const record = await showConceptRecord(db, 'glue', 'D1')
+    expect(record.fields.issue).toBe(
+      'https://github.com/timschoch/glue/issues/1',
+    )
+  })
+
   it('shows a non-Decision record', async () => {
     const record = await showConceptRecord(db, 'glue', 'G1')
     expect(record.fields.title).toBe('Ship faster')
@@ -140,6 +157,20 @@ describe('showConceptRecord', () => {
     await expect(showConceptRecord(db, 'glue', 'D9')).rejects.toThrow(
       /"D9" not found/,
     )
+  })
+})
+
+describe('setProductRepository', () => {
+  it('rejects a repository that is not owner/name', async () => {
+    await expect(
+      setProductRepository(db, 'glue', 'https://github.com/timschoch/glue'),
+    ).rejects.toThrow(/must look like owner\/name/)
+  })
+
+  it('throws for a Product that does not exist', async () => {
+    await expect(
+      setProductRepository(db, 'nope', 'timschoch/glue'),
+    ).rejects.toThrow(/product "nope" not found/)
   })
 })
 

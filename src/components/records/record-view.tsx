@@ -20,6 +20,14 @@ function Source({ source }: { source: string }) {
   )
 }
 
+// https://github.com/owner/name/issues/4 reads as owner/name#4. Other URLs stay as they are.
+function formatIssueReference(issueUrl: string) {
+  const match = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/issues\/(\d+)$/.exec(
+    issueUrl,
+  )
+  return match ? `${match[1]}#${match[2]}` : issueUrl
+}
+
 function Day({ date }: { date: string }) {
   return <time dateTime={date}>{date}</time>
 }
@@ -108,6 +116,13 @@ function LinkFields({
           {record.supersedes.length > 0 && (
             <RecordField label="Supersedes">
               <RecordLinks records={record.supersedes} empty="" />
+            </RecordField>
+          )}
+          {record.issueUrl && (
+            <RecordField label="Issue">
+              <a href={record.issueUrl} className={classes.source}>
+                {formatIssueReference(record.issueUrl)}
+              </a>
             </RecordField>
           )}
         </>
