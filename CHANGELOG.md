@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.0](https://github.com/timschoch/glue/compare/v1.4.0...v1.5.0) (2026-09-30)
+
+
+### Features
+
+* **app:** show Goal progress and close a Goal as achieved ([#80](https://github.com/timschoch/glue/issues/80)) ([46e531c](https://github.com/timschoch/glue/commit/46e531c1ee8cb4509db381b1ad766fd02636cb79))
+* **mock-analytics:** read property values and merge identified persons ([#84](https://github.com/timschoch/glue/issues/84)) ([4b79fa1](https://github.com/timschoch/glue/commit/4b79fa14d7465144cc4d67e4c01b5048355f2903)), closes [#79](https://github.com/timschoch/glue/issues/79) [#78](https://github.com/timschoch/glue/issues/78)
+* **user-sim:** walk live flexibeck, answer the SEQ, add worked example rule ([#82](https://github.com/timschoch/glue/issues/82)) ([0cdb21b](https://github.com/timschoch/glue/commit/0cdb21b791fd9e124d2962d35e064fc94623987c))
+
 ## [1.4.0](https://github.com/timschoch/glue/compare/v1.3.0...v1.4.0) (2026-09-30)
 
 
