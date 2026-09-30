@@ -92,6 +92,8 @@ export const tokens = {
   },
   measure: {
     prose: '68ch',
+    form: '26rem',
+    page: '60rem',
   },
   ease: {
     out: 'cubic-bezier(0.16, 1, 0.3, 1)',

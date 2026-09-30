@@ -7,11 +7,12 @@ import {
   submitSignUp,
 } from './authentication/session.functions.ts'
 import { fetchConcept, fetchRecord } from './db/concept.functions.ts'
-import type { RouterContext } from './router-context.ts'
+import { createRouterContext } from './router-context.ts'
+import type { Server, SessionMemory } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
 
 // The routes reach the server only through these functions.
-const context: RouterContext = {
+const server: Server = {
   fetchSession: () => fetchSession(),
   fetchConcept: () => fetchConcept(),
   fetchRecord: (recordId) => fetchRecord({ data: recordId }),
@@ -21,9 +22,16 @@ const context: RouterContext = {
 }
 
 export function getRouter() {
+  const memory: SessionMemory = {}
+
   const router = createTanStackRouter({
     routeTree,
-    context,
+    context: createRouterContext(server, memory),
+    // The session goes to the browser with the page.
+    dehydrate: () => ({ session: memory.session }),
+    hydrate: ({ session }) => {
+      memory.session = session
+    },
     scrollRestoration: true,
     defaultPreload: 'intent',
     defaultPreloadStaleTime: 0,
