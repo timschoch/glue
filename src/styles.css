@@ -85,6 +85,8 @@
   --radius-control: 0.25rem;
   --radius-card: 0.375rem;
   --measure-prose: 68ch;
+  --measure-form: 26rem;
+  --measure-page: 60rem;
 
   /* Motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);

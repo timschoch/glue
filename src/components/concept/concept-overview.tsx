@@ -70,7 +70,7 @@ export function ConceptOverview({ concept }: { concept: Concept | undefined }) {
     )
   }
 
-  const { product, goals, decisions, guardrails, insights, facts } = concept
+  const { goals, decisions, guardrails, insights, facts } = concept
   const sections = [
     { ...recordSections.goal, count: goals.length },
     { ...recordSections.decision, count: decisions.length },
@@ -82,7 +82,7 @@ export function ConceptOverview({ concept }: { concept: Concept | undefined }) {
   return (
     <div className={classes.page}>
       <header className={classes.header}>
-        <Title order={1}>{product.name}</Title>
+        <Title order={1}>Concept</Title>
         <nav aria-label="Sections">
           <ul className={classes.sections}>
             {sections.map(({ id, name, count }) => (

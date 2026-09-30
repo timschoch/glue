@@ -65,10 +65,24 @@ function section(name: string) {
 }
 
 describe('ConceptOverview', () => {
-  it('shows the name of the Product as the heading of the page', async () => {
+  // The breadcrumb of a record and the link of a missing page say Concept too.
+  it('has the name Concept, the one name of the overview', async () => {
     await renderInRouter(<ConceptOverview concept={concept} />)
 
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Glue')
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      'Concept',
+    )
+  })
+
+  it('shows the title of a Decision in the size of the other record titles', async () => {
+    await renderInRouter(<ConceptOverview concept={concept} />)
+
+    const sizes = screen
+      .getAllByRole('heading', { level: 3 })
+      .map((title) => title.style.getPropertyValue('--title-fz'))
+
+    expect(sizes).toHaveLength(7)
+    expect(new Set(sizes)).toEqual(new Set(['var(--mantine-h3-font-size)']))
   })
 
   it('shows Goals, then Decisions, then Guardrails, then Insights and Facts', async () => {

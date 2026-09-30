@@ -8,15 +8,7 @@ import {
 
 export const Route = createFileRoute('/_signed-in/')({
   loader: ({ context }) => context.fetchConcept(),
-  head: ({ loaderData }) => ({
-    meta: [
-      {
-        title: loaderData
-          ? `${loaderData.product.name} Concept | Glue`
-          : 'Glue',
-      },
-    ],
-  }),
+  head: () => ({ meta: [{ title: 'Concept | Glue' }] }),
   component: Overview,
   pendingComponent: () => <LoadingState name="the Concept" />,
   errorComponent: () => <RouteErrorState name="the Concept" />,
