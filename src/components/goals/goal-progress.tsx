@@ -1,5 +1,6 @@
 import type { Goal } from '../../db/concept.ts'
 import { RecordField, RecordFields } from '../records/record-fields.tsx'
+import classes from './goal-progress.module.css'
 
 const decimal = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
 const change = new Intl.NumberFormat('en', {
@@ -63,7 +64,9 @@ export function GoalProgress({
         ) : (
           <>
             {formatValue(latestValue)}, measured{' '}
-            <time dateTime={measuredAt}>{formatTime(measuredAt)}</time>
+            <time dateTime={measuredAt} className={classes.time}>
+              {formatTime(measuredAt)}
+            </time>
           </>
         )}
       </RecordField>

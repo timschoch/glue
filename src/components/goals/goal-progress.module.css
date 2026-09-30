@@ -1,0 +1,8 @@
+/* Hallmark · component: goal progress · genre: modern-minimal · theme: custom (dense, calm, text first)
+ * states: default
+ * The time of the latest value stays on one line.
+ */
+
+.time {
+  white-space: nowrap;
+}

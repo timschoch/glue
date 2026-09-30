@@ -1,4 +1,4 @@
-import { Button, VisuallyHidden } from '@mantine/core'
+import { Button } from '@mantine/core'
 
 import type { Goal } from '../../db/concept.ts'
 import classes from '../records/record-actions.module.css'
@@ -12,12 +12,11 @@ export function GoalActions({
   onClose,
   onReopen,
 }: {
-  goal: Pick<Goal, 'id' | 'status'>
+  goal: Pick<Goal, 'status'>
   onClose: RecordAction
   onReopen: RecordAction
 }) {
   const { pending, failure, run } = useRecordAction()
-  const id = <VisuallyHidden>{goal.id}</VisuallyHidden>
   const running = pending !== undefined
 
   return (
@@ -29,11 +28,7 @@ export function GoalActions({
           disabled={running}
           onClick={() => run('close', onClose)}
         >
-          {/* One element: the button label is a flex box and drops the
-              space between its parts. */}
-          <span>
-            {running ? 'Closing' : 'Close'} {id} as achieved
-          </span>
+          {running ? 'Closing' : 'Close'} as achieved
         </Button>
       ) : (
         <Button
@@ -42,9 +37,7 @@ export function GoalActions({
           disabled={running}
           onClick={() => run('reopen', onReopen)}
         >
-          <span>
-            {running ? 'Opening' : 'Open'} {id} again
-          </span>
+          {running ? 'Opening' : 'Open'} again
         </Button>
       )}
       <div role="alert" className={classes.failure}>

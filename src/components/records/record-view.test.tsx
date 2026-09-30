@@ -427,11 +427,9 @@ describe('RecordView', () => {
         </Announcer>,
       )
 
-      expect(
-        actions().queryByRole('button', { name: 'Open G1 again' }),
-      ).toBeNull()
+      expect(actions().queryByRole('button', { name: 'Open again' })).toBeNull()
       await userEvent.click(
-        actions().getByRole('button', { name: 'Close G1 as achieved' }),
+        actions().getByRole('button', { name: 'Close as achieved' }),
       )
 
       expect(onClose).toHaveBeenCalledOnce()
@@ -455,10 +453,10 @@ describe('RecordView', () => {
 
       expect(shownValue('Status')).toBe('Achieved')
       expect(
-        actions().queryByRole('button', { name: 'Close G1 as achieved' }),
+        actions().queryByRole('button', { name: 'Close as achieved' }),
       ).toBeNull()
       await userEvent.click(
-        actions().getByRole('button', { name: 'Open G1 again' }),
+        actions().getByRole('button', { name: 'Open again' }),
       )
 
       expect(onReopen).toHaveBeenCalledOnce()
@@ -475,7 +473,7 @@ describe('RecordView', () => {
       )
 
       await userEvent.click(
-        actions().getByRole('button', { name: 'Close G1 as achieved' }),
+        actions().getByRole('button', { name: 'Close as achieved' }),
       )
 
       expect((await screen.findByRole('alert')).textContent).toBe(
