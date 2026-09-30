@@ -10,6 +10,7 @@ import type {
   Guardrail,
   Insight,
 } from '../../db/concept.ts'
+import type { MeanMeasure } from '../../db/goal-measure.ts'
 import { renderInRouter, shownValue } from '../../test/render.tsx'
 import { Announcer } from '../page/announcer.tsx'
 import { RecordView } from './record-view.tsx'
@@ -85,16 +86,18 @@ const handlers = {
   onReopen: () => Promise.resolve(undefined),
 }
 
+const mean: MeanMeasure = {
+  kind: 'mean',
+  source: 'mock-analytics',
+  event: 'survey sent',
+  property: 'answer',
+  target_change: 1,
+  window_days: 14,
+}
+
 const meanGoal: Goal = {
   ...goal,
-  measure: {
-    kind: 'mean',
-    source: 'mock-analytics',
-    event: 'survey sent',
-    property: 'answer',
-    target_change: 1,
-    window_days: 14,
-  },
+  measure: mean,
   baseline: 3.5,
   latestValue: 4.256,
   measuredAt: '2026-09-30T14:05:12.000Z',
@@ -339,7 +342,7 @@ describe('RecordView', () => {
           {...handlers}
           record={{
             ...meanGoal,
-            measure: { ...meanGoal.measure!, target_change: -0.5 },
+            measure: { ...mean, target_change: -0.5 },
           }}
         />,
       )
