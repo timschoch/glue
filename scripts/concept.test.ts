@@ -18,6 +18,10 @@ describe('parseFlags', () => {
     })
   })
 
+  it('parses the Decision that a new Decision supersedes', () => {
+    expect(parseFlags(['--supersedes', 'D1'])).toEqual({ supersedes: 'D1' })
+  })
+
   it('splits --evidence on commas', () => {
     expect(parseFlags(['--evidence', 'I1,F1'])).toEqual({
       evidence: ['I1', 'F1'],

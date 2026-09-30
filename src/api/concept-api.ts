@@ -78,6 +78,10 @@ export const decisionInputSchema = z
     goal: text,
     evidence: z.array(text).min(1),
     superseded_by: text.optional(),
+    supersedes: text.optional().meta({
+      description:
+        'The id of the Decision that this one supersedes. The new Decision must be accepted. The old one becomes superseded in the same request.',
+    }),
     body,
   })
   .meta({ id: 'DecisionInput' })

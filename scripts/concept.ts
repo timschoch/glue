@@ -38,6 +38,7 @@ const KNOWN_FIELDS = new Set(
       'body',
       'status',
       'superseded_by',
+      'supersedes',
       'name',
       'measure',
       'analytics_project',
@@ -142,6 +143,7 @@ function printRecord(record: Awaited<ReturnType<typeof showConceptRecord>>) {
     console.log(`evidence: ${item.id} ${item.title}`)
   }
   if (record.supersededBy) console.log(`superseded_by: ${record.supersededBy}`)
+  for (const id of record.supersedes ?? []) console.log(`supersedes: ${id}`)
   if (record.body) console.log(`\n${record.body}`)
 }
 

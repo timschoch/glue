@@ -133,6 +133,7 @@ export type ConceptShowResult = {
   goal?: { id: string; title: string }
   evidence?: { id: string; title: string }[]
   supersededBy?: string
+  supersedes?: string[]
 }
 
 export async function showConceptRecord(
@@ -205,6 +206,11 @@ export async function showConceptRecord(
     supersededBy = row.recordId
   }
 
+  const superseded = await db
+    .select({ id: schema.decisions.recordId })
+    .from(schema.decisions)
+    .where(eq(schema.decisions.supersededById, decisionRow.id))
+
   return {
     id: decisionRow.recordId,
     folder,
@@ -219,6 +225,7 @@ export async function showConceptRecord(
     goal: { id: goalRow.recordId, title: goalRow.title },
     evidence,
     supersededBy,
+    supersedes: sortById(superseded).map((decision) => decision.id),
   }
 }
 
@@ -244,6 +251,13 @@ function validateFields(folder: ConceptFolder, fields: ConceptFields) {
     isMissing(fields.superseded_by)
   ) {
     throw new InvalidRecordError('a superseded Decision needs "superseded_by"')
+  }
+  if (
+    folder === 'decisions' &&
+    !isMissing(fields.supersedes) &&
+    fields.status !== 'accepted'
+  ) {
+    throw new InvalidRecordError('"supersedes" needs the status "accepted"')
   }
 }
 
@@ -285,6 +299,27 @@ async function addDecision(
         `decision "${supersededByRecordId}" not found`,
       )
     supersededById = rows[0].id
+  }
+
+  let supersededRowId: number | undefined
+  if (fields.supersedes) {
+    const supersededRecordId = fields.supersedes as string
+    const rows = await db
+      .select({ id: schema.decisions.id, status: schema.decisions.status })
+      .from(schema.decisions)
+      .where(
+        and(
+          eq(schema.decisions.productId, productId),
+          eq(schema.decisions.recordId, supersededRecordId),
+        ),
+      )
+    if (rows.length === 0)
+      throw new InvalidRecordError(`decision "${supersededRecordId}" not found`)
+    if (rows[0].status === 'superseded')
+      throw new InvalidRecordError(
+        `"${supersededRecordId}" is superseded already`,
+      )
+    supersededRowId = rows[0].id
   }
 
   const evidenceRecordIds = Array.isArray(fields.evidence)
@@ -333,14 +368,13 @@ async function addDecision(
     body,
   }
 
-  // The Decision and its evidence links go in as one statement, so a
-  // network failure between the two never leaves the Decision without
-  // its evidence. The Neon HTTP driver has no transaction of its own.
-  if (evidenceRows.length === 0) {
-    await db.insert(schema.decisions).values(decisionValues)
-    return
-  }
+  if (evidenceRows.length === 0)
+    throw new InvalidRecordError('"evidence" is required')
 
+  // The Decision, its evidence links and the change of the Decision it
+  // supersedes go in as one statement, so a network failure never leaves
+  // one without the others. The Neon HTTP driver has no transaction of
+  // its own.
   const addedDecision = db
     .$with('added_decision')
     .as(
@@ -350,16 +384,35 @@ async function addDecision(
         .returning({ id: schema.decisions.id }),
     )
 
-  await db
-    .with(addedDecision)
-    .insert(schema.decisionEvidence)
-    .values(
-      evidenceRows.map((evidenceRow) => ({
-        decisionId: sql<number>`(select id from ${addedDecision})`,
-        insightId: evidenceRow.insightId ?? null,
-        factId: evidenceRow.factId ?? null,
-      })),
+  const addedDecisionId = sql<number>`(select id from ${addedDecision})`
+  const evidenceValues = evidenceRows.map((evidenceRow) => ({
+    decisionId: addedDecisionId,
+    insightId: evidenceRow.insightId ?? null,
+    factId: evidenceRow.factId ?? null,
+  }))
+
+  if (supersededRowId === undefined) {
+    await db
+      .with(addedDecision)
+      .insert(schema.decisionEvidence)
+      .values(evidenceValues)
+    return
+  }
+
+  const addedEvidence = db
+    .$with('added_evidence')
+    .as(
+      db
+        .insert(schema.decisionEvidence)
+        .values(evidenceValues)
+        .returning({ id: schema.decisionEvidence.id }),
     )
+
+  await db
+    .with(addedDecision, addedEvidence)
+    .update(schema.decisions)
+    .set({ status: 'superseded', supersededById: addedDecisionId })
+    .where(eq(schema.decisions.id, supersededRowId))
 }
 
 function todayUtc() {
@@ -381,7 +434,11 @@ export async function addConceptRecord(
     : inputFields
   validateFields(folder, fields)
 
-  const productId = await addProductId(db, productSlug)
+  // A Decision serves a Goal, so its Product exists already.
+  const productId =
+    folder === 'decisions'
+      ? await findProductId(db, productSlug)
+      : await addProductId(db, productSlug)
   const recordId = await nextRecordId(db, productId, folder)
 
   switch (folder) {
@@ -531,4 +588,91 @@ export async function setDecisionStatus(
     .update(schema.decisions)
     .set({ status, supersededById })
     .where(eq(schema.decisions.id, decisionRow.id))
+}
+
+// Accepts a Decision that waits for it. Any other change of status goes
+// through setDecisionStatus directly.
+export async function acceptDecision(
+  db: ConceptDb,
+  productSlug: string,
+  id: string,
+): Promise<void> {
+  const productId = await findProductId(db, productSlug)
+  const rows = await db
+    .select({ status: schema.decisions.status })
+    .from(schema.decisions)
+    .where(
+      and(
+        eq(schema.decisions.productId, productId),
+        eq(schema.decisions.recordId, id),
+      ),
+    )
+  if (rows.length === 0)
+    throw new InvalidRecordError(`decision "${id}" not found`)
+  if (rows[0].status !== 'proposed')
+    throw new InvalidRecordError(`"${id}" is not proposed`)
+
+  await setDecisionStatus(db, productSlug, id, 'accepted')
+}
+
+// The condition that matches one Insight only while it is a draft.
+async function findDraft(db: ConceptDb, productSlug: string, id: string) {
+  const productId = await findProductId(db, productSlug)
+  const rows = await db
+    .select({ id: schema.insights.id, status: schema.insights.status })
+    .from(schema.insights)
+    .where(
+      and(
+        eq(schema.insights.productId, productId),
+        eq(schema.insights.recordId, id),
+      ),
+    )
+  if (rows.length === 0)
+    throw new InvalidRecordError(`insight "${id}" not found`)
+  if (rows[0].status !== 'draft')
+    throw new InvalidRecordError(`"${id}" is not a draft`)
+
+  return {
+    rowId: rows[0].id,
+    matches: and(
+      eq(schema.insights.id, rows[0].id),
+      eq(schema.insights.status, 'draft'),
+    ),
+  }
+}
+
+// Triage of a draft Insight: it becomes a normal Insight.
+export async function keepInsight(
+  db: ConceptDb,
+  productSlug: string,
+  id: string,
+): Promise<void> {
+  const draft = await findDraft(db, productSlug, id)
+  await db.update(schema.insights).set({ status: null }).where(draft.matches)
+}
+
+// Triage of a draft Insight: it goes away. Only a draft can be deleted,
+// and only while no Decision cites it.
+export async function deleteDraftInsight(
+  db: ConceptDb,
+  productSlug: string,
+  id: string,
+): Promise<void> {
+  const draft = await findDraft(db, productSlug, id)
+  const citations = await db
+    .select({ id: schema.decisions.recordId })
+    .from(schema.decisionEvidence)
+    .innerJoin(
+      schema.decisions,
+      eq(schema.decisionEvidence.decisionId, schema.decisions.id),
+    )
+    .where(eq(schema.decisionEvidence.insightId, draft.rowId))
+  if (citations.length > 0) {
+    const cited = sortById(citations).map((decision) => decision.id)
+    throw new InvalidRecordError(
+      `"${id}" is the evidence of ${cited.join(', ')}`,
+    )
+  }
+
+  await db.delete(schema.insights).where(draft.matches)
 }

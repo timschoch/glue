@@ -394,6 +394,48 @@ describe('Decisions', () => {
     })
   })
 
+  it('adds a Decision that supersedes another, and the old one names it', async () => {
+    const params = { product: 'flexibeck', folder: 'decisions' }
+    await call(handleAddRecord, 'POST', params, decision)
+
+    const added = await call(handleAddRecord, 'POST', params, {
+      ...decision,
+      title: 'Cache every page',
+      supersedes: 'D1',
+    })
+
+    expect(added.status).toBe(201)
+    expect(added.body).toMatchObject({
+      id: 'D2',
+      status: 'accepted',
+      supersedes: [{ id: 'D1', title: 'Cache the homepage' }],
+    })
+    const old = await call(handleGetRecord, 'GET', {
+      ...params,
+      recordId: 'D1',
+    })
+    expect(old.body).toMatchObject({
+      status: 'superseded',
+      supersededBy: { id: 'D2', title: 'Cache every page' },
+    })
+  })
+
+  it('answers 400 for a proposed Decision that supersedes another', async () => {
+    const params = { product: 'flexibeck', folder: 'decisions' }
+    await call(handleAddRecord, 'POST', params, decision)
+
+    const response = await call(handleAddRecord, 'POST', params, {
+      ...decision,
+      status: 'proposed',
+      supersedes: 'D1',
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe(
+      '"supersedes" needs the status "accepted"',
+    )
+  })
+
   it('answers 400 for a superseded Decision without superseded_by', async () => {
     const params = { product: 'flexibeck', folder: 'decisions' }
     await call(handleAddRecord, 'POST', params, decision)
