@@ -28,12 +28,14 @@ export type FunnelResult = {
 
 const MILLISECONDS_PER_HOUR = 3_600_000
 
-// Counts each user once, at the deepest step they reached in order within the
-// window that opens at their first step. The breakdown value comes from that
-// first step's event.
+// Counts each person once, at the deepest step they reached in order within
+// the window that opens at their first step. The breakdown value comes from
+// that first step's event. `personIds` maps a merged distinct id to its
+// person, see toPersonIds.
 export function toFunnelResults(
   events: FunnelEvent[],
   query: Pick<FunnelQuery, 'steps' | 'breakdown' | 'windowHours'>,
+  personIds: Map<string, string>,
 ): FunnelResult[] {
   const { steps, breakdown, windowHours } = query
   const windowLength = windowHours * MILLISECONDS_PER_HOUR
@@ -46,9 +48,10 @@ export function toFunnelResults(
       steps.indexOf(left.name) - steps.indexOf(right.name),
   )
   for (const event of sorted) {
-    const userEvents = eventsByUser.get(event.distinctId) ?? []
+    const personId = personIds.get(event.distinctId) ?? event.distinctId
+    const userEvents = eventsByUser.get(personId) ?? []
     userEvents.push(event)
-    eventsByUser.set(event.distinctId, userEvents)
+    eventsByUser.set(personId, userEvents)
   }
 
   const countsByBreakdown = new Map<string | null, number[]>()

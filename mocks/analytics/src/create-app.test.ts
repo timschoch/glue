@@ -408,6 +408,239 @@ describe('query API', () => {
   })
 })
 
+describe('identify', () => {
+  it('counts the anonymous and the identified id as one person in a funnel', async () => {
+    await captureEvents([
+      { event: 'signed_up', user: 'anon-1', at: '2026-09-01T10:00:00Z' },
+      {
+        event: '$identify',
+        user: 'baker',
+        at: '2026-09-01T10:01:00Z',
+        properties: { $anon_distinct_id: 'anon-1' },
+      },
+      { event: 'recipe_imported', user: 'baker', at: '2026-09-01T10:02:00Z' },
+    ])
+
+    expect(
+      await queryCounts({ steps: ['signed_up', 'recipe_imported'] }),
+    ).toEqual([{ breakdown: null, counts: [1, 1] }])
+  })
+
+  it('merges the ids when the identify falls outside the query dates', async () => {
+    await captureEvents([
+      { event: 'signed_up', user: 'anon-1', at: '2026-09-01T10:00:00Z' },
+      { event: 'recipe_imported', user: 'baker', at: '2026-09-01T11:00:00Z' },
+      {
+        event: '$identify',
+        user: 'baker',
+        at: '2026-09-20T10:00:00Z',
+        properties: { $anon_distinct_id: 'anon-1' },
+      },
+    ])
+
+    expect(
+      await queryCounts({ steps: ['signed_up', 'recipe_imported'] }),
+    ).toEqual([{ breakdown: null, counts: [1, 1] }])
+  })
+
+  it('merges every anonymous id of a person, and no id of another project', async () => {
+    await captureEvents([
+      { event: 'signed_up', user: 'anon-1', at: '2026-09-01T10:00:00Z' },
+      {
+        event: '$identify',
+        user: 'baker',
+        at: '2026-09-01T10:01:00Z',
+        properties: { $anon_distinct_id: 'anon-1' },
+      },
+      {
+        event: '$identify',
+        user: 'baker',
+        at: '2026-09-02T10:00:00Z',
+        properties: { $anon_distinct_id: 'anon-2' },
+      },
+      { event: 'recipe_imported', user: 'anon-2', at: '2026-09-02T10:01:00Z' },
+      { event: 'signed_up', user: 'anon-3', at: '2026-09-01T10:00:00Z' },
+    ])
+    const response = await app.request('/e/', {
+      method: 'POST',
+      body: JSON.stringify({
+        event: '$identify',
+        timestamp: '2026-09-01T10:02:00Z',
+        properties: {
+          token: 'phc_other',
+          distinct_id: 'anon-3',
+          $anon_distinct_id: 'anon-1',
+        },
+      }),
+    })
+    expect(response.status).toBe(200)
+
+    expect(
+      await queryCounts({ steps: ['signed_up', 'recipe_imported'] }),
+    ).toEqual([{ breakdown: null, counts: [2, 1] }])
+  })
+})
+
+function queryValues(body: object) {
+  return app.request('/api/values', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${readKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      project,
+      event: 'survey_answered',
+      property: 'comment',
+      from: '2026-09-01T00:00:00Z',
+      to: '2026-09-10T00:00:00Z',
+      ...body,
+    }),
+  })
+}
+
+describe('values', () => {
+  it('lists the values most frequent first, and skips empty values', async () => {
+    await captureEvents([
+      {
+        event: 'survey_answered',
+        user: 'ada',
+        at: '2026-09-01T10:00:00Z',
+        properties: { comment: 'bigger font' },
+      },
+      {
+        event: 'survey_answered',
+        user: 'bob',
+        at: '2026-09-01T11:00:00Z',
+        properties: { comment: 'a video of each step' },
+      },
+      {
+        event: 'survey_answered',
+        user: 'cy',
+        at: '2026-09-01T12:00:00Z',
+        properties: { comment: 'a video of each step' },
+      },
+      {
+        event: 'survey_answered',
+        user: 'dee',
+        at: '2026-09-01T13:00:00Z',
+        properties: { comment: '  ' },
+      },
+      {
+        event: 'survey_answered',
+        user: 'eve',
+        at: '2026-09-01T14:00:00Z',
+        properties: { comment: null },
+      },
+      { event: 'survey_answered', user: 'fay', at: '2026-09-01T15:00:00Z' },
+      {
+        event: 'survey_answered',
+        user: 'gus',
+        at: '2026-09-11T10:00:00Z',
+        properties: { comment: 'too late' },
+      },
+      {
+        event: 'survey_shown',
+        user: 'hal',
+        at: '2026-09-01T10:00:00Z',
+        properties: { comment: 'other event' },
+      },
+    ])
+
+    const response = await queryValues({})
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      results: [
+        {
+          breakdown: null,
+          values: [
+            { value: 'a video of each step', count: 2 },
+            { value: 'bigger font', count: 1 },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('filters with where, and splits by the breakdown property', async () => {
+    await captureEvents([
+      {
+        event: 'survey_answered',
+        user: 'ada',
+        at: '2026-09-01T10:00:00Z',
+        properties: { question: 'seq', score: 5, plan: 'free' },
+      },
+      {
+        event: 'survey_answered',
+        user: 'bob',
+        at: '2026-09-01T10:00:00Z',
+        properties: { question: 'seq', score: 5, plan: 'free' },
+      },
+      {
+        event: 'survey_answered',
+        user: 'cy',
+        at: '2026-09-01T10:00:00Z',
+        properties: { question: 'seq', score: 7, plan: 'team' },
+      },
+      {
+        event: 'survey_answered',
+        user: 'dee',
+        at: '2026-09-01T10:00:00Z',
+        properties: { question: 'nps', score: 9, plan: 'team' },
+      },
+    ])
+
+    const response = await queryValues({
+      property: 'score',
+      where: { property: 'question', value: 'seq' },
+      breakdown: 'plan',
+    })
+
+    expect(await response.json()).toEqual({
+      results: [
+        { breakdown: 'free', values: [{ value: '5', count: 2 }] },
+        { breakdown: 'team', values: [{ value: '7', count: 1 }] },
+      ],
+    })
+  })
+
+  it('returns at most limit values', async () => {
+    await captureEvents(
+      ['video', 'video', 'font', 'print'].map((comment, index) => ({
+        event: 'survey_answered',
+        user: `user-${index}`,
+        at: '2026-09-01T10:00:00Z',
+        properties: { comment },
+      })),
+    )
+
+    const response = await queryValues({ limit: 1 })
+
+    expect(await response.json()).toEqual({
+      results: [{ breakdown: null, values: [{ value: 'video', count: 2 }] }],
+    })
+  })
+
+  it.each([0, 1001, 2.5, '10'])(
+    'answers 400 for the limit %s',
+    async (limit) => {
+      const response = await queryValues({ limit })
+
+      expect(response.status).toBe(400)
+    },
+  )
+
+  it('answers 401 without the read key', async () => {
+    const response = await app.request('/api/values', {
+      method: 'POST',
+      body: JSON.stringify({ project }),
+    })
+
+    expect(response.status).toBe(401)
+  })
+})
+
 describe('capture in posthog-js formats', () => {
   const event = {
     event: 'signed_up',
