@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/timschoch/glue/compare/v1.5.0...v1.5.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **mock-analytics:** lighter identify query, chain tests, values stringify ([#89](https://github.com/timschoch/glue/issues/89)) ([1763325](https://github.com/timschoch/glue/commit/176332563e6959855522001603d8e47f788989f8)), closes [#85](https://github.com/timschoch/glue/issues/85)
+* **user-sim:** take flexibeck's closest plan when no plan fits ([#87](https://github.com/timschoch/glue/issues/87)) ([9235bcf](https://github.com/timschoch/glue/commit/9235bcf13324e2024d786298f9c672a2fcc6d5a1)), closes [#81](https://github.com/timschoch/glue/issues/81)
+
 ## [1.5.0](https://github.com/timschoch/glue/compare/v1.4.0...v1.5.0) (2026-09-30)
 
 
