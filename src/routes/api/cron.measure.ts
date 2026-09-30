@@ -23,7 +23,10 @@ export const Route = createFileRoute('/api/cron/measure')({
               now,
             })
             const comments = await measureSocialComments({ db, now })
-            return { ...goals, comments: comments ?? [] }
+            return {
+              ...goals,
+              comments: comments ?? { insights: [], skipped: [] },
+            }
           },
         }),
     },

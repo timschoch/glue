@@ -19,6 +19,9 @@ let db: ReturnType<typeof drizzle<typeof schema>>
 
 const NOW = new Date('2026-09-30T10:00:00Z')
 
+// Glue reads the comments up to 10 seconds before now.
+const UNTIL = new Date('2026-09-30T09:59:50Z')
+
 beforeEach(async () => {
   client = new PGlite()
   db = drizzle(client, { schema })
@@ -40,18 +43,20 @@ async function addProduct(product: string, handle: string | null) {
   await setSocialHandle(db, product, handle)
 }
 
-// Holds comments per handle and answers like mock social: after `since`,
-// oldest first. Keeps every query it gets.
-function createFakeChannel() {
+// Holds comments per handle and answers like mock social: after `since`, up
+// to `until`, oldest first, `limit` at most. Keeps every query it gets.
+function createFakeChannel(limit = 500) {
   const comments = new Map<string, SocialComment[]>()
   const queries: CommentQuery[] = []
   const channel: SocialChannel = {
     fetchComments: (query) => {
       queries.push(query)
       const found = (comments.get(query.handle) ?? []).filter(
-        (comment) => !query.since || comment.createdAt > query.since,
+        (comment) =>
+          (!query.since || comment.createdAt > query.since) &&
+          comment.createdAt <= query.until,
       )
-      return Promise.resolve(found)
+      return Promise.resolve(found.slice(0, limit))
     },
   }
   function post(handle: string, author: string, text: string, at: string) {
@@ -76,8 +81,12 @@ const classifier: SentimentClassifier = {
     ),
 }
 
+// Fails for the texts that name glue.
 const failingClassifier: SentimentClassifier = {
-  classify: () => Promise.reject(new Error('Hugging Face answered 503')),
+  classify: (texts) =>
+    texts.some((text) => text.includes('glue'))
+      ? Promise.reject(new Error('Hugging Face answered 503'))
+      : classifier.classify(texts),
 }
 
 function runMeasure(
@@ -108,12 +117,15 @@ describe('measureComments', () => {
     fake.post('flexibeck', 'dee', 'It works', '2026-09-29T09:00:00Z')
     fake.post('other', 'eve', 'I hate it', '2026-09-29T09:00:00Z')
 
-    const written = await runMeasure(fake.channel)
+    const { insights, skipped } = await runMeasure(fake.channel)
 
-    expect(fake.queries).toEqual([{ handle: 'flexibeck', since: null }])
-    expect(written).toEqual([
+    expect(fake.queries).toEqual([
+      { handle: 'flexibeck', since: null, until: UNTIL },
+    ])
+    expect(insights).toEqual([
       expect.objectContaining({ product: 'flexibeck', id: 'I1' }),
     ])
+    expect(skipped).toEqual([])
     const insight = await findRecord(db, 'flexibeck', 'I1')
     expect(insight).toMatchObject({
       kind: 'insight',
@@ -150,12 +162,15 @@ describe('measureComments', () => {
 
     const nothingNew = await runMeasure(fake.channel)
     fake.post('flexibeck', 'bob', 'I hate it', '2026-09-29T09:00:00Z')
-    const [next] = await runMeasure(fake.channel)
+    const {
+      insights: [next],
+    } = await runMeasure(fake.channel)
 
-    expect(nothingNew).toEqual([])
+    expect(nothingNew.insights).toEqual([])
     expect(fake.queries.at(-1)).toEqual({
       handle: 'flexibeck',
       since: new Date('2026-09-28T09:00:00.123Z'),
+      until: UNTIL,
     })
     expect(next.title).toBe(
       'Comments on flexibeck: 0 positive, 0 neutral, 1 negative',
@@ -178,18 +193,91 @@ describe('measureComments', () => {
     expect(concept?.insights.map((insight) => insight.id)).toEqual(['I1'])
   })
 
-  it('reads the comments again after the classifier failed', async () => {
+  it('skips a Product whose comments fail, measures the next, and reads them again later', async () => {
+    await addProduct('glue', 'glue_app')
     await addProduct('flexibeck', 'flexibeck')
     const fake = createFakeChannel()
-    fake.post('flexibeck', 'ada', 'I love it', '2026-09-28T09:00:00Z')
+    fake.post('glue_app', 'ada', 'I love glue', '2026-09-28T09:00:00Z')
+    fake.post('flexibeck', 'bob', 'I love it', '2026-09-28T09:00:00Z')
 
-    await expect(
-      runMeasure(fake.channel, { sentiment: failingClassifier }),
-    ).rejects.toThrow(/503/)
-    const [insight] = await runMeasure(fake.channel)
+    const failed = await runMeasure(fake.channel, {
+      sentiment: failingClassifier,
+    })
+    const retried = await runMeasure(fake.channel)
+
+    expect(failed.insights.map((insight) => insight.product)).toEqual([
+      'flexibeck',
+    ])
+    expect(failed.skipped).toEqual([
+      { product: 'glue', reason: 'Hugging Face answered 503' },
+    ])
+    expect(retried.insights.map((insight) => insight.product)).toEqual(['glue'])
+  })
+
+  it('skips a Product whose social channel fails', async () => {
+    await addProduct('flexibeck', 'flexibeck')
+    const channel: SocialChannel = {
+      fetchComments: () =>
+        Promise.reject(new Error('mock social answered 500')),
+    }
+
+    const { insights, skipped } = await runMeasure(channel)
+
+    expect(insights).toEqual([])
+    expect(skipped).toEqual([
+      { product: 'flexibeck', reason: 'mock social answered 500' },
+    ])
+  })
+
+  it('leaves the last 10 seconds of comments to the next run', async () => {
+    await addProduct('flexibeck', 'flexibeck')
+    const fake = createFakeChannel()
+    fake.post('flexibeck', 'ada', 'I love it', '2026-09-30T09:59:50Z')
+    fake.post('flexibeck', 'bob', 'I hate it', '2026-09-30T09:59:51Z')
+
+    const {
+      insights: [insight],
+    } = await runMeasure(fake.channel)
 
     expect(insight.title).toBe(
       'Comments on flexibeck: 1 positive, 0 neutral, 0 negative',
+    )
+  })
+
+  it('reads on after the last comment when the channel sends a part', async () => {
+    await addProduct('flexibeck', 'flexibeck')
+    const fake = createFakeChannel(2)
+    fake.post('flexibeck', 'ada', 'I love it', '2026-09-28T09:00:00Z')
+    fake.post('flexibeck', 'bob', 'Great!', '2026-09-28T10:00:00Z')
+    fake.post('flexibeck', 'cy', 'I hate it', '2026-09-28T11:00:00Z')
+
+    const first = await runMeasure(fake.channel)
+    const next = await runMeasure(fake.channel)
+
+    expect(first.insights[0].title).toBe(
+      'Comments on flexibeck: 2 positive, 0 neutral, 0 negative',
+    )
+    expect(next.insights[0].title).toBe(
+      'Comments on flexibeck: 0 positive, 0 neutral, 1 negative',
+    )
+  })
+
+  it('escapes Markdown in the author and the quote', async () => {
+    await addProduct('flexibeck', 'flexibeck')
+    const fake = createFakeChannel()
+    fake.post(
+      'flexibeck',
+      '[click](https://evil)\n# Owned',
+      'I hate <img src=x> *this* | `code` [x](y)',
+      '2026-09-28T09:00:00Z',
+    )
+
+    const {
+      insights: [insight],
+    } = await runMeasure(fake.channel)
+
+    expect(insight.body).toContain(
+      '- negative, \\[click\\](https://evil) # Owned: "I hate \\<img src=x\\> \\*this\\* \\| \\`code\\` \\[x\\](y)"',
     )
   })
 
@@ -198,8 +286,12 @@ describe('measureComments', () => {
     const fake = createFakeChannel()
     fake.post('flexibeck', 'ada', 'I love it', '2026-09-28T09:00:00Z')
 
-    const [dry] = await runMeasure(fake.channel, { dryRun: true })
-    const [real] = await runMeasure(fake.channel)
+    const {
+      insights: [dry],
+    } = await runMeasure(fake.channel, { dryRun: true })
+    const {
+      insights: [real],
+    } = await runMeasure(fake.channel)
 
     expect(dry).toMatchObject({ product: 'flexibeck', id: null })
     expect(real).toMatchObject({ id: 'I1', title: dry.title })
@@ -230,6 +322,22 @@ describe('measureComments', () => {
     await setSocialHandle(db, 'flexibeck', 'new')
     await runMeasure(fake.channel)
 
-    expect(fake.queries.at(-1)).toEqual({ handle: 'new', since: null })
+    expect(fake.queries.at(-1)).toEqual({
+      handle: 'new',
+      since: null,
+      until: UNTIL,
+    })
+  })
+
+  it('keeps the read position when the handle is set again unchanged', async () => {
+    await addProduct('flexibeck', 'flexibeck')
+    const fake = createFakeChannel()
+    fake.post('flexibeck', 'ada', 'I love it', '2026-09-28T09:00:00Z')
+    await runMeasure(fake.channel)
+
+    await setSocialHandle(db, 'flexibeck', 'flexibeck')
+    const { insights } = await runMeasure(fake.channel)
+
+    expect(insights).toEqual([])
   })
 })

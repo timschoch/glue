@@ -7,9 +7,10 @@ export type SocialComment = {
   createdAt: Date
 }
 
-// The comments of `handle` after `since`, oldest first. `since: null` reads
-// them all.
-export type CommentQuery = { handle: string; since: Date | null }
+// The comments of `handle` after `since` and up to `until`, oldest first.
+// `since: null` reads from the first one. A channel may send only the oldest
+// part; the reader goes on after the last comment it got.
+export type CommentQuery = { handle: string; since: Date | null; until: Date }
 
 export type SocialChannel = {
   fetchComments: (query: CommentQuery) => Promise<SocialComment[]>

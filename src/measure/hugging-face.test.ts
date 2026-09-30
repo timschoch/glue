@@ -91,6 +91,35 @@ describe('createHuggingFaceClassifier', () => {
     await expect(classifier.classify(['Hi'])).rejects.toThrow(/503/)
   })
 
+  it('keeps only the start of a long error answer in the error', async () => {
+    const classifier = createHuggingFaceClassifier({
+      token: TOKEN,
+      fetch: () =>
+        Promise.resolve(new Response('x'.repeat(5000), { status: 502 })),
+    })
+
+    const error = await classifier.classify(['Hi']).catch((thrown) => thrown)
+
+    expect(error.message).toMatch(/^Hugging Face answered 502: x+…$/)
+    expect(error.message.length).toBeLessThan(250)
+  })
+
+  it('gives up on a request after a timeout', async () => {
+    const { fakeFetch } = createFakeFetch(() => 'positive')
+    const signals: Array<AbortSignal | null | undefined> = []
+    const classifier = createHuggingFaceClassifier({
+      token: TOKEN,
+      fetch: (input, init) => {
+        signals.push(init?.signal)
+        return fakeFetch(input, init)
+      },
+    })
+
+    await classifier.classify(['Hi'])
+
+    expect(signals[0]).toBeInstanceOf(AbortSignal)
+  })
+
   it('throws when the model answers with a label it does not know', async () => {
     const { fakeFetch } = createFakeFetch(() => 'LABEL_2')
     const classifier = createHuggingFaceClassifier({

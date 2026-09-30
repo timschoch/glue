@@ -2,7 +2,7 @@ import type { ConceptDb } from '../db/client.ts'
 import { findSetting, getSetting } from '../settings.server.ts'
 import { createHuggingFaceClassifier } from './hugging-face.ts'
 import { measureComments } from './measure-comments.ts'
-import type { CommentInsight } from './measure-comments.ts'
+import type { CommentMeasureResult } from './measure-comments.ts'
 import { createMockSocialChannel } from './mock-social.ts'
 
 // The measure run over public comments, set up from the environment. Without
@@ -12,7 +12,7 @@ export async function measureSocialComments(options: {
   now: Date
   productSlug?: string
   dryRun?: boolean
-}): Promise<CommentInsight[] | null> {
+}): Promise<CommentMeasureResult | null> {
   const url = findSetting('MOCK_SOCIAL_URL')
   if (!url) return null
   return measureComments({

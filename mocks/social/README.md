@@ -12,7 +12,10 @@ Post, no auth, CORS open:
 
 Read, `Authorization: Bearer <MOCK_SOCIAL_READ_KEY>`:
 
-- `GET /api/comments?handle&since`: `{ comments: [{ id, author, text, created_at }] }`, oldest first. `since` (ISO, optional) keeps only Comments posted after it. Pass the last `created_at` you read to get only new ones.
+- `GET /api/comments?handle&since&until&limit`: `{ comments: [{ id, author, text, created_at }] }`, oldest first.
+  - `since` (ISO, optional): only Comments posted after it. Pass the last `created_at` you read to get only new ones.
+  - `until` (ISO, optional): only Comments posted at or before it. `created_at` is the start of the write, so a Comment can show up a moment after its time: read up to some seconds before now.
+  - `limit` (1 to 500, default 500): the oldest `limit` Comments, plus the others with the same `created_at` as the last one. So reading on after the last `created_at` misses none.
 
 ## Env
 

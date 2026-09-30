@@ -2,10 +2,10 @@
 // from its social channel, label their sentiment, and write one draft
 // Insight with the counts and quotes (Decision D22). The comments stay in
 // the channel; Glue stores only the Insight.
-import { and, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 
 import type { ConceptDb } from '../db/client.ts'
-import { addConceptRecord } from '../db/concept-records.ts'
+import { addCommentInsight } from '../db/concept-records.ts'
 import { products } from '../db/schema.ts'
 import { SENTIMENTS } from './sentiment.ts'
 import type {
@@ -21,6 +21,15 @@ const MAX_QUOTE_LENGTH = 280
 // Quotes in this order: what to fix first.
 const QUOTE_ORDER: Sentiment[] = ['negative', 'neutral', 'positive']
 
+// A comment gets a few seconds to show up in the channel: a comment written
+// at a time is readable only a moment later. Reading up to 10 seconds before
+// now misses none.
+const SETTLE_MS = 10_000
+
+// Markdown characters in a comment that could make a link, an image, HTML,
+// code or a table cell in the Insight.
+const MARKDOWN_CHARACTERS = /[\\`*_[\]<>|~]/g
+
 export type CommentInsight = {
   product: string
   // null in a dry run: nothing was written.
@@ -28,6 +37,15 @@ export type CommentInsight = {
   title: string
   source: string
   body: string
+}
+
+// A Product whose comments were not measured, and why. Its read position
+// stays, so the next run reads the comments again.
+export type SkippedProduct = { product: string; reason: string }
+
+export type CommentMeasureResult = {
+  insights: CommentInsight[]
+  skipped: SkippedProduct[]
 }
 
 type SocialProduct = {
@@ -67,27 +85,12 @@ async function listSocialProducts(
   )
 }
 
-// Moves the read position only when no other run moved it since `from`, so
-// two overlapping runs count a comment once. True when it moved.
-async function updateReadPosition(
-  db: ConceptDb,
-  productId: number,
-  from: Date | null,
-  to: Date | null,
-) {
-  const moved = await db
-    .update(products)
-    .set({ commentsReadUntil: to })
-    .where(
-      and(
-        eq(products.id, productId),
-        from === null
-          ? isNull(products.commentsReadUntil)
-          : eq(products.commentsReadUntil, from),
-      ),
-    )
-    .returning({ id: products.id })
-  return moved.length > 0
+// Comment text as plain text on one line of the Insight's Markdown.
+function formatPlainText(text: string) {
+  return text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(MARKDOWN_CHARACTERS, (character) => `\\${character}`)
 }
 
 function formatQuote({ sentiment, author, text }: ScoredComment) {
@@ -96,7 +99,7 @@ function formatQuote({ sentiment, author, text }: ScoredComment) {
     oneLine.length > MAX_QUOTE_LENGTH
       ? `${oneLine.slice(0, MAX_QUOTE_LENGTH - 1)}…`
       : oneLine
-  return `- ${sentiment}, ${author}: "${quote}"`
+  return `- ${sentiment}, ${formatPlainText(author)}: "${formatPlainText(quote)}"`
 }
 
 // The comment the model is surest about, per sentiment.
@@ -140,37 +143,47 @@ function formatDraft(product: SocialProduct, scored: ScoredComment[]) {
   }
 }
 
-// Writes the Insight after it moved the read position. Moves it back when the
-// write fails, so the next run reads the comments again. null when an
-// overlapping run counted the comments first.
-async function addCommentInsight(
-  db: ConceptDb,
+// The Insight about the Product's new comments, or null when there are none
+// or an overlapping run counted them first.
+async function measureProduct(
+  options: {
+    db: ConceptDb
+    channel: SocialChannel
+    classifier: SentimentClassifier
+    now: Date
+    dryRun: boolean
+  },
   product: SocialProduct,
-  until: Date,
-  draft: { title: string; source: string; body: string },
-  now: Date,
-) {
-  if (!(await updateReadPosition(db, product.id, product.readUntil, until))) {
-    return null
+): Promise<CommentInsight | null> {
+  const { db, channel, classifier, now, dryRun } = options
+  const comments = await channel.fetchComments({
+    handle: product.handle,
+    since: product.readUntil,
+    until: new Date(now.getTime() - SETTLE_MS),
+  })
+  if (comments.length === 0) return null
+  const scores = await classifier.classify(
+    comments.map((comment) => comment.text),
+  )
+  const scored = comments.map((comment, index) => ({
+    ...comment,
+    ...scores[index],
+  }))
+  const draft = formatDraft(product, scored)
+  if (dryRun) return { product: product.slug, id: null, ...draft }
+  // The channel may send only the oldest comments: the next run reads on
+  // after the last one.
+  const read = {
+    from: product.readUntil,
+    until: comments[comments.length - 1].createdAt,
   }
   const fields = {
     title: draft.title,
     source: draft.source,
     date: formatDay(now),
-    status: 'draft',
   }
-  try {
-    return await addConceptRecord(
-      db,
-      product.slug,
-      'insights',
-      fields,
-      draft.body,
-    )
-  } catch (error) {
-    await updateReadPosition(db, product.id, until, product.readUntil)
-    throw error
-  }
+  const id = await addCommentInsight(db, product.id, read, fields, draft.body)
+  return id === null ? null : { product: product.slug, id, ...draft }
 }
 
 export async function measureComments(options: {
@@ -180,29 +193,20 @@ export async function measureComments(options: {
   now: Date
   productSlug?: string
   dryRun?: boolean
-}): Promise<CommentInsight[]> {
-  const { db, channel, classifier, now, productSlug, dryRun = false } = options
-  const written: CommentInsight[] = []
+}): Promise<CommentMeasureResult> {
+  const { db, productSlug, dryRun = false } = options
+  const insights: CommentInsight[] = []
+  const skipped: SkippedProduct[] = []
   for (const product of await listSocialProducts(db, productSlug)) {
-    const comments = await channel.fetchComments({
-      handle: product.handle,
-      since: product.readUntil,
-    })
-    if (comments.length === 0) continue
-    const scores = await classifier.classify(
-      comments.map((comment) => comment.text),
-    )
-    const scored = comments.map((comment, index) => ({
-      ...comment,
-      ...scores[index],
-    }))
-    const draft = formatDraft(product, scored)
-    const until = comments[comments.length - 1].createdAt
-    const id = dryRun
-      ? null
-      : await addCommentInsight(db, product, until, draft, now)
-    if (!dryRun && id === null) continue
-    written.push({ product: product.slug, id, ...draft })
+    try {
+      const insight = await measureProduct({ ...options, dryRun }, product)
+      if (insight) insights.push(insight)
+    } catch (error) {
+      skipped.push({
+        product: product.slug,
+        reason: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
-  return written
+  return { insights, skipped }
 }

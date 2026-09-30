@@ -1,4 +1,4 @@
-import { and, asc, eq, gt } from 'drizzle-orm'
+import { and, asc, eq, gt, lte } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bearerAuth } from 'hono/bearer-auth'
 import { bodyLimit } from 'hono/body-limit'
@@ -14,7 +14,17 @@ const MAX_TEXT_LENGTH = 5000
 
 const MAX_BODY_BYTES = 64 * 1024
 
+// Most comments one read lists, and the default.
+const MAX_LIMIT = 500
+
 type CommentInput = { handle: string; author: string; text: string }
+
+type CommentQuery = {
+  handle: string
+  since: Date | null
+  until: Date | null
+  limit: number
+}
 
 export function createApp(options: {
   database: SocialDatabase
@@ -48,25 +58,36 @@ export function createApp(options: {
   )
 
   app.get('/api/comments', bearerAuth({ token: readKey }), async (context) => {
-    const handle = context.req.query('handle')
-    const sinceText = context.req.query('since')
-    const since = sinceText === undefined ? null : parseDate(sinceText)
-    if (!handle || since === undefined) {
-      return context.json(
-        { error: 'handle is required, since must be an ISO date' },
-        400,
-      )
-    }
+    const query = parseCommentQuery(context.req.query())
+    if (typeof query === 'string') return context.json({ error: query }, 400)
+    const { handle, since, until, limit } = query
+    const inRange = and(
+      eq(comments.handle, handle),
+      since ? gt(comments.createdAt, since) : undefined,
+      until ? lte(comments.createdAt, until) : undefined,
+    )
+    const order = [asc(comments.createdAt), asc(comments.id)]
+    // The time of the comment at the limit. The page ends after all comments
+    // of that time, so a reader that goes on after the last one misses none.
+    const atLimit = (
+      await database
+        .select({ createdAt: comments.createdAt })
+        .from(comments)
+        .where(inRange)
+        .orderBy(...order)
+        .offset(limit - 1)
+        .limit(1)
+    ).at(0)
     const rows = await database
       .select()
       .from(comments)
       .where(
         and(
-          eq(comments.handle, handle),
-          since ? gt(comments.createdAt, since) : undefined,
+          inRange,
+          atLimit ? lte(comments.createdAt, atLimit.createdAt) : undefined,
         ),
       )
-      .orderBy(asc(comments.createdAt), asc(comments.id))
+      .orderBy(...order)
     return context.json({
       comments: rows.map((row) => ({
         id: row.id,
@@ -103,8 +124,35 @@ function parseCommentInput(body: unknown): CommentInput | string {
   return input as CommentInput
 }
 
-// undefined when the text is no date.
-function parseDate(value: string): Date | undefined {
+// Returns the query, or the reason it is invalid.
+function parseCommentQuery(
+  params: Record<string, string>,
+): CommentQuery | string {
+  const { handle, since, until, limit = String(MAX_LIMIT) } = params
+  if (!handle) return 'handle is required'
+  const dates = { since: parseDate(since), until: parseDate(until) }
+  for (const [name, date] of Object.entries(dates)) {
+    if (date === undefined) return `${name} must be an ISO date`
+  }
+  const limitNumber = Number(limit)
+  if (
+    !Number.isInteger(limitNumber) ||
+    limitNumber < 1 ||
+    limitNumber > MAX_LIMIT
+  ) {
+    return `limit must be a whole number from 1 to ${MAX_LIMIT}`
+  }
+  return {
+    handle,
+    since: dates.since ?? null,
+    until: dates.until ?? null,
+    limit: limitNumber,
+  }
+}
+
+// null without a value, undefined when the value is no date.
+function parseDate(value: string | undefined): Date | null | undefined {
+  if (value === undefined) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? undefined : date
 }

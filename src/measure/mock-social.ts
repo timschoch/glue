@@ -2,7 +2,10 @@
 // Glue never imports the Mock's code.
 import { z } from 'zod'
 
+import { createResponseError } from './response-error.ts'
 import type { SocialChannel } from './social-channel.ts'
+
+const TIMEOUT_MS = 10_000
 
 const commentsResponseSchema = z.object({
   comments: z.array(
@@ -21,17 +24,17 @@ export function createMockSocialChannel(options: {
 }): SocialChannel {
   const { url, readKey, fetch: send = fetch } = options
   return {
-    fetchComments: async ({ handle, since }) => {
+    fetchComments: async ({ handle, since, until }) => {
       const endpoint = new URL('/api/comments', url)
       endpoint.searchParams.set('handle', handle)
       if (since) endpoint.searchParams.set('since', since.toISOString())
+      endpoint.searchParams.set('until', until.toISOString())
       const response = await send(endpoint, {
         headers: { authorization: `Bearer ${readKey}` },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
       })
       if (!response.ok) {
-        throw new Error(
-          `mock social answered ${response.status}: ${await response.text()}`,
-        )
+        throw await createResponseError('mock social', response)
       }
       const { comments } = commentsResponseSchema.parse(await response.json())
       return comments.map((comment) => ({

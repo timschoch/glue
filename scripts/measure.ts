@@ -44,21 +44,25 @@ async function main() {
   for (const goal of skipped) {
     console.error(`${goal.product} ${goal.goal} skipped: ${goal.reason}`)
   }
-  const commentInsights = await measureSocialComments({
+  const comments = await measureSocialComments({
     db,
     now,
     productSlug,
     dryRun,
   })
-  if (!commentInsights) {
+  if (!comments) {
     console.error('Comments skipped: MOCK_SOCIAL_URL is not set.')
   }
-  for (const insight of [...insights, ...(commentInsights ?? [])]) {
+  for (const product of comments?.skipped ?? []) {
+    console.error(`${product.product} comments skipped: ${product.reason}`)
+  }
+  const commentInsights = comments?.insights ?? []
+  for (const insight of [...insights, ...commentInsights]) {
     const id = insight.id ?? 'dry run'
     console.log(`${insight.product} ${id}: ${insight.title}`)
     if (dryRun) console.log(`source: ${insight.source}\n\n${insight.body}\n`)
   }
-  if (insights.length === 0 && !commentInsights?.length) {
+  if (insights.length === 0 && commentInsights.length === 0) {
     console.log('No new Insights.')
   }
 }

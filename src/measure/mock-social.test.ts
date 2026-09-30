@@ -4,6 +4,8 @@ import { createMockSocialChannel } from './mock-social.ts'
 
 const READ_KEY = 'local-read-key'
 
+const until = new Date('2026-09-30T09:59:50Z')
+
 // Answers every request with `response` and keeps the requests it got.
 function createFakeFetch(response: Response) {
   const requests: Request[] = []
@@ -37,6 +39,7 @@ describe('createMockSocialChannel', () => {
     const comments = await channel.fetchComments({
       handle: 'flexibeck',
       since: new Date('2026-09-28T00:00:00Z'),
+      until,
     })
 
     expect(comments).toEqual([
@@ -49,9 +52,25 @@ describe('createMockSocialChannel', () => {
     const [request] = requests
     expect(request.method).toBe('GET')
     expect(request.url).toBe(
-      'http://localhost:4001/api/comments?handle=flexibeck&since=2026-09-28T00%3A00%3A00.000Z',
+      'http://localhost:4001/api/comments?handle=flexibeck&since=2026-09-28T00%3A00%3A00.000Z&until=2026-09-30T09%3A59%3A50.000Z',
     )
     expect(request.headers.get('authorization')).toBe(`Bearer ${READ_KEY}`)
+  })
+
+  it('gives up on a read after a timeout', async () => {
+    const signals: Array<AbortSignal | null | undefined> = []
+    const channel = createMockSocialChannel({
+      url: 'http://localhost:4001',
+      readKey: READ_KEY,
+      fetch: (_input, init) => {
+        signals.push(init?.signal)
+        return Promise.resolve(Response.json({ comments: [] }))
+      },
+    })
+
+    await channel.fetchComments({ handle: 'flexibeck', since: null, until })
+
+    expect(signals[0]).toBeInstanceOf(AbortSignal)
   })
 
   it('reads every comment without `since`', async () => {
@@ -64,10 +83,10 @@ describe('createMockSocialChannel', () => {
       fetch: fakeFetch,
     })
 
-    await channel.fetchComments({ handle: 'flexibeck', since: null })
+    await channel.fetchComments({ handle: 'flexibeck', since: null, until })
 
     expect(requests[0].url).toBe(
-      'http://localhost:4001/api/comments?handle=flexibeck',
+      'http://localhost:4001/api/comments?handle=flexibeck&until=2026-09-30T09%3A59%3A50.000Z',
     )
   })
 
@@ -82,7 +101,7 @@ describe('createMockSocialChannel', () => {
     })
 
     await expect(
-      channel.fetchComments({ handle: 'flexibeck', since: null }),
+      channel.fetchComments({ handle: 'flexibeck', since: null, until }),
     ).rejects.toThrow(/401/)
   })
 })

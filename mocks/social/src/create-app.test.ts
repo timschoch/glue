@@ -9,11 +9,12 @@ import * as schema from './schema.ts'
 const readKey = 'test-read-key'
 
 let client: PGlite
+let database: ReturnType<typeof drizzle<typeof schema>>
 let app: ReturnType<typeof createApp>
 
 beforeEach(async () => {
   client = new PGlite()
-  const database = drizzle(client, { schema })
+  database = drizzle(client, { schema })
   await migrate(database, {
     migrationsFolder: new URL('../drizzle', import.meta.url).pathname,
   })
@@ -30,6 +31,18 @@ function postComment(body: object) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
+}
+
+// Adds comments on flexibeck at set times, as [author, created_at].
+async function addComments(rows: string[][]) {
+  await database.insert(schema.comments).values(
+    rows.map(([author, createdAt]) => ({
+      handle: 'flexibeck',
+      author,
+      text: `Comment by ${author}`,
+      createdAt: new Date(createdAt),
+    })),
+  )
 }
 
 async function listComments(query: string) {
@@ -78,9 +91,91 @@ describe('comments', () => {
       { author: 'ada', text: 'No handle' },
       { handle: 'flexibeck', text: 'No author' },
       { handle: 'flexibeck', author: 'ada', text: '  ' },
+      { handle: 'x'.repeat(101), author: 'ada', text: 'Long handle' },
+      { handle: 'flexibeck', author: 'x'.repeat(101), text: 'Long author' },
       { handle: 'flexibeck', author: 'ada', text: 'x'.repeat(5001) },
     ]) {
       expect((await postComment(body)).status).toBe(400)
+    }
+  })
+
+  it('keeps a comment at the length limits', async () => {
+    const response = await postComment({
+      handle: 'x'.repeat(100),
+      author: 'x'.repeat(100),
+      text: 'x'.repeat(5000),
+    })
+
+    expect(response.status).toBe(201)
+  })
+
+  it('answers 413 to a body larger than 64 KB', async () => {
+    const response = await postComment({
+      handle: 'flexibeck',
+      author: 'ada',
+      text: 'x'.repeat(65 * 1024),
+    })
+
+    expect(response.status).toBe(413)
+  })
+
+  it('lists only the comments up to `until`', async () => {
+    await addComments([
+      ['ada', '2026-09-30T09:59:00.000Z'],
+      ['bob', '2026-09-30T09:59:50.000Z'],
+      ['cy', '2026-09-30T09:59:51.000Z'],
+    ])
+
+    const comments = await listComments(
+      'handle=flexibeck&until=2026-09-30T09:59:50.000Z',
+    )
+
+    expect(comments.map((comment) => comment.author)).toEqual(['ada', 'bob'])
+  })
+
+  it('lists 500 comments at most by default, the oldest', async () => {
+    await addComments(
+      Array.from({ length: 501 }, (_, index) => [
+        `user${index}`,
+        new Date(Date.UTC(2026, 8, 1) + index * 1000).toISOString(),
+      ]),
+    )
+
+    const comments = await listComments('handle=flexibeck')
+
+    expect(comments).toHaveLength(500)
+    expect(comments.at(-1)?.author).toBe('user499')
+  })
+
+  it('lists `limit` comments, and never splits comments of the same time', async () => {
+    await addComments([
+      ['ada', '2026-09-30T09:00:00.000Z'],
+      ['bob', '2026-09-30T09:00:01.000Z'],
+      ['cy', '2026-09-30T09:00:01.000Z'],
+      ['dee', '2026-09-30T09:00:02.000Z'],
+    ])
+
+    const firstPage = await listComments('handle=flexibeck&limit=2')
+    const nextPage = await listComments(
+      `handle=flexibeck&limit=2&since=${encodeURIComponent(firstPage.at(-1)!.created_at)}`,
+    )
+
+    expect(firstPage.map((comment) => comment.author).sort()).toEqual([
+      'ada',
+      'bob',
+      'cy',
+    ])
+    expect(nextPage.map((comment) => comment.author)).toEqual(['dee'])
+  })
+
+  it('answers 400 to a bad `until` or `limit`', async () => {
+    for (const query of ['until=today', 'limit=0', 'limit=501', 'limit=ten']) {
+      const response = await app.request(
+        `/api/comments?handle=flexibeck&${query}`,
+        { headers: { Authorization: `Bearer ${readKey}` } },
+      )
+
+      expect(response.status).toBe(400)
     }
   })
 

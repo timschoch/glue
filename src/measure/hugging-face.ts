@@ -1,6 +1,7 @@
 // The sentiment classifier on the free Hugging Face Inference API.
 import { z } from 'zod'
 
+import { createResponseError } from './response-error.ts'
 import { SENTIMENTS } from './sentiment.ts'
 import type { SentimentClassifier } from './sentiment.ts'
 
@@ -8,6 +9,9 @@ const DEFAULT_MODEL = 'cardiffnlp/twitter-roberta-base-sentiment-latest'
 
 // Texts per request, so one request stays small.
 const BATCH_SIZE = 32
+
+// A cold model can take some seconds to load before it answers.
+const TIMEOUT_MS = 30_000
 
 // The model reads 512 tokens at most and answers 400 to a longer text. Its
 // byte-level tokenizer makes one token per UTF-8 byte at most, so 500 bytes
@@ -49,11 +53,10 @@ export function createHuggingFaceClassifier(options: {
         'content-type': 'application/json',
       },
       body: JSON.stringify({ inputs: texts.map(readableStart) }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     })
     if (!response.ok) {
-      throw new Error(
-        `Hugging Face answered ${response.status}: ${await response.text()}`,
-      )
+      throw await createResponseError('Hugging Face', response)
     }
     const [labels] = labelsResponseSchema.parse(await response.json())
     if (labels.length !== texts.length) {
