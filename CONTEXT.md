@@ -19,6 +19,30 @@ Use these terms in code, docs, issues and UI. A new term goes here first. Layout
 | Mock        | A stand-in for an outside tool (analytics, CRM, design system) that Glue integrates with. Lives outside Glue's code. |
 | Token       | A secret that opens the Concept of one Product over the HTTP API. Glue stores only its hash.                         |
 
+## Cycle
+
+| Term              | Meaning                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Record id         | A Concept record's id: type letter plus number, for example `D12`. Never reused, also after a discard.                              |
+| Measure           | A Goal's funnel definition, and the run that reads it from the metric source and writes draft Insights.                             |
+| Metric source     | The outside tool a measure reads, today [mock analytics](mocks/analytics/README.md). Selected per Product by its analytics project. |
+| Analytics project | The key of a Product's events in the metric source, for example `phc_flexibeck`. Set on the Product, never on a Goal.               |
+| Draft             | An Insight that nobody has triaged yet. `measure` writes drafts.                                                                    |
+| Triage            | Deciding on a draft: keep it, discard it (only when no Decision cites it), or propose a Decision from it.                           |
+| Supersede         | Replace an accepted Decision with a new accepted one. The old one keeps its record id and points to its successor.                  |
+| Downstream issue  | The GitHub issue Glue opens in a Product's repository when a Decision becomes accepted. Names the Decision id.                      |
+
+## User simulator
+
+The Mock in [mocks/user-sim](mocks/user-sim/README.md). It makes the numbers a measure reads.
+
+| Term    | Meaning                                                                                                             |
+| ------- | ------------------------------------------------------------------------------------------------------------------- |
+| Bot     | A simulated user with seeded traits. Uses the deployed Product through its accessibility tree, like a person.       |
+| Rule    | A behaviour model from UX research, for example choice overload. Changes what a Bot does, never tuned for a result. |
+| Journey | The Steps a Bot tries in one Product, in order.                                                                     |
+| Step    | One intent in a Journey, for example "accept a plan", with the accessible names to look for.                        |
+
 ## Build run
 
 | Term         | Meaning                                                                                        |
