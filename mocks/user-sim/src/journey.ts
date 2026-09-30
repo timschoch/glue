@@ -19,7 +19,15 @@ export type Action =
   | { kind: 'answer'; question: string | RegExp; from: 'experience' | 'seq' }
 
 /** One intent of a person, for example "import a recipe". */
-export type Step = { intent: string; actions: Array<Action> }
+export type Step = {
+  intent: string
+  actions: Array<Action>
+  /**
+   * The bot does this step only when the screen shows it, for example the
+   * closest plan when no plan fits. Else it goes on with the next step.
+   */
+  optional?: boolean
+}
 
 export type Journey = { product: string; steps: Array<Step> }
 

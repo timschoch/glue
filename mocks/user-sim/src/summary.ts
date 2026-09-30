@@ -13,6 +13,8 @@ export type Outcome = {
   step: number
   /** The bot's survey answer, when the journey has a survey and it answered. */
   answer?: Answer
+  /** Optional steps the bot went past because the screen did not show them. */
+  skipped?: Array<number>
 }
 
 export type StepCount = {
@@ -53,8 +55,9 @@ export function toSummary(
       intent,
       reached: count(
         (outcome) =>
-          outcome.step > index ||
-          (outcome.step === index && outcome.end !== 'missing'),
+          !outcome.skipped?.includes(index) &&
+          (outcome.step > index ||
+            (outcome.step === index && outcome.end !== 'missing')),
       ),
       missing: count(
         (outcome) => outcome.end === 'missing' && outcome.step === index,
