@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.2](https://github.com/timschoch/glue/compare/v1.5.1...v1.5.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* **user-sim:** put a rate-limited request on the step that sent it ([#91](https://github.com/timschoch/glue/issues/91)) ([3f92a7b](https://github.com/timschoch/glue/commit/3f92a7b28ae8b500ab8c319241cf3edd6b3f2c7f)), closes [#90](https://github.com/timschoch/glue/issues/90)
+
 ## [1.5.1](https://github.com/timschoch/glue/compare/v1.5.0...v1.5.1) (2026-09-30)
 
 
