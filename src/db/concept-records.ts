@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm'
 
 import { CONCEPT_FIELDS } from './concept-fields.ts'
 import type { ConceptDb } from './client.ts'
+import { sortById } from './concept.ts'
 import * as schema from './schema.ts'
 
 export type ConceptFolder = keyof typeof CONCEPT_FIELDS
@@ -88,13 +89,12 @@ export async function listConceptRecords(
       .select()
       .from(table)
       .where(eq(table.productId, productId))
-    for (const record of records as Record<string, unknown>[]) {
-      rows.push({
-        id: record.recordId as string,
-        status: 'status' in record ? String(record.status ?? '') : '',
-        title: record.title as string,
-      })
-    }
+    const folderRows = (records as Record<string, unknown>[]).map((record) => ({
+      id: record.recordId as string,
+      status: 'status' in record ? String(record.status ?? '') : '',
+      title: record.title as string,
+    }))
+    rows.push(...sortById(folderRows))
   }
   return rows
 }

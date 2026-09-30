@@ -1,3 +1,5 @@
+import { isRedirect, redirect } from '@tanstack/react-router'
+
 import type { SignIn, SignUp } from './authentication/credentials.ts'
 import type { Failure, Session } from './authentication/session.ts'
 import type { Concept, LinkedRecord } from './db/concept.ts'
@@ -25,6 +27,25 @@ export type RouterContext = Server & {
 // does not wait for the session and does not fail with it. A sign-in, a
 // sign-up and a sign-out empty the memory. The server functions that read
 // the Concept check the session themselves on each request.
+// The session middleware sends an expired session to sign-in without the
+// record to return to afterwards. Attach it here, where the id is known.
+async function keepSignInTarget<TResult>(
+  promise: Promise<TResult>,
+  recordId: string,
+): Promise<TResult> {
+  try {
+    return await promise
+  } catch (error) {
+    if (isRedirect(error) && error.options.to === '/sign-in') {
+      throw redirect({
+        to: '/sign-in',
+        search: { redirect: `/concept/${recordId}` },
+      })
+    }
+    throw error
+  }
+}
+
 export function createRouterContext(
   server: Server,
   memory: SessionMemory = {},
@@ -35,6 +56,8 @@ export function createRouterContext(
 
   return {
     ...server,
+    fetchRecord: (recordId) =>
+      keepSignInTarget(server.fetchRecord(recordId), recordId),
     findSession: async () => (memory.session ??= await server.fetchSession()),
     signIn: (credentials) => {
       forgetSession()

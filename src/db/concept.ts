@@ -132,7 +132,9 @@ const { products, goals, decisions, insights, facts, guardrails } = schema
 const { decisionEvidence } = schema
 
 // Ids sort by their number: D2 comes before D10.
-function sortById<TItem extends { id: string }>(items: TItem[]): TItem[] {
+export function sortById<TItem extends { id: string }>(
+  items: TItem[],
+): TItem[] {
   return items.sort(
     (left, right) => Number(left.id.slice(1)) - Number(right.id.slice(1)),
   )

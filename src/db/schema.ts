@@ -139,7 +139,9 @@ export const decisionEvidence = pgTable(
     factId: integer('fact_id').references(() => facts.id),
   },
   (table) => [
-    unique().on(table.decisionId, table.insightId, table.factId),
+    unique()
+      .on(table.decisionId, table.insightId, table.factId)
+      .nullsNotDistinct(),
     check(
       'decision_evidence_exactly_one_check',
       sql`num_nonnulls(${table.insightId}, ${table.factId}) = 1`,

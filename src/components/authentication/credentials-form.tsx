@@ -161,7 +161,7 @@ export function SignInForm({
       onSignedIn={onSignedIn}
     >
       No account yet?{' '}
-      <Link to="/sign-up" search={{ redirect }}>
+      <Link to="/sign-up" search={{ redirect }} className={classes.link}>
         Make an account
       </Link>
     </CredentialsForm>
@@ -191,7 +191,7 @@ export function SignUpForm({
       onSignedIn={onSignedIn}
     >
       You have an account?{' '}
-      <Link to="/sign-in" search={{ redirect }}>
+      <Link to="/sign-in" search={{ redirect }} className={classes.link}>
         Sign in
       </Link>
     </CredentialsForm>

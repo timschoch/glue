@@ -79,6 +79,41 @@ describe('listConceptRecords', () => {
     const rows = await listConceptRecords(db, 'glue')
     expect(rows.map((row) => row.id).sort()).toEqual(['D1', 'F1', 'G1', 'I1'])
   })
+
+  it('sorts by the number in the id, so D2 comes before D10', async () => {
+    // D1 exists already. Eight more Decisions bring D2 to D9, then D10, D11.
+    for (let added = 0; added < 10; added++)
+      await addConceptRecord(
+        db,
+        'glue',
+        'decisions',
+        {
+          title: 'Cache the homepage',
+          date: '2026-01-02',
+          owner: 'tim',
+          status: 'accepted',
+          goal: 'G1',
+          evidence: ['I1'],
+        },
+        '',
+      )
+
+    const rows = await listConceptRecords(db, 'glue', 'decisions')
+
+    expect(rows.map((row) => row.id)).toEqual([
+      'D1',
+      'D2',
+      'D3',
+      'D4',
+      'D5',
+      'D6',
+      'D7',
+      'D8',
+      'D9',
+      'D10',
+      'D11',
+    ])
+  })
 })
 
 describe('showConceptRecord', () => {
@@ -197,6 +232,44 @@ describe('addConceptRecord', () => {
 
     const rows = await listConceptRecords(db, 'glue', 'decisions')
     expect(rows).toHaveLength(1)
+  })
+
+  it('rejects a Decision that cites the same Insight twice', async () => {
+    await expect(
+      addConceptRecord(
+        db,
+        'glue',
+        'decisions',
+        {
+          title: 'Double citation',
+          date: '2026-01-03',
+          owner: 'tim',
+          status: 'accepted',
+          goal: 'G1',
+          evidence: ['I1', 'I1'],
+        },
+        '',
+      ),
+    ).rejects.toThrow()
+  })
+
+  it('rejects a Decision that cites the same Fact twice', async () => {
+    await expect(
+      addConceptRecord(
+        db,
+        'glue',
+        'decisions',
+        {
+          title: 'Double citation',
+          date: '2026-01-03',
+          owner: 'tim',
+          status: 'accepted',
+          goal: 'G1',
+          evidence: ['F1', 'F1'],
+        },
+        '',
+      ),
+    ).rejects.toThrow()
   })
 
   it('rejects a superseded Decision without superseded_by', async () => {
