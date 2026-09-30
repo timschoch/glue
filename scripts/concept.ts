@@ -10,6 +10,7 @@ import {
   setAnalyticsProject,
   setDecisionStatus,
   setGoalMeasure,
+  setProductRepository,
   showConceptRecord,
 } from '../src/db/concept-records.ts'
 import type { ConceptFields, ConceptFolder } from '../src/db/concept-records.ts'
@@ -18,6 +19,9 @@ import { goalMeasureSchema } from '../src/db/goal-measure.ts'
 import type { GoalMeasure } from '../src/db/goal-measure.ts'
 import type { DecisionStatus } from '../src/db/schema.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
+import { createGithubClient } from '../src/github/client.ts'
+import { createDownstreamIssue } from '../src/github/downstream-issue.ts'
+import type { DownstreamIssue } from '../src/github/downstream-issue.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
   'analytics-project': 'analytics_project',
@@ -37,6 +41,7 @@ const KNOWN_FIELDS = new Set(
       'name',
       'measure',
       'analytics_project',
+      'repository',
     ]),
 )
 
@@ -82,6 +87,43 @@ export function parseFlags(args: string[]): ConceptFields {
     flags[key] = parseFlagValue(key, value)
   }
   return flags
+}
+
+export function formatDownstreamIssue(
+  product: string,
+  decisionId: string,
+  issue: DownstreamIssue,
+): string {
+  switch (issue.kind) {
+    case 'created':
+    case 'existing':
+      return `issue: ${issue.url}`
+    case 'not-accepted':
+      return `no issue: ${decisionId} is not accepted`
+    case 'no-repository':
+      return 'no issue: the Product has no repository'
+    case 'not-found':
+      return `no issue: decision "${decisionId}" not found`
+    case 'failed':
+      return `issue missing: ${issue.message}\nRetry: pnpm concept downstream ${decisionId} --product ${product}`
+  }
+}
+
+// An accepted Decision opens its issue downstream. A GitHub failure keeps
+// the Decision change and only reports the missing issue.
+async function handleDownstreamIssue(
+  db: ConceptDb,
+  product: string,
+  decisionId: string,
+) {
+  const issue = await createDownstreamIssue(
+    db,
+    createGithubClient(),
+    product,
+    decisionId,
+  )
+  console.error(formatDownstreamIssue(product, decisionId, issue))
+  return issue
 }
 
 async function collectStdin(): Promise<string> {
@@ -141,6 +183,7 @@ async function main() {
       delete flags.body
       const id = await addConceptRecord(db, product, folder, flags, body)
       console.log(id)
+      if (folder === 'decisions') await handleDownstreamIssue(db, product, id)
       return
     }
     case 'set': {
@@ -159,21 +202,31 @@ async function main() {
         flags.status as DecisionStatus,
         flags.superseded_by as string | undefined,
       )
+      await handleDownstreamIssue(db, product, id)
       return
     }
-    case 'token':
-      await handleTokenCommand(db, rest)
+    case 'downstream': {
+      const [id, ...flagArgs] = rest
+      const flags = parseFlags(flagArgs)
+      const product = (flags.product as string | undefined) ?? 'glue'
+      const issue = await handleDownstreamIssue(db, product, id)
+      if (issue.kind === 'failed') process.exitCode = 1
       return
+    }
     case 'product':
       await handleProductCommand(db, rest)
+      return
+    case 'token':
+      await handleTokenCommand(db, rest)
       return
     default:
       throw new Error(`unknown command "${command}"`)
   }
 }
 
-// `product set <slug> --analytics-project <key>`: the analytics project the
-// Product's Goals are measured from. An empty key removes it.
+// `product set <slug> --analytics-project <key> --repository owner/name`:
+// the analytics project the Product's Goals are measured from (an empty key
+// removes it) and the GitHub repository that builds the Product.
 async function handleProductCommand(
   db: ConceptDb,
   [command, slug, ...rest]: string[],
@@ -183,10 +236,16 @@ async function handleProductCommand(
   }
   const flags = parseFlags(rest)
   const analyticsProject = flags.analytics_project as string | undefined
-  if (!slug || analyticsProject === undefined) {
-    throw new Error('product set needs <slug> and --analytics-project')
+  const repository = flags.repository as string | undefined
+  if (!slug || (analyticsProject === undefined && !repository)) {
+    throw new Error(
+      'product set needs <slug> and --analytics-project or --repository owner/name',
+    )
   }
-  await setAnalyticsProject(db, slug, analyticsProject || null)
+  if (analyticsProject !== undefined) {
+    await setAnalyticsProject(db, slug, analyticsProject || null)
+  }
+  if (repository) await setProductRepository(db, slug, repository)
 }
 
 // Tokens for the Concept HTTP API, one Product each.

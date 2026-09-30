@@ -21,6 +21,8 @@ export const products = pgTable('products', {
   // The Product's project key in its analytics tool. Goals read their funnel
   // from this project only, so one Product cannot read another's analytics.
   analyticsProject: text('analytics_project'),
+  // The GitHub repository, as owner/name, that builds the Product.
+  repository: text('repository'),
 })
 
 // A token gives HTTP API access to the Concept of one Product.
@@ -133,6 +135,8 @@ export const decisions = pgTable(
       (): AnyPgColumn => decisions.id,
     ),
     body: text('body').notNull().default(''),
+    // The issue in the Product repository that builds the accepted Decision.
+    issueUrl: text('issue_url'),
   },
   (table) => [
     unique().on(table.productId, table.recordId),

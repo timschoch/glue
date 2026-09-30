@@ -27,6 +27,7 @@ const decision: Decision = {
   ],
   supersededBy: null,
   supersedes: [],
+  issueUrl: null,
 }
 
 const goal: Goal = {
@@ -130,6 +131,25 @@ describe('RecordView', () => {
     ])
     expect(screen.queryByText('Superseded by')).toBeNull()
     expect(screen.queryByText('Supersedes')).toBeNull()
+    expect(screen.queryByText('Issue')).toBeNull()
+  })
+
+  it('links a Decision to the issue that builds it', async () => {
+    await renderInRouter(
+      <RecordView
+        record={{
+          ...decision,
+          issueUrl: 'https://github.com/timschoch/flexibeck-next/issues/4',
+        }}
+      />,
+    )
+
+    expect(shownLinks('Issue')).toEqual([
+      [
+        'timschoch/flexibeck-next#4',
+        'https://github.com/timschoch/flexibeck-next/issues/4',
+      ],
+    ])
   })
 
   it('says that a Decision has no evidence', async () => {

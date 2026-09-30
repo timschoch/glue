@@ -58,6 +58,27 @@ export async function addProductId(db: ConceptDb, productSlug: string) {
   return product.id
 }
 
+const REPOSITORY = /^[\w.-]+\/[\w.-]+$/
+
+export async function setProductRepository(
+  db: ConceptDb,
+  productSlug: string,
+  repository: string,
+): Promise<void> {
+  if (!REPOSITORY.test(repository)) {
+    throw new InvalidRecordError(
+      `repository "${repository}" must look like owner/name`,
+    )
+  }
+  const updated = await db
+    .update(schema.products)
+    .set({ repository })
+    .where(eq(schema.products.slug, productSlug))
+    .returning({ id: schema.products.id })
+  if (updated.length === 0)
+    throw new Error(`product "${productSlug}" not found`)
+}
+
 async function nextRecordId(
   db: ConceptDb,
   productId: number,
@@ -192,6 +213,7 @@ export async function showConceptRecord(
       date: decisionRow.date,
       owner: decisionRow.owner,
       status: decisionRow.status,
+      ...(decisionRow.issueUrl && { issue: decisionRow.issueUrl }),
     },
     body: decisionRow.body,
     goal: { id: goalRow.recordId, title: goalRow.title },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseFlags } from './concept.ts'
+import { formatDownstreamIssue, parseFlags } from './concept.ts'
 
 describe('parseFlags', () => {
   it('parses a flag into its field', () => {
@@ -64,6 +64,12 @@ describe('parseFlags', () => {
     )
   })
 
+  it('parses the --repository of a Product', () => {
+    expect(parseFlags(['--repository', 'timschoch/glue'])).toEqual({
+      repository: 'timschoch/glue',
+    })
+  })
+
   it('rejects an unknown flag', () => {
     expect(() => parseFlags(['--titel', 'x'])).toThrow(/unknown flag "--titel"/)
   })
@@ -72,5 +78,36 @@ describe('parseFlags', () => {
     expect(() => parseFlags(['--evidence'])).toThrow(
       /"--evidence" needs a value/,
     )
+  })
+})
+
+describe('formatDownstreamIssue', () => {
+  it('names the issue that was opened', () => {
+    expect(
+      formatDownstreamIssue('flexibeck', 'D2', {
+        kind: 'created',
+        url: 'https://github.com/timschoch/glue/issues/9',
+      }),
+    ).toBe('issue: https://github.com/timschoch/glue/issues/9')
+  })
+
+  it('says the issue is missing and how to retry', () => {
+    expect(
+      formatDownstreamIssue('flexibeck', 'D2', {
+        kind: 'failed',
+        message: 'GitHub create issue: 403',
+      }),
+    ).toBe(
+      'issue missing: GitHub create issue: 403\nRetry: pnpm concept downstream D2 --product flexibeck',
+    )
+  })
+
+  it('says why no issue was opened', () => {
+    expect(
+      formatDownstreamIssue('flexibeck', 'D2', { kind: 'no-repository' }),
+    ).toBe('no issue: the Product has no repository')
+    expect(
+      formatDownstreamIssue('flexibeck', 'D2', { kind: 'not-accepted' }),
+    ).toBe('no issue: D2 is not accepted')
   })
 })

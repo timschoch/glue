@@ -199,6 +199,7 @@ describe('findRecord', () => {
       ],
       supersededBy: { id: 'D2', title: 'Cache every page' },
       supersedes: [],
+      issueUrl: null,
     })
     expect(await findRecord(db, 'glue', 'D2')).toMatchObject({
       supersededBy: null,

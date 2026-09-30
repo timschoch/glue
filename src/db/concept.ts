@@ -42,6 +42,10 @@ export const decisionSchema = z
     evidence: z.array(recordReferenceSchema),
     supersededBy: recordReferenceSchema.nullable(),
     supersedes: z.array(recordReferenceSchema),
+    issueUrl: z.url().nullable().meta({
+      description:
+        'The issue that builds the accepted Decision in the repository of its Product',
+    }),
   })
   .meta({ id: 'Decision' })
 
@@ -304,6 +308,7 @@ async function findDecision(
       owner: decisions.owner,
       status: decisions.status,
       body: decisions.body,
+      issueUrl: decisions.issueUrl,
       goalId: goals.recordId,
       goalTitle: goals.title,
       supersededById: superseding.recordId,
@@ -343,6 +348,7 @@ async function findDecision(
         ? { id: supersededById, title: supersededByTitle }
         : null,
     supersedes: sortById(supersedes),
+    issueUrl: decision.issueUrl,
   }
 }
 

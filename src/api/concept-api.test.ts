@@ -3,9 +3,15 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { addConceptRecord, setAnalyticsProject } from '../db/concept-records.ts'
+import {
+  addConceptRecord,
+  setAnalyticsProject,
+  setProductRepository,
+} from '../db/concept-records.ts'
 import * as schema from '../db/schema.ts'
 import { createToken } from '../db/tokens.ts'
+import type { GithubClient, IssueInput } from '../github/client.ts'
+import { createFakeGithub, failingGithub } from '../test/github.ts'
 import {
   handleAddRecord,
   handleGetConcept,
@@ -20,12 +26,16 @@ import type { MetricSource } from '../measure/metric-source.ts'
 let client: PGlite
 let db: ReturnType<typeof drizzle<typeof schema>>
 let token: string
+let github: GithubClient
+let issues: { repository: string; issue: IssueInput }[]
 
 beforeEach(async () => {
   client = new PGlite()
   db = drizzle(client, { schema })
   await migrate(db, { migrationsFolder: './drizzle' })
+  ;({ github, issues } = createFakeGithub())
   ;({ token } = await createToken(db, 'flexibeck', 'orchestrator'))
+  await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck-next')
   await addConceptRecord(
     db,
     'flexibeck',
@@ -69,13 +79,14 @@ function request(
 }
 
 async function call(
-  handler: (input: ApiRequest) => Promise<Response>,
+  handler: (input: ApiRequest & { github: GithubClient }) => Promise<Response>,
   method: string,
   params: Params,
   body?: unknown,
 ) {
   const response = await handler({
     db,
+    github,
     request: request(method, { token, body }),
     params,
   })
@@ -209,6 +220,7 @@ describe('Insights', () => {
   it('answers 400 for a body that is not JSON', async () => {
     const response = await handleAddRecord({
       db,
+      github,
       request: new Request('http://localhost/api/v1', {
         method: 'POST',
         headers: { authorization: `Bearer ${token}` },
@@ -317,6 +329,68 @@ describe('Decisions', () => {
       id: 'D1',
       status: 'superseded',
       supersededBy: { id: 'D2', title: 'Cache every page' },
+    })
+  })
+
+  it('opens one issue for a Decision added as accepted', async () => {
+    const added = await call(
+      handleAddRecord,
+      'POST',
+      { product: 'flexibeck', folder: 'decisions' },
+      decision,
+    )
+
+    expect(added.body.issueUrl).toBe(
+      'https://github.com/timschoch/flexibeck-next/issues/1',
+    )
+    expect(issues.map(({ issue }) => issue.title)).toEqual([
+      'D1: Cache the homepage',
+    ])
+  })
+
+  it('opens the issue when a Decision moves to accepted, once', async () => {
+    const params = { product: 'flexibeck', folder: 'decisions' }
+    await call(handleAddRecord, 'POST', params, {
+      ...decision,
+      status: 'proposed',
+    })
+    expect(issues).toEqual([])
+
+    const accepted = await call(
+      handleUpdateRecord,
+      'PATCH',
+      { ...params, recordId: 'D1' },
+      { status: 'accepted' },
+    )
+    await call(
+      handleUpdateRecord,
+      'PATCH',
+      { ...params, recordId: 'D1' },
+      { status: 'accepted' },
+    )
+
+    expect(accepted.status).toBe(200)
+    expect(accepted.body.issueUrl).toBe(
+      'https://github.com/timschoch/flexibeck-next/issues/1',
+    )
+    expect(issues).toHaveLength(1)
+  })
+
+  it('keeps the Decision accepted and reports the missing issue when GitHub fails', async () => {
+    github = failingGithub
+
+    const added = await call(
+      handleAddRecord,
+      'POST',
+      { product: 'flexibeck', folder: 'decisions' },
+      decision,
+    )
+
+    expect(added.status).toBe(201)
+    expect(added.body).toMatchObject({
+      status: 'accepted',
+      issueUrl: null,
+      issueError: 'GitHub answered 503',
     })
   })
 
