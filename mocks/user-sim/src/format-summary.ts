@@ -4,6 +4,7 @@ const REACHED = 'reached'
 const MISSING = 'not found'
 const ERRORS = 'error'
 const GAP = 2
+const MEAN_DIGITS = 2
 
 export function formatSummary(summary: Summary): string {
   const width = Math.max(
@@ -17,6 +18,7 @@ export function formatSummary(summary: Summary): string {
         (cells[index] ?? '').padStart(header.length + GAP),
       )
       .join('')
+  const { survey } = summary
   return [
     formatRow('step', REACHED, MISSING, ERRORS),
     ...summary.steps.map((step) =>
@@ -28,5 +30,10 @@ export function formatSummary(summary: Summary): string {
       ),
     ),
     `${formatRow('finished', String(summary.finished)).trimEnd()} of ${summary.users}`,
+    ...(survey.mean === null
+      ? []
+      : [
+          `survey: answers ${survey.answers}, SEQ mean ${survey.mean.toFixed(MEAN_DIGITS)}, remarks ${survey.remarks}`,
+        ]),
   ].join('\n')
 }

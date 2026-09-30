@@ -41,12 +41,17 @@ Use these terms in code, docs, issues and UI. A new term goes here first. Layout
 
 The Mock in [mocks/user-sim](mocks/user-sim/README.md). It makes the numbers a measure reads.
 
-| Term    | Meaning                                                                                                             |
-| ------- | ------------------------------------------------------------------------------------------------------------------- |
-| Bot     | A simulated user with seeded traits. Uses the deployed Product through its accessibility tree, like a person.       |
-| Rule    | A behaviour model from UX research, for example choice overload. Changes what a Bot does, never tuned for a result. |
-| Journey | The Steps a Bot tries in one Product, in order.                                                                     |
-| Step    | One intent in a Journey, for example "accept a plan", with the accessible names to look for.                        |
+| Term      | Meaning                                                                                                               |
+| --------- | --------------------------------------------------------------------------------------------------------------------- |
+| Bot       | A simulated user with seeded traits. Uses the deployed Product through its accessibility tree, like a person.         |
+| Rule      | A behaviour model from UX research, for example choice overload. Changes what a Bot does, never tuned for a result.   |
+| Journey   | The Steps a Bot tries in one Product, in order.                                                                       |
+| Step      | One intent in a Journey, for example "accept a plan", with the accessible names to look for.                          |
+| Struggle  | Per Rule, the chance to leave a Bot faced on one screen or on its whole walk. Sets its survey answer.                 |
+| Technique | A baking task a novice cannot do from its name alone, for example stretch and fold. The worked example Rule reads it. |
+| Demo      | A captioned image or video (an accessible `figure`) named for a Technique. Without one, novices struggle more.        |
+| SEQ       | Single Ease Question: "How easy was it?", 1 very hard to 7 very easy. A Bot answers it from its Struggle.             |
+| Remark    | The free text of a Bot's SEQ answer. Not a Comment: it goes to the Product, not to the social channel.                |
 
 ## Build run
 

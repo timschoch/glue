@@ -1,13 +1,18 @@
+import type { Answer } from './survey.ts'
+
 /**
  * How a bot's visit ended, and on which step (index into the journey):
  * - finished: it did the last step
  * - left: it found the step and chose to leave
  * - missing: it did not find the step
- * - error: an action on the step failed or timed out
+ * - error: an action on the step failed or timed out, or the product rate-limited
+ *   the bot
  */
 export type Outcome = {
   end: 'finished' | 'left' | 'missing' | 'error'
   step: number
+  /** The bot's survey answer, when the journey has a survey and it answered. */
+  answer?: Answer
 }
 
 export type StepCount = {
@@ -25,6 +30,12 @@ export type Summary = {
   steps: Array<StepCount>
   /** Bots that walked the whole journey. */
   finished: number
+  survey: {
+    answers: number
+    /** SEQ mean, null without answers. */
+    mean: number | null
+    remarks: number
+  }
 }
 
 export function toSummary(
@@ -33,6 +44,9 @@ export function toSummary(
 ): Summary {
   const count = (test: (outcome: Outcome) => boolean) =>
     outcomes.filter(test).length
+  const answers = outcomes.flatMap((outcome) =>
+    outcome.end === 'finished' && outcome.answer ? [outcome.answer] : [],
+  )
   return {
     users: outcomes.length,
     steps: intents.map((intent, index) => ({
@@ -50,5 +64,14 @@ export function toSummary(
       ),
     })),
     finished: count((outcome) => outcome.end === 'finished'),
+    survey: {
+      answers: answers.length,
+      mean:
+        answers.length === 0
+          ? null
+          : answers.reduce((sum, answer) => sum + answer.score, 0) /
+            answers.length,
+      remarks: answers.filter((answer) => answer.remark !== '').length,
+    },
   }
 }

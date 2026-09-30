@@ -22,8 +22,51 @@ test('parses choices, the preselected one, required inputs and text @smoke', asy
     choiceSets: [{ choices: 3, preselected: 1 }],
     requiredInputs: 2,
     textLength: (await page.locator('body').innerText()).length,
+    techniquesWithoutDemo: 0,
   })
   expect(screen.textLength).toBeLessThan(60)
+})
+
+test('leaves out the radio groups the step answers @smoke', async ({
+  page,
+}) => {
+  const radios = [1, 2, 3, 4, 5, 6, 7]
+    .map((score) => `<label><input type="radio" name="seq"> ${score}</label>`)
+    .join('')
+  await page.setContent(`
+    <div role="radiogroup" aria-label="How easy was your first bake?">${radios}</div>
+    <div role="radiogroup" aria-label="Day">
+      <label><input type="radio" name="day"> Monday</label>
+      <label><input type="radio" name="day"> Tuesday</label>
+    </div>`)
+
+  expect((await parseScreen(page, [/how easy/i])).choiceSets).toEqual([
+    { choices: 2, preselected: null },
+  ])
+})
+
+test('counts the techniques on the screen that have no demo @smoke', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <h2>Stretch and fold</h2>
+    <ol><li>Shape</li><li>Bake</li></ol>`)
+
+  expect((await parseScreen(page)).techniquesWithoutDemo).toBe(2)
+})
+
+test('a figure or a video in a figure named for a technique is its demo @smoke', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <h2>Stretch and fold</h2>
+    <figure><img src="fold.png" alt=""><figcaption>Stretch and fold, step by step</figcaption></figure>
+    <h2>Shape</h2>
+    <figure aria-label="How to shape the dough"><video controls></video></figure>
+    <h2>Lamination</h2>
+    <figure><img src="dough.png" alt=""></figure>`)
+
+  expect((await parseScreen(page)).techniquesWithoutDemo).toBe(1)
 })
 
 test('reads pressed buttons in a group as choices @smoke', async ({ page }) => {
