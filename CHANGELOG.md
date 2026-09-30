@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/timschoch/glue/compare/v1.1.0...v1.2.0) (2026-09-30)
+
+
+### Features
+
+* **app:** triage draft Insights and propose, accept or supersede Decisions ([#60](https://github.com/timschoch/glue/issues/60)) ([7d38ca7](https://github.com/timschoch/glue/commit/7d38ca7a3fa81eab18fe16a30ab203514adfe38a))
+
 ## [1.1.0](https://github.com/timschoch/glue/compare/v1.0.0...v1.1.0) (2026-09-30)
 
 
