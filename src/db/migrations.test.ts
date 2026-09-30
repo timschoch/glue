@@ -16,13 +16,23 @@ async function runMigration(file: string) {
   await client.exec(await readFile(`./drizzle/${file}`, 'utf8'))
 }
 
+async function listMigrations() {
+  const files = await readdir('./drizzle')
+  return files.filter((file) => file.endsWith('.sql')).sort()
+}
+
 // Runs the migrations that come before `migration`.
 async function runMigrationsBefore(migration: string) {
-  const files = (await readdir('./drizzle')).filter((file) =>
-    file.endsWith('.sql'),
-  )
-  for (const file of files.sort()) {
+  for (const file of await listMigrations()) {
     if (file < migration) await runMigration(file)
+  }
+}
+
+// Runs the migrations that come after `migration`, so app code finds the
+// current schema.
+async function runMigrationsAfter(migration: string) {
+  for (const file of await listMigrations()) {
+    if (file > migration) await runMigration(file)
   }
 }
 
@@ -65,6 +75,7 @@ describe('the migration that adds the record counters', () => {
     `)
 
     await runMigration(countersMigration)
+    await runMigrationsAfter(countersMigration)
 
     const id = await addConceptRecord(
       drizzle(client, { schema }),

@@ -50,6 +50,13 @@
       "when": 1790781588333,
       "tag": "0006_goal_mean_status",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790788254582,
+      "tag": "0007_social_handle",
+      "breakpoints": true
     }
   ]
 }

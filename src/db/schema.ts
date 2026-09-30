@@ -25,6 +25,15 @@ export const products = pgTable('products', {
   analyticsProject: text('analytics_project'),
   // The GitHub repository, as owner/name, that builds the Product.
   repository: text('repository'),
+  // The Product's handle in its social channel. The measure run reads the
+  // public comments under this handle.
+  socialHandle: text('social_handle'),
+  // When the newest comment the measure run counted was posted. The next run
+  // reads after it, so a comment counts once. null: read from the start.
+  commentsReadUntil: timestamp('comments_read_until', {
+    withTimezone: true,
+    precision: 3,
+  }),
 })
 
 // The highest number that a record id of one folder had in the Product.

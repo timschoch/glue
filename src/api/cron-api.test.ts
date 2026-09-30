@@ -71,9 +71,12 @@ function callCron(
   return handleMeasureCron({
     request: new Request('http://localhost/api/cron/measure', { headers }),
     cronSecret,
-    measure: () => {
+    measure: async () => {
       measureCalls += 1
-      return measureGoals({ db, source, now: new Date() })
+      return {
+        ...(await measureGoals({ db, source, now: new Date() })),
+        comments: { insights: [], skipped: [] },
+      }
     },
   })
 }

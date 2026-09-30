@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/timschoch/glue/compare/v1.3.0...v1.4.0) (2026-09-30)
+
+
+### Features
+
+* **measure:** record the sentiment of public comments as draft Insights ([#75](https://github.com/timschoch/glue/issues/75)) ([6ad5a47](https://github.com/timschoch/glue/commit/6ad5a477580c4d34293c5a34aab91528e156f822))
+
 ## [1.3.0](https://github.com/timschoch/glue/compare/v1.2.0...v1.3.0) (2026-09-30)
 
 
