@@ -3,6 +3,8 @@ import { Link, useParams } from '@tanstack/react-router'
 
 import type { LinkedRecord } from '../../db/concept.ts'
 import { DecisionActions } from '../decisions/decision-actions.tsx'
+import { GoalActions } from '../goals/goal-actions.tsx'
+import { GoalProgress } from '../goals/goal-progress.tsx'
 import { InsightTriage } from '../insights/insight-triage.tsx'
 import { useAnnouncer } from '../page/announcer.tsx'
 import { RecordBody } from './record-body.tsx'
@@ -21,6 +23,8 @@ type Handlers = {
   onKeep: RecordAction
   onDiscard: RecordAction
   onAccept: RecordAction
+  onClose: RecordAction
+  onReopen: RecordAction
 }
 
 // Only a web address is a link. Other text stays text, so it cannot run code.
@@ -52,6 +56,9 @@ function OwnFields({ record }: { record: LinkedRecord }) {
     case 'goal':
       return (
         <>
+          <RecordField label="Status">
+            <RecordStatus status={record.status} />
+          </RecordField>
           <RecordField label="Metric">{record.metric}</RecordField>
           <RecordField label="Source">
             <Source source={record.source} />
@@ -185,12 +192,14 @@ function LinkFields({
   }
 }
 
-// A draft Insight and a Decision that is not superseded have actions.
+// A Goal, a draft Insight and a Decision that is not superseded have actions.
 function Actions({
   record,
   onKeep,
   onDiscard,
   onAccept,
+  onClose,
+  onReopen,
 }: { record: LinkedRecord } & Handlers) {
   const { announce } = useAnnouncer()
 
@@ -204,7 +213,13 @@ function Actions({
   }
 
   const actions =
-    record.kind === 'insight' && record.status === 'draft' ? (
+    record.kind === 'goal' ? (
+      <GoalActions
+        goal={record}
+        onClose={announced('Closed', onClose, recordTitleId)}
+        onReopen={announced('Opened', onReopen, recordTitleId)}
+      />
+    ) : record.kind === 'insight' && record.status === 'draft' ? (
       <InsightTriage
         insight={record}
         citedBy={record.decisions.map(({ id }) => id)}
@@ -276,10 +291,19 @@ export function RecordView({
         <Actions record={record} {...handlers} />
       </header>
 
+      {record.kind === 'goal' && (
+        <section aria-labelledby="progress-name" className={classes.section}>
+          <Title order={2} id="progress-name">
+            Progress
+          </Title>
+          <GoalProgress goal={record} />
+        </section>
+      )}
+
       <RecordBody body={record.body} />
 
       {record.kind !== 'guardrail' && (
-        <section aria-labelledby="links-name" className={classes.links}>
+        <section aria-labelledby="links-name" className={classes.section}>
           <Title order={2} id="links-name">
             Links
           </Title>

@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import type { Failure } from '../../authentication/session.ts'
 import type { Concept, RecordReference } from '../../db/concept.ts'
 import { DecisionCard } from '../decisions/decision-card.tsx'
+import { formatValue } from '../goals/goal-progress.tsx'
 import { InsightTriage, keepButtonId } from '../insights/insight-triage.tsx'
 import { useAnnouncer } from '../page/announcer.tsx'
 import { RecordField, RecordFields } from '../records/record-fields.tsx'
@@ -157,7 +158,15 @@ export function ConceptOverview({
       >
         {(goal) => (
           <Row record={goal}>
+            <RecordField label="Status">
+              <RecordStatus status={goal.status} />
+            </RecordField>
             <RecordField label="Metric">{goal.metric}</RecordField>
+            {goal.latestValue !== null && (
+              <RecordField label="Latest value">
+                {formatValue(goal.latestValue)}
+              </RecordField>
+            )}
           </Row>
         )}
       </Section>

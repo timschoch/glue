@@ -1,4 +1,5 @@
 import { redirect } from '@tanstack/react-router'
+import type { z } from 'zod'
 
 import type { Failure, Session } from '../authentication/session.ts'
 import type { GithubClient } from '../github/client.ts'
@@ -7,12 +8,23 @@ import {
   acceptDecision,
   addDecision,
   discardInsight,
+  goalChangeSchema,
   InvalidRecordError,
   keepInsight,
+  updateGoal,
 } from './concept-records.ts'
 import type { DecisionChange } from './concept-records.ts'
 import { findConcept, findRecord, listProducts } from './concept.ts'
+import { recordInputSchema } from './decision-proposal.ts'
 import type { ProposalInput, RecordInput } from './decision-proposal.ts'
+
+// A person closes a Goal as achieved or opens it again. The app changes the
+// status only, with the rule of the HTTP API. The measure stays.
+export const goalUpdateInputSchema = recordInputSchema.extend({
+  status: goalChangeSchema.shape.status.unwrap(),
+})
+
+export type GoalUpdateInput = z.infer<typeof goalUpdateInputSchema>
 
 // A record that breaks a rule is an answer for the person, not an error
 // of the server.
@@ -75,6 +87,14 @@ export function createConceptActions({
         toSavedDecision,
         toFailure,
       ),
+    ),
+
+    updateGoal: withSession(
+      (db, { product, recordId, status }: GoalUpdateInput) =>
+        updateGoal(db, product, recordId, { status }).then(
+          () => undefined,
+          toFailure,
+        ),
     ),
 
     // A new Decision is proposed. One that supersedes a Decision is accepted,

@@ -121,7 +121,13 @@ export type DecisionSummary = z.infer<typeof decisionSummarySchema>
 // The overview of each folder, as the Concept lists it.
 export const conceptSummarySchemas = {
   goals: goalSchema
-    .pick({ id: true, title: true, metric: true })
+    .pick({
+      id: true,
+      title: true,
+      metric: true,
+      status: true,
+      latestValue: true,
+    })
     .meta({ id: 'GoalSummary' }),
   decisions: decisionSummarySchema,
   guardrails: guardrailSchema
@@ -226,6 +232,8 @@ export async function findConcept(
         id: goals.recordId,
         title: goals.title,
         metric: goals.metric,
+        status: goals.status,
+        latestValue: goals.latestValue,
       })
       .from(goals)
       .where(eq(goals.productId, product.id)),

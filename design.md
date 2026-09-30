@@ -170,7 +170,7 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 ## Component voice
 
 - Record reference: the id in `--font-mono` and `--color-accent`, then the title in `--color-ink`, both in one link. The id does not wrap. The underline shows on hover.
-- Status: a small square plus the word. Accepted is a filled square, proposed and draft are an outline, superseded is an outline with the word struck through.
+- Status: a small square plus the word. Accepted and achieved are a filled square, proposed, draft and open are an outline, superseded is an outline with the word struck through.
 - Labels are sentence case and have no colon: `Goal`, `Evidence`. No uppercase labels with wide letter spacing.
 - Each value has its label, also in a line of metadata: `Status`, `Date`, `Owner`.
 - A list without records says so in one sentence, such as `No evidence yet`. Do not hide the label.

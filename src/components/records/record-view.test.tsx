@@ -81,7 +81,26 @@ const handlers = {
   onKeep: () => Promise.resolve(undefined),
   onDiscard: () => Promise.resolve(undefined),
   onAccept: () => Promise.resolve(undefined),
+  onClose: () => Promise.resolve(undefined),
+  onReopen: () => Promise.resolve(undefined),
 }
+
+const meanGoal: Goal = {
+  ...goal,
+  measure: {
+    kind: 'mean',
+    source: 'mock-analytics',
+    event: 'survey sent',
+    property: 'answer',
+    target_change: 1,
+    window_days: 14,
+  },
+  baseline: 3.5,
+  latestValue: 4.256,
+  measuredAt: '2026-09-30T14:05:12.000Z',
+}
+
+const unmeasured = { baseline: null, latestValue: null, measuredAt: null }
 
 function path(name: string) {
   return screen.getByRole('link', { name }).getAttribute('href')
@@ -236,6 +255,7 @@ describe('RecordView', () => {
   it('shows all fields of a Goal, with the Decisions that serve it', async () => {
     await renderInRouter(<RecordView {...handlers} record={goal} />)
 
+    expect(shownValue('Status')).toBe('Open')
     expect(shownValue('Metric')).toBe('Share of tickets with a Decision')
     expect(shownValue('Source')).toBe('GitHub issues')
     expect(shownLinks('Decisions')).toEqual([
@@ -296,6 +316,88 @@ describe('RecordView', () => {
     expect(shownValue('Decisions')).toBe('No Decision serves this Goal yet')
   })
 
+  describe('the progress of a Goal', () => {
+    const progress = () =>
+      within(screen.getByRole('region', { name: 'Progress' }))
+
+    it('shows the baseline, the latest value with its time, and the target of a mean', async () => {
+      await renderInRouter(<RecordView {...handlers} record={meanGoal} />)
+
+      expect(shownValue('Baseline')).toBe('3.5')
+      expect(shownValue('Latest value')).toBe(
+        '4.26, measured 2026-09-30 14:05 UTC',
+      )
+      expect(
+        progress().getByText('2026-09-30 14:05 UTC').getAttribute('datetime'),
+      ).toBe('2026-09-30T14:05:12.000Z')
+      expect(shownValue('Target')).toBe('4.5, the baseline +1')
+    })
+
+    it('shows a target below the baseline', async () => {
+      await renderInRouter(
+        <RecordView
+          {...handlers}
+          record={{
+            ...meanGoal,
+            measure: { ...meanGoal.measure!, target_change: -0.5 },
+          }}
+        />,
+      )
+
+      expect(shownValue('Target')).toBe('3, the baseline -0.5')
+    })
+
+    it('says that a mean is not measured yet, and shows the target as a change', async () => {
+      await renderInRouter(
+        <RecordView {...handlers} record={{ ...meanGoal, ...unmeasured }} />,
+      )
+
+      expect(shownValue('Baseline')).toBe('Not measured yet')
+      expect(shownValue('Latest value')).toBe('Not measured yet')
+      expect(shownValue('Target')).toBe('The baseline +1')
+    })
+
+    it('shows the target of a funnel, which has no baseline', async () => {
+      await renderInRouter(
+        <RecordView
+          {...handlers}
+          record={{
+            ...goal,
+            measure: {
+              kind: 'funnel',
+              source: 'mock-analytics',
+              steps: ['signed up', 'paid'],
+              target: 0.125,
+              window_days: 30,
+            },
+          }}
+        />,
+      )
+
+      expect(shownValue('Target')).toBe('12.5% from the first step to the last')
+      expect(progress().queryByText('Baseline')).toBeNull()
+      expect(progress().queryByText('Latest value')).toBeNull()
+    })
+
+    it('says that Glue does not measure a Goal without a measure', async () => {
+      await renderInRouter(<RecordView {...handlers} record={goal} />)
+
+      expect(shownValue('Measure')).toBe(
+        'None, so Glue does not measure this Goal',
+      )
+      expect(progress().queryByText('Target')).toBeNull()
+    })
+
+    it.each([decision, insight, fact, guardrail])(
+      'is not there for $kind $id',
+      async (record) => {
+        await renderInRouter(<RecordView {...handlers} record={record} />)
+
+        expect(screen.queryByRole('region', { name: 'Progress' })).toBeNull()
+      },
+    )
+  })
+
   it('shows what enforces a Guardrail', async () => {
     await renderInRouter(<RecordView {...handlers} record={guardrail} />)
 
@@ -305,7 +407,7 @@ describe('RecordView', () => {
   describe('the actions', () => {
     const actions = () => within(screen.getByRole('group', { name: 'Actions' }))
 
-    it.each([goal, fact, guardrail, { ...insight, status: null }])(
+    it.each([fact, guardrail, { ...insight, status: null }])(
       'has none for $kind $id',
       async (record) => {
         await renderInRouter(<RecordView {...handlers} record={record} />)
@@ -313,6 +415,70 @@ describe('RecordView', () => {
         expect(screen.queryByRole('group', { name: 'Actions' })).toBeNull()
       },
     )
+
+    it('closes an open Goal as achieved, says so, and moves the focus to the heading', async () => {
+      const onClose = vi.fn(() => Promise.resolve(undefined))
+      await renderInRouter(
+        <Announcer>
+          <RecordView {...handlers} onClose={onClose} record={goal} />
+        </Announcer>,
+      )
+
+      expect(
+        actions().queryByRole('button', { name: 'Open G1 again' }),
+      ).toBeNull()
+      await userEvent.click(
+        actions().getByRole('button', { name: 'Close G1 as achieved' }),
+      )
+
+      expect(onClose).toHaveBeenCalledOnce()
+      expect(screen.getByRole('status').textContent).toBe('Closed G1.')
+      expect(document.activeElement).toBe(
+        screen.getByRole('heading', { level: 1 }),
+      )
+    })
+
+    it('opens an achieved Goal again, and says so', async () => {
+      const onReopen = vi.fn(() => Promise.resolve(undefined))
+      await renderInRouter(
+        <Announcer>
+          <RecordView
+            {...handlers}
+            onReopen={onReopen}
+            record={{ ...goal, status: 'achieved' }}
+          />
+        </Announcer>,
+      )
+
+      expect(shownValue('Status')).toBe('Achieved')
+      expect(
+        actions().queryByRole('button', { name: 'Close G1 as achieved' }),
+      ).toBeNull()
+      await userEvent.click(
+        actions().getByRole('button', { name: 'Open G1 again' }),
+      )
+
+      expect(onReopen).toHaveBeenCalledOnce()
+      expect(screen.getByRole('status').textContent).toBe('Opened G1.')
+    })
+
+    it('says why a Goal was not closed', async () => {
+      await renderInRouter(
+        <RecordView
+          {...handlers}
+          onClose={() => Promise.resolve({ message: 'goal "G1" not found' })}
+          record={goal}
+        />,
+      )
+
+      await userEvent.click(
+        actions().getByRole('button', { name: 'Close G1 as achieved' }),
+      )
+
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        'goal "G1" not found',
+      )
+    })
 
     it('keeps a draft Insight on request', async () => {
       const onKeep = vi.fn(() => Promise.resolve(undefined))
