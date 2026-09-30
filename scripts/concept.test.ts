@@ -24,6 +24,13 @@ describe('parseFlags', () => {
     })
   })
 
+  it('parses the --name of a token', () => {
+    expect(parseFlags(['--product', 'flexibeck', '--name', 'bot'])).toEqual({
+      product: 'flexibeck',
+      name: 'bot',
+    })
+  })
+
   it('rejects an unknown flag', () => {
     expect(() => parseFlags(['--titel', 'x'])).toThrow(/unknown flag "--titel"/)
   })

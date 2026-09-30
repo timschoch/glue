@@ -14,6 +14,10 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
 import { Route as SignedInConceptRecordIdRouteImport } from './routes/_signed-in/concept.$recordId'
+import { Route as ApiV1OpenapiDotjsonRouteImport } from './routes/api/v1.openapi[.]json'
+import { Route as ApiV1ProductsProductFolderRouteImport } from './routes/api/v1.products.$product.$folder'
+import { Route as ApiV1ProductsProductConceptRouteImport } from './routes/api/v1.products.$product.concept'
+import { Route as ApiV1ProductsProductFolderRecordIdRouteImport } from './routes/api/v1.products.$product.$folder.$recordId'
 
 const SignedInRoute = SignedInRouteImport.update({
   id: '/_signed-in',
@@ -39,18 +43,49 @@ const SignedInConceptRecordIdRoute = SignedInConceptRecordIdRouteImport.update({
   path: '/concept/$recordId',
   getParentRoute: () => SignedInRoute,
 } as any)
+const ApiV1OpenapiDotjsonRoute = ApiV1OpenapiDotjsonRouteImport.update({
+  id: '/api/v1/openapi.json',
+  path: '/api/v1/openapi.json',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ProductsProductFolderRoute =
+  ApiV1ProductsProductFolderRouteImport.update({
+    id: '/api/v1/products/$product/$folder',
+    path: '/api/v1/products/$product/$folder',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1ProductsProductConceptRoute =
+  ApiV1ProductsProductConceptRouteImport.update({
+    id: '/api/v1/products/$product/concept',
+    path: '/api/v1/products/$product/concept',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1ProductsProductFolderRecordIdRoute =
+  ApiV1ProductsProductFolderRecordIdRouteImport.update({
+    id: '/$recordId',
+    path: '/$recordId',
+    getParentRoute: () => ApiV1ProductsProductFolderRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SignedInIndexRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/concept/$recordId': typeof SignedInConceptRecordIdRoute
+  '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
+  '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
+  '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
+  '/api/v1/products/$product/$folder/$recordId': typeof ApiV1ProductsProductFolderRecordIdRoute
 }
 export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/': typeof SignedInIndexRoute
   '/concept/$recordId': typeof SignedInConceptRecordIdRoute
+  '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
+  '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
+  '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
+  '/api/v1/products/$product/$folder/$recordId': typeof ApiV1ProductsProductFolderRecordIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,12 +94,32 @@ export interface FileRoutesById {
   '/sign-up': typeof SignUpRoute
   '/_signed-in/': typeof SignedInIndexRoute
   '/_signed-in/concept/$recordId': typeof SignedInConceptRecordIdRoute
+  '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
+  '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
+  '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
+  '/api/v1/products/$product/$folder/$recordId': typeof ApiV1ProductsProductFolderRecordIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sign-in' | '/sign-up' | '/concept/$recordId'
+  fullPaths:
+    | '/'
+    | '/sign-in'
+    | '/sign-up'
+    | '/concept/$recordId'
+    | '/api/v1/openapi.json'
+    | '/api/v1/products/$product/$folder'
+    | '/api/v1/products/$product/concept'
+    | '/api/v1/products/$product/$folder/$recordId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/sign-in' | '/sign-up' | '/' | '/concept/$recordId'
+  to:
+    | '/sign-in'
+    | '/sign-up'
+    | '/'
+    | '/concept/$recordId'
+    | '/api/v1/openapi.json'
+    | '/api/v1/products/$product/$folder'
+    | '/api/v1/products/$product/concept'
+    | '/api/v1/products/$product/$folder/$recordId'
   id:
     | '__root__'
     | '/_signed-in'
@@ -72,12 +127,19 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/_signed-in/'
     | '/_signed-in/concept/$recordId'
+    | '/api/v1/openapi.json'
+    | '/api/v1/products/$product/$folder'
+    | '/api/v1/products/$product/concept'
+    | '/api/v1/products/$product/$folder/$recordId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   SignedInRoute: typeof SignedInRouteWithChildren
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
+  ApiV1OpenapiDotjsonRoute: typeof ApiV1OpenapiDotjsonRoute
+  ApiV1ProductsProductFolderRoute: typeof ApiV1ProductsProductFolderRouteWithChildren
+  ApiV1ProductsProductConceptRoute: typeof ApiV1ProductsProductConceptRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -117,6 +179,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInConceptRecordIdRouteImport
       parentRoute: typeof SignedInRoute
     }
+    '/api/v1/openapi.json': {
+      id: '/api/v1/openapi.json'
+      path: '/api/v1/openapi.json'
+      fullPath: '/api/v1/openapi.json'
+      preLoaderRoute: typeof ApiV1OpenapiDotjsonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/products/$product/$folder': {
+      id: '/api/v1/products/$product/$folder'
+      path: '/api/v1/products/$product/$folder'
+      fullPath: '/api/v1/products/$product/$folder'
+      preLoaderRoute: typeof ApiV1ProductsProductFolderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/products/$product/concept': {
+      id: '/api/v1/products/$product/concept'
+      path: '/api/v1/products/$product/concept'
+      fullPath: '/api/v1/products/$product/concept'
+      preLoaderRoute: typeof ApiV1ProductsProductConceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/products/$product/$folder/$recordId': {
+      id: '/api/v1/products/$product/$folder/$recordId'
+      path: '/$recordId'
+      fullPath: '/api/v1/products/$product/$folder/$recordId'
+      preLoaderRoute: typeof ApiV1ProductsProductFolderRecordIdRouteImport
+      parentRoute: typeof ApiV1ProductsProductFolderRoute
+    }
   }
 }
 
@@ -134,10 +224,28 @@ const SignedInRouteWithChildren = SignedInRoute._addFileChildren(
   SignedInRouteChildren,
 )
 
+interface ApiV1ProductsProductFolderRouteChildren {
+  ApiV1ProductsProductFolderRecordIdRoute: typeof ApiV1ProductsProductFolderRecordIdRoute
+}
+
+const ApiV1ProductsProductFolderRouteChildren: ApiV1ProductsProductFolderRouteChildren =
+  {
+    ApiV1ProductsProductFolderRecordIdRoute:
+      ApiV1ProductsProductFolderRecordIdRoute,
+  }
+
+const ApiV1ProductsProductFolderRouteWithChildren =
+  ApiV1ProductsProductFolderRoute._addFileChildren(
+    ApiV1ProductsProductFolderRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   SignedInRoute: SignedInRouteWithChildren,
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
+  ApiV1OpenapiDotjsonRoute: ApiV1OpenapiDotjsonRoute,
+  ApiV1ProductsProductFolderRoute: ApiV1ProductsProductFolderRouteWithChildren,
+  ApiV1ProductsProductConceptRoute: ApiV1ProductsProductConceptRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

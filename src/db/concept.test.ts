@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { addConceptRecord, setDecisionStatus } from './concept-cli.ts'
+import { addConceptRecord, setDecisionStatus } from './concept-records.ts'
 import { findConcept, findRecord } from './concept.ts'
 import * as schema from './schema.ts'
 

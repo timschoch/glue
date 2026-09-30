@@ -1,73 +1,132 @@
 import type { SQL } from 'drizzle-orm'
 import { and, eq } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
+import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
 import { isRecordId } from './record-id.ts'
-import type { DecisionStatus, InsightStatus } from './schema.ts'
 import * as schema from './schema.ts'
 
-export type RecordReference = { id: string; title: string }
+// The shapes of the Concept as Glue shows it. The HTTP API documents its
+// responses with these schemas, so the types come from them.
+export const recordReferenceSchema = z
+  .object({ id: z.string(), title: z.string() })
+  .meta({ id: 'RecordReference' })
 
-export type Goal = RecordReference & {
-  kind: 'goal'
-  metric: string
-  source: string
-  body: string
-  decisions: RecordReference[]
-}
+export type RecordReference = z.infer<typeof recordReferenceSchema>
 
-export type Decision = RecordReference & {
-  kind: 'decision'
-  date: string
-  owner: string
-  status: DecisionStatus
-  body: string
-  goal: RecordReference
-  evidence: RecordReference[]
-  supersededBy: RecordReference | null
-  supersedes: RecordReference[]
-}
+export const goalSchema = z
+  .object({
+    kind: z.literal('goal'),
+    ...recordReferenceSchema.shape,
+    metric: z.string(),
+    source: z.string(),
+    body: z.string(),
+    decisions: z.array(recordReferenceSchema),
+  })
+  .meta({ id: 'Goal' })
 
-export type Insight = RecordReference & {
-  kind: 'insight'
-  date: string
-  source: string
-  status: InsightStatus | null
-  body: string
-  decisions: RecordReference[]
-}
+export type Goal = z.infer<typeof goalSchema>
 
-export type Fact = RecordReference & {
-  kind: 'fact'
-  source: string
-  body: string
-  decisions: RecordReference[]
-}
+export const decisionSchema = z
+  .object({
+    kind: z.literal('decision'),
+    ...recordReferenceSchema.shape,
+    date: z.iso.date(),
+    owner: z.string(),
+    status: z.enum(schema.decisionStatuses),
+    body: z.string(),
+    goal: recordReferenceSchema,
+    evidence: z.array(recordReferenceSchema),
+    supersededBy: recordReferenceSchema.nullable(),
+    supersedes: z.array(recordReferenceSchema),
+  })
+  .meta({ id: 'Decision' })
 
-export type Guardrail = RecordReference & {
-  kind: 'guardrail'
-  enforcedBy: string
-  body: string
-}
+export type Decision = z.infer<typeof decisionSchema>
+
+export const insightSchema = z
+  .object({
+    kind: z.literal('insight'),
+    ...recordReferenceSchema.shape,
+    date: z.iso.date(),
+    source: z.string(),
+    status: z.enum(schema.insightStatuses).nullable(),
+    body: z.string(),
+    decisions: z.array(recordReferenceSchema),
+  })
+  .meta({ id: 'Insight' })
+
+export type Insight = z.infer<typeof insightSchema>
+
+export const factSchema = z
+  .object({
+    kind: z.literal('fact'),
+    ...recordReferenceSchema.shape,
+    source: z.string(),
+    body: z.string(),
+    decisions: z.array(recordReferenceSchema),
+  })
+  .meta({ id: 'Fact' })
+
+export type Fact = z.infer<typeof factSchema>
+
+export const guardrailSchema = z
+  .object({
+    kind: z.literal('guardrail'),
+    ...recordReferenceSchema.shape,
+    enforcedBy: z.string(),
+    body: z.string(),
+  })
+  .meta({ id: 'Guardrail' })
+
+export type Guardrail = z.infer<typeof guardrailSchema>
 
 // A record with its links in both directions.
 export type LinkedRecord = Goal | Decision | Insight | Fact | Guardrail
 
 // A Decision as the overview shows it, without its body.
-export type DecisionSummary = Pick<
-  Decision,
-  'id' | 'title' | 'date' | 'owner' | 'status' | 'goal' | 'evidence'
->
+export const decisionSummarySchema = decisionSchema
+  .pick({
+    id: true,
+    title: true,
+    date: true,
+    owner: true,
+    status: true,
+    goal: true,
+    evidence: true,
+  })
+  .meta({ id: 'DecisionSummary' })
 
-export type Concept = {
-  product: { slug: string; name: string }
-  goals: Pick<Goal, 'id' | 'title' | 'metric'>[]
-  decisions: DecisionSummary[]
-  guardrails: Pick<Guardrail, 'id' | 'title' | 'enforcedBy'>[]
-  insights: Pick<Insight, 'id' | 'title' | 'date' | 'status'>[]
-  facts: RecordReference[]
+export type DecisionSummary = z.infer<typeof decisionSummarySchema>
+
+// The overview of each folder, as the Concept lists it.
+export const conceptSummarySchemas = {
+  goals: goalSchema
+    .pick({ id: true, title: true, metric: true })
+    .meta({ id: 'GoalSummary' }),
+  decisions: decisionSummarySchema,
+  guardrails: guardrailSchema
+    .pick({ id: true, title: true, enforcedBy: true })
+    .meta({ id: 'GuardrailSummary' }),
+  insights: insightSchema
+    .pick({ id: true, title: true, date: true, status: true })
+    .meta({ id: 'InsightSummary' }),
+  facts: recordReferenceSchema,
 }
+
+export const conceptSchema = z
+  .object({
+    product: z.object({ slug: z.string(), name: z.string() }),
+    goals: z.array(conceptSummarySchemas.goals),
+    decisions: z.array(conceptSummarySchemas.decisions),
+    guardrails: z.array(conceptSummarySchemas.guardrails),
+    insights: z.array(conceptSummarySchemas.insights),
+    facts: z.array(conceptSummarySchemas.facts),
+  })
+  .meta({ id: 'Concept' })
+
+export type Concept = z.infer<typeof conceptSchema>
 
 const { products, goals, decisions, insights, facts, guardrails } = schema
 const { decisionEvidence } = schema

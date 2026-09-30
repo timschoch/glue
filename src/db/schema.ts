@@ -1,11 +1,33 @@
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import { check, date, integer, pgTable, text, unique } from 'drizzle-orm/pg-core'
+import {
+  check,
+  date,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+} from 'drizzle-orm/pg-core'
 
 export const products = pgTable('products', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
   slug: text('slug').notNull().unique(),
   name: text('name').notNull(),
+})
+
+// A token gives HTTP API access to the Concept of one Product.
+// Only the SHA-256 hash of the token is stored.
+export const tokens = pgTable('tokens', {
+  id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+  productId: integer('product_id')
+    .notNull()
+    .references(() => products.id),
+  name: text('name').notNull(),
+  hash: text('hash').notNull().unique(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 })
 
 export const goals = pgTable(

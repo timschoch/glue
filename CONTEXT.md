@@ -17,6 +17,7 @@ Use these terms in code, docs, issues and UI. A new term goes here first. Layout
 | Guardrail   | A rule every change to the Product must respect. Enforced downstream, not suggested.                                 |
 | Integration | A sync with an outside tool that reads from or writes to a Concept.                                                  |
 | Mock        | A stand-in for an outside tool (analytics, CRM, design system) that Glue integrates with. Lives outside Glue's code. |
+| Token       | A secret that opens the Concept of one Product over the HTTP API. Glue stores only its hash.                         |
 
 ## Build run
 

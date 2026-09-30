@@ -8,7 +8,7 @@ import {
   listConceptRecords,
   setDecisionStatus,
   showConceptRecord,
-} from './concept-cli.ts'
+} from './concept-records.ts'
 import * as schema from './schema.ts'
 
 let client: PGlite
