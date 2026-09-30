@@ -12,5 +12,7 @@ dist-ssr
 __unconfig*
 todos.json
 .temp/
+test-results/
+playwright-report/
 .vercel
 .env*
