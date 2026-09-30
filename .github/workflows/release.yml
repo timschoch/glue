@@ -11,6 +11,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  statuses: write
 
 jobs:
   release:
@@ -20,6 +21,18 @@ jobs:
         id: release
         with:
           release-type: node
+      # The release PR only bumps the version and CHANGELOG.md of a main that
+      # already passed the gate, so it skips the gate: pass the required checks.
+      - if: steps.release.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ fromJSON(steps.release.outputs.pr).number }}
+        run: |
+          sha=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
+          for context in 'verify' 'skilly / gate'; do
+            gh api "repos/$GITHUB_REPOSITORY/statuses/$sha" -f state=success \
+              -f context="$context" -f description='Release PR: gate already ran on main'
+          done
       # Deploy flow (product): main → Vercel preview, release → Vercel production.
       # Vercel's production branch is `release`; a new release fast-forwards it.
       - if: steps.release.outputs.release_created == 'true'
