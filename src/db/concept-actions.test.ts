@@ -7,7 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Session } from '../authentication/session.ts'
 import type { GithubClient } from '../github/client.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
-import { createConceptActions } from './concept-actions.ts'
+import {
+  createConceptActions,
+  goalUpdateInputSchema,
+} from './concept-actions.ts'
 import {
   addConceptRecord,
   setProductRepository,
@@ -85,6 +88,12 @@ async function listRecordIds() {
 
 const decision = { product: 'flexibeck', recordId: 'D1' }
 
+const closedGoal = {
+  product: 'flexibeck',
+  recordId: 'G1',
+  status: 'achieved' as const,
+}
+
 const requests = {
   listProducts: () => actions.listProducts(),
   findConcept: () => actions.findConcept('flexibeck'),
@@ -93,6 +102,7 @@ const requests = {
   discardInsight: () => actions.discardInsight(draft),
   proposeDecision: () => actions.proposeDecision(proposal),
   acceptDecision: () => actions.acceptDecision(decision),
+  updateGoal: () => actions.updateGoal(closedGoal),
 } satisfies Record<keyof typeof actions, () => Promise<unknown>>
 
 describe('a server function without a session', () => {
@@ -230,6 +240,26 @@ describe('a server function with a session', () => {
     expect(added.fields.status).toBe('accepted')
   })
 
+  it('closes a Goal as achieved, then opens it again', async () => {
+    expect(await actions.updateGoal(closedGoal)).toBeUndefined()
+    expect(await actions.findRecord(closedGoal)).toMatchObject({
+      status: 'achieved',
+    })
+
+    expect(
+      await actions.updateGoal({ ...closedGoal, status: 'open' }),
+    ).toBeUndefined()
+    expect(await actions.findRecord(closedGoal)).toMatchObject({
+      status: 'open',
+    })
+  })
+
+  it('says that the Goal of a status change does not exist', async () => {
+    expect(await actions.updateGoal({ ...closedGoal, recordId: 'G9' })).toEqual(
+      { message: 'goal "G9" not found' },
+    )
+  })
+
   it('says which rule a Decision breaks', async () => {
     expect(
       await actions.proposeDecision({ ...proposal, evidence: ['I9'] }),
@@ -247,6 +277,16 @@ describe('the input of a server function', () => {
   it('refuses a Decision without evidence, like the HTTP API', () => {
     expect(
       proposalInputSchema.safeParse({ ...proposal, evidence: [] }).success,
+    ).toBe(false)
+  })
+
+  it('takes only the status of a Goal from the request, not its measure', () => {
+    expect(
+      goalUpdateInputSchema.parse({ ...closedGoal, measure: null }),
+    ).toEqual(closedGoal)
+    expect(
+      goalUpdateInputSchema.safeParse({ ...closedGoal, status: 'done' })
+        .success,
     ).toBe(false)
   })
 

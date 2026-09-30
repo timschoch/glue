@@ -8,7 +8,10 @@ import { findSession } from '../authentication/session.ts'
 import { getSetting } from '../settings.server.ts'
 import { createGithubClient } from '../github/client.ts'
 import { createDb } from './client.ts'
-import { createConceptActions } from './concept-actions.ts'
+import {
+  createConceptActions,
+  goalUpdateInputSchema,
+} from './concept-actions.ts'
 import {
   productInputSchema,
   proposalInputSchema,
@@ -46,6 +49,10 @@ export const submitDiscardInsight = createServerFn({ method: 'POST' })
 export const submitAcceptDecision = createServerFn({ method: 'POST' })
   .validator(recordInputSchema)
   .handler(({ data }) => actions.acceptDecision(data))
+
+export const submitUpdateGoal = createServerFn({ method: 'POST' })
+  .validator(goalUpdateInputSchema)
+  .handler(({ data }) => actions.updateGoal(data))
 
 export const submitProposeDecision = createServerFn({ method: 'POST' })
   .validator(proposalInputSchema)

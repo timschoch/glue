@@ -12,8 +12,20 @@ import { DecisionForm } from './decision-form.tsx'
 const concept: Concept = {
   product: { slug: 'glue', name: 'Glue' },
   goals: [
-    { id: 'G1', title: 'Agents build from the Concept', metric: 'Tickets' },
-    { id: 'G2', title: 'The Owner decides fast', metric: 'Days' },
+    {
+      id: 'G1',
+      title: 'Agents build from the Concept',
+      metric: 'Tickets',
+      status: 'open',
+      latestValue: null,
+    },
+    {
+      id: 'G2',
+      title: 'The Owner decides fast',
+      metric: 'Days',
+      status: 'open',
+      latestValue: null,
+    },
   ],
   decisions: [],
   guardrails: [],

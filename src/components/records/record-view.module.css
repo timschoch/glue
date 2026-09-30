@@ -1,6 +1,7 @@
 /* Hallmark · component: record page · genre: modern-minimal · theme: custom (dense, calm, text first)
  * states: default · hover · focus · active · empty
- * The title, the fields, the text, then the links to other records.
+ * The title, the fields, the progress of a Goal, the text, then the links
+ * to other records.
  */
 
 .page {
@@ -54,7 +55,7 @@
   overflow-wrap: anywhere;
 }
 
-.links {
+.section {
   display: grid;
   gap: var(--space-sm);
   padding-block-start: var(--space-lg);

@@ -13,7 +13,14 @@ const goal = { id: 'G1', title: 'Agents build from the Concept' }
 
 const concept: Concept = {
   product: { slug: 'glue', name: 'Glue' },
-  goals: [{ ...goal, metric: 'Share of tickets with a Decision' }],
+  goals: [
+    {
+      ...goal,
+      metric: 'Share of tickets with a Decision',
+      status: 'open',
+      latestValue: null,
+    },
+  ],
   decisions: [
     {
       id: 'D1',
@@ -152,6 +159,41 @@ describe('ConceptOverview', () => {
       section('Guardrails').getByText('Enforced by').nextElementSibling
         ?.textContent,
     ).toBe('verify ci')
+  })
+
+  it('shows the status of each Goal, and its latest value when it has one', async () => {
+    await renderInRouter(
+      <ConceptOverview
+        {...handlers}
+        concept={{
+          ...concept,
+          goals: [
+            ...concept.goals,
+            {
+              id: 'G2',
+              title: 'The task is easy',
+              metric: 'SEQ mean',
+              status: 'achieved',
+              latestValue: 5.256,
+            },
+          ],
+        }}
+      />,
+    )
+
+    const [open, achieved] = section('Goals').getAllByRole('listitem')
+
+    expect(
+      within(open).getByText('Status').nextElementSibling?.textContent,
+    ).toBe('Open')
+    expect(within(open).queryByText('Latest value')).toBeNull()
+    expect(
+      within(achieved).getByText('Status').nextElementSibling?.textContent,
+    ).toBe('Achieved')
+    expect(
+      within(achieved).getByText('Latest value').nextElementSibling
+        ?.textContent,
+    ).toBe('5.26')
   })
 
   it('shows the date of each Insight, and the status of a draft', async () => {

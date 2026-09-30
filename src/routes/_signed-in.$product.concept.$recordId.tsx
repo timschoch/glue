@@ -45,12 +45,13 @@ export const Route = createFileRoute('/_signed-in/$product/concept/$recordId')({
 
 function ConceptRecord() {
   const params = Route.useParams()
-  const { keepInsight, discardInsight, acceptDecision } =
+  const { keepInsight, discardInsight, acceptDecision, updateGoal } =
     Route.useRouteContext()
   const { issue } = Route.useSearch()
   const router = useRouter()
   const navigate = Route.useNavigate()
   const keep = useWrite(keepInsight)
+  const update = useWrite(updateGoal)
   // The page loads again and shows the new state, with a note when the
   // issue is missing.
   const accept = useWrite(acceptDecision, async (accepted) => {
@@ -71,6 +72,8 @@ function ConceptRecord() {
       onKeep={() => keep(params)}
       onDiscard={() => discard(params)}
       onAccept={() => accept(params)}
+      onClose={() => update({ ...params, status: 'achieved' })}
+      onReopen={() => update({ ...params, status: 'open' })}
     />
   )
 }

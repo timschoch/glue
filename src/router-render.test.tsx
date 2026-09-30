@@ -23,7 +23,13 @@ const session = {
 const concept = {
   product: { slug: 'glue', name: 'Glue' },
   goals: [
-    { id: 'G1', title: 'Agents build from the Concept', metric: 'Tickets' },
+    {
+      id: 'G1',
+      title: 'Agents build from the Concept',
+      metric: 'Tickets',
+      status: 'open' as const,
+      latestValue: null,
+    },
   ],
   decisions: [],
   guardrails: [],
@@ -69,6 +75,7 @@ async function renderPage(path: string) {
     acceptDecision: vi.fn(() =>
       Promise.resolve({ id: 'D5', issueMissing: false }),
     ),
+    updateGoal: vi.fn(() => Promise.resolve(undefined)),
     proposeDecision: vi.fn(() =>
       Promise.resolve({ id: 'D5', issueMissing: false }),
     ),
