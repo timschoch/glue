@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/timschoch/glue/compare/v1.2.0...v1.3.0) (2026-09-30)
+
+
+### Features
+
+* **measure:** measure a Goal by the mean of an event property and close it as achieved ([#76](https://github.com/timschoch/glue/issues/76)) ([aa98bf2](https://github.com/timschoch/glue/commit/aa98bf2bb21d358605737d212b20a159c35bc88d))
+
 ## [1.2.0](https://github.com/timschoch/glue/compare/v1.1.0...v1.2.0) (2026-09-30)
 
 
