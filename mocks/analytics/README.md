@@ -38,7 +38,7 @@ pnpm --filter mock-analytics test
 Own Vercel project:
 
 - Root directory: `mocks/analytics`
-- Framework preset: Hono. Entry `src/index.ts`: the preset needs its import from `hono` and the default export. `tsconfig.json` `rewriteRelativeImportExtensions` turns the `.ts` imports into `.js` in the build.
+- Framework preset: Hono, pinned in `vercel.json` (auto-detect picks Vite from the dev dependencies). Entry `src/index.ts`: the preset needs its import from `hono` and the default export. `tsconfig.json` `rewriteRelativeImportExtensions` turns the `.ts` imports into `.js` in the build.
 - Env: `MOCK_ANALYTICS_DATABASE_URL`, `MOCK_ANALYTICS_READ_KEY`
 
 Migrations: `MOCK_ANALYTICS_DATABASE_URL=… pnpm --filter mock-analytics db:migrate`. Schema change: edit `src/schema.ts`, run `db:generate`.
