@@ -12,7 +12,9 @@ import classes from './record-view.module.css'
 // Only a web address is a link. Other text stays text, so it cannot run code.
 function Source({ source }: { source: string }) {
   return /^https?:\/\//.test(source) && URL.canParse(source) ? (
-    <a href={source}>{source}</a>
+    <a href={source} className={classes.source}>
+      {source}
+    </a>
   ) : (
     source
   )

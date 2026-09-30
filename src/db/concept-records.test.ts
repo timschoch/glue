@@ -79,6 +79,41 @@ describe('listConceptRecords', () => {
     const rows = await listConceptRecords(db, 'glue')
     expect(rows.map((row) => row.id).sort()).toEqual(['D1', 'F1', 'G1', 'I1'])
   })
+
+  it('sorts by the number in the id, so D2 comes before D10', async () => {
+    // D1 exists already. Eight more Decisions bring D2 to D9, then D10, D11.
+    for (let added = 0; added < 10; added++)
+      await addConceptRecord(
+        db,
+        'glue',
+        'decisions',
+        {
+          title: 'Cache the homepage',
+          date: '2026-01-02',
+          owner: 'tim',
+          status: 'accepted',
+          goal: 'G1',
+          evidence: ['I1'],
+        },
+        '',
+      )
+
+    const rows = await listConceptRecords(db, 'glue', 'decisions')
+
+    expect(rows.map((row) => row.id)).toEqual([
+      'D1',
+      'D2',
+      'D3',
+      'D4',
+      'D5',
+      'D6',
+      'D7',
+      'D8',
+      'D9',
+      'D10',
+      'D11',
+    ])
+  })
 })
 
 describe('showConceptRecord', () => {
@@ -199,6 +234,50 @@ describe('addConceptRecord', () => {
     expect(rows).toHaveLength(1)
   })
 
+  it('keeps one link when a Decision cites the same Insight twice', async () => {
+    const id = await addConceptRecord(
+      db,
+      'glue',
+      'decisions',
+      {
+        title: 'Double citation',
+        date: '2026-01-03',
+        owner: 'tim',
+        status: 'accepted',
+        goal: 'G1',
+        evidence: ['I1', 'I1'],
+      },
+      '',
+    )
+
+    const record = await showConceptRecord(db, 'glue', id)
+    expect(record.evidence).toEqual([
+      { id: 'I1', title: 'Users churn on slow loads' },
+    ])
+  })
+
+  it('keeps one link when a Decision cites the same Fact twice', async () => {
+    const id = await addConceptRecord(
+      db,
+      'glue',
+      'decisions',
+      {
+        title: 'Double citation',
+        date: '2026-01-03',
+        owner: 'tim',
+        status: 'accepted',
+        goal: 'G1',
+        evidence: ['F1', 'F1'],
+      },
+      '',
+    )
+
+    const record = await showConceptRecord(db, 'glue', id)
+    expect(record.evidence).toEqual([
+      { id: 'F1', title: 'p95 load time is 3s' },
+    ])
+  })
+
   it('rejects a superseded Decision without superseded_by', async () => {
     await expect(
       addConceptRecord(
@@ -278,5 +357,38 @@ describe('setDecisionStatus', () => {
     const record = await showConceptRecord(db, 'glue', 'D1')
     expect(record.fields.status).toBe('superseded')
     expect(record.supersededBy).toBe(secondId)
+  })
+
+  it('rejects superseded_by when the status is not superseded', async () => {
+    const secondId = await addConceptRecord(
+      db,
+      'glue',
+      'decisions',
+      {
+        title: 'Second decision',
+        date: '2026-01-03',
+        owner: 'tim',
+        status: 'accepted',
+        goal: 'G1',
+        evidence: ['I1'],
+      },
+      '',
+    )
+
+    await expect(
+      setDecisionStatus(db, 'glue', 'D1', 'accepted', secondId),
+    ).rejects.toThrow(/"superseded_by" only applies to a superseded Decision/)
+
+    const record = await showConceptRecord(db, 'glue', 'D1')
+    expect(record.supersededBy).toBeUndefined()
+  })
+
+  it('rejects a Decision that supersedes itself', async () => {
+    await expect(
+      setDecisionStatus(db, 'glue', 'D1', 'superseded', 'D1'),
+    ).rejects.toThrow(/cannot supersede itself/)
+
+    const record = await showConceptRecord(db, 'glue', 'D1')
+    expect(record.fields.status).toBe('accepted')
   })
 })

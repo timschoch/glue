@@ -1,7 +1,8 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { CONCEPT_FIELDS } from './concept-fields.ts'
 import type { ConceptDb } from './client.ts'
+import { sortById } from './concept.ts'
 import * as schema from './schema.ts'
 
 export type ConceptFolder = keyof typeof CONCEPT_FIELDS
@@ -88,13 +89,12 @@ export async function listConceptRecords(
       .select()
       .from(table)
       .where(eq(table.productId, productId))
-    for (const record of records as Record<string, unknown>[]) {
-      rows.push({
-        id: record.recordId as string,
-        status: 'status' in record ? String(record.status ?? '') : '',
-        title: record.title as string,
-      })
-    }
+    const folderRows = (records as Record<string, unknown>[]).map((record) => ({
+      id: record.recordId as string,
+      status: 'status' in record ? String(record.status ?? '') : '',
+      title: record.title as string,
+    }))
+    rows.push(...sortById(folderRows))
   }
   return rows
 }
@@ -261,7 +261,7 @@ async function addDecision(
   }
 
   const evidenceRecordIds = Array.isArray(fields.evidence)
-    ? fields.evidence
+    ? [...new Set(fields.evidence)]
     : []
   const evidenceRows: { insightId?: number; factId?: number }[] = []
   for (const evidenceId of evidenceRecordIds) {
@@ -294,28 +294,45 @@ async function addDecision(
     throw new InvalidRecordError(`evidence "${evidenceId}" not found`)
   }
 
-  const [decisionRow] = await db
-    .insert(schema.decisions)
-    .values({
-      productId,
-      recordId,
-      title: fields.title as string,
-      date: fields.date as string,
-      owner: fields.owner as string,
-      status: fields.status as schema.DecisionStatus,
-      goalId: goalRow.id,
-      supersededById,
-      body,
-    })
-    .returning({ id: schema.decisions.id })
-
-  for (const evidenceRow of evidenceRows) {
-    await db.insert(schema.decisionEvidence).values({
-      decisionId: decisionRow.id,
-      insightId: evidenceRow.insightId ?? null,
-      factId: evidenceRow.factId ?? null,
-    })
+  const decisionValues = {
+    productId,
+    recordId,
+    title: fields.title as string,
+    date: fields.date as string,
+    owner: fields.owner as string,
+    status: fields.status as schema.DecisionStatus,
+    goalId: goalRow.id,
+    supersededById,
+    body,
   }
+
+  // The Decision and its evidence links go in as one statement, so a
+  // network failure between the two never leaves the Decision without
+  // its evidence. The Neon HTTP driver has no transaction of its own.
+  if (evidenceRows.length === 0) {
+    await db.insert(schema.decisions).values(decisionValues)
+    return
+  }
+
+  const addedDecision = db
+    .$with('added_decision')
+    .as(
+      db
+        .insert(schema.decisions)
+        .values(decisionValues)
+        .returning({ id: schema.decisions.id }),
+    )
+
+  await db
+    .with(addedDecision)
+    .insert(schema.decisionEvidence)
+    .values(
+      evidenceRows.map((evidenceRow) => ({
+        decisionId: sql<number>`(select id from ${addedDecision})`,
+        insightId: evidenceRow.insightId ?? null,
+        factId: evidenceRow.factId ?? null,
+      })),
+    )
 }
 
 function todayUtc() {
@@ -402,6 +419,14 @@ export async function setDecisionStatus(
   }
   if (status === 'superseded' && !supersededByRecordId) {
     throw new InvalidRecordError('a superseded Decision needs "superseded_by"')
+  }
+  if (status !== 'superseded' && supersededByRecordId) {
+    throw new InvalidRecordError(
+      '"superseded_by" only applies to a superseded Decision',
+    )
+  }
+  if (supersededByRecordId === id) {
+    throw new InvalidRecordError('a Decision cannot supersede itself')
   }
 
   const productId = await findProductId(db, productSlug)

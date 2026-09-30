@@ -17,12 +17,17 @@ export const Route = createFileRoute('/_signed-in/concept/$recordId')({
     if (!record) throw notFound()
     return record
   },
-  head: ({ loaderData }) => ({
+  head: ({ loaderData, match, params }) => ({
     meta: [
       {
-        title: loaderData
-          ? `${loaderData.id} ${loaderData.title} | Glue`
-          : 'Glue',
+        title:
+          match.status === 'notFound'
+            ? `No record ${params.recordId} | Glue`
+            : match.status === 'error'
+              ? 'Unable to load the record | Glue'
+              : loaderData
+                ? `${loaderData.id} ${loaderData.title} | Glue`
+                : 'Glue',
       },
     ],
   }),

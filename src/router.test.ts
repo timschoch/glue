@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import { createMemoryHistory, createRouter } from '@tanstack/react-router'
+import {
+  createMemoryHistory,
+  createRouter,
+  redirect,
+} from '@tanstack/react-router'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createRouterContext } from './router-context.ts'
@@ -101,6 +105,36 @@ describe('a Concept route with a session', () => {
     expect(location.pathname).toBe('/concept/R1')
     expect(routerContext.fetchRecord).toHaveBeenCalledWith('R1')
   })
+
+  function recordMatch(router: Awaited<ReturnType<typeof open>>) {
+    return router.state.matches.find(
+      (match) => match.routeId === '/_signed-in/concept/$recordId',
+    )
+  }
+
+  it('names the missing record in the tab title', async () => {
+    const routerContext = signedIn()
+    routerContext.fetchRecord = vi.fn(() => Promise.resolve(undefined))
+
+    const router = await open('/concept/D9', routerContext)
+
+    expect(recordMatch(router)?.meta).toContainEqual({
+      title: 'No record D9 | Glue',
+    })
+  })
+
+  it('names the record page in the tab title when it fails to load', async () => {
+    const routerContext = signedIn()
+    routerContext.fetchRecord = vi.fn(() =>
+      Promise.reject(new Error('offline')),
+    )
+
+    const router = await open('/concept/R1', routerContext)
+
+    expect(recordMatch(router)?.meta).toContainEqual({
+      title: 'Unable to load the record | Glue',
+    })
+  })
 })
 
 describe('the session of a signed-in person', () => {
@@ -152,6 +186,21 @@ describe('the session of a signed-in person', () => {
       ['/_signed-in', 'success'],
       ['/_signed-in/concept/$recordId', 'error'],
     ])
+  })
+
+  it('keeps the record as the target when the session expires mid-navigation', async () => {
+    const server = serverWithOneAnswer(offline, {
+      fetchRecord: vi.fn(() => Promise.reject(redirect({ to: '/sign-in' }))),
+    })
+    const router = await open('/', server)
+
+    await router.navigate({
+      to: '/concept/$recordId',
+      params: { recordId: 'R1' },
+    })
+
+    expect(router.state.location.pathname).toBe('/sign-in')
+    expect(router.state.location.search).toEqual({ redirect: '/concept/R1' })
   })
 
   it('comes with the page from the server, so the browser does not ask again', async () => {
