@@ -21,16 +21,17 @@ Use these terms in code, docs, issues and UI. A new term goes here first. Layout
 
 ## Cycle
 
-| Term              | Meaning                                                                                                                             |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Record id         | A Concept record's id: type letter plus number, for example `D12`. Never reused, also after a discard.                              |
-| Measure           | A Goal's funnel definition, and the run that reads it from the metric source and writes draft Insights.                             |
-| Metric source     | The outside tool a measure reads, today [mock analytics](mocks/analytics/README.md). Selected per Product by its analytics project. |
-| Analytics project | The key of a Product's events in the metric source, for example `phc_flexibeck`. Set on the Product, never on a Goal.               |
-| Draft             | An Insight that nobody has triaged yet. `measure` writes drafts.                                                                    |
-| Triage            | Deciding on a draft: keep it, discard it (only when no Decision cites it), or propose a Decision from it.                           |
-| Supersede         | Replace an accepted Decision with a new accepted one. The old one keeps its record id and points to its successor.                  |
-| Downstream issue  | The GitHub issue Glue opens in a Product's repository when a Decision becomes accepted. Names the Decision id.                      |
+| Term              | Meaning                                                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Record id         | A Concept record's id: type letter plus number, for example `D12`. Never reused, also after a discard.                                 |
+| Measure           | A Goal's query, a funnel or the mean of an event property, and the run that reads it from the metric source and writes draft Insights. |
+| Baseline          | The mean that the first run of a mean measure reads. The Goal's target is a change from it, for example +1 point.                      |
+| Metric source     | The outside tool a measure reads, today [mock analytics](mocks/analytics/README.md). Selected per Product by its analytics project.    |
+| Analytics project | The key of a Product's events in the metric source, for example `phc_flexibeck`. Set on the Product, never on a Goal.                  |
+| Draft             | An Insight that nobody has triaged yet. `measure` writes drafts.                                                                       |
+| Triage            | Deciding on a draft: keep it, discard it (only when no Decision cites it), or propose a Decision from it.                              |
+| Supersede         | Replace an accepted Decision with a new accepted one. The old one keeps its record id and points to its successor.                     |
+| Downstream issue  | The GitHub issue Glue opens in a Product's repository when a Decision becomes accepted. Names the Decision id.                         |
 
 ## User simulator
 

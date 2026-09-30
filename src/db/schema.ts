@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm'
 import {
   check,
   date,
+  doublePrecision,
   integer,
   jsonb,
   pgTable,
@@ -54,6 +55,10 @@ export const tokens = pgTable('tokens', {
     .defaultNow(),
 })
 
+// A person or an agent with a token closes a Goal. Glue never does.
+export const goalStatuses = ['open', 'achieved'] as const
+export type GoalStatus = (typeof goalStatuses)[number]
+
 export const goals = pgTable(
   'goals',
   {
@@ -66,9 +71,18 @@ export const goals = pgTable(
     metric: text('metric').notNull(),
     source: text('source').notNull(),
     measure: jsonb('measure').$type<GoalMeasure>(),
+    status: text('status').notNull().default('open').$type<GoalStatus>(),
+    // A mean measure: the value of the first measure run, and the value of
+    // the last run with its time.
+    baseline: doublePrecision('baseline'),
+    latestValue: doublePrecision('latest_value'),
+    measuredAt: timestamp('measured_at', { withTimezone: true }),
     body: text('body').notNull().default(''),
   },
-  (table) => [unique().on(table.productId, table.recordId)],
+  (table) => [
+    unique().on(table.productId, table.recordId),
+    check('goals_status_check', sql`${table.status} in ('open', 'achieved')`),
+  ],
 )
 
 export const insightStatuses = ['draft'] as const

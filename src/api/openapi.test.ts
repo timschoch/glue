@@ -80,6 +80,25 @@ describe('GET /api/v1/openapi.json', () => {
     ).toEqual(changed)
   })
 
+  it('describes the Goal status, its progress and the two measure kinds', async () => {
+    const document = await handleGetOpenApi().json()
+    const { schemas } = document.components
+
+    expect(schemas.Goal.properties.status).toMatchObject({
+      enum: ['open', 'achieved'],
+    })
+    expect(Object.keys(schemas.Goal.properties)).toEqual(
+      expect.arrayContaining(['baseline', 'latestValue', 'measuredAt']),
+    )
+    expect(schemas.GoalUpdate.properties.status).toMatchObject({
+      enum: ['open', 'achieved'],
+    })
+    expect(schemas.GoalMeasure.oneOf).toEqual([
+      { $ref: '#/components/schemas/FunnelMeasure' },
+      { $ref: '#/components/schemas/MeanMeasure' },
+    ])
+  })
+
   it('describes the Decision that a new Decision supersedes', async () => {
     const document = await handleGetOpenApi().json()
 

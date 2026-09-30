@@ -10,10 +10,11 @@ import { CONCEPT_FIELDS } from '../db/concept-fields.ts'
 import {
   addConceptRecord,
   addDecision,
+  goalChangeSchema,
   InvalidRecordError,
   ProductNotFoundError,
-  setGoalMeasure,
   updateDecision,
+  updateGoal,
 } from '../db/concept-records.ts'
 import type { DecisionChange } from '../db/concept-records.ts'
 import { proposalSchema } from '../db/decision-proposal.ts'
@@ -50,13 +51,11 @@ export const goalInputSchema = z
   })
   .meta({ id: 'GoalInput' })
 
-export const goalUpdateSchema = z
-  .object({
-    measure: goalMeasureSchema
-      .nullable()
-      .meta({ description: 'null stops measuring the Goal' }),
-  })
-  .meta({ id: 'GoalUpdate' })
+export const goalUpdateSchema = goalChangeSchema.meta({
+  id: 'GoalUpdate',
+  description:
+    'A measure, a status or both. A person or an agent closes a Goal with status achieved',
+})
 
 export const insightInputSchema = z
   .object({
@@ -331,8 +330,8 @@ export function handleUpdateRecord(input: ChangeRequest) {
     const record = await findFolderRecord(input)
     const json = await parseJson(request)
     if (params.folder === 'goals') {
-      const { measure } = goalUpdateSchema.parse(json)
-      await setGoalMeasure(db, params.product, record.id, measure)
+      const change = goalUpdateSchema.parse(json)
+      await updateGoal(db, params.product, record.id, change)
       return Response.json(await findRecord(db, params.product, record.id))
     }
     const update = decisionUpdateSchema.parse(json)
