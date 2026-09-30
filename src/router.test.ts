@@ -62,6 +62,7 @@ function context(overrides: Partial<Server> = {}): Server {
     acceptDecision: vi.fn(() =>
       Promise.resolve({ id: 'D1', issueMissing: false }),
     ),
+    updateGoal: vi.fn(() => Promise.resolve(undefined)),
     proposeDecision: vi.fn(() =>
       Promise.resolve({ id: 'D1', issueMissing: false }),
     ),

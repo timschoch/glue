@@ -148,7 +148,13 @@ describe('GET /concept', () => {
     expect(response.status).toBe(200)
     expect(response.body.product.slug).toBe('flexibeck')
     expect(response.body.goals).toEqual([
-      { id: 'G1', title: 'Ship faster', metric: 'lead time' },
+      {
+        id: 'G1',
+        title: 'Ship faster',
+        metric: 'lead time',
+        status: 'open',
+        latestValue: null,
+      },
     ])
     expect(response.body.facts).toEqual([
       { id: 'F1', title: 'p95 load time is 3s' },
