@@ -16,7 +16,13 @@ const greenPr = {
   headRefName: 'feat/why-view',
   files: ['src/lib/concept.ts'],
   comments: [],
-  lastCommitAt: '2026-09-29T10:00:00Z',
+  commits: [
+    {
+      committedDate: '2026-09-29T10:00:00Z',
+      isMerge: false,
+      files: ['src/routes/why.tsx'],
+    },
+  ],
   checks: [{ name: 'verify', bucket: 'pass' }],
 }
 const noPr = () => assert.fail('no PR lookup expected')
@@ -74,7 +80,7 @@ test('UI changes need a fresh interface-review Approve', () => {
   }
   assert.match(
     mergeProblem({ role: 'orchestrator', pr: stale }),
-    /without an interface-review verdict/,
+    /UI changed after the interface-review verdict/,
   )
   const blocked = {
     ...ui,
@@ -92,6 +98,57 @@ test('UI changes need a fresh interface-review Approve', () => {
     ],
   }
   assert.equal(mergeProblem({ role: 'orchestrator', pr: approved }), null)
+})
+
+test('an interface-review verdict holds until a UI file changes after it', () => {
+  const commit = (committedDate, files, isMerge = false) => ({
+    committedDate,
+    files,
+    isMerge,
+  })
+  const approvedAt10 = {
+    ...greenPr,
+    files: ['src/routes/why.tsx', 'src/db/concept.ts'],
+    comments: [
+      { body: 'interface-review: Approve', createdAt: '2026-09-29T10:30:00Z' },
+    ],
+  }
+  const later = (...commits) => ({
+    ...approvedAt10,
+    commits: [...approvedAt10.commits, ...commits],
+  })
+  assert.equal(
+    mergeProblem({
+      role: 'orchestrator',
+      pr: later(commit('2026-09-29T11:00:00Z', ['src/db/concept.ts'])),
+    }),
+    null,
+  )
+  assert.equal(
+    mergeProblem({
+      role: 'orchestrator',
+      pr: later(commit('2026-09-29T11:00:00Z', ['src/other.tsx'], true)),
+    }),
+    null,
+    'a merge of main brings reviewed UI code, not new PR code',
+  )
+  assert.match(
+    mergeProblem({
+      role: 'orchestrator',
+      pr: later(commit('2026-09-29T11:00:00Z', ['src/routes/why.tsx'])),
+    }),
+    /UI changed after the interface-review verdict/,
+  )
+  const blockedThenBackend = {
+    ...later(commit('2026-09-29T11:00:00Z', ['src/db/concept.ts'])),
+    comments: [
+      { body: 'interface-review: Block', createdAt: '2026-09-29T10:30:00Z' },
+    ],
+  }
+  assert.match(
+    mergeProblem({ role: 'orchestrator', pr: blockedThenBackend }),
+    /said Block/,
+  )
 })
 
 test('workers keep out of workflow files', () => {
