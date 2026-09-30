@@ -3,3 +3,5 @@ allowBuilds:
   esbuild: true
   lightningcss: true
   unrs-resolver: false
+packages:
+  - mocks/*
