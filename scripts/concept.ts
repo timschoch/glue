@@ -9,16 +9,16 @@ import {
   addDecision,
   listConceptRecords,
   setAnalyticsProject,
-  setGoalMeasure,
   setProductRepository,
   showConceptRecord,
   updateDecision,
+  updateGoal,
 } from '../src/db/concept-records.ts'
 import type { ConceptFields, ConceptFolder } from '../src/db/concept-records.ts'
 import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
 import type { GoalMeasure } from '../src/db/goal-measure.ts'
-import type { DecisionStatus } from '../src/db/schema.ts'
+import type { DecisionStatus, GoalStatus } from '../src/db/schema.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 import { createGithubClient } from '../src/github/client.ts'
 import type { GithubClient } from '../src/github/client.ts'
@@ -118,10 +118,16 @@ async function collectStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8').trim()
 }
 
+function formatFieldValue(value: unknown) {
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'object' && value !== null) return JSON.stringify(value)
+  return String(value)
+}
+
 function printRecord(record: Awaited<ReturnType<typeof showConceptRecord>>) {
   console.log(record.id)
   for (const [key, value] of Object.entries(record.fields)) {
-    console.log(`${key}: ${value}`)
+    console.log(`${key}: ${formatFieldValue(value)}`)
   }
   if (record.goal) console.log(`goal: ${record.goal.id} ${record.goal.title}`)
   for (const item of record.evidence ?? []) {
@@ -200,8 +206,10 @@ export async function runConcept(
       const flags = parseFlags(flagArgs)
       const product = (flags.product as string | undefined) ?? 'glue'
       if (id.startsWith('G')) {
-        if (!flags.measure) throw new Error('set G<n> needs --measure')
-        await setGoalMeasure(db, product, id, flags.measure as GoalMeasure)
+        await updateGoal(db, product, id, {
+          measure: flags.measure as GoalMeasure | undefined,
+          status: flags.status as GoalStatus | undefined,
+        })
         return
       }
       const { issue } = await updateDecision(

@@ -23,6 +23,18 @@ export const goalSchema = z
     metric: z.string(),
     source: z.string(),
     measure: goalMeasureSchema.nullable(),
+    status: z.enum(schema.goalStatuses).meta({
+      description: 'A person or an agent sets it. Glue never closes a Goal',
+    }),
+    baseline: z.number().nullable().meta({
+      description: 'A mean measure: the mean of the first measure run',
+    }),
+    latestValue: z.number().nullable().meta({
+      description: 'A mean measure: the mean of the last measure run',
+    }),
+    measuredAt: z.iso.datetime().nullable().meta({
+      description: 'The time of the last measure run that read a value',
+    }),
     body: z.string(),
     decisions: z.array(recordReferenceSchema),
   })
@@ -297,6 +309,10 @@ async function findGoal(
     metric: goal.metric,
     source: goal.source,
     measure: goal.measure,
+    status: goal.status,
+    baseline: goal.baseline,
+    latestValue: goal.latestValue,
+    measuredAt: goal.measuredAt?.toISOString() ?? null,
     body: goal.body,
     decisions: sortById(served),
   }

@@ -39,6 +39,10 @@ const goal: Goal = {
   metric: 'Share of tickets with a Decision',
   source: 'GitHub issues',
   measure: null,
+  status: 'open',
+  baseline: null,
+  latestValue: null,
+  measuredAt: null,
   body: 'Each ticket names its Decision.',
   decisions: [{ id: 'D5', title: 'The Concept lives in the database' }],
 }

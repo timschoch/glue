@@ -1,6 +1,6 @@
 # mock-analytics
 
-A Mock of PostHog (see [CONTEXT.md](../../CONTEXT.md)). Products send events with `posthog-js` or `posthog-node`, `api_host` pointed here. Glue reads funnels over HTTP. Decision D13.
+A Mock of PostHog (see [CONTEXT.md](../../CONTEXT.md)). Products send events with `posthog-js` or `posthog-node`, `api_host` pointed here. Glue reads funnels and means over HTTP. Decisions D13, D21.
 
 Must not import from Glue's `src/`, and `src/` must not import from it.
 
@@ -14,6 +14,7 @@ Capture, no auth, CORS open:
 Query, `Authorization: Bearer $MOCK_ANALYTICS_READ_KEY`:
 
 - `POST /api/funnel` with `{ project, steps, from, to, breakdown?, window_hours? }`. Returns `{ results: [{ breakdown, steps: [{ event, count, conversion_from_previous, conversion_from_first }] }] }`. A user counts once, at the deepest step reached in order within `window_hours` (default 336, PostHog's 14 days) of their first step. `breakdown` reads that first step's property.
+- `POST /api/mean` with `{ project, event, property, from, to, where?, breakdown? }`. Returns `{ results: [{ breakdown, count, mean }] }`, like HogQL `avg()`. `where` is `{ property, value }`: only events whose property equals the value. A number string counts as its number, any other value that is not a number is skipped. `count` is the number of values read, `mean` is `null` when it is 0. `breakdown` reads each event's property. Most values first.
 - `GET /api/events?project&event&from&to`: `{ days: [{ date, count }] }`, UTC days.
 
 ## Env

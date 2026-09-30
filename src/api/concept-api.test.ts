@@ -518,6 +518,7 @@ describe('paths that name no record', () => {
 
 describe('Goals', () => {
   const measure = {
+    kind: 'funnel',
     source: 'mock-analytics',
     steps: ['signed-up', 'paid'],
     target: 0.25,
@@ -592,6 +593,71 @@ describe('Goals', () => {
 
     expect(response.status).toBe(404)
   })
+
+  it('adds an open Goal with a mean measure and no baseline yet', async () => {
+    const meanMeasure = {
+      kind: 'mean',
+      source: 'mock-analytics',
+      event: 'survey sent',
+      property: '$survey_response',
+      where: { property: '$survey_id', value: 'seq' },
+      target_change: 1,
+      window_days: 7,
+    }
+
+    const added = await call(handleAddRecord, 'POST', params, {
+      title: 'Planning feels easy',
+      metric: 'SEQ mean',
+      source: 'okr',
+      measure: meanMeasure,
+    })
+
+    expect(added.status).toBe(201)
+    expect(added.body).toMatchObject({
+      measure: meanMeasure,
+      status: 'open',
+      baseline: null,
+      latestValue: null,
+      measuredAt: null,
+    })
+  })
+
+  it('closes a Goal as achieved and keeps its measure', async () => {
+    const recordParams = { ...params, recordId: 'G1' }
+    await call(handleUpdateRecord, 'PATCH', recordParams, { measure })
+
+    const closed = await call(handleUpdateRecord, 'PATCH', recordParams, {
+      status: 'achieved',
+    })
+    const read = await call(handleGetRecord, 'GET', recordParams)
+
+    expect(closed.status).toBe(200)
+    expect(closed.body).toMatchObject({ status: 'achieved', measure })
+    expect(read.body).toMatchObject({ status: 'achieved' })
+  })
+
+  it('answers 400 for a Goal status other than open or achieved', async () => {
+    const response = await call(
+      handleUpdateRecord,
+      'PATCH',
+      { ...params, recordId: 'G1' },
+      { status: 'done' },
+    )
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toContain('status')
+  })
+
+  it('answers 400 for a Goal update without a field', async () => {
+    const response = await call(
+      handleUpdateRecord,
+      'PATCH',
+      { ...params, recordId: 'G1' },
+      {},
+    )
+
+    expect(response.status).toBe(400)
+  })
 })
 
 describe('POST /measure', () => {
@@ -610,6 +676,7 @@ describe('POST /measure', () => {
         },
       ])
     },
+    fetchMean: () => Promise.resolve([]),
   }
 
   beforeEach(async () => {
@@ -621,6 +688,7 @@ describe('POST /measure', () => {
       { product: 'flexibeck', folder: 'goals', recordId: 'G1' },
       {
         measure: {
+          kind: 'funnel',
           source: 'mock-analytics',
           steps: ['signed-up', 'paid'],
           target: 0.25,

@@ -108,6 +108,44 @@ describe('runConcept', () => {
       'D2',
     )
   })
+
+  it('closes a Goal as achieved', async () => {
+    await run('set', 'G1', '--product', 'flexibeck', '--status', 'achieved')
+
+    const goal = await showConceptRecord(db, 'flexibeck', 'G1')
+    expect(goal.fields.status).toBe('achieved')
+  })
+
+  it('shows the measure of a Goal as JSON', async () => {
+    const measure = {
+      kind: 'mean',
+      source: 'mock-analytics',
+      event: 'survey sent',
+      property: '$survey_response',
+      target_change: 1,
+      window_days: 7,
+    }
+    await run(
+      'set',
+      'G1',
+      '--product',
+      'flexibeck',
+      '--measure',
+      JSON.stringify(measure),
+    )
+
+    await run('show', 'G1', '--product', 'flexibeck')
+
+    const lines: string[] = vi
+      .mocked(console.log)
+      .mock.calls.map(([line]) => line)
+    const measureLine = lines.find((line) => line.startsWith('measure: '))
+    expect(JSON.parse(measureLine?.slice('measure: '.length) ?? '')).toEqual(
+      measure,
+    )
+    expect(lines).toContain('status: open')
+    expect(lines).toContain('baseline: null')
+  })
 })
 
 describe('parseFlags', () => {
@@ -151,6 +189,7 @@ describe('parseFlags', () => {
 
   it('parses --measure as the JSON of a Goal measure', () => {
     const measure = {
+      kind: 'funnel',
       source: 'mock-analytics',
       steps: ['signed-up', 'paid'],
       target: 0.25,
@@ -169,7 +208,7 @@ describe('parseFlags', () => {
   })
 
   it('rejects a --measure without its steps', () => {
-    const measure = { source: 'mock-analytics', target: 0.25 }
+    const measure = { kind: 'funnel', source: 'mock-analytics', target: 0.25 }
 
     expect(() => parseFlags(['--measure', JSON.stringify(measure)])).toThrow(
       /steps/,

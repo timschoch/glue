@@ -26,6 +26,7 @@ const source: MetricSource = {
         })),
       },
     ]),
+  fetchMean: () => Promise.resolve([]),
 }
 
 beforeEach(async () => {
@@ -42,6 +43,7 @@ beforeEach(async () => {
         metric: 'signup to paid',
         source: 'okr',
         measure: {
+          kind: 'funnel',
           source: 'mock-analytics',
           steps: ['signed-up', 'paid'],
           target: 0.25,

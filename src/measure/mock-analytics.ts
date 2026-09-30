@@ -13,32 +13,52 @@ const funnelResponseSchema = z.object({
   ),
 })
 
+const meanResponseSchema = z.object({
+  results: z.array(
+    z.object({
+      breakdown: z.string().nullable(),
+      count: z.number(),
+      mean: z.number().nullable(),
+    }),
+  ),
+})
+
 export function createMockAnalyticsSource(options: {
   url: string
   readKey: string
   fetch?: typeof fetch
 }): MetricSource {
   const { url, readKey, fetch: send = fetch } = options
+
+  async function fetchQuery(
+    path: string,
+    { from, to, ...query }: { from: Date; to: Date },
+  ): Promise<unknown> {
+    const response = await send(new URL(path, url), {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${readKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...query,
+        from: from.toISOString(),
+        to: to.toISOString(),
+      }),
+    })
+    if (!response.ok) {
+      throw new Error(
+        `mock analytics answered ${response.status}: ${await response.text()}`,
+      )
+    }
+    return response.json()
+  }
+
   return {
-    fetchFunnel: async ({ from, to, ...query }) => {
-      const response = await send(new URL('/api/funnel', url), {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${readKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...query,
-          from: from.toISOString(),
-          to: to.toISOString(),
-        }),
-      })
-      if (!response.ok) {
-        throw new Error(
-          `mock analytics answered ${response.status}: ${await response.text()}`,
-        )
-      }
-      return funnelResponseSchema.parse(await response.json()).results
-    },
+    fetchFunnel: async (query) =>
+      funnelResponseSchema.parse(await fetchQuery('/api/funnel', query))
+        .results,
+    fetchMean: async (query) =>
+      meanResponseSchema.parse(await fetchQuery('/api/mean', query)).results,
   }
 }

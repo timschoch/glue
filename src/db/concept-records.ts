@@ -160,7 +160,7 @@ export async function listConceptRecords(
 export type ConceptShowResult = {
   id: string
   folder: ConceptFolder
-  fields: Record<string, string>
+  fields: Record<string, unknown>
   body: string
   goal?: { id: string; title: string }
   evidence?: { id: string; title: string }[]
@@ -194,7 +194,7 @@ export async function showConceptRecord(
     return {
       id: recordId as string,
       folder,
-      fields: fields as Record<string, string>,
+      fields,
       body: body as string,
     }
   }
@@ -615,18 +615,32 @@ export async function setAnalyticsProject(
   if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 
-// null removes the measure: Glue stops measuring the Goal.
-export async function setGoalMeasure(
+export const goalChangeSchema = z.object({
+  measure: goalMeasureSchema
+    .nullable()
+    .optional()
+    .meta({ description: 'null stops measuring the Goal' }),
+  status: z.enum(schema.goalStatuses).optional(),
+})
+
+export type GoalChange = z.infer<typeof goalChangeSchema>
+
+// Sets the fields the change names. A null measure: Glue stops measuring
+// the Goal.
+export async function updateGoal(
   db: ConceptDb,
   productSlug: string,
   id: string,
-  measure: GoalMeasure | null,
+  change: GoalChange,
 ): Promise<void> {
-  const validMeasure = goalMeasureSchema.nullable().parse(measure)
+  const { measure, status } = goalChangeSchema.parse(change)
+  if (measure === undefined && status === undefined) {
+    throw new InvalidRecordError('send a measure, a status or both')
+  }
   const productId = await findProductId(db, productSlug)
   const updated = await db
     .update(schema.goals)
-    .set({ measure: validMeasure })
+    .set({ measure, status })
     .where(
       and(eq(schema.goals.productId, productId), eq(schema.goals.recordId, id)),
     )

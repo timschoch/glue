@@ -218,6 +218,10 @@ describe('findRecord', () => {
       metric: 'lead time',
       source: 'https://example.com/g1',
       measure: null,
+      status: 'open',
+      baseline: null,
+      latestValue: null,
+      measuredAt: null,
       body: 'Why the goal exists.',
       decisions: [
         { id: 'D1', title: 'Cache the homepage' },

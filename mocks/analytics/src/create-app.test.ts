@@ -227,6 +227,140 @@ describe('funnel', () => {
   })
 })
 
+function queryMean(body: object) {
+  return app.request('/api/mean', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${readKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      project,
+      event: 'survey sent',
+      property: 'answer',
+      from: '2026-09-01T00:00:00Z',
+      to: '2026-09-10T00:00:00Z',
+      ...body,
+    }),
+  })
+}
+
+describe('mean', () => {
+  it('averages numbers and number strings, and skips other values', async () => {
+    await captureEvents([
+      {
+        event: 'survey sent',
+        user: 'ada',
+        at: '2026-09-01T10:00:00Z',
+        properties: { answer: 7 },
+      },
+      {
+        event: 'survey sent',
+        user: 'bob',
+        at: '2026-09-02T10:00:00Z',
+        properties: { answer: '4' },
+      },
+      {
+        event: 'survey sent',
+        user: 'cy',
+        at: '2026-09-02T11:00:00Z',
+        properties: { answer: 'great' },
+      },
+      { event: 'survey sent', user: 'dee', at: '2026-09-02T12:00:00Z' },
+      {
+        event: 'survey sent',
+        user: 'eve',
+        at: '2026-09-11T10:00:00Z',
+        properties: { answer: 1 },
+      },
+      {
+        event: 'survey shown',
+        user: 'fay',
+        at: '2026-09-02T10:00:00Z',
+        properties: { answer: 1 },
+      },
+    ])
+
+    const response = await queryMean({})
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      results: [{ breakdown: null, count: 2, mean: 5.5 }],
+    })
+  })
+
+  it('reads only the events whose property equals the filter value', async () => {
+    await captureEvents([
+      {
+        event: 'survey sent',
+        user: 'ada',
+        at: '2026-09-01T10:00:00Z',
+        properties: { answer: 7, survey: 'seq' },
+      },
+      {
+        event: 'survey sent',
+        user: 'bob',
+        at: '2026-09-01T10:00:00Z',
+        properties: { answer: 1, survey: 'nps' },
+      },
+    ])
+
+    const response = await queryMean({
+      where: { property: 'survey', value: 'seq' },
+    })
+
+    expect(await response.json()).toEqual({
+      results: [{ breakdown: null, count: 1, mean: 7 }],
+    })
+  })
+
+  it('splits the mean by the breakdown property, most answers first', async () => {
+    await captureEvents([
+      {
+        event: 'survey sent',
+        user: 'ada',
+        at: '2026-09-01T10:00:00Z',
+        properties: { answer: 7, plan: 'team' },
+      },
+      {
+        event: 'survey sent',
+        user: 'bob',
+        at: '2026-09-01T10:00:00Z',
+        properties: { answer: 2, plan: 'free' },
+      },
+      {
+        event: 'survey sent',
+        user: 'cy',
+        at: '2026-09-01T10:00:00Z',
+        properties: { answer: 5, plan: 'free' },
+      },
+    ])
+
+    const response = await queryMean({ breakdown: 'plan' })
+
+    expect(await response.json()).toEqual({
+      results: [
+        { breakdown: 'free', count: 2, mean: 3.5 },
+        { breakdown: 'team', count: 1, mean: 7 },
+      ],
+    })
+  })
+
+  it('answers a mean of null when no event has a number', async () => {
+    const response = await queryMean({})
+
+    expect(await response.json()).toEqual({
+      results: [{ breakdown: null, count: 0, mean: null }],
+    })
+  })
+
+  it('answers 400 without a property', async () => {
+    const response = await queryMean({ property: undefined })
+
+    expect(response.status).toBe(400)
+  })
+})
+
 describe('query API', () => {
   it('answers 401 without the read key', async () => {
     const funnel = await app.request('/api/funnel', {

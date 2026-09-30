@@ -43,6 +43,13 @@
       "when": 1790759645015,
       "tag": "0005_record_counters",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790781588333,
+      "tag": "0006_goal_mean_status",
+      "breakpoints": true
     }
   ]
 }

@@ -5,12 +5,18 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { findConcept, findRecord } from '../db/concept.ts'
 import { addConceptRecord, setAnalyticsProject } from '../db/concept-records.ts'
-import type { GoalMeasure } from '../db/goal-measure.ts'
+import type {
+  FunnelMeasure,
+  GoalMeasure,
+  MeanMeasure,
+} from '../db/goal-measure.ts'
 import * as schema from '../db/schema.ts'
 import { measureGoals } from './measure-goals.ts'
 import type {
   FunnelQuery,
   FunnelResult,
+  MeanQuery,
+  MeanResult,
   MetricSource,
 } from './metric-source.ts'
 
@@ -21,7 +27,8 @@ const NOW = new Date('2026-09-30T10:00:00Z')
 const LAST_WINDOW_END = new Date('2026-09-30T00:00:00Z')
 const STEPS = ['signed-up', 'activated', 'paid']
 
-const measure: GoalMeasure = {
+const measure: FunnelMeasure = {
+  kind: 'funnel',
   source: 'mock-analytics',
   steps: STEPS,
   target: 0.25,
@@ -78,8 +85,32 @@ function createFakeSource(windows: {
       const isLast = query.to.getTime() === LAST_WINDOW_END.getTime()
       return Promise.resolve(isLast ? windows.current : windows.previous)
     },
+    fetchMean: () => Promise.reject(new Error('a funnel Goal reads no mean')),
   }
   return { source, queries }
+}
+
+// Answers each mean query with the next of `answers`. Keeps every query.
+function createFakeMeanSource(...answers: MeanResult[][]) {
+  const queries: MeanQuery[] = []
+  const source: MetricSource = {
+    fetchFunnel: () => Promise.reject(new Error('a mean Goal reads no funnel')),
+    fetchMean: (query) => {
+      queries.push(query)
+      return Promise.resolve(answers[queries.length - 1] ?? [])
+    },
+  }
+  return { source, queries }
+}
+
+const meanMeasure: MeanMeasure = {
+  kind: 'mean',
+  source: 'mock-analytics',
+  event: 'survey sent',
+  property: '$survey_response',
+  where: { property: '$survey_id', value: 'seq' },
+  target_change: 1,
+  window_days: 7,
 }
 
 async function runMeasure(
@@ -355,5 +386,114 @@ describe('measureGoals', () => {
       '## Decisions accepted for G1\n\n- D1 Shorter onboarding',
     )
     expect(insight.body).not.toContain('Free trial')
+  })
+})
+
+describe('measureGoals with a mean measure', () => {
+  it('stores the first mean as the baseline and writes a draft Insight', async () => {
+    await addGoal(meanMeasure)
+    const { source, queries } = createFakeMeanSource([
+      { breakdown: null, count: 12, mean: 4 },
+    ])
+
+    const [written] = await runMeasure(source)
+
+    expect(queries).toEqual([
+      {
+        project: 'phc_demo',
+        event: 'survey sent',
+        property: '$survey_response',
+        where: { property: '$survey_id', value: 'seq' },
+        from: new Date('2026-09-23T00:00:00Z'),
+        to: new Date('2026-09-30T00:00:00Z'),
+      },
+    ])
+    expect(await findRecord(db, 'flexibeck', written.id ?? '')).toMatchObject({
+      title:
+        'G1 mean of $survey_response: 4 from 12 values, 0 from the baseline 4, target +1',
+      status: 'draft',
+      source:
+        'mock-analytics://phc_demo/mean?goal=G1&event=survey sent&property=$survey_response&where=$survey_id:seq&from=2026-09-23&to=2026-09-30',
+    })
+    expect(written.body).toContain(
+      '| Values | Mean | Change from the baseline |\n| --- | --- | --- |\n| 12 | 4 | 0 |',
+    )
+    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      status: 'open',
+      baseline: 4,
+      latestValue: 4,
+      measuredAt: NOW.toISOString(),
+    })
+  })
+
+  it('keeps the baseline of the first run and stores the latest mean', async () => {
+    await addGoal(meanMeasure)
+    const { source } = createFakeMeanSource(
+      [{ breakdown: null, count: 12, mean: 4 }],
+      [{ breakdown: null, count: 20, mean: 5.25 }],
+    )
+    const nextWeek = new Date('2026-10-07T10:00:00Z')
+
+    await runMeasure(source)
+    const { insights } = await measureGoals({ db, source, now: nextWeek })
+
+    expect(insights[0].title).toBe(
+      'G1 mean of $survey_response: 5.25 from 20 values, +1.25 from the baseline 4, target +1',
+    )
+    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      baseline: 4,
+      latestValue: 5.25,
+      measuredAt: nextWeek.toISOString(),
+    })
+  })
+
+  it('shows the mean and its change for each breakdown value', async () => {
+    await addGoal({ ...meanMeasure, breakdown: 'plan' })
+    const { source, queries } = createFakeMeanSource([
+      { breakdown: 'team', count: 8, mean: 5 },
+      { breakdown: 'free', count: 4, mean: 2 },
+    ])
+
+    const [insight] = await runMeasure(source)
+
+    expect(queries[0].breakdown).toBe('plan')
+    expect(insight.source).toContain('&breakdown=plan')
+    expect(insight.body).toContain(
+      [
+        '| plan | Values | Mean | Change from the baseline |',
+        '| --- | --- | --- | --- |',
+        '| all | 12 | 4 | 0 |',
+        '| team | 8 | 5 | +1 |',
+        '| free | 4 | 2 | -2 |',
+      ].join('\n'),
+    )
+  })
+
+  it('writes and stores nothing when no event holds a number', async () => {
+    await addGoal(meanMeasure)
+    const { source } = createFakeMeanSource([
+      { breakdown: null, count: 0, mean: null },
+    ])
+
+    expect(await runMeasure(source)).toEqual([])
+    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      baseline: null,
+      latestValue: null,
+    })
+  })
+
+  it('stores no baseline in a dry run', async () => {
+    await addGoal(meanMeasure)
+    const { source } = createFakeMeanSource([
+      { breakdown: null, count: 12, mean: 4 },
+    ])
+
+    const [insight] = await runMeasure(source, { dryRun: true })
+
+    expect(insight.id).toBeNull()
+    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      baseline: null,
+      latestValue: null,
+    })
   })
 })

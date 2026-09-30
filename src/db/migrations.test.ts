@@ -8,6 +8,7 @@ import { addConceptRecord } from './concept-records.ts'
 import * as schema from './schema.ts'
 
 const countersMigration = '0005_record_counters.sql'
+const goalStatusMigration = '0006_goal_mean_status.sql'
 
 let client: PGlite
 
@@ -15,14 +16,18 @@ async function runMigration(file: string) {
   await client.exec(await readFile(`./drizzle/${file}`, 'utf8'))
 }
 
-beforeEach(async () => {
-  client = new PGlite()
+// Runs the migrations that come before `migration`.
+async function runMigrationsBefore(migration: string) {
   const files = (await readdir('./drizzle')).filter((file) =>
     file.endsWith('.sql'),
   )
   for (const file of files.sort()) {
-    if (file < countersMigration) await runMigration(file)
+    if (file < migration) await runMigration(file)
   }
+}
+
+beforeEach(() => {
+  client = new PGlite()
 })
 
 afterEach(async () => {
@@ -30,6 +35,8 @@ afterEach(async () => {
 })
 
 describe('the migration that adds the record counters', () => {
+  beforeEach(() => runMigrationsBefore(countersMigration))
+
   it('starts each counter at the highest number of its Product and folder', async () => {
     await client.exec(`
       insert into products (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
@@ -67,5 +74,40 @@ describe('the migration that adds the record counters', () => {
       '',
     )
     expect(id).toBe('F3')
+  })
+})
+
+describe('the migration that adds the Goal status and the mean measure', () => {
+  beforeEach(() => runMigrationsBefore(goalStatusMigration))
+
+  it('marks each stored measure as a funnel, and each Goal as open', async () => {
+    await client.exec(`
+      insert into products (slug, name) values ('glue', 'Glue');
+      insert into goals (product_id, record_id, title, metric, source, measure) values
+        (1, 'G1', 'More users pay', 'signup to paid', 'okr',
+          '{"source":"mock-analytics","steps":["signed-up","paid"],"target":0.2,"window_days":7}'),
+        (1, 'G2', 'Ship faster', 'lead time', 'okr', null);
+    `)
+
+    await runMigration(goalStatusMigration)
+
+    const goals = await client.query(
+      'select record_id, status, baseline, measure from goals order by record_id',
+    )
+    expect(goals.rows).toEqual([
+      {
+        record_id: 'G1',
+        status: 'open',
+        baseline: null,
+        measure: {
+          kind: 'funnel',
+          source: 'mock-analytics',
+          steps: ['signed-up', 'paid'],
+          target: 0.2,
+          window_days: 7,
+        },
+      },
+      { record_id: 'G2', status: 'open', baseline: null, measure: null },
+    ])
   })
 })
