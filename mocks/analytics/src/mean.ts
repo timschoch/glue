@@ -29,7 +29,8 @@ function parseNumber(value: unknown): number | null {
 }
 
 export function toText(value: unknown): string | null {
-  return value === undefined || value === null ? null : String(value)
+  if (value === undefined || value === null) return null
+  return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
 // Compares as text, so the filter value 5 matches the property "5".
