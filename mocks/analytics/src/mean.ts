@@ -28,8 +28,16 @@ function parseNumber(value: unknown): number | null {
   return Number.isFinite(number) ? number : null
 }
 
-function toText(value: unknown): string | null {
+export function toText(value: unknown): string | null {
   return value === undefined || value === null ? null : String(value)
+}
+
+// Compares as text, so the filter value 5 matches the property "5".
+export function isFilterMatch(
+  properties: Record<string, unknown>,
+  filter: PropertyFilter,
+): boolean {
+  return toText(properties[filter.property]) === String(filter.value)
 }
 
 // The mean of the property per breakdown value, most answers first. Without
@@ -43,10 +51,7 @@ export function toMeanResults(
   if (!breakdown) sums.set(null, { count: 0, sum: 0 })
 
   for (const { properties } of events) {
-    // Compares as text, so the filter value 5 matches the property "5".
-    if (where && toText(properties[where.property]) !== String(where.value)) {
-      continue
-    }
+    if (where && !isFilterMatch(properties, where)) continue
     const number = parseNumber(properties[property])
     if (number === null) continue
     const key = breakdown ? toText(properties[breakdown]) : null

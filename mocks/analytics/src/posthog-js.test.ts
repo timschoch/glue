@@ -50,18 +50,18 @@ afterEach(async () => {
   await client.close()
 })
 
-it('stores what the browser posthog-js sends, and a funnel reads it back', async () => {
+it('stores what the browser posthog-js sends, and a funnel counts one person across identify', async () => {
   // posthog-js keeps the fetch it finds at import time.
   const { default: posthog } = await import('posthog-js')
   posthog.init(project, {
     api_host: 'http://mock.test',
     persistence: 'memory',
-    bootstrap: { distinctID: 'ada' },
     autocapture: false,
     capture_pageview: false,
     disable_session_recording: true,
   })
   posthog.capture('signed_up')
+  posthog.identify('ada')
   posthog.capture('created_concept')
 
   await vi.waitFor(
