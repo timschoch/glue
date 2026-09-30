@@ -2,7 +2,15 @@
 // See vercel.json for the schedule.
 import { createHash, timingSafeEqual } from 'node:crypto'
 
-import type { measureGoals } from '../measure/measure-goals.ts'
+import type { CommentMeasureResult } from '../measure/measure-comments.ts'
+import type { MeasuredInsight, SkippedGoal } from '../measure/measure-goals.ts'
+
+// What the daily measure run wrote, and what it skipped.
+export type MeasureResult = {
+  insights: MeasuredInsight[]
+  skipped: SkippedGoal[]
+  comments: CommentMeasureResult
+}
 
 function hashText(value: string) {
   return createHash('sha256').update(value).digest()
@@ -19,12 +27,13 @@ function isCronRequest(request: Request, cronSecret: string | undefined) {
   )
 }
 
-// The daily measure run over the Goals of every Product. `measure` runs only
-// after the secret matched, so an unauthorized call reads no other setting.
+// The daily measure run over the Goals and comments of every Product.
+// `measure` runs only after the secret matched, so an unauthorized call reads
+// no other setting.
 export async function handleMeasureCron(input: {
   request: Request
   cronSecret: string | undefined
-  measure: () => ReturnType<typeof measureGoals>
+  measure: () => Promise<MeasureResult>
 }) {
   const { request, cronSecret, measure } = input
   if (!isCronRequest(request, cronSecret)) {

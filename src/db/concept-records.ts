@@ -293,7 +293,7 @@ function validateFields(folder: ConceptFolder, fields: ConceptFields) {
   }
 }
 
-const addedDecisionSchema = z.object({
+const addedRecordSchema = z.object({
   rows: z.array(z.object({ record_id: z.string() })),
 })
 
@@ -463,7 +463,7 @@ async function addDecisionRows(
     select record_id from added_decision
   `)
 
-  const { rows } = addedDecisionSchema.parse(result)
+  const { rows } = addedRecordSchema.parse(result)
   if (rows.length === 0)
     throw new InvalidRecordError(`"${fields.supersedes}" is superseded already`)
   return rows[0].record_id
@@ -612,6 +612,80 @@ export async function setAnalyticsProject(
     .set({ analyticsProject })
     .where(eq(schema.products.slug, productSlug))
     .returning({ id: schema.products.id })
+  if (updated.length === 0) throw new ProductNotFoundError(productSlug)
+}
+
+// Moves the Product's comment read position from `read.from` to
+// `read.until` and adds the draft Insight about those comments, as one
+// statement: the Neon HTTP driver has no transaction, and a network failure
+// must not move the position without the Insight. null when an overlapping
+// run moved the position first: then nothing is added.
+export async function addCommentInsight(
+  db: ConceptDb,
+  productId: number,
+  read: { from: Date | null; until: Date },
+  fields: { title: string; source: string; date: string },
+  body: string,
+): Promise<string | null> {
+  const status: schema.InsightStatus = 'draft'
+  validateFields('insights', { ...fields, status })
+  const result = await db.execute(sql`
+    with moved as (
+      update "products"
+      set "comments_read_until" = ${read.until.toISOString()}::timestamptz
+      where "id" = ${productId}::integer
+        and "comments_read_until" is not distinct from
+          ${read.from?.toISOString() ?? null}::timestamptz
+      returning "id"
+    ),
+    counter as (
+      insert into "record_counters" ("product_id", "folder", "last_number")
+      select
+        ${productId}::integer,
+        'insights',
+        ${numberAfterHighestId(productId, 'insights')}
+      from moved
+      on conflict ("product_id", "folder")
+      do update set "last_number" = ${NEXT_COUNTER_NUMBER}
+      returning "last_number"
+    ),
+    added_insight as (
+      insert into "insights" (
+        "product_id", "record_id", "title", "date", "source", "status", "body"
+      )
+      select
+        ${productId}::integer,
+        ${CONCEPT_FIELDS.insights.prefix}::text || "last_number",
+        ${fields.title}::text,
+        ${fields.date}::date,
+        ${fields.source}::text,
+        ${status}::text,
+        ${body}::text
+      from counter
+      returning record_id
+    )
+    select record_id from added_insight
+  `)
+  const { rows } = addedRecordSchema.parse(result)
+  return rows[0]?.record_id ?? null
+}
+
+// null removes it: Glue stops reading the Product's comments. A new handle is
+// read from its first comment; the same handle keeps its read position.
+export async function setSocialHandle(
+  db: ConceptDb,
+  productSlug: string,
+  socialHandle: string | null,
+): Promise<void> {
+  const { products } = schema
+  const updated = await db
+    .update(products)
+    .set({
+      socialHandle,
+      commentsReadUntil: sql`case when ${products.socialHandle} is not distinct from ${socialHandle}::text then ${products.commentsReadUntil} end`,
+    })
+    .where(eq(products.slug, productSlug))
+    .returning({ id: products.id })
   if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 
