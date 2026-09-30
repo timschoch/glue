@@ -23,12 +23,13 @@ jobs:
           release-type: node
       # The release PR only bumps the version and CHANGELOG.md of a main that
       # already passed the gate, so it skips the gate: pass the required checks.
-      - if: steps.release.outputs.prs_created == 'true'
-        env:
+      # Found by label: the `pr` output stays empty when the PR was only updated.
+      - env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ fromJSON(steps.release.outputs.pr).number }}
         run: |
-          sha=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
+          sha=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --label 'autorelease: pending' \
+            --json headRefOid --jq '.[0].headRefOid // empty')
+          [ -n "$sha" ] || exit 0
           for context in 'verify' 'skilly / gate'; do
             gh api "repos/$GITHUB_REPOSITORY/statuses/$sha" -f state=success \
               -f context="$context" -f description='Release PR: gate already ran on main'
