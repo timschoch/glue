@@ -37,6 +37,8 @@ export const flexibeck: Journey = {
     {
       intent: 'set availability',
       actions: [
+        // A guess until flexibeck's screens exist. Availability is likely a
+        // multi-pick (checkboxes), and `choose` picks one per group.
         { kind: 'choose' },
         { kind: 'click', role: 'button', name: /save|continue|next/i },
       ],

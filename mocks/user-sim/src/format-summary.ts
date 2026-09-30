@@ -1,7 +1,8 @@
-import type { Summary } from './simulate.ts'
+import type { Summary } from './summary.ts'
 
 const REACHED = 'reached'
 const MISSING = 'not found'
+const ERRORS = 'error'
 const GAP = 2
 
 export function formatSummary(summary: Summary): string {
@@ -9,15 +10,23 @@ export function formatSummary(summary: Summary): string {
     'finished'.length,
     ...summary.steps.map((step) => step.intent.length),
   )
-  const row = (label: string, reached: string, missing: string) =>
+  const formatRow = (label: string, ...cells: Array<string>) =>
     label.padEnd(width) +
-    reached.padStart(REACHED.length + GAP) +
-    missing.padStart(MISSING.length + GAP)
+    [REACHED, MISSING, ERRORS]
+      .map((header, index) =>
+        (cells[index] ?? '').padStart(header.length + GAP),
+      )
+      .join('')
   return [
-    row('step', REACHED, MISSING),
+    formatRow('step', REACHED, MISSING, ERRORS),
     ...summary.steps.map((step) =>
-      row(step.intent, String(step.reached), String(step.missing)),
+      formatRow(
+        step.intent,
+        String(step.reached),
+        String(step.missing),
+        String(step.errors),
+      ),
     ),
-    `${row('finished', String(summary.finished), '').trimEnd()} of ${summary.users}`,
+    `${formatRow('finished', String(summary.finished)).trimEnd()} of ${summary.users}`,
   ].join('\n')
 }

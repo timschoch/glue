@@ -6,16 +6,16 @@ describe('formatSummary', () => {
     const text = formatSummary({
       users: 10,
       steps: [
-        { intent: 'sign up', reached: 10, missing: 0 },
-        { intent: 'import a recipe', reached: 7, missing: 1 },
+        { intent: 'sign up', reached: 10, missing: 0, errors: 0 },
+        { intent: 'import a recipe', reached: 7, missing: 1, errors: 2 },
       ],
       finished: 5,
     })
     expect(text).toBe(
       [
-        'step             reached  not found',
-        'sign up               10          0',
-        'import a recipe        7          1',
+        'step             reached  not found  error',
+        'sign up               10          0      0',
+        'import a recipe        7          1      2',
         'finished               5 of 10',
       ].join('\n'),
     )

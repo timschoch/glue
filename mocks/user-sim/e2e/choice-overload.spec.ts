@@ -6,9 +6,12 @@ import type { Journey } from '../src/journey.ts'
 
 const USERS = 100
 const SEED = 1
+const CONCURRENCY = 8
+/** Three runs of 100 bots each. */
+const TIMEOUT_MS = 120_000
 
 /** Step 1 shows `choices` plan modes, step 2 a plan to accept. */
-function renderPage(url: URL): string {
+function formatPage(url: URL): string {
   if (url.pathname === '/plan') {
     return '<h1>Your plan</h1><button>Accept plan</button>'
   }
@@ -42,11 +45,11 @@ const journey: Journey = {
   ],
 }
 
-test('a step with 12 choices loses more bots than one with 3 @smoke', async () => {
-  test.setTimeout(120_000)
+test('a step with 12 choices loses more bots than one with 3', async () => {
+  test.setTimeout(TIMEOUT_MS)
   const server = createServer((request, response) => {
     response.setHeader('content-type', 'text/html')
-    response.end(renderPage(new URL(request.url ?? '/', 'http://fixture')))
+    response.end(formatPage(new URL(request.url ?? '/', 'http://fixture')))
   })
   await new Promise<void>((resolve) => server.listen(0, resolve))
   const origin = `http://localhost:${(server.address() as AddressInfo).port}`
@@ -58,7 +61,7 @@ test('a step with 12 choices loses more bots than one with 3 @smoke', async () =
         journey,
         users: USERS,
         seed: SEED,
-        concurrency: 8,
+        concurrency: CONCURRENCY,
       })
     const few = await run(3)
     const many = await run(12)

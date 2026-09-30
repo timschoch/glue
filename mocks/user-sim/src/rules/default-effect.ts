@@ -19,7 +19,7 @@ export type ChoiceSet = {
 }
 
 /** Returns the index of the choice the bot picks. */
-export function pickChoice(set: ChoiceSet, bot: Bot, random: Random): number {
+export function getChoice(set: ChoiceSet, bot: Bot, random: Random): number {
   const stayChance = STAY_CHANCE * (1 - EXPERIENCE_RELIEF * bot.experience)
   const stay = random() < stayChance
   if (set.preselected !== null && stay) return set.preselected

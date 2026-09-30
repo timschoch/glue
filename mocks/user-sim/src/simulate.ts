@@ -1,12 +1,14 @@
 import { chromium } from 'playwright'
-import type { Browser, Page } from 'playwright'
+import type { Browser, Page, Request } from 'playwright'
 import { VIEWPORTS, createBot, createRandom, getTimezone } from './bot.ts'
 import type { Bot, Random } from './bot.ts'
 import type { Action, Journey, Step } from './journey.ts'
-import { listChoices, scanScreen } from './screen.ts'
+import { listChoiceGroups, parseScreen } from './screen.ts'
 import type { Screen } from './screen.ts'
+import { toSummary } from './summary.ts'
+import type { Outcome, Summary } from './summary.ts'
 import { choiceOverloadLeaveChance } from './rules/choice-overload.ts'
-import { pickChoice } from './rules/default-effect.ts'
+import { getChoice } from './rules/default-effect.ts'
 import { effortLeaveChance } from './rules/effort.ts'
 
 export type Options = {
@@ -18,32 +20,13 @@ export type Options = {
   concurrency?: number
 }
 
-export type StepCount = {
-  intent: string
-  /** Bots that found the step on the screen. */
-  reached: number
-  /** Bots that left because they did not find the step. */
-  missing: number
-}
-
-export type Summary = {
-  users: number
-  steps: Array<StepCount>
-  /** Bots that walked the whole journey. */
-  finished: number
-}
-
-type Outcome = {
-  /** Count of steps the bot found. */
-  reached: number
-  /** True when the bot left because the next step was not found. */
-  missing: boolean
-}
-
 type Identity = { email: string; password: string }
 
 const DEFAULT_CONCURRENCY = 4
 const STEP_TIMEOUT_MS = 10_000
+/** How long a closed page gets to finish its last requests. */
+const FLUSH_TIMEOUT_MS = 5_000
+const FLUSH_POLL_MS = 50
 const SEED_RANGE = 2 ** 32
 
 export async function simulate(options: Options): Promise<Summary> {
@@ -56,42 +39,40 @@ export async function simulate(options: Options): Promise<Summary> {
   const runId = Date.now().toString(36)
   const outcomes: Array<Outcome> = []
   const browser = await chromium.launch()
+  const concurrency = Math.min(
+    options.concurrency ?? DEFAULT_CONCURRENCY,
+    users,
+  )
   let next = 0
-  const work = async () => {
-    while (next < users) {
-      const index = next++
-      const identity = {
-        email: `bot-${seed}-${index}-${runId}@user-sim.test`,
-        password: `user-sim-${runId}-${index}`,
-      }
-      outcomes[index] = await walk(browser, options, botSeeds[index], identity)
-    }
-  }
   try {
-    const concurrency = Math.min(
-      options.concurrency ?? DEFAULT_CONCURRENCY,
-      users,
+    await Promise.all(
+      Array.from({ length: concurrency }, async () => {
+        while (next < users) {
+          const index = next++
+          const identity = {
+            email: `bot-${seed}-${index}-${runId}@user-sim.test`,
+            password: `user-sim-${runId}-${index}`,
+          }
+          outcomes[index] = await fetchOutcome(
+            browser,
+            options,
+            botSeeds[index],
+            identity,
+          )
+        }
+      }),
     )
-    await Promise.all(Array.from({ length: concurrency }, work))
   } finally {
     await browser.close()
   }
-  return {
-    users,
-    steps: journey.steps.map((step, index) => ({
-      intent: step.intent,
-      reached: outcomes.filter((outcome) => outcome.reached > index).length,
-      missing: outcomes.filter(
-        (outcome) => outcome.missing && outcome.reached === index,
-      ).length,
-    })),
-    finished: outcomes.filter(
-      (outcome) => outcome.reached === journey.steps.length && !outcome.missing,
-    ).length,
-  }
+  return toSummary(
+    journey.steps.map((step) => step.intent),
+    outcomes,
+  )
 }
 
-async function walk(
+/** Walks one bot through the journey in its own browser context. */
+async function fetchOutcome(
   browser: Browser,
   options: Options,
   botSeed: number,
@@ -105,46 +86,54 @@ async function walk(
     hasTouch: bot.device === 'mobile',
     timezoneId: getTimezone(bot.hour, new Date()),
   })
+  const pending = new Set<Request>()
+  context.on('request', (request) => pending.add(request))
+  context.on('requestfinished', (request) => pending.delete(request))
+  context.on('requestfailed', (request) => pending.delete(request))
   const page = await context.newPage()
   page.setDefaultTimeout(STEP_TIMEOUT_MS)
-  let reached = 0
+  let step = 0
   try {
     await page.goto(options.target)
-    for (const step of options.journey.steps) {
-      if (!(await isFound(page, step))) return { reached, missing: true }
-      reached++
-      const screen = await scanScreen(page)
-      if (random() < leaveChance(screen, bot))
-        return { reached, missing: false }
-      for (const action of step.actions) {
-        await act(page, action, { screen, bot, random, identity })
+    for (const [index, current] of options.journey.steps.entries()) {
+      step = index
+      if (!(await isFound(page, current))) return { end: 'missing', step }
+      const screen = await parseScreen(page)
+      if (random() < leaveChance(screen, bot)) return { end: 'left', step }
+      for (const action of current.actions) {
+        await handleAction(page, action, { bot, random, identity })
       }
       await page.waitForLoadState()
     }
-    return { reached, missing: false }
+    return { end: 'finished', step }
   } catch {
-    // An action the product did not accept: the bot cannot go on.
-    return { reached, missing: true }
+    return { end: 'error', step }
   } finally {
-    // Unload handlers let the product's posthog-js flush its queue, like a closed tab.
-    await page.close({ runBeforeUnload: true })
+    // Leave like a closed tab: pagehide lets the product's posthog-js send its
+    // queue. Then wait until those requests are done, or the time is up.
+    await page.goto('about:blank').catch(() => undefined)
+    const deadline = Date.now() + FLUSH_TIMEOUT_MS
+    while (pending.size > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, FLUSH_POLL_MS))
+    }
     await context.close()
   }
 }
 
-/** Two independent reasons to leave: 1 - (1 - a)(1 - b). */
+/** Independent reasons to leave: 1 - (1 - a)(1 - b)... per choice set and effort. */
 function leaveChance(screen: Screen, bot: Bot): number {
-  return (
-    1 -
-    (1 - choiceOverloadLeaveChance(screen.choices, bot)) *
-      (1 - effortLeaveChance(screen, bot))
+  const stay = screen.choiceSets.reduce(
+    (product, set) =>
+      product * (1 - choiceOverloadLeaveChance(set.choices, bot)),
+    1 - effortLeaveChance(screen, bot),
   )
+  return 1 - stay
 }
 
 async function isFound(page: Page, step: Step): Promise<boolean> {
   try {
     for (const action of step.actions) {
-      await target(page, action).first().waitFor()
+      await getLocator(page, action).first().waitFor()
     }
     return true
   } catch {
@@ -152,7 +141,7 @@ async function isFound(page: Page, step: Step): Promise<boolean> {
   }
 }
 
-function target(page: Page, action: Action) {
+function getLocator(page: Page, action: Action) {
   switch (action.kind) {
     case 'fill':
       return page.getByLabel(action.label)
@@ -162,32 +151,39 @@ function target(page: Page, action: Action) {
       return page
         .getByRole('radio')
         .or(page.getByRole('option'))
-        .or(page.getByRole('group').getByRole('button'))
+        .or(page.getByRole('button').and(page.locator('[aria-pressed]')))
   }
 }
 
-type Visit = { screen: Screen; bot: Bot; random: Random; identity: Identity }
+type Visit = { bot: Bot; random: Random; identity: Identity }
 
-async function act(page: Page, action: Action, visit: Visit): Promise<void> {
+async function handleAction(
+  page: Page,
+  action: Action,
+  visit: Visit,
+): Promise<void> {
   switch (action.kind) {
     case 'fill': {
       const value = action.value
         .replaceAll('{email}', visit.identity.email)
         .replaceAll('{password}', visit.identity.password)
-      await target(page, action).first().fill(value)
+      await getLocator(page, action).first().fill(value)
       return
     }
     case 'click':
-      await target(page, action).first().click()
+      await getLocator(page, action).first().click()
       return
     case 'choose': {
-      const choices = await listChoices(page)
-      const index = pickChoice(
-        { choices: choices.length, preselected: visit.screen.preselected },
-        visit.bot,
-        visit.random,
-      )
-      await choices[index].click()
+      const groups = await listChoiceGroups(page)
+      if (groups.length === 0) throw new Error('No choices on the screen')
+      for (const group of groups) {
+        const index = getChoice(
+          { choices: group.choices.length, preselected: group.preselected },
+          visit.bot,
+          visit.random,
+        )
+        await group.choices[index].click()
+      }
       return
     }
   }

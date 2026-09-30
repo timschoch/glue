@@ -7,6 +7,10 @@ import type { Bot } from '../bot.ts'
 //   one of the top reasons to abandon; each required field adds friction.
 // - Nielsen, J. (2011). Mobile content is twice as difficult. Nielsen Norman Group.
 //   Comprehension drops on small screens.
+//
+// Assumption: Nielsen 2008 and 2011 measure reading and understanding, not leaving.
+// That text length and required inputs raise the leave chance, and the sizes of the
+// constants below, are this model's own.
 
 export type Load = {
   /** Visible characters on the screen. */
