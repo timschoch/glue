@@ -80,13 +80,14 @@ describe('the migration that adds the record counters', () => {
 describe('the migration that adds the Goal status and the mean measure', () => {
   beforeEach(() => runMigrationsBefore(goalStatusMigration))
 
-  it('marks each stored measure as a funnel, and each Goal as open', async () => {
+  it('marks each stored measure object as a funnel, and each Goal as open', async () => {
     await client.exec(`
       insert into products (slug, name) values ('glue', 'Glue');
       insert into goals (product_id, record_id, title, metric, source, measure) values
         (1, 'G1', 'More users pay', 'signup to paid', 'okr',
           '{"source":"mock-analytics","steps":["signed-up","paid"],"target":0.2,"window_days":7}'),
-        (1, 'G2', 'Ship faster', 'lead time', 'okr', null);
+        (1, 'G2', 'Ship faster', 'lead time', 'okr', null),
+        (1, 'G3', 'Fewer errors', 'error rate', 'okr', '["errors"]');
     `)
 
     await runMigration(goalStatusMigration)
@@ -108,6 +109,12 @@ describe('the migration that adds the Goal status and the mean measure', () => {
         },
       },
       { record_id: 'G2', status: 'open', baseline: null, measure: null },
+      {
+        record_id: 'G3',
+        status: 'open',
+        baseline: null,
+        measure: ['errors'],
+      },
     ])
   })
 })

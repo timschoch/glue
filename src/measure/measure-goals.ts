@@ -237,7 +237,7 @@ async function formatAcceptedSection(
   ].join('\n\n')
 }
 
-// The Goals to measure, and the ones that cannot be measured with the reason.
+// The open Goals to measure, and the ones that cannot be measured with the reason.
 async function listMeasuredGoals(
   db: ConceptDb,
   productSlug: string | undefined,
@@ -257,6 +257,7 @@ async function listMeasuredGoals(
     .where(
       and(
         isNotNull(goals.measure),
+        eq(goals.status, 'open'),
         productSlug === undefined ? undefined : eq(products.slug, productSlug),
       ),
     )
@@ -379,12 +380,15 @@ async function measureMeanGoal(
   const { productId, analyticsProject, goalRecordId, measure } = measured
   const { event, property, where, breakdown } = measure
   const window = windowBefore(now, measure.window_days)
+  const encode = encodeURIComponent
   const reference = formatQueryReference(
     measured,
     [
-      `event=${event}`,
-      `property=${property}`,
-      ...(where ? [`where=${where.property}:${where.value}`] : []),
+      `event=${encode(event)}`,
+      `property=${encode(property)}`,
+      ...(where
+        ? [`where=${encode(where.property)}:${encode(String(where.value))}`]
+        : []),
     ],
     window,
   )
@@ -402,8 +406,11 @@ async function measureMeanGoal(
   if (mean === null) return null
 
   const baseline = measured.baseline ?? mean
-  const target = change.format(measure.target_change)
-  const title = `${goalRecordId} mean of ${property}: ${decimal.format(mean)} from ${count} values, ${change.format(mean - baseline)} from the baseline ${decimal.format(baseline)}, target ${target}`
+  const { target_change: targetChange } = measure
+  const target = change.format(targetChange)
+  const isReached =
+    (mean - baseline) * Math.sign(targetChange) >= Math.abs(targetChange)
+  const title = `${goalRecordId} mean of ${property}: ${decimal.format(mean)} from ${count} values, ${change.format(mean - baseline)} from the baseline ${decimal.format(baseline)}, target ${target} ${isReached ? 'reached' : 'not reached'}`
   const filter = where ? `, where ${where.property} is ${where.value}` : ''
   const body = [
     `Goal ${goalRecordId}, target ${target} from the baseline ${decimal.format(baseline)}: the mean of ${property} in ${event} events${filter}. Query: ${reference}`,

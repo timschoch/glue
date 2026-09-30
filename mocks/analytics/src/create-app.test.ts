@@ -359,6 +359,16 @@ describe('mean', () => {
 
     expect(response.status).toBe(400)
   })
+
+  it.each([
+    ['a string', 'survey=seq'],
+    ['no value', { property: 'survey' }],
+    ['an object value', { property: 'survey', value: { id: 'seq' } }],
+  ])('answers 400 for a where filter with %s', async (_case, where) => {
+    const response = await queryMean({ where })
+
+    expect(response.status).toBe(400)
+  })
 })
 
 describe('query API', () => {

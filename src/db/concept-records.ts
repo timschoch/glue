@@ -616,17 +616,18 @@ export async function setAnalyticsProject(
 }
 
 export const goalChangeSchema = z.object({
-  measure: goalMeasureSchema
-    .nullable()
-    .optional()
-    .meta({ description: 'null stops measuring the Goal' }),
+  measure: goalMeasureSchema.nullable().optional().meta({
+    description:
+      'null stops measuring the Goal. A new measure clears the baseline and the latest value',
+  }),
   status: z.enum(schema.goalStatuses).optional(),
 })
 
 export type GoalChange = z.infer<typeof goalChangeSchema>
 
 // Sets the fields the change names. A null measure: Glue stops measuring
-// the Goal.
+// the Goal. A new measure reads another metric, so it clears the baseline
+// and the latest value.
 export async function updateGoal(
   db: ConceptDb,
   productSlug: string,
@@ -640,7 +641,15 @@ export async function updateGoal(
   const productId = await findProductId(db, productSlug)
   const updated = await db
     .update(schema.goals)
-    .set({ measure, status })
+    .set({
+      status,
+      ...(measure !== undefined && {
+        measure,
+        baseline: null,
+        latestValue: null,
+        measuredAt: null,
+      }),
+    })
     .where(
       and(eq(schema.goals.productId, productId), eq(schema.goals.recordId, id)),
     )

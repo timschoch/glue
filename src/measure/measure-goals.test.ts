@@ -4,7 +4,11 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { findConcept, findRecord } from '../db/concept.ts'
-import { addConceptRecord, setAnalyticsProject } from '../db/concept-records.ts'
+import {
+  addConceptRecord,
+  setAnalyticsProject,
+  updateGoal,
+} from '../db/concept-records.ts'
 import type {
   FunnelMeasure,
   GoalMeasure,
@@ -410,10 +414,10 @@ describe('measureGoals with a mean measure', () => {
     ])
     expect(await findRecord(db, 'flexibeck', written.id ?? '')).toMatchObject({
       title:
-        'G1 mean of $survey_response: 4 from 12 values, 0 from the baseline 4, target +1',
+        'G1 mean of $survey_response: 4 from 12 values, 0 from the baseline 4, target +1 not reached',
       status: 'draft',
       source:
-        'mock-analytics://phc_demo/mean?goal=G1&event=survey sent&property=$survey_response&where=$survey_id:seq&from=2026-09-23&to=2026-09-30',
+        'mock-analytics://phc_demo/mean?goal=G1&event=survey%20sent&property=%24survey_response&where=%24survey_id:seq&from=2026-09-23&to=2026-09-30',
     })
     expect(written.body).toContain(
       '| Values | Mean | Change from the baseline |\n| --- | --- | --- |\n| 12 | 4 | 0 |',
@@ -438,13 +442,86 @@ describe('measureGoals with a mean measure', () => {
     const { insights } = await measureGoals({ db, source, now: nextWeek })
 
     expect(insights[0].title).toBe(
-      'G1 mean of $survey_response: 5.25 from 20 values, +1.25 from the baseline 4, target +1',
+      'G1 mean of $survey_response: 5.25 from 20 values, +1.25 from the baseline 4, target +1 reached',
     )
     expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
       baseline: 4,
       latestValue: 5.25,
       measuredAt: nextWeek.toISOString(),
     })
+  })
+
+  it('reaches a target below the baseline only when the mean goes down far enough', async () => {
+    await addGoal({ ...meanMeasure, target_change: -0.5 })
+    const { source } = createFakeMeanSource(
+      [{ breakdown: null, count: 12, mean: 4 }],
+      [{ breakdown: null, count: 12, mean: 5 }],
+      [{ breakdown: null, count: 12, mean: 3.5 }],
+    )
+
+    await runMeasure(source)
+    const [up] = (
+      await measureGoals({ db, source, now: new Date('2026-10-07T10:00:00Z') })
+    ).insights
+    const [down] = (
+      await measureGoals({ db, source, now: new Date('2026-10-14T10:00:00Z') })
+    ).insights
+
+    expect(up.title).toMatch(/target -0\.5 not reached$/)
+    expect(down.title).toMatch(/target -0\.5 reached$/)
+  })
+
+  it('starts a new baseline when the measure changes', async () => {
+    await addGoal(meanMeasure)
+    const { source } = createFakeMeanSource(
+      [{ breakdown: null, count: 12, mean: 4 }],
+      [{ breakdown: null, count: 9, mean: 2 }],
+    )
+    await runMeasure(source)
+
+    await updateGoal(db, 'flexibeck', 'G1', {
+      measure: { ...meanMeasure, property: 'rating' },
+    })
+    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      baseline: null,
+      latestValue: null,
+      measuredAt: null,
+    })
+    await measureGoals({ db, source, now: new Date('2026-10-07T10:00:00Z') })
+
+    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      baseline: 2,
+      latestValue: 2,
+    })
+  })
+
+  it('keeps the baseline when only the status changes', async () => {
+    await addGoal(meanMeasure)
+    await runMeasure(
+      createFakeMeanSource([{ breakdown: null, count: 12, mean: 4 }]).source,
+    )
+
+    await updateGoal(db, 'flexibeck', 'G1', { status: 'achieved' })
+
+    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      status: 'achieved',
+      baseline: 4,
+      latestValue: 4,
+    })
+  })
+
+  it('measures no achieved Goal', async () => {
+    await addGoal(meanMeasure)
+    await updateGoal(db, 'flexibeck', 'G1', { status: 'achieved' })
+    const { source, queries } = createFakeMeanSource([
+      { breakdown: null, count: 12, mean: 4 },
+    ])
+
+    expect(await measureGoals({ db, source, now: NOW })).toEqual({
+      insights: [],
+      skipped: [],
+    })
+    expect(queries).toEqual([])
   })
 
   it('shows the mean and its change for each breakdown value', async () => {

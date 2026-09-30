@@ -43,6 +43,7 @@ export function toMeanResults(
   if (!breakdown) sums.set(null, { count: 0, sum: 0 })
 
   for (const { properties } of events) {
+    // Compares as text, so the filter value 5 matches the property "5".
     if (where && toText(properties[where.property]) !== String(where.value)) {
       continue
     }
