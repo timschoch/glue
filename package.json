@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "1.63.0",
     "@tanstack/eslint-config": "latest",
     "@tanstack/router-cli": "^1.132.0",
     "@testing-library/react": "^16.3.3",
