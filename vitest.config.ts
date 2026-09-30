@@ -7,5 +7,7 @@ export default defineConfig({
       'scripts/**/*.test.ts',
       'mocks/*/src/**/*.test.ts',
     ],
+    // PGlite starts and migrates per file, which takes over 10 s when several Workers share the machine.
+    hookTimeout: 60_000,
   },
 })
