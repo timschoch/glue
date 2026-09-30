@@ -15,6 +15,9 @@ concurrency:
 
 jobs:
   verify:
+    # A release PR only bumps the version and CHANGELOG of a main that already
+    # passed. Skipped reports as passed, so the required check clears.
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
