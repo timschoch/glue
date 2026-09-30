@@ -55,16 +55,21 @@ const superseded: Decision = {
 type Submit = (proposal: DecisionProposal) => Promise<Failure | undefined>
 
 function renderForm({
-  submit = () => Promise.resolve(undefined),
+  onPropose = () => Promise.resolve(undefined),
   ...props
 }: {
-  submit?: Submit
+  onPropose?: Submit
   concept?: Concept
   evidence?: string
   superseded?: Decision
 } = {}) {
   return renderInRouter(
-    <DecisionForm concept={concept} owner="Ada" submit={submit} {...props} />,
+    <DecisionForm
+      concept={concept}
+      owner="Ada"
+      onPropose={onPropose}
+      {...props}
+    />,
   )
 }
 
@@ -91,7 +96,7 @@ async function fill() {
   )
   await userEvent.click(evidence().getByRole('checkbox', { name: /^I2/ }))
   await userEvent.click(evidence().getByRole('checkbox', { name: /^F1/ }))
-  await userEvent.type(field('Reason'), 'Files do not scale.')
+  await userEvent.type(field('Reason (optional)'), 'Files do not scale.')
 }
 
 describe('DecisionForm', () => {
@@ -139,15 +144,15 @@ describe('DecisionForm', () => {
   })
 
   it('sends the Decision as the person wrote it', async () => {
-    const submit = vi.fn<Submit>(() => Promise.resolve(undefined))
-    await renderForm({ submit })
+    const onPropose = vi.fn<Submit>(() => Promise.resolve(undefined))
+    await renderForm({ onPropose })
 
     await fill()
     await userEvent.click(
       screen.getByRole('button', { name: 'Propose the Decision' }),
     )
 
-    expect(submit).toHaveBeenCalledExactlyOnceWith({
+    expect(onPropose).toHaveBeenCalledExactlyOnceWith({
       title: 'The Concept lives in the database',
       goal: 'G1',
       evidence: ['I2', 'F1'],
@@ -158,8 +163,8 @@ describe('DecisionForm', () => {
   })
 
   it('says how to fix each field, and puts the focus in the first one', async () => {
-    const submit = vi.fn<Submit>(() => Promise.resolve(undefined))
-    await renderForm({ submit })
+    const onPropose = vi.fn<Submit>(() => Promise.resolve(undefined))
+    await renderForm({ onPropose })
 
     await userEvent.clear(field('Owner'))
     await userEvent.click(
@@ -175,7 +180,7 @@ describe('DecisionForm', () => {
       screen.getByText('Enter the name of the person who owns the Decision.'),
     ).toBeDefined()
     expect(document.activeElement).toBe(field('Title'))
-    expect(submit).not.toHaveBeenCalled()
+    expect(onPropose).not.toHaveBeenCalled()
   })
 
   it('puts the focus in the evidence when only the evidence is missing', async () => {
@@ -200,10 +205,10 @@ describe('DecisionForm', () => {
 
   it('says what it does during the request, and takes no second request', async () => {
     let finish = () => {}
-    const submit = vi.fn<Submit>(
+    const onPropose = vi.fn<Submit>(
       () => new Promise((resolve) => (finish = () => resolve(undefined))),
     )
-    await renderForm({ submit })
+    await renderForm({ onPropose })
 
     await fill()
     await userEvent.click(
@@ -221,12 +226,12 @@ describe('DecisionForm', () => {
     expect(
       await screen.findByRole('button', { name: 'Propose the Decision' }),
     ).toBeDefined()
-    expect(submit).toHaveBeenCalledOnce()
+    expect(onPropose).toHaveBeenCalledOnce()
   })
 
   it('says which rule the Decision breaks', async () => {
     await renderForm({
-      submit: () => Promise.resolve({ message: 'evidence "I2" not found' }),
+      onPropose: () => Promise.resolve({ message: 'evidence "I2" not found' }),
     })
 
     await fill()
@@ -240,7 +245,7 @@ describe('DecisionForm', () => {
   })
 
   it('says when the request did not reach the server', async () => {
-    await renderForm({ submit: () => Promise.reject(new Error('offline')) })
+    await renderForm({ onPropose: () => Promise.reject(new Error('offline')) })
 
     await fill()
     await userEvent.click(
@@ -272,7 +277,7 @@ describe('DecisionForm', () => {
         screen.getByRole<HTMLSelectElement>('combobox', { name: 'Goal' }).value,
       ).toBe('G2')
       expect(checked()).toEqual(['I1', 'F1'])
-      expect(field('Reason').value).toBe('Files are easy to read.')
+      expect(field('Reason (optional)').value).toBe('Files are easy to read.')
       expect(field('Owner').value).toBe('Ada')
     })
 
@@ -287,8 +292,8 @@ describe('DecisionForm', () => {
     })
 
     it('sends the Decision with the id of the old one', async () => {
-      const submit = vi.fn<Submit>(() => Promise.resolve(undefined))
-      await renderForm({ submit, superseded })
+      const onPropose = vi.fn<Submit>(() => Promise.resolve(undefined))
+      await renderForm({ onPropose, superseded })
 
       await userEvent.clear(field('Title'))
       await userEvent.type(field('Title'), 'The Concept lives in the database')
@@ -296,7 +301,7 @@ describe('DecisionForm', () => {
         screen.getByRole('button', { name: 'Supersede D4' }),
       )
 
-      expect(submit).toHaveBeenCalledExactlyOnceWith({
+      expect(onPropose).toHaveBeenCalledExactlyOnceWith({
         title: 'The Concept lives in the database',
         goal: 'G2',
         evidence: ['I1', 'F1'],

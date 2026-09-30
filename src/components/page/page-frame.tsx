@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 
 import type { User } from '../../authentication/session.ts'
 import type { Product } from '../../db/concept.ts'
+import { Announcer } from './announcer.tsx'
 import classes from './page-frame.module.css'
 
 type SignOut = 'idle' | 'pending' | 'failed'
@@ -100,7 +101,7 @@ export function PageFrame({
         </div>
       </header>
       <main id="content" tabIndex={-1} className={classes.content}>
-        {children}
+        <Announcer>{children}</Announcer>
       </main>
     </>
   )

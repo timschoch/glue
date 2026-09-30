@@ -3,7 +3,8 @@ import { isRedirect, redirect } from '@tanstack/react-router'
 import type { SignIn, SignUp } from './authentication/credentials.ts'
 import { parseRedirect } from './authentication/redirect.ts'
 import type { Failure, Session } from './authentication/session.ts'
-import type { ProposalInput, RecordInput } from './db/concept-actions.ts'
+import type { SavedDecision } from './db/concept-actions.ts'
+import type { ProposalInput, RecordInput } from './db/decision-proposal.ts'
 import type { Concept, LinkedRecord, Product } from './db/concept.ts'
 
 // What the routes need from the server. A test gives the router its own.
@@ -14,10 +15,8 @@ export type Server = {
   fetchRecord: (record: RecordInput) => Promise<LinkedRecord | undefined>
   keepInsight: (insight: RecordInput) => Promise<Failure | undefined>
   discardInsight: (insight: RecordInput) => Promise<Failure | undefined>
-  acceptDecision: (decision: RecordInput) => Promise<Failure | undefined>
-  proposeDecision: (
-    proposal: ProposalInput,
-  ) => Promise<{ id: string } | Failure>
+  acceptDecision: (decision: RecordInput) => Promise<SavedDecision | Failure>
+  proposeDecision: (proposal: ProposalInput) => Promise<SavedDecision | Failure>
   signIn: (credentials: SignIn) => Promise<Failure | undefined>
   signUp: (account: SignUp) => Promise<Failure | undefined>
   signOut: () => Promise<void>

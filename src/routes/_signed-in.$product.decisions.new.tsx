@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from '@tanstack/react-router'
+import { createFileRoute, notFound, redirect } from '@tanstack/react-router'
 
 import { DecisionForm } from '../components/decisions/decision-form.tsx'
 import {
@@ -36,6 +36,13 @@ export const Route = createFileRoute('/_signed-in/$product/decisions/new')({
     if (!concept) throw notFound()
     if (!supersedes) return { concept }
     if (superseded?.kind !== 'decision') throw notFound()
+    // One Decision supersedes a Decision. The record shows which one did.
+    if (superseded.status === 'superseded') {
+      throw redirect({
+        to: '/$product/concept/$recordId',
+        params: { product, recordId: superseded.id },
+      })
+    }
     return { concept, superseded }
   },
   head: ({ loaderData }) => ({
@@ -66,6 +73,7 @@ function NewDecision() {
     await navigate({
       to: '/$product/concept/$recordId',
       params: { product, recordId: added.id },
+      search: { issue: added.issueMissing ? 'missing' : undefined },
     })
   })
 
@@ -77,7 +85,7 @@ function NewDecision() {
       owner={session.user.name}
       evidence={evidence}
       superseded={superseded}
-      submit={(proposal) => propose({ product, ...proposal })}
+      onPropose={(proposal) => propose({ product, ...proposal })}
     />
   )
 }

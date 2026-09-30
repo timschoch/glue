@@ -1,5 +1,9 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, ne, sql } from 'drizzle-orm'
+import { z } from 'zod'
 
+import type { GithubClient } from '../github/client.ts'
+import { createDownstreamIssue } from '../github/downstream-issue.ts'
+import type { DownstreamIssue } from '../github/downstream-issue.ts'
 import { CONCEPT_FIELDS } from './concept-fields.ts'
 import type { ConceptDb } from './client.ts'
 import { sortById } from './concept.ts'
@@ -12,6 +16,13 @@ export type ConceptFolder = keyof typeof CONCEPT_FIELDS
 // A record breaks a rule: a missing field, or a link to a record that does
 // not exist. The HTTP API answers it with 400.
 export class InvalidRecordError extends Error {}
+
+// The Product of the request does not exist. The HTTP API answers it with 404.
+export class ProductNotFoundError extends InvalidRecordError {
+  constructor(productSlug: string) {
+    super(`product "${productSlug}" not found`)
+  }
+}
 
 export type ConceptFields = Record<
   string,
@@ -41,8 +52,7 @@ async function findProductId(db: ConceptDb, productSlug: string) {
     .select({ id: schema.products.id })
     .from(schema.products)
     .where(eq(schema.products.slug, productSlug))
-  if (products.length === 0)
-    throw new Error(`product "${productSlug}" not found`)
+  if (products.length === 0) throw new ProductNotFoundError(productSlug)
   return products[0].id
 }
 
@@ -75,26 +85,29 @@ export async function setProductRepository(
     .set({ repository })
     .where(eq(schema.products.slug, productSlug))
     .returning({ id: schema.products.id })
-  if (updated.length === 0)
-    throw new Error(`product "${productSlug}" not found`)
+  if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 
-async function nextRecordId(
-  db: ConceptDb,
-  productId: number,
-  folder: ConceptFolder,
-) {
-  const table = FOLDER_TABLES[folder]
-  const rows = await db
-    .select({ recordId: table.recordId })
-    .from(table)
-    .where(eq(table.productId, productId))
+// The next id of the folder, as a part of the statement that adds the
+// record. The counter only grows, so the id of a discarded record does not
+// come back, and two statements never read the same number.
+function nextRecordId(db: ConceptDb, productId: number, folder: ConceptFolder) {
+  const { recordCounters } = schema
+  const counter = db.$with('counter').as(
+    db
+      .insert(recordCounters)
+      .values({ productId, folder, lastNumber: 1 })
+      .onConflictDoUpdate({
+        target: [recordCounters.productId, recordCounters.folder],
+        set: { lastNumber: sql`${recordCounters.lastNumber} + 1` },
+      })
+      .returning({ lastNumber: recordCounters.lastNumber }),
+  )
   const prefix = CONCEPT_FIELDS[folder].prefix
-  const highest = rows.reduce((max, row) => {
-    const number = Number(row.recordId.slice(prefix.length))
-    return Number.isFinite(number) && number > max ? number : max
-  }, 0)
-  return `${prefix}${highest + 1}`
+  return {
+    counter,
+    recordId: sql<string>`${prefix}::text || (select last_number from ${counter})`,
+  }
 }
 
 export type ConceptListRow = { id: string; status: string; title: string }
@@ -261,13 +274,16 @@ function validateFields(folder: ConceptFolder, fields: ConceptFields) {
   }
 }
 
-async function addDecision(
+const addedDecisionSchema = z.object({
+  rows: z.array(z.object({ record_id: z.string() })),
+})
+
+async function addDecisionRows(
   db: ConceptDb,
   productId: number,
-  recordId: string,
   fields: ConceptFields,
   body: string,
-) {
+): Promise<string> {
   const goalRecordId = fields.goal as string
   const goalRows = await db
     .select({ id: schema.goals.id })
@@ -305,7 +321,7 @@ async function addDecision(
   if (fields.supersedes) {
     const supersededRecordId = fields.supersedes as string
     const rows = await db
-      .select({ id: schema.decisions.id, status: schema.decisions.status })
+      .select({ id: schema.decisions.id })
       .from(schema.decisions)
       .where(
         and(
@@ -315,10 +331,6 @@ async function addDecision(
       )
     if (rows.length === 0)
       throw new InvalidRecordError(`decision "${supersededRecordId}" not found`)
-    if (rows[0].status === 'superseded')
-      throw new InvalidRecordError(
-        `"${supersededRecordId}" is superseded already`,
-      )
     supersededRowId = rows[0].id
   }
 
@@ -356,63 +368,83 @@ async function addDecision(
     throw new InvalidRecordError(`evidence "${evidenceId}" not found`)
   }
 
-  const decisionValues = {
-    productId,
-    recordId,
-    title: fields.title as string,
-    date: fields.date as string,
-    owner: fields.owner as string,
-    status: fields.status as schema.DecisionStatus,
-    goalId: goalRow.id,
-    supersededById,
-    body,
-  }
-
   if (evidenceRows.length === 0)
     throw new InvalidRecordError('"evidence" is required')
 
-  // The Decision, its evidence links and the change of the Decision it
-  // supersedes go in as one statement, so a network failure never leaves
+  // The id, the Decision, its evidence links and the change of the Decision
+  // it supersedes go in as one statement, so a network failure never leaves
   // one without the others. The Neon HTTP driver has no transaction of
   // its own.
-  const addedDecision = db
-    .$with('added_decision')
-    .as(
-      db
-        .insert(schema.decisions)
-        .values(decisionValues)
-        .returning({ id: schema.decisions.id }),
+  //
+  // The statement locks the Decision that it supersedes and adds nothing
+  // when that Decision is superseded already. Thus the second of two
+  // requests that supersede the same Decision changes nothing.
+  const supersedes = supersededRowId !== undefined
+  const oldDecision = supersedes
+    ? sql`old_decision as (
+        select id from "decisions"
+        where id = ${supersededRowId} and status <> 'superseded'
+        for update
+      ),`
+    : sql``
+  const evidenceValues = sql.join(
+    evidenceRows.map(
+      ({ insightId = null, factId = null }) =>
+        sql`(${insightId}::integer, ${factId}::integer)`,
+    ),
+    sql`, `,
+  )
+  const result = await db.execute(sql`
+    with ${oldDecision}
+    counter as (
+      insert into "record_counters" ("product_id", "folder", "last_number")
+      select ${productId}::integer, 'decisions', 1
+      ${supersedes ? sql`from old_decision` : sql``}
+      on conflict ("product_id", "folder")
+      do update set "last_number" = "record_counters"."last_number" + 1
+      returning "last_number"
+    ),
+    added_decision as (
+      insert into "decisions" (
+        "product_id", "record_id", "title", "date", "owner", "status",
+        "goal_id", "superseded_by_id", "body"
+      )
+      select
+        ${productId}::integer,
+        ${CONCEPT_FIELDS.decisions.prefix}::text || "last_number",
+        ${fields.title as string}::text,
+        ${fields.date as string}::date,
+        ${fields.owner as string}::text,
+        ${fields.status as string}::text,
+        ${goalRow.id}::integer,
+        ${supersededById}::integer,
+        ${body}::text
+      from counter
+      returning id, record_id
+    ),
+    added_evidence as (
+      insert into "decision_evidence" ("decision_id", "insight_id", "fact_id")
+      select added_decision.id, evidence.insight_id, evidence.fact_id
+      from added_decision,
+        (values ${evidenceValues}) as evidence (insight_id, fact_id)
     )
+    ${
+      supersedes
+        ? sql`, superseded as (
+            update "decisions"
+            set status = 'superseded',
+              superseded_by_id = (select id from added_decision)
+            where id in (select id from old_decision)
+          )`
+        : sql``
+    }
+    select record_id from added_decision
+  `)
 
-  const addedDecisionId = sql<number>`(select id from ${addedDecision})`
-  const evidenceValues = evidenceRows.map((evidenceRow) => ({
-    decisionId: addedDecisionId,
-    insightId: evidenceRow.insightId ?? null,
-    factId: evidenceRow.factId ?? null,
-  }))
-
-  if (supersededRowId === undefined) {
-    await db
-      .with(addedDecision)
-      .insert(schema.decisionEvidence)
-      .values(evidenceValues)
-    return
-  }
-
-  const addedEvidence = db
-    .$with('added_evidence')
-    .as(
-      db
-        .insert(schema.decisionEvidence)
-        .values(evidenceValues)
-        .returning({ id: schema.decisionEvidence.id }),
-    )
-
-  await db
-    .with(addedDecision, addedEvidence)
-    .update(schema.decisions)
-    .set({ status: 'superseded', supersededById: addedDecisionId })
-    .where(eq(schema.decisions.id, supersededRowId))
+  const { rows } = addedDecisionSchema.parse(result)
+  if (rows.length === 0)
+    throw new InvalidRecordError(`"${fields.supersedes}" is superseded already`)
+  return rows[0].record_id
 }
 
 function todayUtc() {
@@ -439,58 +471,112 @@ export async function addConceptRecord(
     folder === 'decisions'
       ? await findProductId(db, productSlug)
       : await addProductId(db, productSlug)
-  const recordId = await nextRecordId(db, productId, folder)
+  if (folder === 'decisions')
+    return addDecisionRows(db, productId, fields, body)
 
-  switch (folder) {
-    case 'goals':
-      await db.insert(schema.goals).values({
-        productId,
-        recordId,
-        title: fields.title as string,
-        metric: fields.metric as string,
-        source: fields.source as string,
-        measure:
-          fields.measure === undefined
-            ? null
-            : goalMeasureSchema.parse(fields.measure),
-        body,
-      })
-      break
-    case 'insights':
-      await db.insert(schema.insights).values({
-        productId,
-        recordId,
-        title: fields.title as string,
-        date: fields.date as string,
-        source: fields.source as string,
-        status: (fields.status as schema.InsightStatus | undefined) ?? null,
-        body,
-      })
-      break
-    case 'facts':
-      await db.insert(schema.facts).values({
-        productId,
-        recordId,
-        title: fields.title as string,
-        source: fields.source as string,
-        body,
-      })
-      break
-    case 'guardrails':
-      await db.insert(schema.guardrails).values({
-        productId,
-        recordId,
-        title: fields.title as string,
-        enforcedBy: fields.enforced_by as string,
-        body,
-      })
-      break
-    case 'decisions':
-      await addDecision(db, productId, recordId, fields, body)
-      break
+  const { counter, recordId } = nextRecordId(db, productId, folder)
+  const addRecordRow = () => {
+    switch (folder) {
+      case 'goals':
+        return db
+          .with(counter)
+          .insert(schema.goals)
+          .values({
+            productId,
+            recordId,
+            title: fields.title as string,
+            metric: fields.metric as string,
+            source: fields.source as string,
+            measure:
+              fields.measure === undefined
+                ? null
+                : goalMeasureSchema.parse(fields.measure),
+            body,
+          })
+          .returning({ recordId: schema.goals.recordId })
+      case 'insights':
+        return db
+          .with(counter)
+          .insert(schema.insights)
+          .values({
+            productId,
+            recordId,
+            title: fields.title as string,
+            date: fields.date as string,
+            source: fields.source as string,
+            status: (fields.status as schema.InsightStatus | undefined) ?? null,
+            body,
+          })
+          .returning({ recordId: schema.insights.recordId })
+      case 'facts':
+        return db
+          .with(counter)
+          .insert(schema.facts)
+          .values({
+            productId,
+            recordId,
+            title: fields.title as string,
+            source: fields.source as string,
+            body,
+          })
+          .returning({ recordId: schema.facts.recordId })
+      case 'guardrails':
+        return db
+          .with(counter)
+          .insert(schema.guardrails)
+          .values({
+            productId,
+            recordId,
+            title: fields.title as string,
+            enforcedBy: fields.enforced_by as string,
+            body,
+          })
+          .returning({ recordId: schema.guardrails.recordId })
+    }
   }
+  const [added] = await addRecordRow()
+  return added.recordId
+}
 
-  return recordId
+// What a write of a Decision gives back: its id, and what became of its
+// downstream issue.
+export type DecisionChange = { id: string; issue: DownstreamIssue }
+
+// Every write that can leave a Decision accepted ends here, so the CLI, the
+// HTTP API and the app all open the downstream issue.
+async function openDownstream(
+  db: ConceptDb,
+  github: GithubClient,
+  productSlug: string,
+  id: string,
+): Promise<DecisionChange> {
+  return {
+    id,
+    issue: await createDownstreamIssue(db, github, productSlug, id),
+  }
+}
+
+export async function addDecision(
+  db: ConceptDb,
+  github: GithubClient,
+  productSlug: string,
+  fields: ConceptFields,
+  body: string,
+): Promise<DecisionChange> {
+  const id = await addConceptRecord(db, productSlug, 'decisions', fields, body)
+  return openDownstream(db, github, productSlug, id)
+}
+
+export async function updateDecision(
+  db: ConceptDb,
+  github: GithubClient,
+  productSlug: string,
+  id: string,
+  status: schema.DecisionStatus,
+  supersededByRecordId?: string,
+): Promise<DecisionChange> {
+  await setDecisionStatus(db, productSlug, id, status, supersededByRecordId)
+  return openDownstream(db, github, productSlug, id)
 }
 
 // null removes it: the Product's Goals are not measured.
@@ -504,8 +590,7 @@ export async function setAnalyticsProject(
     .set({ analyticsProject })
     .where(eq(schema.products.slug, productSlug))
     .returning({ id: schema.products.id })
-  if (updated.length === 0)
-    throw new Error(`product "${productSlug}" not found`)
+  if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 
 // null removes the measure: Glue stops measuring the Goal.
@@ -584,35 +669,55 @@ export async function setDecisionStatus(
     supersededById = rows[0].id
   }
 
-  await db
+  // A superseded Decision keeps the Decision that superseded it first.
+  const updated = await db
     .update(schema.decisions)
     .set({ status, supersededById })
-    .where(eq(schema.decisions.id, decisionRow.id))
+    .where(
+      and(
+        eq(schema.decisions.id, decisionRow.id),
+        status === 'superseded'
+          ? ne(schema.decisions.status, 'superseded')
+          : undefined,
+      ),
+    )
+    .returning({ id: schema.decisions.id })
+  if (updated.length === 0)
+    throw new InvalidRecordError(`"${id}" is superseded already`)
 }
 
 // Accepts a Decision that waits for it. Any other change of status goes
-// through setDecisionStatus directly.
+// through updateDecision. The update itself asks for the status
+// "proposed", so only one of two requests at the same time accepts.
 export async function acceptDecision(
   db: ConceptDb,
+  github: GithubClient,
   productSlug: string,
   id: string,
-): Promise<void> {
+): Promise<DecisionChange> {
   const productId = await findProductId(db, productSlug)
-  const rows = await db
-    .select({ status: schema.decisions.status })
-    .from(schema.decisions)
-    .where(
-      and(
-        eq(schema.decisions.productId, productId),
-        eq(schema.decisions.recordId, id),
-      ),
+  const isDecision = and(
+    eq(schema.decisions.productId, productId),
+    eq(schema.decisions.recordId, id),
+  )
+  const accepted = await db
+    .update(schema.decisions)
+    .set({ status: 'accepted' })
+    .where(and(isDecision, eq(schema.decisions.status, 'proposed')))
+    .returning({ id: schema.decisions.id })
+  if (accepted.length === 0) {
+    const rows = await db
+      .select({ id: schema.decisions.id })
+      .from(schema.decisions)
+      .where(isDecision)
+    throw new InvalidRecordError(
+      rows.length === 0
+        ? `decision "${id}" not found`
+        : `"${id}" is not proposed`,
     )
-  if (rows.length === 0)
-    throw new InvalidRecordError(`decision "${id}" not found`)
-  if (rows[0].status !== 'proposed')
-    throw new InvalidRecordError(`"${id}" is not proposed`)
+  }
 
-  await setDecisionStatus(db, productSlug, id, 'accepted')
+  return openDownstream(db, github, productSlug, id)
 }
 
 // The condition that matches one Insight only while it is a draft.
@@ -651,9 +756,9 @@ export async function keepInsight(
   await db.update(schema.insights).set({ status: null }).where(draft.matches)
 }
 
-// Triage of a draft Insight: it goes away. Only a draft can be deleted,
+// Triage of a draft Insight: it goes away. Only a draft can be discarded,
 // and only while no Decision cites it.
-export async function deleteDraftInsight(
+export async function discardInsight(
   db: ConceptDb,
   productSlug: string,
   id: string,

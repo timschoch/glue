@@ -461,16 +461,15 @@ describe('Decisions', () => {
     expect(response.status).toBe(404)
   })
 
-  it('answers 409 when two Decisions race for the same id', async () => {
+  it('gives two Decisions that come at the same time different ids', async () => {
     const params = { product: 'flexibeck', folder: 'decisions' }
     const responses = await Promise.all([
       call(handleAddRecord, 'POST', params, decision),
       call(handleAddRecord, 'POST', params, decision),
     ])
 
-    expect(responses.map((response) => response.status).sort()).toEqual([
-      201, 409,
-    ])
+    expect(responses.map((response) => response.status)).toEqual([201, 201])
+    expect(new Set(responses.map(({ body }) => body.id)).size).toBe(2)
   })
 })
 

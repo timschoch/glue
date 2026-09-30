@@ -7,15 +7,25 @@ import classes from '../records/record-actions.module.css'
 import { useRecordAction } from '../records/use-record-action.ts'
 import type { RecordAction } from '../records/use-record-action.ts'
 
+// The id of the Keep button of a draft. The page moves the focus to it
+// after the triage of the draft before it.
+export function keepButtonId(insightId: string) {
+  return `keep-${insightId}`
+}
+
 // What a person does with a draft Insight: keep it, discard it, or propose
 // a Decision from it. The id is in the name of each control, so a screen
 // reader tells the rows of a list apart.
+// A draft that a Decision cites stays: `citedBy` has the ids of those
+// Decisions, and the draft has no Discard.
 export function InsightTriage({
   insight,
+  citedBy,
   onKeep,
   onDiscard,
 }: {
   insight: RecordReference
+  citedBy: ReadonlyArray<string>
   onKeep: RecordAction
   onDiscard: RecordAction
 }) {
@@ -30,9 +40,10 @@ export function InsightTriage({
     setConfirming(false)
   }
 
+  // After a discard that worked, the draft is gone and the page moves the
+  // focus. The question closes only when the draft is still there.
   async function handleDiscard() {
-    await run('discard', onDiscard)
-    closeQuestion()
+    if (!(await run('discard', onDiscard))) closeQuestion()
   }
 
   return (
@@ -67,6 +78,7 @@ export function InsightTriage({
       ) : (
         <>
           <Button
+            id={keepButtonId(insight.id)}
             variant="default"
             size="xs"
             disabled={pending !== undefined}
@@ -74,18 +86,20 @@ export function InsightTriage({
           >
             {pending === 'keep' ? 'Keeping' : 'Keep'} {id}
           </Button>
-          <Button
-            ref={(button) => {
-              if (button && returning.current) button.focus()
-              returning.current = false
-            }}
-            variant="default"
-            size="xs"
-            disabled={pending !== undefined}
-            onClick={() => setConfirming(true)}
-          >
-            Discard {id}
-          </Button>
+          {citedBy.length === 0 && (
+            <Button
+              ref={(button) => {
+                if (button && returning.current) button.focus()
+                returning.current = false
+              }}
+              variant="default"
+              size="xs"
+              disabled={pending !== undefined}
+              onClick={() => setConfirming(true)}
+            >
+              Discard {id}
+            </Button>
+          )}
           <Link
             from="/$product"
             to="/$product/decisions/new"
@@ -96,6 +110,12 @@ export function InsightTriage({
             Propose a Decision{' '}
             <VisuallyHidden>from {insight.id}</VisuallyHidden>
           </Link>
+          {citedBy.length > 0 && (
+            <p className={classes.note}>
+              {insight.id} is evidence of {citedBy.join(', ')}, so you cannot
+              discard it.
+            </p>
+          )}
         </>
       )}
       <div role="alert" className={classes.failure}>

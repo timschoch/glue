@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Concept } from '../../db/concept.ts'
 import { renderInRouter } from '../../test/render.tsx'
+import { Announcer } from '../page/announcer.tsx'
 import { ConceptOverview } from './concept-overview.tsx'
 
 const goal = { id: 'G1', title: 'Agents build from the Concept' }
@@ -265,6 +267,72 @@ describe('ConceptOverview', () => {
       )
 
       expect(onDiscard).toHaveBeenCalledExactlyOnceWith('I2')
+    })
+
+    function renderAnnounced(
+      shown: Concept,
+      actions: Partial<ComponentProps<typeof ConceptOverview>> = {},
+    ) {
+      return renderInRouter(
+        <Announcer>
+          <ConceptOverview {...handlers} {...actions} concept={shown} />
+        </Announcer>,
+      )
+    }
+
+    it('says that the draft was kept, and moves the focus to the next draft', async () => {
+      await renderAnnounced(drafts)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Keep I2' }))
+
+      expect(screen.getByRole('status').textContent).toBe('Kept I2.')
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Keep I3' }),
+      )
+    })
+
+    it('says that the last draft was discarded, and moves the focus to the heading', async () => {
+      await renderAnnounced(drafts)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Discard I3' }))
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Discard I3 for good' }),
+      )
+
+      expect(screen.getByRole('status').textContent).toBe('Discarded I3.')
+      expect(document.activeElement).toBe(
+        screen.getByRole('heading', { name: 'Insights' }),
+      )
+    })
+
+    it('says nothing, and keeps the focus, when the draft was not kept', async () => {
+      await renderAnnounced(drafts, {
+        onKeep: () => Promise.resolve({ message: 'Sign in again' }),
+      })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Keep I2' }))
+
+      expect(screen.getByRole('status').textContent).toBe('')
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Keep I2' }),
+      )
+    })
+
+    it('has no Discard for a draft that is the evidence of a Decision', async () => {
+      const [accepted, proposed] = concept.decisions
+      await renderAnnounced({
+        ...drafts,
+        decisions: [
+          accepted,
+          { ...proposed, evidence: [{ id: 'I2', title: 'The build failed' }] },
+        ],
+      })
+
+      expect(screen.queryByRole('button', { name: 'Discard I2' })).toBeNull()
+      expect(
+        screen.getByText('I2 is evidence of D2, so you cannot discard it.'),
+      ).toBeDefined()
+      expect(screen.getByRole('button', { name: 'Discard I3' })).toBeDefined()
     })
 
     it('links the draft of the row to the Decision form', async () => {

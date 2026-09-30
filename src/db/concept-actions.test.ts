@@ -5,23 +5,35 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { Session } from '../authentication/session.ts'
+import type { GithubClient } from '../github/client.ts'
+import { createFakeGithub, failingGithub } from '../test/github.ts'
 import { createConceptActions } from './concept-actions.ts'
-import { addConceptRecord, showConceptRecord } from './concept-records.ts'
+import {
+  addConceptRecord,
+  setProductRepository,
+  showConceptRecord,
+} from './concept-records.ts'
+import { proposalInputSchema, recordInputSchema } from './decision-proposal.ts'
 import * as schema from './schema.ts'
 
 let client: PGlite
 let db: ReturnType<typeof drizzle<typeof schema>>
 
-// The session of the request in the test.
+// The session and the GitHub of the request in the test.
 let session: Session | undefined
+let fake: ReturnType<typeof createFakeGithub>
+let github: GithubClient
 
 const actions = createConceptActions({
   findSession: () => Promise.resolve(session),
   getDb: () => db,
+  getGithub: () => github,
 })
 
 beforeEach(async () => {
   session = undefined
+  fake = createFakeGithub()
+  github = fake.github
   client = new PGlite()
   db = drizzle(client, { schema })
   await migrate(db, { migrationsFolder: './drizzle' })
@@ -71,21 +83,23 @@ async function listRecordIds() {
   return [...rows, ...decisions].map((row) => `${row.recordId} ${row.status}`)
 }
 
-const inputs: Record<keyof typeof actions, unknown> = {
-  listProducts: undefined,
-  findConcept: 'flexibeck',
-  findRecord: draft,
-  keepInsight: draft,
-  discardInsight: draft,
-  proposeDecision: proposal,
-  acceptDecision: { product: 'flexibeck', recordId: 'D1' },
-}
+const decision = { product: 'flexibeck', recordId: 'D1' }
+
+const requests = {
+  listProducts: () => actions.listProducts(),
+  findConcept: () => actions.findConcept('flexibeck'),
+  findRecord: () => actions.findRecord(draft),
+  keepInsight: () => actions.keepInsight(draft),
+  discardInsight: () => actions.discardInsight(draft),
+  proposeDecision: () => actions.proposeDecision(proposal),
+  acceptDecision: () => actions.acceptDecision(decision),
+} satisfies Record<keyof typeof actions, () => Promise<unknown>>
 
 describe('a server function without a session', () => {
   it.each(Object.keys(actions) as (keyof typeof actions)[])(
     '%s sends the person to sign-in and writes nothing',
     async (name) => {
-      const refused = await actions[name](inputs[name]).then(
+      const refused = await requests[name]().then(
         () => undefined,
         (error: unknown) => error,
       )
@@ -108,7 +122,7 @@ describe('a server function with a session', () => {
       '',
     )
 
-    expect(await actions.listProducts(undefined)).toEqual([
+    expect(await actions.listProducts()).toEqual([
       { slug: 'flexibeck', name: 'flexibeck' },
       { slug: 'glue', name: 'glue' },
     ])
@@ -143,13 +157,62 @@ describe('a server function with a session', () => {
     })
   })
 
+  it('says that the Product of a write does not exist', async () => {
+    expect(await actions.keepInsight({ ...draft, product: 'nope' })).toEqual({
+      message: 'product "nope" not found',
+    })
+  })
+
   it('proposes a Decision, then accepts it', async () => {
-    expect(await actions.proposeDecision(proposal)).toEqual({ id: 'D1' })
+    expect(await actions.proposeDecision(proposal)).toEqual({
+      id: 'D1',
+      issueMissing: false,
+    })
     expect(await listRecordIds()).toEqual(['I1 draft', 'D1 proposed'])
 
-    expect(
-      await actions.acceptDecision({ product: 'flexibeck', recordId: 'D1' }),
-    ).toBeUndefined()
+    expect(await actions.acceptDecision(decision)).toEqual({
+      id: 'D1',
+      issueMissing: false,
+    })
+    expect(await listRecordIds()).toEqual(['I1 draft', 'D1 accepted'])
+  })
+
+  it('opens the downstream issue when a person accepts a Decision', async () => {
+    await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck')
+    await actions.proposeDecision(proposal)
+    expect(fake.issues).toEqual([])
+
+    await actions.acceptDecision(decision)
+
+    expect(fake.issues.map(({ issue }) => issue.title)).toEqual([
+      'D1: Check the types before the push',
+    ])
+    const accepted = await showConceptRecord(db, 'flexibeck', 'D1')
+    expect(accepted.fields.issue).toBe(
+      'https://github.com/timschoch/flexibeck/issues/1',
+    )
+  })
+
+  it('opens the downstream issue of a Decision that supersedes another', async () => {
+    await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck')
+    await actions.proposeDecision(proposal)
+
+    await actions.proposeDecision({ ...proposal, supersedes: 'D1' })
+
+    expect(fake.issues.map(({ issue }) => issue.title)).toEqual([
+      'D2: Check the types before the push',
+    ])
+  })
+
+  it('keeps the accepted Decision and says that the issue is missing when GitHub fails', async () => {
+    await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck')
+    await actions.proposeDecision(proposal)
+    github = failingGithub
+
+    expect(await actions.acceptDecision(decision)).toEqual({
+      id: 'D1',
+      issueMissing: true,
+    })
     expect(await listRecordIds()).toEqual(['I1 draft', 'D1 accepted'])
   })
 
@@ -158,7 +221,7 @@ describe('a server function with a session', () => {
 
     expect(
       await actions.proposeDecision({ ...proposal, supersedes: 'D1' }),
-    ).toEqual({ id: 'D2' })
+    ).toEqual({ id: 'D2', issueMissing: false })
 
     const old = await showConceptRecord(db, 'flexibeck', 'D1')
     expect(old.fields.status).toBe('superseded')
@@ -172,16 +235,24 @@ describe('a server function with a session', () => {
       await actions.proposeDecision({ ...proposal, evidence: ['I9'] }),
     ).toEqual({ message: 'evidence "I9" not found' })
   })
+})
 
-  it('does not take the status of a Decision from the request', async () => {
-    await actions.proposeDecision({ ...proposal, status: 'accepted' })
-
-    expect(await listRecordIds()).toEqual(['I1 draft', 'D1 proposed'])
+describe('the input of a server function', () => {
+  it('does not take the status of a Decision from the request', () => {
+    expect(
+      proposalInputSchema.parse({ ...proposal, status: 'accepted' }),
+    ).toEqual(proposal)
   })
 
-  it('refuses text that is not the id of a record', async () => {
-    await expect(
-      actions.keepInsight({ product: 'flexibeck', recordId: 'nope' }),
-    ).rejects.toThrow(/not the id of a record/)
+  it('refuses a Decision without evidence, like the HTTP API', () => {
+    expect(
+      proposalInputSchema.safeParse({ ...proposal, evidence: [] }).success,
+    ).toBe(false)
+  })
+
+  it('refuses text that is not the id of a record', () => {
+    expect(() =>
+      recordInputSchema.parse({ product: 'flexibeck', recordId: 'nope' }),
+    ).toThrow(/not the id of a record/)
   })
 })

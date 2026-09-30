@@ -42,6 +42,12 @@ describe('PageFrame', () => {
     ).toBe('The page')
   })
 
+  it('has the live region that says the result of an action', async () => {
+    await renderFrame()
+
+    expect(within(screen.getByRole('main')).getByRole('status')).toBeDefined()
+  })
+
   it('starts with a link that skips to the content', async () => {
     await renderFrame()
 

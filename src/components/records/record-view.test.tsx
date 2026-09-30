@@ -11,6 +11,7 @@ import type {
   Insight,
 } from '../../db/concept.ts'
 import { renderInRouter, shownValue } from '../../test/render.tsx'
+import { Announcer } from '../page/announcer.tsx'
 import { RecordView } from './record-view.tsx'
 
 const decision: Decision = {
@@ -52,6 +53,8 @@ const insight: Insight = {
   body: 'Three of four agents read only the first screen.',
   decisions: [{ id: 'D5', title: 'The Concept lives in the database' }],
 }
+
+const uncited: Insight = { ...insight, decisions: [] }
 
 const fact: Fact = {
   kind: 'fact',
@@ -158,6 +161,29 @@ describe('RecordView', () => {
         'https://github.com/timschoch/flexibeck-next/issues/4',
       ],
     ])
+  })
+
+  it('says how to open the issue that GitHub did not open', async () => {
+    await renderInRouter(
+      <RecordView {...handlers} issueMissing record={decision} />,
+    )
+
+    expect(shownValue('Issue')).toBe(
+      'Not opened: GitHub did not answer. To open it, run pnpm concept downstream D5 --product glue',
+    )
+  })
+
+  it('shows the issue, not the command, when the Decision has one', async () => {
+    const issueUrl = 'https://github.com/timschoch/flexibeck-next/issues/4'
+    await renderInRouter(
+      <RecordView
+        {...handlers}
+        issueMissing
+        record={{ ...decision, issueUrl }}
+      />,
+    )
+
+    expect(shownValue('Issue')).toBe('timschoch/flexibeck-next#4')
   })
 
   it.each([
@@ -298,7 +324,9 @@ describe('RecordView', () => {
     it('discards a draft Insight after a second request', async () => {
       const onDiscard = vi.fn(() => Promise.resolve(undefined))
       await renderInRouter(
-        <RecordView {...handlers} onDiscard={onDiscard} record={insight} />,
+        <Announcer>
+          <RecordView {...handlers} onDiscard={onDiscard} record={uncited} />
+        </Announcer>,
       )
 
       await userEvent.click(
@@ -310,6 +338,51 @@ describe('RecordView', () => {
       )
 
       expect(onDiscard).toHaveBeenCalledOnce()
+      expect(screen.getByRole('status').textContent).toBe('Discarded I1.')
+    })
+
+    it('has no Discard for a draft Insight that a Decision cites', async () => {
+      await renderInRouter(<RecordView {...handlers} record={insight} />)
+
+      expect(actions().queryByRole('button', { name: 'Discard I1' })).toBeNull()
+      expect(
+        actions().getByText('I1 is evidence of D5, so you cannot discard it.'),
+      ).toBeDefined()
+    })
+
+    it('says that the draft was kept, and moves the focus to the heading', async () => {
+      await renderInRouter(
+        <Announcer>
+          <RecordView {...handlers} record={insight} />
+        </Announcer>,
+      )
+
+      await userEvent.click(actions().getByRole('button', { name: 'Keep I1' }))
+
+      expect(screen.getByRole('status').textContent).toBe('Kept I1.')
+      expect(document.activeElement).toBe(
+        screen.getByRole('heading', { level: 1 }),
+      )
+    })
+
+    it('says that the Decision was accepted, and moves the focus to the heading', async () => {
+      await renderInRouter(
+        <Announcer>
+          <RecordView
+            {...handlers}
+            record={{ ...decision, status: 'proposed' }}
+          />
+        </Announcer>,
+      )
+
+      await userEvent.click(
+        actions().getByRole('button', { name: 'Accept D5' }),
+      )
+
+      expect(screen.getByRole('status').textContent).toBe('Accepted D5.')
+      expect(document.activeElement).toBe(
+        screen.getByRole('heading', { level: 1 }),
+      )
     })
 
     it('links a draft Insight to the Decision form, as its evidence', async () => {
@@ -354,6 +427,9 @@ describe('RecordView', () => {
 
       expect((await screen.findByRole('alert')).textContent).toBe(
         '"D5" is not proposed',
+      )
+      expect(document.activeElement).not.toBe(
+        screen.getByRole('heading', { level: 1 }),
       )
     })
 

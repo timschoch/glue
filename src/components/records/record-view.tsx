@@ -1,13 +1,14 @@
 import { Title } from '@mantine/core'
-import { Link } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
 
 import type { LinkedRecord } from '../../db/concept.ts'
 import { DecisionActions } from '../decisions/decision-actions.tsx'
 import { InsightTriage } from '../insights/insight-triage.tsx'
+import { useAnnouncer } from '../page/announcer.tsx'
 import { RecordBody } from './record-body.tsx'
 import { RecordField, RecordFields } from './record-fields.tsx'
 import { RecordLink, RecordLinks, RecordTitle } from './record-link.tsx'
-import { recordSections } from './record-sections.ts'
+import { insightsNameId, recordSections } from './record-sections.ts'
 import { RecordStatus } from './record-status.tsx'
 import classes from './record-view.module.css'
 import type { RecordAction } from './use-record-action.ts'
@@ -17,6 +18,10 @@ type Handlers = {
   onDiscard: RecordAction
   onAccept: RecordAction
 }
+
+// The id of the heading of the page. The focus goes there after an action,
+// because the button of the action is gone then.
+const titleId = 'record-title'
 
 // Only a web address is a link. Other text stays text, so it cannot run code.
 function Source({ source }: { source: string }) {
@@ -92,11 +97,28 @@ function OwnFields({ record }: { record: LinkedRecord }) {
   }
 }
 
+// The accepted Decision is saved, but GitHub did not open its issue. The
+// command opens the issue later.
+function MissingIssue({ decisionId }: { decisionId: string }) {
+  const { product } = useParams({ strict: false })
+
+  return (
+    <>
+      Not opened: GitHub did not answer. To open it, run{' '}
+      <code>
+        pnpm concept downstream {decisionId} --product {product}
+      </code>
+    </>
+  )
+}
+
 // The records that the record links to, and the records that link to it.
 function LinkFields({
   record,
+  issueMissing,
 }: {
   record: Exclude<LinkedRecord, { kind: 'guardrail' }>
+  issueMissing: boolean
 }) {
   switch (record.kind) {
     case 'goal':
@@ -127,12 +149,18 @@ function LinkFields({
               <RecordLinks records={record.supersedes} empty="" />
             </RecordField>
           )}
-          {record.issueUrl && (
+          {record.issueUrl ? (
             <RecordField label="Issue">
               <a href={record.issueUrl} className={classes.source}>
                 {formatIssueReference(record.issueUrl)}
               </a>
             </RecordField>
+          ) : (
+            issueMissing && (
+              <RecordField label="Issue">
+                <MissingIssue decisionId={record.id} />
+              </RecordField>
+            )
           )}
         </>
       )
@@ -164,11 +192,31 @@ function Actions({
   onDiscard,
   onAccept,
 }: { record: LinkedRecord } & Handlers) {
+  const { announce } = useAnnouncer()
+
+  // Says the result of an action that worked, and moves the focus.
+  function announced(result: string, action: RecordAction, focusId: string) {
+    return async () => {
+      const failure = await action()
+      if (!failure) announce(`${result} ${record.id}.`, focusId)
+      return failure
+    }
+  }
+
   const actions =
     record.kind === 'insight' && record.status === 'draft' ? (
-      <InsightTriage insight={record} onKeep={onKeep} onDiscard={onDiscard} />
+      <InsightTriage
+        insight={record}
+        citedBy={record.decisions.map(({ id }) => id)}
+        onKeep={announced('Kept', onKeep, titleId)}
+        // The page of a discarded draft is gone: the overview comes next.
+        onDiscard={announced('Discarded', onDiscard, insightsNameId)}
+      />
     ) : record.kind === 'decision' && record.status !== 'superseded' ? (
-      <DecisionActions decision={record} onAccept={onAccept} />
+      <DecisionActions
+        decision={record}
+        onAccept={announced('Accepted', onAccept, titleId)}
+      />
     ) : undefined
 
   return (
@@ -180,10 +228,13 @@ function Actions({
   )
 }
 
+// `issueMissing`: the Decision was accepted a moment ago, and GitHub did
+// not open its issue.
 export function RecordView({
   record,
+  issueMissing = false,
   ...handlers
-}: { record: LinkedRecord } & Handlers) {
+}: { record: LinkedRecord; issueMissing?: boolean } & Handlers) {
   const section = recordSections[record.kind]
 
   return (
@@ -208,7 +259,7 @@ export function RecordView({
             </li>
           </ol>
         </nav>
-        <Title order={1} className={classes.title}>
+        <Title order={1} id={titleId} tabIndex={-1} className={classes.title}>
           <RecordTitle record={record} />
         </Title>
         <RecordFields inline>
@@ -225,7 +276,7 @@ export function RecordView({
             Links
           </Title>
           <RecordFields>
-            <LinkFields record={record} />
+            <LinkFields record={record} issueMissing={issueMissing} />
           </RecordFields>
         </section>
       )}

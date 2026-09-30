@@ -5,10 +5,11 @@ import type { ReactNode } from 'react'
 import type { Failure } from '../../authentication/session.ts'
 import type { Concept, RecordReference } from '../../db/concept.ts'
 import { DecisionCard } from '../decisions/decision-card.tsx'
-import { InsightTriage } from '../insights/insight-triage.tsx'
+import { InsightTriage, keepButtonId } from '../insights/insight-triage.tsx'
+import { useAnnouncer } from '../page/announcer.tsx'
 import { RecordField, RecordFields } from '../records/record-fields.tsx'
 import { RecordLink } from '../records/record-link.tsx'
-import { recordSections } from '../records/record-sections.ts'
+import { insightsNameId, recordSections } from '../records/record-sections.ts'
 import { RecordStatus } from '../records/record-status.tsx'
 import classes from './concept-overview.module.css'
 
@@ -30,10 +31,20 @@ function Section<TRecord extends RecordReference>({
   action?: ReactNode
   children: (record: TRecord) => ReactNode
 }) {
+  // The name can get the focus: after the triage of the last draft, the
+  // focus goes to the name of the Insights.
+  const { claimFocus } = useAnnouncer()
+
   return (
     <section id={id} aria-labelledby={`${id}-name`} className={classes.section}>
       <div className={classes.top}>
-        <Title order={2} id={`${id}-name`} className={classes.name}>
+        <Title
+          order={2}
+          id={`${id}-name`}
+          tabIndex={-1}
+          ref={claimFocus}
+          className={classes.name}
+        >
           {name}
         </Title>
         {action}
@@ -87,6 +98,25 @@ export function ConceptOverview({
     ...drafts,
     ...concept.insights.filter(({ status }) => status !== 'draft'),
   ]
+  const { announce } = useAnnouncer()
+
+  // The draft is gone from the drafts after its triage, and so are its
+  // buttons. The focus goes to the next draft, or to the name of the Insights.
+  function triage(result: string, action: RowAction, index: number) {
+    return async () => {
+      const { id } = drafts[index]
+      const next = drafts.at(index + 1)
+      const failure = await action(id)
+      if (!failure) {
+        announce(
+          `${result} ${id}.`,
+          next ? keepButtonId(next.id) : insightsNameId,
+        )
+      }
+      return failure
+    }
+  }
+
   const sections = [
     { ...recordSections.goal, count: goals.length },
     { ...recordSections.decision, count: decisions.length },
@@ -177,8 +207,17 @@ export function ConceptOverview({
               insight.status === 'draft' && (
                 <InsightTriage
                   insight={insight}
-                  onKeep={() => onKeep(insight.id)}
-                  onDiscard={() => onDiscard(insight.id)}
+                  citedBy={decisions
+                    .filter(({ evidence }) =>
+                      evidence.some(({ id }) => id === insight.id),
+                    )
+                    .map(({ id }) => id)}
+                  onKeep={triage('Kept', onKeep, drafts.indexOf(insight))}
+                  onDiscard={triage(
+                    'Discarded',
+                    onDiscard,
+                    drafts.indexOf(insight),
+                  )}
                 />
               )
             }

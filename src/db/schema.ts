@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -24,6 +25,20 @@ export const products = pgTable('products', {
   // The GitHub repository, as owner/name, that builds the Product.
   repository: text('repository'),
 })
+
+// The highest number that a record id of one folder had in the Product.
+// It only grows, so the id of a deleted record does not come back.
+export const recordCounters = pgTable(
+  'record_counters',
+  {
+    productId: integer('product_id')
+      .notNull()
+      .references(() => products.id),
+    folder: text('folder').notNull(),
+    lastNumber: integer('last_number').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.productId, table.folder] })],
+)
 
 // A token gives HTTP API access to the Concept of one Product.
 // Only the SHA-256 hash of the token is stored.

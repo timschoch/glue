@@ -55,7 +55,7 @@
 }
 
 /* A Concept has many Insights: the list scrolls, the form stays short. */
-.sources {
+.options {
   display: grid;
   gap: var(--space-sm);
   max-height: 20rem;
@@ -72,7 +72,7 @@
   }
 }
 
-.source {
+.option {
   overflow-wrap: anywhere;
   line-height: var(--leading-ui);
 }
@@ -84,9 +84,15 @@
   color: var(--color-danger);
 }
 
+/* The mark of a field that can stay empty. */
+.optional {
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
 /* The field grows with its text where the browser can do that. In other
  * browsers the text scrolls, and the person can drag the field larger. */
-.reason {
+.body {
   field-sizing: content;
   min-height: 10rem;
   max-height: 32rem;

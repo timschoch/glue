@@ -9,15 +9,18 @@ import type { LinkedRecord } from '../db/concept.ts'
 import { CONCEPT_FIELDS } from '../db/concept-fields.ts'
 import {
   addConceptRecord,
+  addDecision,
   InvalidRecordError,
-  setDecisionStatus,
+  ProductNotFoundError,
   setGoalMeasure,
+  updateDecision,
 } from '../db/concept-records.ts'
+import type { DecisionChange } from '../db/concept-records.ts'
+import { proposalSchema } from '../db/decision-proposal.ts'
 import { goalMeasureSchema } from '../db/goal-measure.ts'
 import { decisionStatuses, insightStatuses } from '../db/schema.ts'
 import { findProductByToken } from '../db/tokens.ts'
 import type { GithubClient } from '../github/client.ts'
-import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import {
   measureGoals,
   measuredInsightSchema,
@@ -69,20 +72,19 @@ export const factInputSchema = z
   .object({ title: text, source: text, body })
   .meta({ id: 'FactInput' })
 
+// The fields that a person writes in the app come from the schema of the
+// app, so the two entry points have one set of rules.
 export const decisionInputSchema = z
   .object({
-    title: text,
+    title: proposalSchema.shape.title,
     date: z.iso.date().optional(),
-    owner: text,
+    owner: proposalSchema.shape.owner,
     status: z.enum(decisionStatuses),
-    goal: text,
-    evidence: z.array(text).min(1),
+    goal: proposalSchema.shape.goal,
+    evidence: proposalSchema.shape.evidence,
     superseded_by: text.optional(),
-    supersedes: text.optional().meta({
-      description:
-        'The id of the Decision that this one supersedes. The new Decision must be accepted. The old one becomes superseded in the same request.',
-    }),
-    body,
+    supersedes: proposalSchema.shape.supersedes,
+    body: proposalSchema.shape.body,
   })
   .meta({ id: 'DecisionInput' })
 
@@ -175,6 +177,9 @@ function toApiError(error: unknown): ApiError {
   if (error instanceof z.ZodError) {
     return new ApiError('invalid-request', z.prettifyError(error))
   }
+  if (error instanceof ProductNotFoundError) {
+    return new ApiError('not-found', error.message)
+  }
   if (error instanceof InvalidRecordError) {
     return new ApiError('invalid-request', error.message)
   }
@@ -263,16 +268,10 @@ async function findFolderRecord({
 }
 
 async function findChangedDecision(
-  { db, github, params }: ChangeRequest,
-  recordId: string,
+  { db, params }: ApiRequest,
+  { id, issue }: DecisionChange,
 ) {
-  const issue = await createDownstreamIssue(
-    db,
-    github,
-    params.product,
-    recordId,
-  )
-  const decision = await findRecord(db, params.product, recordId)
+  const decision = await findRecord(db, params.product, id)
   return issue.kind === 'failed'
     ? { ...decision, issueError: issue.message }
     : decision
@@ -300,31 +299,32 @@ export function handleGetRecord(input: ApiRequest) {
 
 export function handleAddRecord(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
-    const { db, request, params } = input
-    if (!isKeyOf(inputSchemas, params.folder)) {
-      throw new ApiError('not-found', `cannot add ${params.folder} here`)
+    const { db, github, request, params } = input
+    const { product, folder } = params
+    if (!isKeyOf(inputSchemas, folder)) {
+      throw new ApiError('not-found', `cannot add ${folder} here`)
     }
-    const { body: recordBody, ...fields } = inputSchemas[params.folder].parse(
+    const { body: recordBody, ...fields } = inputSchemas[folder].parse(
       await parseJson(request),
     )
-    const recordId = await addConceptRecord(
-      db,
-      params.product,
-      params.folder,
-      fields,
-      recordBody,
-    )
     const record =
-      params.folder === 'decisions'
-        ? await findChangedDecision(input, recordId)
-        : await findRecord(db, params.product, recordId)
+      folder === 'decisions'
+        ? await findChangedDecision(
+            input,
+            await addDecision(db, github, product, fields, recordBody),
+          )
+        : await findRecord(
+            db,
+            product,
+            await addConceptRecord(db, product, folder, fields, recordBody),
+          )
     return Response.json(record, { status: 201 })
   })
 }
 
 export function handleUpdateRecord(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
-    const { db, request, params } = input
+    const { db, github, request, params } = input
     if (!isKeyOf(updateSchemas, params.folder)) {
       throw new ApiError('not-found', `cannot update ${params.folder} here`)
     }
@@ -336,14 +336,15 @@ export function handleUpdateRecord(input: ChangeRequest) {
       return Response.json(await findRecord(db, params.product, record.id))
     }
     const update = decisionUpdateSchema.parse(json)
-    await setDecisionStatus(
+    const change = await updateDecision(
       db,
+      github,
       params.product,
       record.id,
       update.status,
       update.superseded_by,
     )
-    return Response.json(await findChangedDecision(input, record.id))
+    return Response.json(await findChangedDecision(input, change))
   })
 }
 

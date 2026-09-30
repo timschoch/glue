@@ -12,11 +12,17 @@ const insight = { id: 'I3', title: 'The build failed on a type error' }
 type Write = () => Promise<Failure | undefined>
 
 function renderTriage({
+  citedBy = [],
   onKeep = () => Promise.resolve(undefined),
   onDiscard = () => Promise.resolve(undefined),
-}: { onKeep?: Write; onDiscard?: Write } = {}) {
+}: { citedBy?: Array<string>; onKeep?: Write; onDiscard?: Write } = {}) {
   return renderInRouter(
-    <InsightTriage insight={insight} onKeep={onKeep} onDiscard={onDiscard} />,
+    <InsightTriage
+      insight={insight}
+      citedBy={citedBy}
+      onKeep={onKeep}
+      onDiscard={onDiscard}
+    />,
   )
 }
 
@@ -81,6 +87,33 @@ describe('InsightTriage', () => {
 
     expect(button('Keep I3')).toBeDefined()
     expect(onDiscard).not.toHaveBeenCalled()
+  })
+
+  it('has no Discard for a draft that a Decision cites, and says why', async () => {
+    await renderTriage({ citedBy: ['D2', 'D4'] })
+
+    expect(screen.queryByRole('button', { name: 'Discard I3' })).toBeNull()
+    expect(
+      screen.getByText('I3 is evidence of D2, D4, so you cannot discard it.'),
+    ).toBeDefined()
+    expect(button('Keep I3')).toBeDefined()
+  })
+
+  it('says nothing about evidence for a draft that no Decision cites', async () => {
+    await renderTriage()
+
+    expect(screen.queryByText(/is evidence of/)).toBeNull()
+  })
+
+  it('goes back to the Discard button when the draft was not discarded', async () => {
+    await renderTriage({
+      onDiscard: () => Promise.resolve({ message: 'The draft is still here' }),
+    })
+
+    await userEvent.click(button('Discard I3'))
+    await userEvent.click(button('Discard I3 for good'))
+
+    expect(document.activeElement).toBe(button('Discard I3'))
   })
 
   it('says why the draft was not discarded', async () => {

@@ -8,3 +8,7 @@ export const recordSections = {
   insight: { id: 'insights', name: 'Insights' },
   fact: { id: 'facts', name: 'Facts' },
 } as const satisfies Record<LinkedRecord['kind'], { id: string; name: string }>
+
+// The id of the name of the Insights. The focus goes there after the triage
+// of the last draft, from the overview and from the page of the draft.
+export const insightsNameId = `${recordSections.insight.id}-name`

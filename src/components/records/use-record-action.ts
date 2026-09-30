@@ -10,14 +10,17 @@ export function useRecordAction() {
   const [pending, setPending] = useState<string>()
   const [failure, setFailure] = useState<string>()
 
-  async function run(name: string, action: RecordAction) {
+  // Says if the action worked.
+  async function run(name: string, action: RecordAction): Promise<boolean> {
     setPending(name)
     setFailure(undefined)
     try {
       const failed = await action()
       if (failed) setFailure(failed.message)
+      return !failed
     } catch {
       setFailure('This did not work. Check your connection, then try again.')
+      return false
     } finally {
       setPending(undefined)
     }

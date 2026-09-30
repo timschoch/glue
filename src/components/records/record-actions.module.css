@@ -1,6 +1,7 @@
 /* Hallmark · component: record actions · genre: modern-minimal · theme: custom (dense, calm, text first)
  * states: default · hover · focus · active · disabled · confirm · error
- * One line of small buttons and links. A failure is below them.
+ * One line of small buttons and links. A failure is below them, and so is
+ * the reason why an action is not there.
  */
 
 .actions {
@@ -18,7 +19,8 @@
   padding-block: var(--space-2xs);
 }
 
-.question {
+.question,
+.note {
   flex-basis: 100%;
   margin: 0;
   color: var(--color-ink-soft);

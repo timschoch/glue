@@ -11,9 +11,9 @@ import {
   fetchProducts,
   fetchRecord,
   submitAcceptDecision,
-  submitDecision,
   submitDiscardInsight,
   submitKeepInsight,
+  submitProposeDecision,
 } from './db/concept.functions.ts'
 import { createRouterContext } from './router-context.ts'
 import type { Server, SessionMemory } from './router-context.ts'
@@ -28,7 +28,7 @@ const server: Server = {
   keepInsight: (insight) => submitKeepInsight({ data: insight }),
   discardInsight: (insight) => submitDiscardInsight({ data: insight }),
   acceptDecision: (decision) => submitAcceptDecision({ data: decision }),
-  proposeDecision: (proposal) => submitDecision({ data: proposal }),
+  proposeDecision: (proposal) => submitProposeDecision({ data: proposal }),
   signIn: (credentials) => submitSignIn({ data: credentials }),
   signUp: (account) => submitSignUp({ data: account }),
   signOut: () => submitSignOut(),

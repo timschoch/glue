@@ -35,20 +35,21 @@ export function DecisionForm({
   owner,
   evidence,
   superseded,
-  submit,
+  onPropose,
 }: {
   concept: Concept
   owner: string
   evidence?: string
   superseded?: Decision
-  submit: (proposal: DecisionProposal) => Promise<Failure | undefined>
+  onPropose: (proposal: DecisionProposal) => Promise<Failure | undefined>
 }) {
   const [problems, setProblems] = useState<Partial<Problems<ProposalField>>>({})
   const [failure, setFailure] = useState<string>()
   const [pending, setPending] = useState(false)
   const evidenceProblem = useId()
 
-  const sources = [...concept.insights, ...concept.facts]
+  // The records that can be the evidence of the Decision.
+  const options = [...concept.insights, ...concept.facts]
   const picked = superseded
     ? superseded.evidence.map(({ id }) => id)
     : evidence
@@ -57,7 +58,7 @@ export function DecisionForm({
   const missing =
     concept.goals.length === 0
       ? 'A Decision serves a Goal. This Concept has no Goal yet.'
-      : sources.length === 0
+      : options.length === 0
         ? 'A Decision links to its evidence. This Concept has no Insight and no Fact yet.'
         : undefined
 
@@ -84,7 +85,7 @@ export function DecisionForm({
 
     setPending(true)
     try {
-      const failed = await submit(proposal)
+      const failed = await onPropose(proposal)
       if (failed) setFailure(failed.message)
     } catch {
       setFailure(
@@ -150,15 +151,15 @@ export function DecisionForm({
             aria-describedby={problems.evidence ? evidenceProblem : undefined}
           >
             <legend className={classes.legend}>Evidence</legend>
-            <ul className={classes.sources}>
-              {sources.map((source) => (
-                <li key={source.id}>
+            <ul className={classes.options}>
+              {options.map((option) => (
+                <li key={option.id}>
                   <Checkbox
                     name="evidence"
-                    value={source.id}
-                    label={<RecordTitle record={source} />}
-                    defaultChecked={picked.includes(source.id)}
-                    classNames={{ label: classes.source }}
+                    value={option.id}
+                    label={<RecordTitle record={option} />}
+                    defaultChecked={picked.includes(option.id)}
+                    classNames={{ label: classes.option }}
                   />
                 </li>
               ))}
@@ -171,11 +172,15 @@ export function DecisionForm({
           </fieldset>
           <Textarea
             name="body"
-            label="Reason"
+            label={
+              <>
+                Reason <span className={classes.optional}>(optional)</span>
+              </>
+            }
             description="Why this Decision, and what it rules out. Markdown works."
             size="md"
             rows={6}
-            classNames={{ input: classes.reason }}
+            classNames={{ input: classes.body }}
             defaultValue={superseded?.body}
           />
           <TextInput

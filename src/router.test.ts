@@ -59,8 +59,12 @@ function context(overrides: Partial<Server> = {}): Server {
     fetchRecord: vi.fn(() => Promise.resolve(guardrail)),
     keepInsight: vi.fn(() => Promise.resolve(undefined)),
     discardInsight: vi.fn(() => Promise.resolve(undefined)),
-    acceptDecision: vi.fn(() => Promise.resolve(undefined)),
-    proposeDecision: vi.fn(() => Promise.resolve({ id: 'D1' })),
+    acceptDecision: vi.fn(() =>
+      Promise.resolve({ id: 'D1', issueMissing: false }),
+    ),
+    proposeDecision: vi.fn(() =>
+      Promise.resolve({ id: 'D1', issueMissing: false }),
+    ),
     signIn: vi.fn(() => Promise.resolve(undefined)),
     signUp: vi.fn(() => Promise.resolve(undefined)),
     signOut: vi.fn(() => Promise.resolve()),
@@ -202,6 +206,33 @@ describe('a Concept route with a session', () => {
     expect(
       findMatch(router, '/_signed-in/$product/decisions/new')?.status,
     ).toBe('success')
+  })
+
+  it('shows the record, not the form, for a Decision that is superseded already', async () => {
+    const routerContext = signedIn()
+    routerContext.fetchRecord = vi.fn(() =>
+      Promise.resolve({
+        ...decision,
+        status: 'superseded' as const,
+        supersededBy: { id: 'D5', title: 'The Concept lives in files' },
+      }),
+    )
+
+    const location = await load(
+      '/glue/decisions/new?supersedes=D4',
+      routerContext,
+    )
+
+    expect(location.pathname).toBe('/glue/concept/D4')
+  })
+
+  it.each([
+    ['issue=missing', { issue: 'missing' }],
+    ['issue=nope', {}],
+  ])('reads %s from the address of a record', async (search, expected) => {
+    const router = await open(`/glue/concept/R1?${search}`, signedIn())
+
+    expect(recordMatch(router)?.search).toEqual(expected)
   })
 
   it('has no Decision form for a Decision that the Concept does not have', async () => {

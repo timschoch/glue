@@ -178,6 +178,11 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 - Controls have `--radius-control`.
 - Record actions: one line of small buttons and links below the fields of the record, in a row of a list or on the record page. The id of the record is in the name of each control, hidden from view. A failure shows below the line in `--color-danger`.
 - An action that cannot be undone asks a second time in the same place: one sentence that says what is lost, then a button that stops and a button that goes on. The button that stops has the focus. No dialog.
+- After a record action that worked, its button is gone. The page says the result in one polite live region, `Kept I2.`, and moves the focus.
+  - In a list: to the next record with the same action, or to the heading of the list.
+  - On a record page: to the heading of the page.
+- An action that the record cannot have is not there. One sentence in `--color-ink-soft` below the line says why: `I2 is evidence of D4, so you cannot discard it.`
+- A step that did not finish after a save shows in the field that it fills, with the command that finishes it. Example: the field `Issue` of a Decision when GitHub did not open the issue.
 - Text is plain and states facts. No marketing words, no exclamation marks, no made-up numbers.
 
 ## Navigation
@@ -195,6 +200,7 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 ## Forms
 
 - One column. The label is above its field. A hint is between the label and the field.
+- Most fields are required, so a required field has no mark. A field that can stay empty has `(optional)` after its label: `Reason (optional)`. The mark is in `--color-muted` and normal weight.
 - The text in a field is `--text-md`, so a phone does not zoom in.
 - The checks run on submit. Each bad field gets its error below it and the first bad field gets the focus. An error says how to fix the field.
 - An error of the whole form is above the fields, in `--color-danger`.
