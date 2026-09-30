@@ -110,6 +110,20 @@ describe('authentication', () => {
     expect(response.status).toBe(404)
     expect(response.body.error.code).toBe('not-found')
   })
+
+  it('accepts the Bearer scheme in any case, RFC 7235', async () => {
+    const headers = new Headers({
+      'content-type': 'application/json',
+      authorization: `bearer ${token}`,
+    })
+    const response = await handleGetConcept({
+      db,
+      request: new Request('http://localhost/api/v1', { headers }),
+      params: { product: 'flexibeck' },
+    })
+
+    expect(response.status).toBe(200)
+  })
 })
 
 describe('GET /concept', () => {

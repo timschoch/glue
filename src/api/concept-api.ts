@@ -141,7 +141,7 @@ function isKeyOf<TObject extends object>(
   return key !== undefined && Object.hasOwn(object, key)
 }
 
-const BEARER = /^Bearer (\S+)$/
+const BEARER = /^Bearer (\S+)$/i
 
 // A token opens the Concept of its own Product only. Another Product
 // answers 404, so a token does not reveal which Products exist.

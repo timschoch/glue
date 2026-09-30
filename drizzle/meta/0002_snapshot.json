@@ -50,12 +50,8 @@
           "name": "decision_evidence_decision_id_decisions_id_fk",
           "tableFrom": "decision_evidence",
           "tableTo": "decisions",
-          "columnsFrom": [
-            "decision_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["decision_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -63,12 +59,8 @@
           "name": "decision_evidence_insight_id_insights_id_fk",
           "tableFrom": "decision_evidence",
           "tableTo": "insights",
-          "columnsFrom": [
-            "insight_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["insight_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -76,12 +68,8 @@
           "name": "decision_evidence_fact_id_facts_id_fk",
           "tableFrom": "decision_evidence",
           "tableTo": "facts",
-          "columnsFrom": [
-            "fact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["fact_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -91,11 +79,7 @@
         "decision_evidence_decision_id_insight_id_fact_id_unique": {
           "name": "decision_evidence_decision_id_insight_id_fact_id_unique",
           "nullsNotDistinct": true,
-          "columns": [
-            "decision_id",
-            "insight_id",
-            "fact_id"
-          ]
+          "columns": ["decision_id", "insight_id", "fact_id"]
         }
       },
       "policies": {},
@@ -190,12 +174,8 @@
           "name": "decisions_product_id_products_id_fk",
           "tableFrom": "decisions",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -203,12 +183,8 @@
           "name": "decisions_goal_id_goals_id_fk",
           "tableFrom": "decisions",
           "tableTo": "goals",
-          "columnsFrom": [
-            "goal_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["goal_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -216,12 +192,8 @@
           "name": "decisions_superseded_by_id_decisions_id_fk",
           "tableFrom": "decisions",
           "tableTo": "decisions",
-          "columnsFrom": [
-            "superseded_by_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["superseded_by_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -231,10 +203,7 @@
         "decisions_product_id_record_id_unique": {
           "name": "decisions_product_id_record_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "product_id",
-            "record_id"
-          ]
+          "columns": ["product_id", "record_id"]
         }
       },
       "policies": {},
@@ -305,12 +274,8 @@
           "name": "facts_product_id_products_id_fk",
           "tableFrom": "facts",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -320,10 +285,7 @@
         "facts_product_id_record_id_unique": {
           "name": "facts_product_id_record_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "product_id",
-            "record_id"
-          ]
+          "columns": ["product_id", "record_id"]
         }
       },
       "policies": {},
@@ -395,12 +357,8 @@
           "name": "goals_product_id_products_id_fk",
           "tableFrom": "goals",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -410,10 +368,7 @@
         "goals_product_id_record_id_unique": {
           "name": "goals_product_id_record_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "product_id",
-            "record_id"
-          ]
+          "columns": ["product_id", "record_id"]
         }
       },
       "policies": {},
@@ -479,12 +434,8 @@
           "name": "guardrails_product_id_products_id_fk",
           "tableFrom": "guardrails",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -494,10 +445,7 @@
         "guardrails_product_id_record_id_unique": {
           "name": "guardrails_product_id_record_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "product_id",
-            "record_id"
-          ]
+          "columns": ["product_id", "record_id"]
         }
       },
       "policies": {},
@@ -575,12 +523,8 @@
           "name": "insights_product_id_products_id_fk",
           "tableFrom": "insights",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -590,10 +534,7 @@
         "insights_product_id_record_id_unique": {
           "name": "insights_product_id_record_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "product_id",
-            "record_id"
-          ]
+          "columns": ["product_id", "record_id"]
         }
       },
       "policies": {},
@@ -641,9 +582,7 @@
         "products_slug_unique": {
           "name": "products_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -703,12 +642,8 @@
           "name": "tokens_product_id_products_id_fk",
           "tableFrom": "tokens",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -718,9 +653,7 @@
         "tokens_hash_unique": {
           "name": "tokens_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "hash"
-          ]
+          "columns": ["hash"]
         }
       },
       "policies": {},
