@@ -11,7 +11,7 @@ Capture, no auth, CORS open:
 - `POST /e/`, `/i/v0/e/`, `/batch/`, `/capture/`: single event, array, or `{ batch }`. Bodies: JSON, gzip found by its magic bytes (posthog-js sends it as `text/plain` with no marker), `compression=base64` form (`data=`). 5 MB on the wire, 20 MB after gzip, else 413. Project key from `api_key`, `token` or `properties.token`.
 - `/decide/`, `/flags/`: no flags. `/array/<token>/config` and `config.js`: `{}`.
 
-Persons, like PostHog: an `$identify` event (posthog-js `identify()`) merges the anonymous id in `$anon_distinct_id` into its `distinct_id`. A funnel counts both ids as one person, for events before and after the identify, and for an identify outside `from` and `to`. Mean and values count events, not persons.
+Persons, like PostHog: an `$identify` event (posthog-js `identify()`) merges the anonymous id in `$anon_distinct_id` into its `distinct_id`. A funnel counts both ids as one person, for events before and after the identify, and for an identify outside `from` and `to`. Mean and values count events, not persons. Real PostHog never merges two already-identified persons this way. This mock does not track that distinction, so it merges a whole chain of identifies.
 
 Query, `Authorization: Bearer $MOCK_ANALYTICS_READ_KEY`:
 

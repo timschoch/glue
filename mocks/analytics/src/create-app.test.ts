@@ -479,6 +479,52 @@ describe('identify', () => {
       await queryCounts({ steps: ['signed_up', 'recipe_imported'] }),
     ).toEqual([{ breakdown: null, counts: [2, 1] }])
   })
+
+  it('merges a transitive chain of identifies', async () => {
+    await captureEvents([
+      { event: 'signed_up', user: 'anon-1', at: '2026-09-01T10:00:00Z' },
+      {
+        event: '$identify',
+        user: 'u1',
+        at: '2026-09-01T10:01:00Z',
+        properties: { $anon_distinct_id: 'anon-1' },
+      },
+      {
+        event: '$identify',
+        user: 'u2',
+        at: '2026-09-01T10:02:00Z',
+        properties: { $anon_distinct_id: 'u1' },
+      },
+      { event: 'recipe_imported', user: 'u2', at: '2026-09-01T10:03:00Z' },
+    ])
+
+    expect(
+      await queryCounts({ steps: ['signed_up', 'recipe_imported'] }),
+    ).toEqual([{ breakdown: null, counts: [1, 1] }])
+  })
+
+  it('merges a transitive chain of identifies in reverse time order', async () => {
+    await captureEvents([
+      { event: 'signed_up', user: 'anon-1', at: '2026-09-01T10:00:00Z' },
+      {
+        event: '$identify',
+        user: 'u2',
+        at: '2026-09-01T09:00:00Z',
+        properties: { $anon_distinct_id: 'u1' },
+      },
+      {
+        event: '$identify',
+        user: 'u1',
+        at: '2026-09-01T08:00:00Z',
+        properties: { $anon_distinct_id: 'anon-1' },
+      },
+      { event: 'recipe_imported', user: 'u2', at: '2026-09-01T10:03:00Z' },
+    ])
+
+    expect(
+      await queryCounts({ steps: ['signed_up', 'recipe_imported'] }),
+    ).toEqual([{ breakdown: null, counts: [1, 1] }])
+  })
 })
 
 function queryValues(body: object) {
@@ -638,6 +684,37 @@ describe('values', () => {
     })
 
     expect(response.status).toBe(401)
+  })
+
+  it('stringifies object and array values instead of [object Object]', async () => {
+    await captureEvents([
+      {
+        event: 'survey_answered',
+        user: 'ada',
+        at: '2026-09-01T10:00:00Z',
+        properties: { comment: { rating: 5 } },
+      },
+      {
+        event: 'survey_answered',
+        user: 'bob',
+        at: '2026-09-01T11:00:00Z',
+        properties: { comment: ['fast', 'cheap'] },
+      },
+    ])
+
+    const response = await queryValues({})
+
+    expect(await response.json()).toEqual({
+      results: [
+        {
+          breakdown: null,
+          values: [
+            { value: '["fast","cheap"]', count: 1 },
+            { value: '{"rating":5}', count: 1 },
+          ],
+        },
+      ],
+    })
   })
 })
 

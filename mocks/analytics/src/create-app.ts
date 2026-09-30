@@ -98,17 +98,19 @@ export function createApp(options: {
         ),
       )
     // All identifies of the project, so an identify outside the dates still
-    // merges the ids.
+    // merges the ids. Merging is order-independent (toPersonIds resolves
+    // each root at union time), so this skips the sort.
+    const anonymousId = sql<string>`${events.properties}->>'$anon_distinct_id'`
     const identifies = await database
-      .select({
-        distinctId: events.distinctId,
-        properties: events.properties,
-      })
+      .select({ distinctId: events.distinctId, anonymousId })
       .from(events)
       .where(
-        and(eq(events.project, query.project), eq(events.name, '$identify')),
+        and(
+          eq(events.project, query.project),
+          eq(events.name, '$identify'),
+          sql`${anonymousId} is not null`,
+        ),
       )
-      .orderBy(events.timestamp)
     return context.json({
       results: toFunnelResults(rows, query, toPersonIds(identifies)),
     })
