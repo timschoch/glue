@@ -116,30 +116,41 @@ async function fetchOutcome(
   const page = await context.newPage()
   page.setDefaultTimeout(STEP_TIMEOUT_MS)
   const visit: Visit = { bot, random, identity, struggle: NO_STRUGGLE }
+  const { steps } = options.journey
   let step = 0
+  const skipped: Array<number> = []
   try {
     await page.goto(options.target)
-    for (const [index, current] of options.journey.steps.entries()) {
+    for (const [index, current] of steps.entries()) {
       step = index
+      if (
+        current.optional &&
+        !(await isShown(page, current, steps[index + 1]))
+      ) {
+        skipped.push(index)
+        continue
+      }
       if (!(await isFound(page, current))) {
         // A rate limit is the product turning the bot away, not a missing step.
         const isRateLimited =
           network.isRateLimited ||
           (await page.getByText(RATE_LIMIT_TEXT).count()) > 0
-        return { end: isRateLimited ? 'error' : 'missing', step }
+        return { end: isRateLimited ? 'error' : 'missing', step, skipped }
       }
       const screen = await parseScreen(page, listQuestions(current))
       const struggle = getStruggle(screen, bot)
-      if (random() < toLeaveChance(struggle)) return { end: 'left', step }
+      if (random() < toLeaveChance(struggle)) {
+        return { end: 'left', step, skipped }
+      }
       visit.struggle = addStruggle(visit.struggle, struggle)
       for (const action of current.actions) {
         await handleAction(page, action, visit)
       }
       await page.waitForLoadState()
     }
-    return { end: 'finished', step, answer: visit.answer }
+    return { end: 'finished', step, answer: visit.answer, skipped }
   } catch {
-    return { end: 'error', step }
+    return { end: 'error', step, skipped }
   } finally {
     // Leave like a closed tab: pagehide lets the product's posthog-js send its
     // queue. Then wait until those requests are done, or the time is up.
@@ -199,6 +210,24 @@ async function createNetwork(
     }
   })
   return network
+}
+
+/**
+ * Whether the screen shows an optional step. Waits until it shows this step or
+ * the next one, so a skip does not cost the step timeout.
+ */
+async function isShown(
+  page: Page,
+  step: Step,
+  next: Step | undefined,
+): Promise<boolean> {
+  const own = getLocator(page, step.actions[0])
+  const either = next ? own.or(getLocator(page, next.actions[0])) : own
+  await either
+    .first()
+    .waitFor()
+    .catch(() => undefined)
+  return (await own.count()) > 0
 }
 
 async function isFound(page: Page, step: Step): Promise<boolean> {

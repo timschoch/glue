@@ -36,7 +36,9 @@ Each bot draws its traits from the seed:
 
 One file per Product in [src/journeys/](src/journeys/). A journey is a list of steps. Each step is an intent ("accept a plan") with the actions for it, found by accessible role and name: `fill`, `click`, `choose`, `answer`. `choose` picks one choice in each choice group on the screen. `answer` answers one named radio group for the bot itself: its own experience, or its SEQ score. That radio group is not a choice, so it adds no choice overload. In a `fill` value, `{email}` and `{password}` become the bot's own, and `{remark}` its Remark. A step whose targets are not on the screen within 10 seconds counts as not found, and the bot leaves.
 
-The flexibeck journey follows the live screens of https://flexibeck.vercel.app: start planning, sign up, pick a recipe, set availability, set the start time, accept a plan, do the first reminder, answer the survey.
+A step with `optional: true` is for a screen that comes only sometimes. The bot does it when the screen shows it, else it goes on with the next step at once. The summary counts it as reached only for the bots that did it.
+
+The flexibeck journey follows the live screens of https://flexibeck.vercel.app: start planning, sign up, pick a recipe, set availability, set the start time, take the closest plan (optional), accept a plan, do the first reminder, answer the survey. When no plan fits the availability, flexibeck first shows the closest plan with the button "Plan bread ready by …". The bot takes it, like a novice would, and then accepts a plan from the list.
 
 ## Rules
 

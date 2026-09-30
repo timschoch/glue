@@ -27,6 +27,19 @@ describe('toSummary', () => {
     })
   })
 
+  it('does not count an optional step a bot skipped as reached', () => {
+    const summary = toSummary(
+      ['show plans', 'take the closest plan', 'accept a plan'],
+      [
+        { end: 'finished', step: 2 },
+        { end: 'finished', step: 2, skipped: [1] },
+        { end: 'left', step: 2, skipped: [1] },
+      ],
+    )
+
+    expect(summary.steps.map((step) => step.reached)).toEqual([3, 1, 3])
+  })
+
   it('counts the survey answers of finished bots, their mean and remarks', () => {
     const summary = toSummary(
       ['answer the survey'],

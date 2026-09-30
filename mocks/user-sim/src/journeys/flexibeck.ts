@@ -42,6 +42,15 @@ export const flexibeck: Journey = {
       ],
     },
     {
+      // When no plan fits the availability, flexibeck shows the closest plan
+      // first (flexibeck Decision D9). A novice takes it, then sees the plans.
+      intent: 'take the closest plan',
+      optional: true,
+      actions: [
+        { kind: 'click', role: 'button', name: /plan bread ready by/i },
+      ],
+    },
+    {
       intent: 'accept a plan',
       actions: [{ kind: 'click', role: 'button', name: /accept this plan/i }],
     },
