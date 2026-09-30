@@ -56,17 +56,30 @@ export function mergeProblem({ role, pr }) {
     return `Required checks are not green: ${names || 'none reported yet'}.`
   }
   if (!pr.files.some((file) => UI_FILE.test(file))) return null
-  const verdict = pr.comments
-    .filter(
-      (comment) => new Date(comment.createdAt) > new Date(pr.lastCommitAt),
-    )
-    .map((comment) => comment.body.match(REVIEW_MARKER)?.[1])
-    .filter(Boolean)
+  const review = lastReview(pr.comments)
+  if (!review)
+    return 'UI change without an interface-review verdict. Run interface-review, then comment "interface-review: Approve" on the PR.'
+  // A merge of main brings UI code that its own PR had reviewed.
+  const uiChangedAfter = pr.commits.some(
+    (commit) =>
+      !commit.isMerge &&
+      new Date(commit.committedDate) > new Date(review.createdAt) &&
+      commit.files.some((file) => UI_FILE.test(file)),
+  )
+  if (uiChangedAfter)
+    return 'UI changed after the interface-review verdict. Run interface-review again, then comment the new verdict on the PR.'
+  if (review.verdict.toLowerCase() === 'approve') return null
+  return 'interface-review said Block. Send the findings to the worker.'
+}
+
+function lastReview(comments) {
+  return comments
+    .map((comment) => ({
+      createdAt: comment.createdAt,
+      verdict: comment.body.match(REVIEW_MARKER)?.[1],
+    }))
+    .filter((review) => review.verdict)
     .at(-1)
-  if (verdict?.toLowerCase() === 'approve') return null
-  return verdict
-    ? 'interface-review said Block. Send the findings to the worker.'
-    : 'UI change without an interface-review verdict after the last commit. Run interface-review, then comment "interface-review: Approve" on the PR.'
 }
 
 function loadPr(number, cwd) {
@@ -91,12 +104,29 @@ function loadPr(number, cwd) {
     // gh exits non-zero while checks fail or pend, but still prints the JSON.
     checks = JSON.parse(error.stdout || '[]')
   }
+  const reviewedAt = lastReview(view.comments)?.createdAt ?? 0
   return {
     headRefName: view.headRefName,
     files: view.files.map((file) => file.path),
     comments: view.comments,
-    lastCommitAt: view.commits.at(-1)?.committedDate ?? 0,
+    commits: view.commits.map((commit) =>
+      new Date(commit.committedDate) > new Date(reviewedAt)
+        ? loadCommit(commit, cwd)
+        : { committedDate: commit.committedDate, isMerge: false, files: [] },
+    ),
     checks,
+  }
+}
+
+// Only commits after the last verdict are loaded: one API call each.
+function loadCommit({ oid, committedDate }, cwd) {
+  const detail = JSON.parse(
+    run('gh', ['api', `repos/{owner}/{repo}/commits/${oid}`], cwd),
+  )
+  return {
+    committedDate,
+    isMerge: detail.parents.length > 1,
+    files: detail.files.map((file) => file.filename),
   }
 }
 
