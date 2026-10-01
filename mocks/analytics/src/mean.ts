@@ -13,13 +13,13 @@ export type MeanQuery = {
   breakdown?: string
 }
 
-// `lastSeenAt` is the time of the newest event that holds a number, like
+// `last_seen_at` is the time of the newest event that holds a number, like
 // HogQL `max(timestamp)`. null when `count` is 0.
 export type MeanResult = {
   breakdown: string | null
   count: number
   mean: number | null
-  lastSeenAt: Date | null
+  last_seen_at: Date | null
 }
 
 // Like PostHog's HogQL avg(): a number string counts as its number, any
@@ -75,6 +75,6 @@ export function toMeanResults(
       breakdown: key,
       count,
       mean: count === 0 ? null : sum / count,
-      lastSeenAt,
+      last_seen_at: lastSeenAt,
     }))
 }

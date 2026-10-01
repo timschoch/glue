@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 import type { ConceptDb } from '../db/client.ts'
 import { addConceptRecord } from '../db/concept-records.ts'
-import { formatBreakdownValue, goalMeasureSchema } from '../db/goal-measure.ts'
+import { goalMeasureSchema } from '../db/goal-measure.ts'
 import type {
   FunnelMeasure,
   GoalMeasure,
@@ -376,13 +376,22 @@ function formatMeanTable(
   ].join('\n')
 }
 
+// Names the breakdown value a mean belongs to in the Insight, for example
+// ` for app_version eadfd12`. '' for a mean over all breakdown values.
+function formatBreakdownValue(
+  measure: MeanMeasure,
+  value: string | null | undefined,
+) {
+  return value ? ` for ${measure.breakdown} ${value}` : ''
+}
+
 type ComparedMean = { breakdown: string | null; count: number; mean: number }
 
 // The baseline and the latest mean a mean Goal compares, or null when one is
-// missing. With a baseline value: the mean of that breakdown value, or the
-// stored baseline once it left the window, against the breakdown value seen
-// last. Without: the stored baseline, or this mean on the first run, against
-// the mean over all breakdown values.
+// missing. The stored baseline stays until a new measure clears it. With a
+// baseline value: the first baseline is the mean of that breakdown value, the
+// latest is the newest other breakdown value; events without one never count.
+// Without: the first baseline and the latest are the mean over all values.
 function findComparedMeans(
   { baseline_value: baselineValue }: MeanMeasure,
   results: MeanResult[],
@@ -399,9 +408,10 @@ function findComparedMeans(
   let baseline = storedBaseline
   let latest: (ComparedMean & { lastSeenAt: Date }) | undefined
   for (const { breakdown, count, mean, lastSeenAt } of results) {
-    if (mean === null || lastSeenAt === null) continue
-    if (breakdown === baselineValue) baseline = mean
-    if (!latest || lastSeenAt > latest.lastSeenAt) {
+    if (mean === null || lastSeenAt === null || breakdown === null) continue
+    if (breakdown === baselineValue) {
+      baseline ??= mean
+    } else if (!latest || lastSeenAt > latest.lastSeenAt) {
       latest = { breakdown, count, mean, lastSeenAt }
     }
   }
@@ -462,7 +472,7 @@ async function measureMeanGoal(
   const progress = {
     baseline,
     latestValue: mean,
-    latestBreakdownValue: baselineValue === undefined ? null : latest.breakdown,
+    latestBreakdownValue: latest.breakdown,
   }
   return { title, source: reference, body, progress }
 }
@@ -518,31 +528,53 @@ async function addMeasuredInsight(
   }
 }
 
-export async function measureGoals(options: {
+type MeasureOptions = {
   db: ConceptDb
   source: MetricSource
   now: Date
   productSlug?: string
   dryRun?: boolean
-}): Promise<{ insights: MeasuredInsight[]; skipped: SkippedGoal[] }> {
-  const { db, source, now, productSlug, dryRun = false } = options
-  const { measured, skipped } = await listMeasuredGoals(db, productSlug)
+}
+
+// Measures one Goal, stores its progress and writes its Insight. null when
+// there is nothing to write or an overlapping run wrote it first.
+async function addGoalInsight(
+  { db, source, now, dryRun = false }: MeasureOptions,
+  goal: MeasuredGoal,
+): Promise<MeasuredInsight | null> {
+  const measuredDraft = await measureGoal(db, source, now, goal)
+  if (!measuredDraft) return null
+  const { progress, ...draft } = measuredDraft
+  if (!dryRun && progress) {
+    await setProgress(db, goal.goalId, progress, now)
+  }
+  const id = dryRun ? null : await addMeasuredInsight(db, goal, draft, now)
+  if (!dryRun && id === null) return null
+  return { product: goal.productSlug, goal: goal.goalRecordId, id, ...draft }
+}
+
+export async function measureGoals(
+  options: MeasureOptions,
+): Promise<{ insights: MeasuredInsight[]; skipped: SkippedGoal[] }> {
+  const { measured, skipped } = await listMeasuredGoals(
+    options.db,
+    options.productSlug,
+  )
   const written: MeasuredInsight[] = []
+  // One failing Goal, for example a metric source error, stops no other Goal.
   for (const goal of measured) {
-    const measuredDraft = await measureGoal(db, source, now, goal)
-    if (!measuredDraft) continue
-    const { progress, ...draft } = measuredDraft
-    if (!dryRun && progress) {
-      await setProgress(db, goal.goalId, progress, now)
+    try {
+      const insight = await addGoalInsight(options, goal)
+      if (insight) written.push(insight)
+    } catch (error) {
+      console.error(`measure ${goal.productSlug} ${goal.goalRecordId}`, error)
+      const message = error instanceof Error ? error.message : String(error)
+      skipped.push({
+        product: goal.productSlug,
+        goal: goal.goalRecordId,
+        reason: `the measure run failed: ${message}`,
+      })
     }
-    const id = dryRun ? null : await addMeasuredInsight(db, goal, draft, now)
-    if (!dryRun && id === null) continue
-    written.push({
-      product: goal.productSlug,
-      goal: goal.goalRecordId,
-      id,
-      ...draft,
-    })
   }
   return { insights: written, skipped }
 }

@@ -358,6 +358,8 @@ describe('RecordView', () => {
         await renderInRouter(<RecordView {...handlers} record={versionGoal} />)
 
         expect(shownValue('Baseline')).toBe('3.5 for app_version eadfd12')
+        expect(progress().getByText('app_version eadfd12').tagName).toBe('CODE')
+        expect(progress().getByText('app_version 184c42a').tagName).toBe('CODE')
         expect(shownValue('Latest value')).toBe(
           '4.26 for app_version 184c42a, measured 2026-09-30 14:05 UTC',
         )
@@ -372,8 +374,9 @@ describe('RecordView', () => {
         )
 
         expect(shownValue('Baseline')).toBe(
-          'Not measured yet for app_version eadfd12',
+          'Not measured yet (app_version eadfd12)',
         )
+        expect(progress().getByText('app_version eadfd12').tagName).toBe('CODE')
         expect(shownValue('Latest value')).toBe('Not measured yet')
       })
     })

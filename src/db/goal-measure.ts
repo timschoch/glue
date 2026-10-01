@@ -69,17 +69,6 @@ export const meanMeasureSchema = z
   )
   .meta({ id: 'MeanMeasure' })
 
-// Names the breakdown value a mean belongs to, for example
-// ` for app_version eadfd12`, when the measure compares two. Else ''.
-export function formatBreakdownValue(
-  measure: MeanMeasure,
-  value: string | null | undefined,
-) {
-  return measure.baseline_value === undefined
-    ? ''
-    : ` for ${measure.breakdown} ${value ?? '(none)'}`
-}
-
 // How Glue measures a Goal.
 export const goalMeasureSchema = z
   .discriminatedUnion('kind', [funnelMeasureSchema, meanMeasureSchema])

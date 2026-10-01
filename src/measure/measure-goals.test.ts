@@ -1,7 +1,7 @@
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { findConcept, findRecord } from '../db/concept.ts'
 import {
@@ -634,6 +634,76 @@ describe('measureGoals with a mean measure', () => {
       })
     })
 
+    it('keeps the stored baseline when the baseline value partly leaves the window', async () => {
+      await addGoal(versionMeasure)
+      const { source } = createFakeMeanSource(firstRun, [
+        {
+          breakdown: '184c42a',
+          count: 30,
+          mean: 5.9,
+          lastSeenAt: new Date('2026-10-06T09:00:00Z'),
+        },
+        {
+          breakdown: 'eadfd12',
+          count: 5,
+          mean: 4.2,
+          lastSeenAt: new Date('2026-09-30T09:00:00Z'),
+        },
+      ])
+
+      await runMeasure(source)
+      const { insights } = await measureGoals({
+        db,
+        source,
+        now: new Date('2026-10-07T10:00:00Z'),
+      })
+
+      expect(insights[0].title).toBe(
+        'G1 mean of $survey_response: 5.9 for app_version 184c42a from 30 values, +1.14 from the baseline 4.76 for app_version eadfd12, target +1 reached',
+      )
+      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+        baseline: 4.76,
+        latestValue: 5.9,
+      })
+    })
+
+    it('never takes the baseline value or the events without a breakdown value as the latest', async () => {
+      await addGoal(versionMeasure)
+      const { source } = createFakeMeanSource([
+        { ...firstRun[1], lastSeenAt: new Date('2026-09-29T12:00:00Z') },
+        {
+          breakdown: null,
+          count: 3,
+          mean: 7,
+          lastSeenAt: new Date('2026-09-29T11:00:00Z'),
+        },
+        { ...firstRun[0], lastSeenAt: new Date('2026-09-28T09:00:00Z') },
+      ])
+
+      const [insight] = await runMeasure(source)
+
+      expect(insight.title).toMatch(/: 5\.85 for app_version 184c42a from 40/)
+      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+        baseline: 4.76,
+        latestValue: 5.85,
+        latestBreakdownValue: '184c42a',
+      })
+    })
+
+    it('writes and stores nothing without a breakdown value other than the baseline value', async () => {
+      await addGoal(versionMeasure)
+      const { source } = createFakeMeanSource([
+        firstRun[1],
+        { breakdown: null, count: 3, mean: 7 },
+      ])
+
+      expect(await runMeasure(source)).toEqual([])
+      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+        baseline: null,
+        latestValue: null,
+      })
+    })
+
     it('writes and stores nothing before the baseline value has a mean', async () => {
       await addGoal(versionMeasure)
       const { source } = createFakeMeanSource([firstRun[0]])
@@ -645,6 +715,36 @@ describe('measureGoals with a mean measure', () => {
         latestBreakdownValue: null,
       })
     })
+  })
+
+  it('measures the other Goals when one fails, and skips it with the reason', async () => {
+    const logError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await addGoal(meanMeasure)
+    await addGoal(meanMeasure)
+    let calls = 0
+    const source: MetricSource = {
+      fetchFunnel: () =>
+        Promise.reject(new Error('a mean Goal reads no funnel')),
+      fetchMean: () =>
+        ++calls === 1
+          ? Promise.reject(new Error('mock analytics answered 502'))
+          : Promise.resolve([
+              { breakdown: null, count: 12, mean: 4, lastSeenAt: NOW },
+            ]),
+    }
+
+    const { insights, skipped } = await measureGoals({ db, source, now: NOW })
+
+    expect(insights.map((insight) => insight.goal)).toEqual(['G2'])
+    expect(skipped).toEqual([
+      {
+        product: 'flexibeck',
+        goal: 'G1',
+        reason: 'the measure run failed: mock analytics answered 502',
+      },
+    ])
+    expect(logError).toHaveBeenCalled()
+    logError.mockRestore()
   })
 
   it('writes and stores nothing when no event holds a number', async () => {

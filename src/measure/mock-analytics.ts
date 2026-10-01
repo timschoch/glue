@@ -13,17 +13,24 @@ const funnelResponseSchema = z.object({
   ),
 })
 
+// A Mock deployed before `last_seen_at` sends none: such a mean was never seen.
 const meanResponseSchema = z.object({
   results: z.array(
-    z.object({
-      breakdown: z.string().nullable(),
-      count: z.number(),
-      mean: z.number().nullable(),
-      lastSeenAt: z.iso
-        .datetime()
-        .transform((time) => new Date(time))
-        .nullable(),
-    }),
+    z
+      .object({
+        breakdown: z.string().nullable(),
+        count: z.number(),
+        mean: z.number().nullable(),
+        last_seen_at: z.iso
+          .datetime()
+          .transform((time) => new Date(time))
+          .nullable()
+          .default(null),
+      })
+      .transform(({ last_seen_at: lastSeenAt, ...result }) => ({
+        ...result,
+        lastSeenAt,
+      })),
   ),
 })
 

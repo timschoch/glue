@@ -290,7 +290,7 @@ describe('mean', () => {
           breakdown: null,
           count: 2,
           mean: 5.5,
-          lastSeenAt: '2026-09-02T10:00:00.000Z',
+          last_seen_at: '2026-09-02T10:00:00.000Z',
         },
       ],
     })
@@ -322,7 +322,7 @@ describe('mean', () => {
           breakdown: null,
           count: 1,
           mean: 7,
-          lastSeenAt: '2026-09-01T10:00:00.000Z',
+          last_seen_at: '2026-09-01T10:00:00.000Z',
         },
       ],
     })
@@ -358,13 +358,13 @@ describe('mean', () => {
           breakdown: 'free',
           count: 2,
           mean: 3.5,
-          lastSeenAt: '2026-09-03T10:00:00.000Z',
+          last_seen_at: '2026-09-03T10:00:00.000Z',
         },
         {
           breakdown: 'team',
           count: 1,
           mean: 7,
-          lastSeenAt: '2026-09-01T10:00:00.000Z',
+          last_seen_at: '2026-09-01T10:00:00.000Z',
         },
       ],
     })
@@ -374,7 +374,7 @@ describe('mean', () => {
     const response = await queryMean({})
 
     expect(await response.json()).toEqual({
-      results: [{ breakdown: null, count: 0, mean: null, lastSeenAt: null }],
+      results: [{ breakdown: null, count: 0, mean: null, last_seen_at: null }],
     })
   })
 

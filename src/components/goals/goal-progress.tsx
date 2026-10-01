@@ -1,5 +1,4 @@
 import type { Goal } from '../../db/concept.ts'
-import { formatBreakdownValue } from '../../db/goal-measure.ts'
 import { RecordField, RecordFields } from '../records/record-fields.tsx'
 import classes from './goal-progress.module.css'
 
@@ -54,12 +53,25 @@ export function GoalProgress({
   }
 
   const targetChange = change.format(measure.target_change)
+  const { breakdown, baseline_value: baselineValue } = measure
+  // The breakdown with one of its values, for example `app_version eadfd12`.
+  const baselineName = baselineValue && (
+    <code>{`${breakdown} ${baselineValue}`}</code>
+  )
+  const latestName = latestBreakdownValue && (
+    <code>{`${breakdown} ${latestBreakdownValue}`}</code>
+  )
 
   return (
     <RecordFields>
       <RecordField label="Baseline">
         {baseline === null ? NOT_MEASURED : formatValue(baseline)}
-        {formatBreakdownValue(measure, measure.baseline_value)}
+        {baselineName &&
+          (baseline === null ? (
+            <> ({baselineName})</>
+          ) : (
+            <> for {baselineName}</>
+          ))}
       </RecordField>
       <RecordField label="Latest value">
         {latestValue === null || measuredAt === null ? (
@@ -67,7 +79,7 @@ export function GoalProgress({
         ) : (
           <>
             {formatValue(latestValue)}
-            {formatBreakdownValue(measure, latestBreakdownValue)}, measured{' '}
+            {latestName && <> for {latestName}</>}, measured{' '}
             <time dateTime={measuredAt} className={classes.time}>
               {formatTime(measuredAt)}
             </time>
