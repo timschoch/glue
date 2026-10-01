@@ -11,6 +11,17 @@ const GENERATED = /(^|\/)routeTree\.gen\.ts$/
 const TEST = /\.(test|spec)\.(ts|tsx|mjs|js)$|^e2e\//
 const DECISION_LINE = /^Decision:\s*(.+)$/im
 const DECISION_ID = /\bD\d+\b/g
+// Branches that bots open. Their PRs carry no issue link and no Decision.
+const BOT_PREFIXES = ['dependabot/', 'renovate/', 'release-please--', 'skilly/']
+// The branch that skilly's update workflow opens its PR from.
+const SKILLY_UPDATE_BRANCH = 'chore/skilly-update'
+
+export function isBotBranch(ref) {
+  return (
+    ref === SKILLY_UPDATE_BRANCH ||
+    BOT_PREFIXES.some((prefix) => ref.startsWith(prefix))
+  )
+}
 
 export function problems({ body, files, decisions }) {
   const found = []

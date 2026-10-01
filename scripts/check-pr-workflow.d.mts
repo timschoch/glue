@@ -10,3 +10,5 @@ export function problems(input: {
   files: string[]
   decisions: Map<string, Decision>
 }): string[]
+
+export function isBotBranch(ref: string): boolean
