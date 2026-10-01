@@ -5,7 +5,7 @@ description: The code-naming rules. Use before naming a variable, function, file
 
 # Naming
 
-One list, synced from the hub. The CI gate `naming` checks what a machine can check; the rest is your judgement. [references/lint.md](references/lint.md) draws the line.
+One list, synced from the hub. The gate `naming` checks what a machine can check, on push and in CI; the rest is your judgement. [references/lint.md](references/lint.md) draws the line.
 
 Before you name anything, run `node .agents/skills/naming/scripts/config.mjs` and read its output as the current rules: it prints [references/naming.json](references/naming.json) merged with the project's overrides.
 
@@ -142,6 +142,7 @@ Merge rules:
 
 - [references/naming.json](references/naming.json): prefixes, parts, artifacts, short words, noise words, synonyms, discriminant, allow
 - [references/stacks/](references/stacks/): per-bundle defaults, same shape
-- [references/lint.md](references/lint.md): what the CI gate checks, what you judge, per-repo exceptions
+- [references/lint.md](references/lint.md): what the gate checks, what you judge, per-repo exceptions
 - [references/biome.json](references/biome.json): opt-in Biome block for consumers
 - [scripts/config.mjs](scripts/config.mjs): prints the merged config
+- [scripts/check.mjs](scripts/check.mjs): runs the gate on the files the branch changes

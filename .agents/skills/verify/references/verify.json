@@ -1,0 +1,71 @@
+{
+  "stages": {
+    "commit": {
+      "budgetSeconds": 3,
+      "steps": []
+    },
+    "push": {
+      "extends": "commit",
+      "budgetSeconds": 30,
+      "steps": [
+        {
+          "name": "branch name",
+          "run": "node .claude/hooks/check-branch-name.mjs",
+          "why": "Conventional Branch: <type>/<description>. In CI it reads the PR's head branch, so --no-verify does not get past it. Bot branches pass."
+        },
+        {
+          "name": "naming",
+          "run": "node .agents/skills/naming/scripts/check.mjs",
+          "target": ".agents/skills/naming/scripts/check.mjs",
+          "why": "The skilly / gate naming check on the files the branch changes, run before the push instead of after it. Fix a finding, or add an allow entry to .skilly/naming.json."
+        },
+        { "name": "typecheck", "run": "npm run --if-present typecheck" },
+        {
+          "name": "unit (changed)",
+          "run": "npx vitest run --changed origin/main --passWithNoTests",
+          "target": "vitest.config.ts",
+          "why": "Only the tests the diff reaches, so the push stays inside the budget. The full suite runs in CI."
+        }
+      ]
+    },
+    "ci": {
+      "extends": "push",
+      "budgetSeconds": 300,
+      "steps": [
+        { "name": "lint", "run": "npm run --if-present lint" },
+        { "name": "unit", "run": "npx vitest run --passWithNoTests", "target": "vitest.config.ts" },
+        { "name": "build", "run": "npm run --if-present build" },
+        {
+          "name": "audit",
+          "run": "npm audit --audit-level=high",
+          "tier": "tool",
+          "why": "High and critical advisories only. Lower levels fire on transitive dev dependencies and train everyone to ignore the check."
+        },
+        {
+          "name": "e2e smoke",
+          "run": "npx playwright test --grep @smoke",
+          "tier": "product",
+          "target": "playwright.config.ts",
+          "why": "A merge gate needs the critical paths, not the suite. Tag those specs @smoke; the rest runs nightly."
+        }
+      ]
+    },
+    "nightly": {
+      "tier": "product",
+      "budgetSeconds": 1800,
+      "steps": [
+        { "name": "e2e full", "run": "npx playwright test", "target": "playwright.config.ts" },
+        {
+          "name": "deps drift",
+          "run": "npm outdated || true",
+          "why": "Reports, never fails: npm outdated exits 1 whenever anything is behind, which is always."
+        },
+        {
+          "name": "security scan",
+          "run": "pipx run semgrep scan --config auto --error --exclude .agents",
+          "why": "Semgrep Community Edition ships on PyPI, not npm, so the runner needs python and pipx. --error turns findings into a non-zero exit. --exclude .agents skips skills that skilly vendors: the consumer cannot fix them, sync overwrites them. --exclude keeps Semgrep's default ignore list, a .semgrepignore would replace it."
+        }
+      ]
+    }
+  }
+}
