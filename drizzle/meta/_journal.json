@@ -57,6 +57,13 @@
       "when": 1790788254582,
       "tag": "0007_social_handle",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790813228412,
+      "tag": "0008_goal_latest_breakdown_value",
+      "breakpoints": true
     }
   ]
 }

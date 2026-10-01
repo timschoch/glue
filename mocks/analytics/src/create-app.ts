@@ -121,7 +121,7 @@ export function createApp(options: {
     if (typeof query === 'string') return context.json({ error: query }, 400)
 
     const rows = await database
-      .select({ properties: events.properties })
+      .select({ timestamp: events.timestamp, properties: events.properties })
       .from(events)
       .where(
         and(

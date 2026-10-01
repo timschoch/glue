@@ -72,8 +72,13 @@ describe('createMockAnalyticsSource', () => {
     const { fakeFetch, requests } = createFakeFetch(
       Response.json({
         results: [
-          { breakdown: 'team', count: 12, mean: 5.5 },
-          { breakdown: 'free', count: 0, mean: null },
+          {
+            breakdown: 'team',
+            count: 12,
+            mean: 5.5,
+            last_seen_at: '2026-09-29T08:00:00.000Z',
+          },
+          { breakdown: 'free', count: 0, mean: null, last_seen_at: null },
         ],
       }),
     )
@@ -94,8 +99,13 @@ describe('createMockAnalyticsSource', () => {
     })
 
     expect(results).toEqual([
-      { breakdown: 'team', count: 12, mean: 5.5 },
-      { breakdown: 'free', count: 0, mean: null },
+      {
+        breakdown: 'team',
+        count: 12,
+        mean: 5.5,
+        lastSeenAt: new Date('2026-09-29T08:00:00Z'),
+      },
+      { breakdown: 'free', count: 0, mean: null, lastSeenAt: null },
     ])
     const [request] = requests
     expect(request.url).toBe('http://localhost:4000/api/mean')
@@ -109,6 +119,31 @@ describe('createMockAnalyticsSource', () => {
       where: { property: '$survey_id', value: 'seq' },
       breakdown: 'plan',
     })
+  })
+
+  it('reads a mean without last_seen_at as never seen', async () => {
+    const { fakeFetch } = createFakeFetch(
+      Response.json({
+        results: [{ breakdown: 'team', count: 12, mean: 5.5 }],
+      }),
+    )
+    const source = createMockAnalyticsSource({
+      url: 'http://localhost:4000',
+      readKey: READ_KEY,
+      fetch: fakeFetch,
+    })
+
+    const results = await source.fetchMean({
+      project: 'phc_demo',
+      event: 'survey sent',
+      property: '$survey_response',
+      from: new Date('2026-09-23T00:00:00Z'),
+      to: new Date('2026-09-30T00:00:00Z'),
+    })
+
+    expect(results).toEqual([
+      { breakdown: 'team', count: 12, mean: 5.5, lastSeenAt: null },
+    ])
   })
 
   it('throws with the status when mock analytics refuses the query', async () => {

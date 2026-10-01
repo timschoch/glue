@@ -237,6 +237,7 @@ describe('findRecord', () => {
       status: 'open',
       baseline: null,
       latestValue: null,
+      latestBreakdownValue: null,
       measuredAt: null,
       body: 'Why the goal exists.',
       decisions: [

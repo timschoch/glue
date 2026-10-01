@@ -721,6 +721,7 @@ export async function updateGoal(
         measure,
         baseline: null,
         latestValue: null,
+        latestBreakdownValue: null,
         measuredAt: null,
       }),
     })

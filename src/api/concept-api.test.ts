@@ -628,6 +628,28 @@ describe('Goals', () => {
     })
   })
 
+  it('answers 400 for a mean measure with a baseline value and no breakdown', async () => {
+    const response = await call(
+      handleUpdateRecord,
+      'PATCH',
+      { ...params, recordId: 'G1' },
+      {
+        measure: {
+          kind: 'mean',
+          source: 'mock-analytics',
+          event: 'survey sent',
+          property: '$survey_response',
+          target_change: 1,
+          window_days: 7,
+          baseline_value: 'eadfd12',
+        },
+      },
+    )
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toContain('baseline_value')
+  })
+
   it('closes a Goal as achieved and keeps its measure', async () => {
     const recordParams = { ...params, recordId: 'G1' }
     await call(handleUpdateRecord, 'PATCH', recordParams, { measure })

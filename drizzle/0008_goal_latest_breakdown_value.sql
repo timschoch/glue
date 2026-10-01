@@ -1,0 +1,1 @@
+ALTER TABLE "goals" ADD COLUMN "latest_breakdown_value" text;

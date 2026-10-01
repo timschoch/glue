@@ -25,9 +25,10 @@ function formatTime(time: string) {
 const NOT_MEASURED = 'Not measured yet'
 
 // How far a Goal is: what the first measure read, what the last one read
-// and when, and where the Goal wants to be.
+// and when, and where the Goal wants to be. With a baseline value it names
+// the two breakdown values it compares.
 export function GoalProgress({
-  goal: { measure, baseline, latestValue, measuredAt },
+  goal: { measure, baseline, latestValue, latestBreakdownValue, measuredAt },
 }: {
   goal: Goal
 }) {
@@ -52,18 +53,33 @@ export function GoalProgress({
   }
 
   const targetChange = change.format(measure.target_change)
+  const { breakdown, baseline_value: baselineValue } = measure
+  // The breakdown with one of its values, for example `app_version eadfd12`.
+  const baselineName = baselineValue && (
+    <code>{`${breakdown} ${baselineValue}`}</code>
+  )
+  const latestName = latestBreakdownValue && (
+    <code>{`${breakdown} ${latestBreakdownValue}`}</code>
+  )
 
   return (
     <RecordFields>
       <RecordField label="Baseline">
         {baseline === null ? NOT_MEASURED : formatValue(baseline)}
+        {baselineName &&
+          (baseline === null ? (
+            <> ({baselineName})</>
+          ) : (
+            <> for {baselineName}</>
+          ))}
       </RecordField>
       <RecordField label="Latest value">
         {latestValue === null || measuredAt === null ? (
           NOT_MEASURED
         ) : (
           <>
-            {formatValue(latestValue)}, measured{' '}
+            {formatValue(latestValue)}
+            {latestName && <> for {latestName}</>}, measured{' '}
             <time dateTime={measuredAt} className={classes.time}>
               {formatTime(measuredAt)}
             </time>

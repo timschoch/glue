@@ -28,13 +28,15 @@ export type MeanQuery = {
   breakdown?: string
 }
 
-// The mean of the property's number values, and how many values it read.
-// `mean` is null when `count` is 0. Without a breakdown the source returns
-// one result with `breakdown: null`.
+// The mean of the property's number values, how many values it read, and
+// the time of the newest value. `mean` and `lastSeenAt` are null when
+// `count` is 0. Without a breakdown the source returns one result with
+// `breakdown: null`.
 export type MeanResult = {
   breakdown: string | null
   count: number
   mean: number | null
+  lastSeenAt: Date | null
 }
 
 export type MetricSource = {

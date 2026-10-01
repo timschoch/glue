@@ -43,6 +43,7 @@ const goal: Goal = {
   status: 'open',
   baseline: null,
   latestValue: null,
+  latestBreakdownValue: null,
   measuredAt: null,
   body: 'Each ticket names its Decision.',
   decisions: [{ id: 'D5', title: 'The Concept lives in the database' }],
@@ -100,10 +101,16 @@ const meanGoal: Goal = {
   measure: mean,
   baseline: 3.5,
   latestValue: 4.256,
+  latestBreakdownValue: null,
   measuredAt: '2026-09-30T14:05:12.000Z',
 }
 
-const unmeasured = { baseline: null, latestValue: null, measuredAt: null }
+const unmeasured = {
+  baseline: null,
+  latestValue: null,
+  latestBreakdownValue: null,
+  measuredAt: null,
+}
 
 function path(name: string) {
   return screen.getByRole('link', { name }).getAttribute('href')
@@ -334,6 +341,44 @@ describe('RecordView', () => {
         progress().getByText('2026-09-30 14:05 UTC').getAttribute('datetime'),
       ).toBe('2026-09-30T14:05:12.000Z')
       expect(shownValue('Target')).toBe('4.5, the baseline +1')
+    })
+
+    describe('with a baseline value', () => {
+      const versionGoal: Goal = {
+        ...meanGoal,
+        measure: {
+          ...mean,
+          breakdown: 'app_version',
+          baseline_value: 'eadfd12',
+        },
+        latestBreakdownValue: '184c42a',
+      }
+
+      it('names the breakdown values it compares', async () => {
+        await renderInRouter(<RecordView {...handlers} record={versionGoal} />)
+
+        expect(shownValue('Baseline')).toBe('3.5 for app_version eadfd12')
+        expect(progress().getByText('app_version eadfd12').tagName).toBe('CODE')
+        expect(progress().getByText('app_version 184c42a').tagName).toBe('CODE')
+        expect(shownValue('Latest value')).toBe(
+          '4.26 for app_version 184c42a, measured 2026-09-30 14:05 UTC',
+        )
+      })
+
+      it('names the baseline value before the first measure run', async () => {
+        await renderInRouter(
+          <RecordView
+            {...handlers}
+            record={{ ...versionGoal, ...unmeasured }}
+          />,
+        )
+
+        expect(shownValue('Baseline')).toBe(
+          'Not measured yet (app_version eadfd12)',
+        )
+        expect(progress().getByText('app_version eadfd12').tagName).toBe('CODE')
+        expect(shownValue('Latest value')).toBe('Not measured yet')
+      })
     })
 
     it('shows a target below the baseline', async () => {

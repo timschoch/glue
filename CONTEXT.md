@@ -25,7 +25,8 @@ Use these terms in code, docs, issues and UI. A new term goes here first. Layout
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Record id         | A Concept record's id: type letter plus number, for example `D12`. Never reused, also after a discard.                                                                           |
 | Measure           | A Goal's query, a funnel or the mean of an event property, and the run that reads it from the metric source and new Comments from the social channel, and writes draft Insights. |
-| Baseline          | The mean that the first run of a mean measure reads. The Goal's target is a change from it, for example +1 point.                                                                |
+| Baseline          | The mean that the first run of a mean measure reads, or the mean of its baseline value. The Goal's target is a change from it, for example +1 point.                             |
+| Baseline value    | A breakdown value a mean measure names as its baseline, for example the `app_version` before the change. The latest value is then the mean of the newest other breakdown value.  |
 | Metric source     | The outside tool a measure reads, today [mock analytics](mocks/analytics/README.md). Selected per Product by its analytics project.                                              |
 | Analytics project | The key of a Product's events in the metric source, for example `phc_flexibeck`. Set on the Product, never on a Goal.                                                            |
 | Social channel    | The outside tool that holds public Comments about a Product, today [mock social](mocks/social/README.md).                                                                        |

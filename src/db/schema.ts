@@ -82,9 +82,11 @@ export const goals = pgTable(
     measure: jsonb('measure').$type<GoalMeasure>(),
     status: text('status').notNull().default('open').$type<GoalStatus>(),
     // A mean measure: the value of the first measure run, and the value of
-    // the last run with its time.
+    // the last run with its time. With a baseline value: the means of the
+    // two breakdown values it compares, and the one seen last.
     baseline: doublePrecision('baseline'),
     latestValue: doublePrecision('latest_value'),
+    latestBreakdownValue: text('latest_breakdown_value'),
     measuredAt: timestamp('measured_at', { withTimezone: true }),
     body: text('body').notNull().default(''),
   },

@@ -13,10 +13,13 @@ export type MeanQuery = {
   breakdown?: string
 }
 
+// `last_seen_at` is the time of the newest event that holds a number, like
+// HogQL `max(timestamp)`. null when `count` is 0.
 export type MeanResult = {
   breakdown: string | null
   count: number
   mean: number | null
+  last_seen_at: Date | null
 }
 
 // Like PostHog's HogQL avg(): a number string counts as its number, any
@@ -44,29 +47,34 @@ export function isFilterMatch(
 // The mean of the property per breakdown value, most answers first. Without
 // a breakdown there is one result, with `breakdown: null`.
 export function toMeanResults(
-  events: { properties: Record<string, unknown> }[],
+  events: { timestamp: Date; properties: Record<string, unknown> }[],
   query: Pick<MeanQuery, 'property' | 'where' | 'breakdown'>,
 ): MeanResult[] {
   const { property, where, breakdown } = query
-  const sums = new Map<string | null, { count: number; sum: number }>()
-  if (!breakdown) sums.set(null, { count: 0, sum: 0 })
+  type Total = { count: number; sum: number; lastSeenAt: Date | null }
+  const sums = new Map<string | null, Total>()
+  if (!breakdown) sums.set(null, { count: 0, sum: 0, lastSeenAt: null })
 
-  for (const { properties } of events) {
+  for (const { timestamp, properties } of events) {
     if (where && !isFilterMatch(properties, where)) continue
     const number = parseNumber(properties[property])
     if (number === null) continue
     const key = breakdown ? toText(properties[breakdown]) : null
-    const total = sums.get(key) ?? { count: 0, sum: 0 }
+    const total = sums.get(key) ?? { count: 0, sum: 0, lastSeenAt: null }
     total.count++
     total.sum += number
+    if (!total.lastSeenAt || timestamp > total.lastSeenAt) {
+      total.lastSeenAt = timestamp
+    }
     sums.set(key, total)
   }
 
   return [...sums]
     .sort(([, left], [, right]) => right.count - left.count)
-    .map(([key, { count, sum }]) => ({
+    .map(([key, { count, sum, lastSeenAt }]) => ({
       breakdown: key,
       count,
       mean: count === 0 ? null : sum / count,
+      last_seen_at: lastSeenAt,
     }))
 }
