@@ -3,10 +3,15 @@
 // stage of this script, so the local gate and the pipeline cannot drift into disagreeing about
 // what green means.
 //
-// Stages are cumulative through `extends` in `.skilly/verify.json`: `push` contains `commit`, `ci`
-// contains `push`. Cumulative by construction, so nobody can write a stage that skips a check the
-// stage below it runs. `tier` and `target` subtract from that: a repo runs a step only once it is
-// big enough for it, and only when the thing the step checks is there.
+// The steps come from `../references/verify.json`, the defaults every Consumer gets on sync, with
+// the repo's `.skilly/verify.json` merged on top (rules in merge-config.mjs). Steps match by
+// `name`: the repo changes a default step by naming it, drops one with `"-<name>"`, and adds its
+// own under a new name. The repo file is optional.
+//
+// Stages are cumulative through `extends`: `push` contains `commit`, `ci` contains `push`.
+// Cumulative by construction, so nobody can write a stage that skips a check the stage below it
+// runs. `tier` and `target` subtract from that: a repo runs a step only once it is big enough for
+// it, and only when the thing the step checks is there.
 //
 // A budget warns and never fails. A gate that fails on slowness teaches you to bypass the gate,
 // and the bypass outlives the slowness. `budgetTicket` in the config says where a stage that has
@@ -15,6 +20,7 @@
 // Usage:
 //   node .agents/skills/verify/scripts/verify.mjs <stage>
 //   node .agents/skills/verify/scripts/verify.mjs <stage> --steps    resolved steps as JSON, runs nothing
+//   node .agents/skills/verify/scripts/verify.mjs --config           merged config as JSON, runs nothing
 //
 // The flag is `--steps` and not `--print`, because `--print` is node's own eval flag and the
 // shell allowlist refuses any command that carries it.
@@ -22,19 +28,23 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { mergeConfig } from './merge-config.mjs';
 
 const TIERS = ['sandbox', 'tool', 'product'];
+const DEFAULTS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'references', 'verify.json');
+const MARKERS = [join('.skilly', 'config.json'), join('.skilly', 'verify.json')];
 
 const fail = (...lines) => {
   for (const line of lines) console.error(`verify: ${line}`);
   process.exit(2);
 };
 
-/** The nearest ancestor of `from` that carries a `.skilly/verify.json`. */
+/** The nearest ancestor of `from` that is a Consumer: it carries a `.skilly/config.json` or `.skilly/verify.json`. */
 const findRoot = (from) => {
   let directory = resolve(from);
   for (;;) {
-    if (existsSync(join(directory, '.skilly', 'verify.json'))) return directory;
+    if (MARKERS.some((marker) => existsSync(join(directory, marker)))) return directory;
     const parent = dirname(directory);
     if (parent === directory) return null;
     directory = parent;
@@ -50,9 +60,18 @@ const readJson = (path, label) => {
 };
 
 const root = findRoot(process.cwd());
-if (!root) fail('no .skilly/verify.json in this directory or any parent, so there is no repo to verify.');
+if (!root) fail('no .skilly/config.json or .skilly/verify.json in this directory or any parent, so there is no repo to verify.');
 
-const config = readJson(join(root, '.skilly', 'verify.json'), '.skilly/verify.json');
+const overridePath = join(root, '.skilly', 'verify.json');
+const config = mergeConfig(
+  readJson(DEFAULTS_PATH, 'the verify defaults'),
+  existsSync(overridePath) ? readJson(overridePath, '.skilly/verify.json') : {},
+);
+if (process.argv.includes('--config')) {
+  process.stdout.write(`${JSON.stringify(config, null, 2)}\n`);
+  process.exit(0);
+}
+
 const settingsPath = join(root, '.skilly', 'config.json');
 const tier = (existsSync(settingsPath) ? readJson(settingsPath, '.skilly/config.json').tier : null) ?? 'sandbox';
 if (!TIERS.includes(tier)) fail(`unknown tier ${JSON.stringify(tier)} in .skilly/config.json, tiers are ${TIERS.join(', ')}.`);

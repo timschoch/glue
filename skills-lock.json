@@ -7,6 +7,12 @@
       "skillPath": "bundles/workflow/skills/1-3-1/SKILL.md",
       "computedHash": "c7bb7663fa9733416be7c74f91bbb490394f70710e3f8620b2c7ed9f963032c3"
     },
+    "afk": {
+      "source": "timschoch/skilly",
+      "sourceType": "github",
+      "skillPath": "bundles/workflow/skills/afk/SKILL.md",
+      "computedHash": "e1c0a7b0e71344e1df2190807ce0f90adb6a5121b30caf399c7657de448c4a85"
+    },
     "arena": {
       "source": "cursor/plugins",
       "sourceType": "github",
@@ -29,7 +35,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/audit-skilly-workflow/SKILL.md",
-      "computedHash": "f1ff96eb7d865377973b61178e0a57b2a3b3a7c0a25b1df528f30347a7acc993"
+      "computedHash": "ff790d8f58bf96f7afe58e96ab65357a46870a20b34a3dbaf137ea83e5ba1c12"
     },
     "babysit-pr": {
       "source": "timschoch/skilly",
@@ -247,7 +253,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/naming/SKILL.md",
-      "computedHash": "0c7a189520065d62a6758df315b62aabd6d8fcbcb8a1f523b623d674fe606259"
+      "computedHash": "b501a15ea05d44f1aa2b9381e14e3cb44d0d11c794df5cc85192779eecbde4ed"
     },
     "neon": {
       "source": "neondatabase/agent-skills",
@@ -320,6 +326,12 @@
       "sourceType": "github",
       "skillPath": "pstack/skills/principle-prove-it-works/SKILL.md",
       "computedHash": "6777a72ed3c15bbd73f0d264ba4eb701e5e733de70dd519c72fc2698a32379a2"
+    },
+    "progress": {
+      "source": "timschoch/skilly",
+      "sourceType": "github",
+      "skillPath": "bundles/workflow/skills/progress/SKILL.md",
+      "computedHash": "a544b46c89283795f29b9ed2be45acf69c275862e7bd44d63d201aefe401508d"
     },
     "prototype": {
       "source": "timschoch/mattpocock-skills",
@@ -506,7 +518,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/verify/SKILL.md",
-      "computedHash": "dbce3d68c601de32b0f98be07d8314553a539bd968d44d777b802a112330ea9e"
+      "computedHash": "0f413bcb9af23efef547d603db1784d286abf0cfe66c979d8bd430ee72d54d21"
     },
     "wait-what": {
       "source": "timschoch/mattpocock-skills",
@@ -519,6 +531,12 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/wayfinder/SKILL.md",
       "computedHash": "f904ab1053d1f03889fe8bd094e796b86f118b32a8e2cffa5297a80c3f2123ba"
+    },
+    "wdyt": {
+      "source": "timschoch/skilly",
+      "sourceType": "github",
+      "skillPath": "bundles/workflow/skills/wdyt/SKILL.md",
+      "computedHash": "141e9a2e8f1fc7128d616bccb13606fd820696be8463ad7e6689e6859012a60d"
     },
     "web-design-guidelines": {
       "source": "vercel-labs/agent-skills",
