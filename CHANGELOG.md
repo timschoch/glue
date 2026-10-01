@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.0](https://github.com/timschoch/glue/compare/v1.5.2...v1.6.0) (2026-10-01)
+
+
+### Features
+
+* **measure:** compare a mean Goal's newest breakdown value with a named baseline value ([#95](https://github.com/timschoch/glue/issues/95)) ([d12a0bf](https://github.com/timschoch/glue/commit/d12a0bf924ae1f09e9de1eb5ea0cff293f273aa0))
+
+
+### Bug Fixes
+
+* **pr-gate:** pass the skilly update branch ([#97](https://github.com/timschoch/glue/issues/97)) ([a5664e1](https://github.com/timschoch/glue/commit/a5664e1280cfb62e90616ccbb0930a93cd258b1a))
+
 ## [1.5.2](https://github.com/timschoch/glue/compare/v1.5.1...v1.5.2) (2026-09-30)
 
 
