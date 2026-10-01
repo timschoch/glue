@@ -285,7 +285,14 @@ describe('mean', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      results: [{ breakdown: null, count: 2, mean: 5.5 }],
+      results: [
+        {
+          breakdown: null,
+          count: 2,
+          mean: 5.5,
+          lastSeenAt: '2026-09-02T10:00:00.000Z',
+        },
+      ],
     })
   })
 
@@ -310,11 +317,18 @@ describe('mean', () => {
     })
 
     expect(await response.json()).toEqual({
-      results: [{ breakdown: null, count: 1, mean: 7 }],
+      results: [
+        {
+          breakdown: null,
+          count: 1,
+          mean: 7,
+          lastSeenAt: '2026-09-01T10:00:00.000Z',
+        },
+      ],
     })
   })
 
-  it('splits the mean by the breakdown property, most answers first', async () => {
+  it('splits the mean by the breakdown property, most answers first, each with the time it was last seen', async () => {
     await captureEvents([
       {
         event: 'survey sent',
@@ -331,7 +345,7 @@ describe('mean', () => {
       {
         event: 'survey sent',
         user: 'cy',
-        at: '2026-09-01T10:00:00Z',
+        at: '2026-09-03T10:00:00Z',
         properties: { answer: 5, plan: 'free' },
       },
     ])
@@ -340,8 +354,18 @@ describe('mean', () => {
 
     expect(await response.json()).toEqual({
       results: [
-        { breakdown: 'free', count: 2, mean: 3.5 },
-        { breakdown: 'team', count: 1, mean: 7 },
+        {
+          breakdown: 'free',
+          count: 2,
+          mean: 3.5,
+          lastSeenAt: '2026-09-03T10:00:00.000Z',
+        },
+        {
+          breakdown: 'team',
+          count: 1,
+          mean: 7,
+          lastSeenAt: '2026-09-01T10:00:00.000Z',
+        },
       ],
     })
   })
@@ -350,7 +374,7 @@ describe('mean', () => {
     const response = await queryMean({})
 
     expect(await response.json()).toEqual({
-      results: [{ breakdown: null, count: 0, mean: null }],
+      results: [{ breakdown: null, count: 0, mean: null, lastSeenAt: null }],
     })
   })
 

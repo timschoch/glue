@@ -94,14 +94,22 @@ function createFakeSource(windows: {
   return { source, queries }
 }
 
-// Answers each mean query with the next of `answers`. Keeps every query.
-function createFakeMeanSource(...answers: MeanResult[][]) {
+type MeanAnswer = Omit<MeanResult, 'lastSeenAt'> & {
+  lastSeenAt?: Date | null
+}
+
+// Answers each mean query with the next of `answers`. A result without
+// `lastSeenAt` was last seen at the end of the window. Keeps every query.
+function createFakeMeanSource(...answers: MeanAnswer[][]) {
   const queries: MeanQuery[] = []
   const source: MetricSource = {
     fetchFunnel: () => Promise.reject(new Error('a mean Goal reads no funnel')),
     fetchMean: (query) => {
       queries.push(query)
-      return Promise.resolve(answers[queries.length - 1] ?? [])
+      const results = answers[queries.length - 1] ?? []
+      return Promise.resolve(
+        results.map((result) => ({ lastSeenAt: query.to, ...result })),
+      )
     },
   }
   return { source, queries }
@@ -544,6 +552,99 @@ describe('measureGoals with a mean measure', () => {
         '| free | 4 | 2 | -2 |',
       ].join('\n'),
     )
+  })
+
+  describe('with a baseline value', () => {
+    const versionMeasure: MeanMeasure = {
+      ...meanMeasure,
+      breakdown: 'app_version',
+      baseline_value: 'eadfd12',
+    }
+    const firstRun = [
+      {
+        breakdown: '184c42a',
+        count: 40,
+        mean: 5.85,
+        lastSeenAt: new Date('2026-09-29T09:00:00Z'),
+      },
+      {
+        breakdown: 'eadfd12',
+        count: 37,
+        mean: 4.76,
+        lastSeenAt: new Date('2026-09-27T09:00:00Z'),
+      },
+    ]
+
+    it('compares the breakdown value seen last with the baseline value', async () => {
+      await addGoal(versionMeasure)
+      const { source } = createFakeMeanSource(firstRun)
+
+      const [insight] = await runMeasure(source)
+
+      expect(insight.title).toBe(
+        'G1 mean of $survey_response: 5.85 for app_version 184c42a from 40 values, +1.09 from the baseline 4.76 for app_version eadfd12, target +1 reached',
+      )
+      expect(insight.body).toContain(
+        [
+          '| app_version | Values | Mean | Change from the baseline |',
+          '| --- | --- | --- | --- |',
+          '| all | 77 | 5.33 | +0.57 |',
+          '| 184c42a | 40 | 5.85 | +1.09 |',
+          '| eadfd12 | 37 | 4.76 | 0 |',
+        ].join('\n'),
+      )
+      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+        baseline: 4.76,
+        latestValue: 5.85,
+        latestBreakdownValue: '184c42a',
+      })
+    })
+
+    it('keeps the baseline when the baseline value is no longer in the window', async () => {
+      await addGoal(versionMeasure)
+      const { source } = createFakeMeanSource(firstRun, [
+        {
+          breakdown: '184c42a',
+          count: 30,
+          mean: 5.5,
+          lastSeenAt: new Date('2026-10-04T09:00:00Z'),
+        },
+        {
+          breakdown: '9f00aa1',
+          count: 20,
+          mean: 6,
+          lastSeenAt: new Date('2026-10-06T09:00:00Z'),
+        },
+      ])
+
+      await runMeasure(source)
+      const { insights } = await measureGoals({
+        db,
+        source,
+        now: new Date('2026-10-07T10:00:00Z'),
+      })
+
+      expect(insights[0].title).toBe(
+        'G1 mean of $survey_response: 6 for app_version 9f00aa1 from 20 values, +1.24 from the baseline 4.76 for app_version eadfd12, target +1 reached',
+      )
+      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+        baseline: 4.76,
+        latestValue: 6,
+        latestBreakdownValue: '9f00aa1',
+      })
+    })
+
+    it('writes and stores nothing before the baseline value has a mean', async () => {
+      await addGoal(versionMeasure)
+      const { source } = createFakeMeanSource([firstRun[0]])
+
+      expect(await runMeasure(source)).toEqual([])
+      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+        baseline: null,
+        latestValue: null,
+        latestBreakdownValue: null,
+      })
+    })
   })
 
   it('writes and stores nothing when no event holds a number', async () => {

@@ -19,6 +19,10 @@ const meanResponseSchema = z.object({
       breakdown: z.string().nullable(),
       count: z.number(),
       mean: z.number().nullable(),
+      lastSeenAt: z.iso
+        .datetime()
+        .transform((time) => new Date(time))
+        .nullable(),
     }),
   ),
 })

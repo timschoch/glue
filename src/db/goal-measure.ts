@@ -35,7 +35,9 @@ export type PropertyFilter = z.infer<typeof propertyFilterSchema>
 
 // The mean of one event property over the last `window_days`, for example
 // the answer in posthog-js survey events. The first measure stores the
-// baseline. The mean must move `target_change` away from it.
+// baseline. The mean must move `target_change` away from it. With a
+// `baseline_value` the baseline is the mean of that breakdown value, and the
+// latest value is the mean of the breakdown value seen last.
 export const meanMeasureSchema = z
   .strictObject({
     kind: z.literal('mean'),
@@ -55,8 +57,28 @@ export const meanMeasureSchema = z
       }),
     window_days: windowDays,
     breakdown,
+    baseline_value: z.string().min(1).optional().meta({
+      description:
+        'A breakdown value, for example the app_version before the change. Needs a breakdown',
+    }),
   })
+  .refine(
+    (measure) =>
+      measure.baseline_value === undefined || measure.breakdown !== undefined,
+    { message: 'needs a breakdown', path: ['baseline_value'] },
+  )
   .meta({ id: 'MeanMeasure' })
+
+// Names the breakdown value a mean belongs to, for example
+// ` for app_version eadfd12`, when the measure compares two. Else ''.
+export function formatBreakdownValue(
+  measure: MeanMeasure,
+  value: string | null | undefined,
+) {
+  return measure.baseline_value === undefined
+    ? ''
+    : ` for ${measure.breakdown} ${value ?? '(none)'}`
+}
 
 // How Glue measures a Goal.
 export const goalMeasureSchema = z

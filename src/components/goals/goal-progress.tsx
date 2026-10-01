@@ -1,4 +1,5 @@
 import type { Goal } from '../../db/concept.ts'
+import { formatBreakdownValue } from '../../db/goal-measure.ts'
 import { RecordField, RecordFields } from '../records/record-fields.tsx'
 import classes from './goal-progress.module.css'
 
@@ -25,9 +26,10 @@ function formatTime(time: string) {
 const NOT_MEASURED = 'Not measured yet'
 
 // How far a Goal is: what the first measure read, what the last one read
-// and when, and where the Goal wants to be.
+// and when, and where the Goal wants to be. With a baseline value it names
+// the two breakdown values it compares.
 export function GoalProgress({
-  goal: { measure, baseline, latestValue, measuredAt },
+  goal: { measure, baseline, latestValue, latestBreakdownValue, measuredAt },
 }: {
   goal: Goal
 }) {
@@ -57,13 +59,15 @@ export function GoalProgress({
     <RecordFields>
       <RecordField label="Baseline">
         {baseline === null ? NOT_MEASURED : formatValue(baseline)}
+        {formatBreakdownValue(measure, measure.baseline_value)}
       </RecordField>
       <RecordField label="Latest value">
         {latestValue === null || measuredAt === null ? (
           NOT_MEASURED
         ) : (
           <>
-            {formatValue(latestValue)}, measured{' '}
+            {formatValue(latestValue)}
+            {formatBreakdownValue(measure, latestBreakdownValue)}, measured{' '}
             <time dateTime={measuredAt} className={classes.time}>
               {formatTime(measuredAt)}
             </time>

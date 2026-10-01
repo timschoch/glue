@@ -1,12 +1,12 @@
 // The measure step of the cycle: read each Goal's measure from its metric
 // source and write a draft Insight. A funnel Goal gets one when it misses its
 // target or moved. A mean Goal gets one on each run, with its baseline.
-import { and, eq, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import { z } from 'zod'
 
 import type { ConceptDb } from '../db/client.ts'
 import { addConceptRecord } from '../db/concept-records.ts'
-import { goalMeasureSchema } from '../db/goal-measure.ts'
+import { formatBreakdownValue, goalMeasureSchema } from '../db/goal-measure.ts'
 import type {
   FunnelMeasure,
   GoalMeasure,
@@ -72,12 +72,19 @@ type MeasuredGoal<TMeasure extends GoalMeasure = GoalMeasure> = {
   measure: TMeasure
 }
 
-// The Insight a measure run writes. `value` is the mean a mean Goal stores.
+// How far a mean Goal is, as a measure run stores it.
+type Progress = {
+  baseline: number
+  latestValue: number
+  latestBreakdownValue: string | null
+}
+
+// The Insight a measure run writes, and the progress a mean Goal stores.
 type MeasuredDraft = {
   title: string
   source: string
   body: string
-  value?: number
+  progress?: Progress
 }
 
 function formatDay(date: Date) {
@@ -369,8 +376,40 @@ function formatMeanTable(
   ].join('\n')
 }
 
-// The Insight of the mean Goal's last window, or null when no event holds a
-// number or it is written already. The first mean becomes the baseline.
+type ComparedMean = { breakdown: string | null; count: number; mean: number }
+
+// The baseline and the latest mean a mean Goal compares, or null when one is
+// missing. With a baseline value: the mean of that breakdown value, or the
+// stored baseline once it left the window, against the breakdown value seen
+// last. Without: the stored baseline, or this mean on the first run, against
+// the mean over all breakdown values.
+function findComparedMeans(
+  { baseline_value: baselineValue }: MeanMeasure,
+  results: MeanResult[],
+  storedBaseline: number | null,
+): { baseline: number; latest: ComparedMean } | null {
+  if (baselineValue === undefined) {
+    const { count, mean } = toTotalMean(results)
+    if (mean === null) return null
+    return {
+      baseline: storedBaseline ?? mean,
+      latest: { breakdown: null, count, mean },
+    }
+  }
+  let baseline = storedBaseline
+  let latest: (ComparedMean & { lastSeenAt: Date }) | undefined
+  for (const { breakdown, count, mean, lastSeenAt } of results) {
+    if (mean === null || lastSeenAt === null) continue
+    if (breakdown === baselineValue) baseline = mean
+    if (!latest || lastSeenAt > latest.lastSeenAt) {
+      latest = { breakdown, count, mean, lastSeenAt }
+    }
+  }
+  return latest && baseline !== null ? { baseline, latest } : null
+}
+
+// The Insight of the mean Goal's last window, or null when it has no mean to
+// compare or it is written already.
 async function measureMeanGoal(
   db: ConceptDb,
   source: MetricSource,
@@ -402,23 +441,30 @@ async function measureMeanGoal(
     ...(where && { where }),
     ...(breakdown && { breakdown }),
   })
-  const { count, mean } = toTotalMean(results)
-  if (mean === null) return null
+  const compared = findComparedMeans(measure, results, measured.baseline)
+  if (!compared) return null
 
-  const baseline = measured.baseline ?? mean
-  const { target_change: targetChange } = measure
+  const { baseline, latest } = compared
+  const { mean, count } = latest
+  const { target_change: targetChange, baseline_value: baselineValue } = measure
   const target = change.format(targetChange)
   const isReached =
     (mean - baseline) * Math.sign(targetChange) >= Math.abs(targetChange)
-  const title = `${goalRecordId} mean of ${property}: ${decimal.format(mean)} from ${count} values, ${change.format(mean - baseline)} from the baseline ${decimal.format(baseline)}, target ${target} ${isReached ? 'reached' : 'not reached'}`
+  const baselineText = `the baseline ${decimal.format(baseline)}${formatBreakdownValue(measure, baselineValue)}`
+  const title = `${goalRecordId} mean of ${property}: ${decimal.format(mean)}${formatBreakdownValue(measure, latest.breakdown)} from ${count} values, ${change.format(mean - baseline)} from ${baselineText}, target ${target} ${isReached ? 'reached' : 'not reached'}`
   const filter = where ? `, where ${where.property} is ${where.value}` : ''
   const body = [
-    `Goal ${goalRecordId}, target ${target} from the baseline ${decimal.format(baseline)}: the mean of ${property} in ${event} events${filter}. Query: ${reference}`,
+    `Goal ${goalRecordId}, target ${target} from ${baselineText}: the mean of ${property} in ${event} events${filter}. Query: ${reference}`,
     formatWindowHeading(`Last ${measure.window_days} days`, window),
     formatMeanTable(breakdown, results, baseline),
     await formatAcceptedSection(db, measured),
   ].join('\n\n')
-  return { title, source: reference, body, value: mean }
+  const progress = {
+    baseline,
+    latestValue: mean,
+    latestBreakdownValue: baselineValue === undefined ? null : latest.breakdown,
+  }
+  return { title, source: reference, body, progress }
 }
 
 function measureGoal(
@@ -433,20 +479,15 @@ function measureGoal(
     : measureFunnelGoal(db, source, now, { ...goal, measure })
 }
 
-// Stores the mean of the last run. The first one also becomes the baseline.
-async function setLatestValue(
+async function setProgress(
   db: ConceptDb,
   goalId: number,
-  value: number,
+  progress: Progress,
   now: Date,
 ) {
   await db
     .update(goals)
-    .set({
-      baseline: sql`coalesce(${goals.baseline}, ${value}::double precision)`,
-      latestValue: value,
-      measuredAt: now,
-    })
+    .set({ ...progress, measuredAt: now })
     .where(eq(goals.id, goalId))
 }
 
@@ -490,9 +531,9 @@ export async function measureGoals(options: {
   for (const goal of measured) {
     const measuredDraft = await measureGoal(db, source, now, goal)
     if (!measuredDraft) continue
-    const { value, ...draft } = measuredDraft
-    if (!dryRun && value !== undefined) {
-      await setLatestValue(db, goal.goalId, value, now)
+    const { progress, ...draft } = measuredDraft
+    if (!dryRun && progress) {
+      await setProgress(db, goal.goalId, progress, now)
     }
     const id = dryRun ? null : await addMeasuredInsight(db, goal, draft, now)
     if (!dryRun && id === null) continue

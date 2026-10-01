@@ -27,10 +27,16 @@ export const goalSchema = z
       description: 'A person or an agent sets it. Glue never closes a Goal',
     }),
     baseline: z.number().nullable().meta({
-      description: 'A mean measure: the mean of the first measure run',
+      description:
+        'A mean measure: the mean of the first measure run, or of the baseline value',
     }),
     latestValue: z.number().nullable().meta({
-      description: 'A mean measure: the mean of the last measure run',
+      description:
+        'A mean measure: the mean of the last measure run, or of its latest breakdown value',
+    }),
+    latestBreakdownValue: z.string().nullable().meta({
+      description:
+        'A mean measure with a baseline value: the breakdown value the last measure run saw last',
     }),
     measuredAt: z.iso.datetime().nullable().meta({
       description: 'The time of the last measure run that read a value',
@@ -320,6 +326,7 @@ async function findGoal(
     status: goal.status,
     baseline: goal.baseline,
     latestValue: goal.latestValue,
+    latestBreakdownValue: goal.latestBreakdownValue,
     measuredAt: goal.measuredAt?.toISOString() ?? null,
     body: goal.body,
     decisions: sortById(served),

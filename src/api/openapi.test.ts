@@ -88,7 +88,15 @@ describe('GET /api/v1/openapi.json', () => {
       enum: ['open', 'achieved'],
     })
     expect(Object.keys(schemas.Goal.properties)).toEqual(
-      expect.arrayContaining(['baseline', 'latestValue', 'measuredAt']),
+      expect.arrayContaining([
+        'baseline',
+        'latestValue',
+        'latestBreakdownValue',
+        'measuredAt',
+      ]),
+    )
+    expect(Object.keys(schemas.MeanMeasure.properties)).toContain(
+      'baseline_value',
     )
     expect(schemas.GoalUpdate.properties.status).toMatchObject({
       enum: ['open', 'achieved'],

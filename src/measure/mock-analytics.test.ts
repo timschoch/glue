@@ -72,8 +72,13 @@ describe('createMockAnalyticsSource', () => {
     const { fakeFetch, requests } = createFakeFetch(
       Response.json({
         results: [
-          { breakdown: 'team', count: 12, mean: 5.5 },
-          { breakdown: 'free', count: 0, mean: null },
+          {
+            breakdown: 'team',
+            count: 12,
+            mean: 5.5,
+            lastSeenAt: '2026-09-29T08:00:00.000Z',
+          },
+          { breakdown: 'free', count: 0, mean: null, lastSeenAt: null },
         ],
       }),
     )
@@ -94,8 +99,13 @@ describe('createMockAnalyticsSource', () => {
     })
 
     expect(results).toEqual([
-      { breakdown: 'team', count: 12, mean: 5.5 },
-      { breakdown: 'free', count: 0, mean: null },
+      {
+        breakdown: 'team',
+        count: 12,
+        mean: 5.5,
+        lastSeenAt: new Date('2026-09-29T08:00:00Z'),
+      },
+      { breakdown: 'free', count: 0, mean: null, lastSeenAt: null },
     ])
     const [request] = requests
     expect(request.url).toBe('http://localhost:4000/api/mean')
