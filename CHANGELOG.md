@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/timschoch/glue/compare/v1.6.0...v1.6.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **measure:** measure a Goal again when its baseline value changes ([#100](https://github.com/timschoch/glue/issues/100)) ([2a239d1](https://github.com/timschoch/glue/commit/2a239d1e3db68861bcb88e66ba720f18075ede01)), closes [#99](https://github.com/timschoch/glue/issues/99)
+
 ## [1.6.0](https://github.com/timschoch/glue/compare/v1.5.2...v1.6.0) (2026-10-01)
 
 
