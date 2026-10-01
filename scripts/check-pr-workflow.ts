@@ -5,10 +5,8 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 import { createDb } from '../src/db/client.ts'
-import { problems } from './check-pr-workflow.mjs'
+import { isBotBranch, problems } from './check-pr-workflow.mjs'
 import { loadDecisions } from './load-decisions.ts'
-
-const BOT_PREFIXES = ['dependabot/', 'renovate/', 'release-please--', 'skilly/']
 
 async function main() {
   if (
@@ -19,7 +17,7 @@ async function main() {
   const { pull_request: pr } = JSON.parse(
     readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'),
   )
-  if (BOT_PREFIXES.some((prefix) => pr.head.ref.startsWith(prefix))) return
+  if (isBotBranch(pr.head.ref)) return
 
   const databaseUrl = process.env.CONCEPT_DATABASE_URL
   if (!databaseUrl) {
