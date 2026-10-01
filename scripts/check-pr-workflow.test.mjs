@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { problems } from './check-pr-workflow.mjs'
+import { isBotBranch, problems } from './check-pr-workflow.mjs'
 
 const decisions = new Map([
   ['D2', { status: 'proposed' }],
@@ -101,4 +101,18 @@ test('generated files and styles need no test', () => {
     }),
     [],
   )
+})
+
+test('bot branches skip the gate, the skilly update branch too', () => {
+  for (const ref of [
+    'dependabot/npm_and_yarn/eslint-10.11.0',
+    'renovate/vite-8.x',
+    'release-please--branches--main',
+    'skilly/update',
+    'chore/skilly-update',
+  ]) {
+    assert.equal(isBotBranch(ref), true, ref)
+  }
+  assert.equal(isBotBranch('chore/skilly-update-by-hand'), false)
+  assert.equal(isBotBranch('feat/goal-progress-ui'), false)
 })
