@@ -238,7 +238,7 @@ describe('measureGoals', () => {
     )
   })
 
-  it('writes nothing new on a second run over the same Goal and window', async () => {
+  it('writes nothing new on a second run over the same Goal and window, and says why', async () => {
     await addGoal(measure)
     const { source } = createFakeSource({
       current: [funnel([100, 50, 10])],
@@ -246,9 +246,18 @@ describe('measureGoals', () => {
     })
 
     await runMeasure(source)
-    const second = await runMeasure(source)
+    const second = await measureGoals({ db, source, now: NOW })
 
-    expect(second).toEqual([])
+    expect(second).toEqual({
+      insights: [],
+      skipped: [
+        {
+          product: 'flexibeck',
+          goal: 'G1',
+          reason: 'Insight I1 holds this measure of this window already',
+        },
+      ],
+    })
     const concept = await findConcept(db, 'flexibeck')
     expect(concept?.insights.map((insight) => insight.id)).toEqual(['I1'])
   })
@@ -503,6 +512,32 @@ describe('measureGoals with a mean measure', () => {
     })
   })
 
+  it('stores the baseline and the latest value also when the Insight exists already', async () => {
+    await addGoal(meanMeasure)
+    const answer = [{ breakdown: null, count: 12, mean: 4 }]
+    const { source } = createFakeMeanSource(answer, answer)
+    await runMeasure(source)
+    await updateGoal(db, 'flexibeck', 'G1', { measure: meanMeasure })
+
+    const second = await measureGoals({ db, source, now: NOW })
+
+    expect(second).toEqual({
+      insights: [],
+      skipped: [
+        {
+          product: 'flexibeck',
+          goal: 'G1',
+          reason: 'Insight I1 holds this measure of this window already',
+        },
+      ],
+    })
+    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      baseline: 4,
+      latestValue: 4,
+      measuredAt: NOW.toISOString(),
+    })
+  })
+
   it('keeps the baseline when only the status changes', async () => {
     await addGoal(meanMeasure)
     await runMeasure(
@@ -631,6 +666,28 @@ describe('measureGoals with a mean measure', () => {
         baseline: 4.76,
         latestValue: 6,
         latestBreakdownValue: '9f00aa1',
+      })
+    })
+
+    it('writes a new Insight when a Goal measured in this window gets a baseline value', async () => {
+      await addGoal({ ...meanMeasure, breakdown: 'app_version' })
+      const { source } = createFakeMeanSource(firstRun, firstRun)
+      await runMeasure(source)
+
+      await updateGoal(db, 'flexibeck', 'G1', { measure: versionMeasure })
+      const second = await measureGoals({ db, source, now: NOW })
+
+      expect(second.skipped).toEqual([])
+      expect(second.insights[0].title).toMatch(
+        /5\.85 for app_version 184c42a .* the baseline 4\.76 for app_version eadfd12/,
+      )
+      expect(second.insights[0].source).toContain(
+        '&breakdown=app_version&baseline_value=eadfd12',
+      )
+      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+        baseline: 4.76,
+        latestValue: 5.85,
+        latestBreakdownValue: '184c42a',
       })
     })
 
