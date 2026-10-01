@@ -1,5 +1,4 @@
-import { redirect } from '@tanstack/react-router'
-import { createMiddleware, createServerFn } from '@tanstack/react-start'
+import { createServerFn } from '@tanstack/react-start'
 
 import { parseSignIn, parseSignUp } from './credentials.ts'
 import {
@@ -10,19 +9,6 @@ import { findSession, signIn, signOut, signUp } from './session.ts'
 
 export const fetchSession = createServerFn({ method: 'GET' }).handler(() =>
   findSession(getAuthenticationServer(), getRequestCookies()),
-)
-
-// A route guard does not protect a server function.
-// Each server function that reads the Concept uses this middleware.
-export const sessionMiddleware = createMiddleware({ type: 'function' }).server(
-  async ({ next }) => {
-    const session = await findSession(
-      getAuthenticationServer(),
-      getRequestCookies(),
-    )
-    if (!session) throw redirect({ to: '/sign-in' })
-    return next({ context: { session } })
-  },
 )
 
 export const submitSignIn = createServerFn({ method: 'POST' })

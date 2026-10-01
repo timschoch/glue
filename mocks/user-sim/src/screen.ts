@@ -1,5 +1,6 @@
 import type { Locator, Page } from 'playwright'
 import type { ChoiceSet } from './rules/default-effect.ts'
+import { listTechniques } from './rules/worked-example.ts'
 
 /** What the rules see of a screen. Read from the accessibility tree, never from product source. */
 export type Screen = {
@@ -7,6 +8,8 @@ export type Screen = {
   choiceSets: Array<ChoiceSet>
   requiredInputs: number
   textLength: number
+  /** Techniques the visible text names that no figure on the screen demos. */
+  techniquesWithoutDemo: number
 }
 
 /** One group of choices on the screen. */
@@ -63,14 +66,24 @@ function listChoiceKinds(page: Page): Array<ChoiceKind> {
 /**
  * Groups of choices, in this order: radios of one radiogroup, radios of one
  * fieldset, options of one listbox, toggle buttons of one group or toolbar.
- * Plain buttons such as Continue or Cancel are never choices.
+ * Plain buttons such as Continue or Cancel are never choices. Radio groups named
+ * by one of `questions` are left out.
  */
 export async function listChoiceGroups(
   page: Page,
+  questions: Array<string | RegExp> = [],
 ): Promise<Array<ChoiceGroup>> {
+  const isQuestion = async (container: Locator) => {
+    for (const question of questions) {
+      const group = page.getByRole('radiogroup', { name: question })
+      if ((await container.and(group).count()) > 0) return true
+    }
+    return false
+  }
   const groups: Array<ChoiceGroup> = []
   for (const kind of listChoiceKinds(page)) {
     for (const container of await kind.containers.all()) {
+      if (await isQuestion(container)) continue
       const choices = await kind.choices(container).all()
       if (choices.length === 0) continue
       const picked = kind.picked(container)
@@ -87,19 +100,32 @@ export async function listChoiceGroups(
   return groups
 }
 
-export async function parseScreen(page: Page): Promise<Screen> {
-  const groups = await listChoiceGroups(page)
+/** `questions`: the radio groups the step answers, so they are no choices. */
+export async function parseScreen(
+  page: Page,
+  questions: Array<string | RegExp> = [],
+): Promise<Screen> {
+  const groups = await listChoiceGroups(page, questions)
   const required = page
     .getByRole('textbox')
     .or(page.getByRole('combobox'))
     .or(page.getByRole('spinbutton'))
     .and(page.locator(':required, [aria-required="true"]'))
+  const text = await page.locator('body').innerText()
+  let techniquesWithoutDemo = 0
+  for (const technique of listTechniques(text)) {
+    // A demo is a figure named for the technique. A video counts inside such a
+    // figure: the accessibility tree has no role for a bare video.
+    const demos = page.getByRole('figure', { name: technique.pattern })
+    if ((await demos.count()) === 0) techniquesWithoutDemo++
+  }
   return {
     choiceSets: groups.map((group) => ({
       choices: group.choices.length,
       preselected: group.preselected,
     })),
     requiredInputs: await required.count(),
-    textLength: (await page.locator('body').innerText()).length,
+    textLength: text.length,
+    techniquesWithoutDemo,
   }
 }

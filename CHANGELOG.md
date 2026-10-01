@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.5.2](https://github.com/timschoch/glue/compare/v1.5.1...v1.5.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* **user-sim:** put a rate-limited request on the step that sent it ([#91](https://github.com/timschoch/glue/issues/91)) ([3f92a7b](https://github.com/timschoch/glue/commit/3f92a7b28ae8b500ab8c319241cf3edd6b3f2c7f)), closes [#90](https://github.com/timschoch/glue/issues/90)
+
+## [1.5.1](https://github.com/timschoch/glue/compare/v1.5.0...v1.5.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **mock-analytics:** lighter identify query, chain tests, values stringify ([#89](https://github.com/timschoch/glue/issues/89)) ([1763325](https://github.com/timschoch/glue/commit/176332563e6959855522001603d8e47f788989f8)), closes [#85](https://github.com/timschoch/glue/issues/85)
+* **user-sim:** take flexibeck's closest plan when no plan fits ([#87](https://github.com/timschoch/glue/issues/87)) ([9235bcf](https://github.com/timschoch/glue/commit/9235bcf13324e2024d786298f9c672a2fcc6d5a1)), closes [#81](https://github.com/timschoch/glue/issues/81)
+
+## [1.5.0](https://github.com/timschoch/glue/compare/v1.4.0...v1.5.0) (2026-09-30)
+
+
+### Features
+
+* **app:** show Goal progress and close a Goal as achieved ([#80](https://github.com/timschoch/glue/issues/80)) ([46e531c](https://github.com/timschoch/glue/commit/46e531c1ee8cb4509db381b1ad766fd02636cb79))
+* **mock-analytics:** read property values and merge identified persons ([#84](https://github.com/timschoch/glue/issues/84)) ([4b79fa1](https://github.com/timschoch/glue/commit/4b79fa14d7465144cc4d67e4c01b5048355f2903)), closes [#79](https://github.com/timschoch/glue/issues/79) [#78](https://github.com/timschoch/glue/issues/78)
+* **user-sim:** walk live flexibeck, answer the SEQ, add worked example rule ([#82](https://github.com/timschoch/glue/issues/82)) ([0cdb21b](https://github.com/timschoch/glue/commit/0cdb21b791fd9e124d2962d35e064fc94623987c))
+
+## [1.4.0](https://github.com/timschoch/glue/compare/v1.3.0...v1.4.0) (2026-09-30)
+
+
+### Features
+
+* **measure:** record the sentiment of public comments as draft Insights ([#75](https://github.com/timschoch/glue/issues/75)) ([6ad5a47](https://github.com/timschoch/glue/commit/6ad5a477580c4d34293c5a34aab91528e156f822))
+
+## [1.3.0](https://github.com/timschoch/glue/compare/v1.2.0...v1.3.0) (2026-09-30)
+
+
+### Features
+
+* **measure:** measure a Goal by the mean of an event property and close it as achieved ([#76](https://github.com/timschoch/glue/issues/76)) ([aa98bf2](https://github.com/timschoch/glue/commit/aa98bf2bb21d358605737d212b20a159c35bc88d))
+
+## [1.2.0](https://github.com/timschoch/glue/compare/v1.1.0...v1.2.0) (2026-09-30)
+
+
+### Features
+
+* **app:** triage draft Insights and propose, accept or supersede Decisions ([#60](https://github.com/timschoch/glue/issues/60)) ([7d38ca7](https://github.com/timschoch/glue/commit/7d38ca7a3fa81eab18fe16a30ab203514adfe38a))
+
 ## [1.1.0](https://github.com/timschoch/glue/compare/v1.0.0...v1.1.0) (2026-09-30)
 
 

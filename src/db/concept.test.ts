@@ -97,7 +97,15 @@ describe('findConcept', () => {
 
     expect(await findConcept(db, 'glue')).toEqual({
       product: { slug: 'glue', name: 'glue' },
-      goals: [{ id: 'G1', title: 'Ship faster', metric: 'lead time' }],
+      goals: [
+        {
+          id: 'G1',
+          title: 'Ship faster',
+          metric: 'lead time',
+          status: 'open',
+          latestValue: null,
+        },
+      ],
       decisions: [
         {
           id: 'D1',
@@ -163,7 +171,15 @@ describe('findConcept', () => {
 
     expect(concept).toEqual({
       product: { slug: 'flexibeck', name: 'flexibeck' },
-      goals: [{ id: 'G1', title: 'Sell more bread', metric: 'lead time' }],
+      goals: [
+        {
+          id: 'G1',
+          title: 'Sell more bread',
+          metric: 'lead time',
+          status: 'open',
+          latestValue: null,
+        },
+      ],
       decisions: [],
       guardrails: [],
       insights: [],
@@ -218,6 +234,10 @@ describe('findRecord', () => {
       metric: 'lead time',
       source: 'https://example.com/g1',
       measure: null,
+      status: 'open',
+      baseline: null,
+      latestValue: null,
+      measuredAt: null,
       body: 'Why the goal exists.',
       decisions: [
         { id: 'D1', title: 'Cache the homepage' },

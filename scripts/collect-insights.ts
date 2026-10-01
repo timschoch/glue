@@ -13,6 +13,7 @@ import { eq } from 'drizzle-orm'
 
 import { createDb } from '../src/db/client.ts'
 import type { ConceptDb } from '../src/db/client.ts'
+import { addConceptRecord } from '../src/db/concept-records.ts'
 import * as schema from '../src/db/schema.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -33,7 +34,6 @@ export type ExistingInsight = {
 }
 
 export type DraftInsight = {
-  id: string
   title: string
   date: string
   source: string
@@ -46,17 +46,10 @@ export function toInsights(
   existing: ExistingInsight[],
 ): DraftInsight[] {
   const usedSources = new Set(existing.map((insight) => insight.source))
-  let nextNumber =
-    existing.reduce(
-      (max, insight) => Math.max(max, Number(insight.id.slice(1))),
-      0,
-    ) + 1
   const insights: DraftInsight[] = []
   for (const finding of findings) {
     if (usedSources.has(finding.source)) continue
-    const id = `I${nextNumber}`
     insights.push({
-      id,
       title: finding.title,
       date: finding.date,
       source: finding.source,
@@ -64,7 +57,6 @@ export function toInsights(
       body: finding.body,
     })
     usedSources.add(finding.source)
-    nextNumber += 1
   }
   return insights
 }
@@ -92,26 +84,12 @@ export async function addInsights(
   db: ConceptDb,
   productSlug: string,
   drafts: DraftInsight[],
-) {
-  const [product] = await db
-    .insert(schema.products)
-    .values({ slug: productSlug, name: productSlug })
-    .onConflictDoUpdate({
-      target: schema.products.slug,
-      set: { slug: productSlug },
-    })
-    .returning({ id: schema.products.id })
-  for (const draft of drafts) {
-    await db.insert(schema.insights).values({
-      productId: product.id,
-      recordId: draft.id,
-      title: draft.title,
-      date: draft.date,
-      source: draft.source,
-      status: draft.status,
-      body: draft.body,
-    })
+): Promise<string[]> {
+  const ids: string[] = []
+  for (const { body, ...fields } of drafts) {
+    ids.push(await addConceptRecord(db, productSlug, 'insights', fields, body))
   }
+  return ids
 }
 
 function gh(args: string[]) {
@@ -326,15 +304,14 @@ async function main() {
   }
   if (dryRun) {
     for (const draft of drafts) {
-      console.log(`would insert Insight ${draft.id}`)
+      console.log('would insert an Insight')
       console.log(`  title: ${draft.title}`)
       console.log(`  source: ${draft.source}`)
     }
     return
   }
-  await addInsights(db, PRODUCT_SLUG, drafts)
-  for (const draft of drafts) {
-    console.log(`inserted Insight ${draft.id}`)
+  for (const id of await addInsights(db, PRODUCT_SLUG, drafts)) {
+    console.log(`inserted Insight ${id}`)
   }
 }
 

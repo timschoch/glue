@@ -3,9 +3,11 @@ import { sql } from 'drizzle-orm'
 import {
   check,
   date,
+  doublePrecision,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -23,7 +25,30 @@ export const products = pgTable('products', {
   analyticsProject: text('analytics_project'),
   // The GitHub repository, as owner/name, that builds the Product.
   repository: text('repository'),
+  // The Product's handle in its social channel. The measure run reads the
+  // public comments under this handle.
+  socialHandle: text('social_handle'),
+  // When the newest comment the measure run counted was posted. The next run
+  // reads after it, so a comment counts once. null: read from the start.
+  commentsReadUntil: timestamp('comments_read_until', {
+    withTimezone: true,
+    precision: 3,
+  }),
 })
+
+// The highest number that a record id of one folder had in the Product.
+// It only grows, so the id of a deleted record does not come back.
+export const recordCounters = pgTable(
+  'record_counters',
+  {
+    productId: integer('product_id')
+      .notNull()
+      .references(() => products.id),
+    folder: text('folder').notNull(),
+    lastNumber: integer('last_number').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.productId, table.folder] })],
+)
 
 // A token gives HTTP API access to the Concept of one Product.
 // Only the SHA-256 hash of the token is stored.
@@ -39,6 +64,10 @@ export const tokens = pgTable('tokens', {
     .defaultNow(),
 })
 
+// A person or an agent with a token closes a Goal. Glue never does.
+export const goalStatuses = ['open', 'achieved'] as const
+export type GoalStatus = (typeof goalStatuses)[number]
+
 export const goals = pgTable(
   'goals',
   {
@@ -51,9 +80,18 @@ export const goals = pgTable(
     metric: text('metric').notNull(),
     source: text('source').notNull(),
     measure: jsonb('measure').$type<GoalMeasure>(),
+    status: text('status').notNull().default('open').$type<GoalStatus>(),
+    // A mean measure: the value of the first measure run, and the value of
+    // the last run with its time.
+    baseline: doublePrecision('baseline'),
+    latestValue: doublePrecision('latest_value'),
+    measuredAt: timestamp('measured_at', { withTimezone: true }),
     body: text('body').notNull().default(''),
   },
-  (table) => [unique().on(table.productId, table.recordId)],
+  (table) => [
+    unique().on(table.productId, table.recordId),
+    check('goals_status_check', sql`${table.status} in ('open', 'achieved')`),
+  ],
 )
 
 export const insightStatuses = ['draft'] as const

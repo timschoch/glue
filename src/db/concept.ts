@@ -23,6 +23,18 @@ export const goalSchema = z
     metric: z.string(),
     source: z.string(),
     measure: goalMeasureSchema.nullable(),
+    status: z.enum(schema.goalStatuses).meta({
+      description: 'A person or an agent sets it. Glue never closes a Goal',
+    }),
+    baseline: z.number().nullable().meta({
+      description: 'A mean measure: the mean of the first measure run',
+    }),
+    latestValue: z.number().nullable().meta({
+      description: 'A mean measure: the mean of the last measure run',
+    }),
+    measuredAt: z.iso.datetime().nullable().meta({
+      description: 'The time of the last measure run that read a value',
+    }),
     body: z.string(),
     decisions: z.array(recordReferenceSchema),
   })
@@ -109,7 +121,13 @@ export type DecisionSummary = z.infer<typeof decisionSummarySchema>
 // The overview of each folder, as the Concept lists it.
 export const conceptSummarySchemas = {
   goals: goalSchema
-    .pick({ id: true, title: true, metric: true })
+    .pick({
+      id: true,
+      title: true,
+      metric: true,
+      status: true,
+      latestValue: true,
+    })
     .meta({ id: 'GoalSummary' }),
   decisions: decisionSummarySchema,
   guardrails: guardrailSchema
@@ -152,6 +170,15 @@ async function findProduct(db: ConceptDb, productSlug: string) {
     .from(products)
     .where(eq(products.slug, productSlug))
   return found.at(0)
+}
+
+export type Product = Concept['product']
+
+export function listProducts(db: ConceptDb): Promise<Product[]> {
+  return db
+    .select({ slug: products.slug, name: products.name })
+    .from(products)
+    .orderBy(products.slug)
 }
 
 // The evidence of each Decision that matches, by the Decision's row id.
@@ -205,6 +232,8 @@ export async function findConcept(
         id: goals.recordId,
         title: goals.title,
         metric: goals.metric,
+        status: goals.status,
+        latestValue: goals.latestValue,
       })
       .from(goals)
       .where(eq(goals.productId, product.id)),
@@ -288,6 +317,10 @@ async function findGoal(
     metric: goal.metric,
     source: goal.source,
     measure: goal.measure,
+    status: goal.status,
+    baseline: goal.baseline,
+    latestValue: goal.latestValue,
+    measuredAt: goal.measuredAt?.toISOString() ?? null,
     body: goal.body,
     decisions: sortById(served),
   }

@@ -1,6 +1,7 @@
 /* Hallmark · component: page frame · genre: modern-minimal · theme: custom (dense, calm, text first)
  * states: default · hover · focus · active · disabled
- * One bar with the name of the app and the account, then the content.
+ * One bar with the name of the app, the Product switch and the account,
+ * then the content.
  */
 
 /* Shows only when it has the focus. */
@@ -50,7 +51,25 @@
   padding-block: var(--space-xs);
 }
 
+.place {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+/* A long Product name does not push the account out of the bar. */
+.switch {
+  min-width: 0;
+  max-width: 12rem;
+}
+
+/* The text of a field is this large, so a phone does not zoom in. */
 .product {
+  font-size: var(--text-md);
+}
+
+.app {
   padding-block: var(--space-2xs);
   font-family: var(--font-display);
   font-size: var(--text-lg);

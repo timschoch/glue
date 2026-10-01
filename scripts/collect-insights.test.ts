@@ -5,6 +5,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { discardInsight } from '../src/db/concept-records.ts'
 import * as schema from '../src/db/schema.ts'
 import {
   addInsights,
@@ -31,7 +32,7 @@ const existing = [
 ]
 
 describe('toInsights', () => {
-  it('turns a finding into a draft Insight with the next free id', () => {
+  it('turns a finding into a draft Insight', () => {
     const findings = [
       {
         source: 'https://github.com/timschoch/glue/actions/runs/1/job/2',
@@ -41,7 +42,6 @@ describe('toInsights', () => {
       },
     ]
     const [insight] = toInsights(findings, existing)
-    expect(insight.id).toBe('I2')
     expect(insight.status).toBe('draft')
     expect(insight.source).toBe(findings[0].source)
     expect(insight.date).toBe('2026-09-29')
@@ -59,35 +59,15 @@ describe('toInsights', () => {
     expect(toInsights(findings, existing)).toEqual([])
   })
 
-  it('gives several new findings in one run the next id in order', () => {
-    const findings = [
-      {
-        source: 'https://github.com/timschoch/glue/pull/13#issuecomment-1',
-        title: 'PR #13 interface review blocked',
-        date: '2026-09-29',
-        body: 'Blocked.',
-      },
-      {
-        source: 'https://github.com/timschoch/glue/pull/14#issuecomment-2',
-        title: 'PR #14 interface review blocked',
-        date: '2026-09-29',
-        body: 'Blocked.',
-      },
-    ]
-    const insights = toInsights(findings, existing)
-    expect(insights.map((insight) => insight.id)).toEqual(['I2', 'I3'])
-  })
+  it('keeps one draft for two findings with the same source', () => {
+    const finding = {
+      source: 'https://github.com/timschoch/glue/pull/13#issuecomment-1',
+      title: 'PR #13 interface review blocked',
+      date: '2026-09-29',
+      body: 'Blocked.',
+    }
 
-  it('starts numbering at I1 when there are no existing Insights', () => {
-    const findings = [
-      {
-        source: 'https://github.com/timschoch/glue/pull/1',
-        title: 'First finding',
-        date: '2026-09-29',
-        body: 'Body.',
-      },
-    ]
-    expect(toInsights(findings, [])[0].id).toBe('I1')
+    expect(toInsights([finding, finding], existing)).toHaveLength(1)
   })
 })
 
@@ -138,11 +118,27 @@ describe('database Insight rows', () => {
       [],
     )
 
-    await addInsights(db, 'glue', drafts)
+    const ids = await addInsights(db, 'glue', drafts)
 
     const rows = await loadExistingInsights(db, 'glue')
+    expect(ids).toEqual(['I1'])
     expect(rows.map((row) => row.id)).toEqual(['I1'])
     expect(rows[0].source).toBe('https://github.com/timschoch/glue/pull/1')
+  })
+
+  it('does not give the id of a discarded draft to the next finding', async () => {
+    const [first, second] = ['pull/1', 'pull/2'].map((path) => ({
+      source: `https://github.com/timschoch/glue/${path}`,
+      title: 'A finding',
+      date: '2026-09-29',
+      body: 'Body.',
+    }))
+    const [discarded] = await addInsights(db, 'glue', toInsights([first], []))
+    await discardInsight(db, 'glue', discarded)
+
+    const ids = await addInsights(db, 'glue', toInsights([second], []))
+
+    expect([discarded, ...ids]).toEqual(['I1', 'I2'])
   })
 
   it('inserts nothing for a finding whose source already exists', async () => {

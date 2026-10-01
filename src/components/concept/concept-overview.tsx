@@ -1,32 +1,55 @@
 import { Title } from '@mantine/core'
+import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
+import type { Failure } from '../../authentication/session.ts'
 import type { Concept, RecordReference } from '../../db/concept.ts'
 import { DecisionCard } from '../decisions/decision-card.tsx'
+import { formatValue } from '../goals/goal-progress.tsx'
+import { InsightTriage, keepButtonId } from '../insights/insight-triage.tsx'
+import { useAnnouncer } from '../page/announcer.tsx'
 import { RecordField, RecordFields } from '../records/record-fields.tsx'
 import { RecordLink } from '../records/record-link.tsx'
-import { recordSections } from '../records/record-sections.ts'
+import { insightsNameId, recordSections } from '../records/record-sections.ts'
 import { RecordStatus } from '../records/record-status.tsx'
 import classes from './concept-overview.module.css'
+
+// An action on the record with this id.
+type RowAction = (recordId: string) => Promise<Failure | undefined>
 
 function Section<TRecord extends RecordReference>({
   section: { id, name },
   empty,
   records,
   cards = false,
+  action,
   children,
 }: {
   section: { id: string; name: string }
   empty: string
   records: ReadonlyArray<TRecord>
   cards?: boolean
+  action?: ReactNode
   children: (record: TRecord) => ReactNode
 }) {
+  // The name can get the focus: after the triage of the last draft, the
+  // focus goes to the name of the Insights.
+  const { claimFocus } = useAnnouncer()
+
   return (
     <section id={id} aria-labelledby={`${id}-name`} className={classes.section}>
-      <Title order={2} id={`${id}-name`} className={classes.name}>
-        {name}
-      </Title>
+      <div className={classes.top}>
+        <Title
+          order={2}
+          id={`${id}-name`}
+          tabIndex={-1}
+          ref={claimFocus}
+          className={classes.name}
+        >
+          {name}
+        </Title>
+        {action}
+      </div>
       {records.length === 0 ? (
         <p className={classes.empty}>{empty}</p>
       ) : (
@@ -42,9 +65,11 @@ function Section<TRecord extends RecordReference>({
 
 function Row({
   record,
+  actions,
   children,
 }: {
   record: RecordReference
+  actions?: ReactNode
   children?: ReactNode
 }) {
   return (
@@ -53,24 +78,46 @@ function Row({
         <RecordLink record={record} />
       </Title>
       {children && <RecordFields inline>{children}</RecordFields>}
+      {actions}
     </div>
   )
 }
 
-export function ConceptOverview({ concept }: { concept: Concept | undefined }) {
-  if (!concept) {
-    return (
-      <div className={classes.page}>
-        <Title order={1}>No Concept yet</Title>
-        <p className={classes.empty}>
-          The Concept holds the Goals, Decisions and Guardrails of the Product.
-          To add the first record, run <code>pnpm concept add</code>.
-        </p>
-      </div>
-    )
+export function ConceptOverview({
+  concept,
+  onKeep,
+  onDiscard,
+}: {
+  concept: Concept
+  onKeep: RowAction
+  onDiscard: RowAction
+}) {
+  const { goals, decisions, guardrails, facts } = concept
+  // The drafts are first: they are the work that waits for a person.
+  const drafts = concept.insights.filter(({ status }) => status === 'draft')
+  const insights = [
+    ...drafts,
+    ...concept.insights.filter(({ status }) => status !== 'draft'),
+  ]
+  const { announce } = useAnnouncer()
+
+  // The draft is gone from the drafts after its triage, and so are its
+  // buttons. The focus goes to the next draft, or to the name of the Insights.
+  function triage(result: string, action: RowAction, index: number) {
+    return async () => {
+      const { id } = drafts[index]
+      const next = drafts.at(index + 1)
+      const failure = await action(id)
+      if (!failure) {
+        announce(
+          `${result} ${id}.`,
+          next ? keepButtonId(next.id) : insightsNameId,
+        )
+      }
+      return failure
+    }
   }
 
-  const { goals, decisions, guardrails, insights, facts } = concept
   const sections = [
     { ...recordSections.goal, count: goals.length },
     { ...recordSections.decision, count: decisions.length },
@@ -94,6 +141,14 @@ export function ConceptOverview({ concept }: { concept: Concept | undefined }) {
             ))}
           </ul>
         </nav>
+        {drafts.length > 0 && (
+          <p className={classes.triage}>
+            <a href={`#${recordSections.insight.id}`} className={classes.jump}>
+              {drafts.length} draft{' '}
+              {drafts.length === 1 ? 'Insight' : 'Insights'} to triage
+            </a>
+          </p>
+        )}
       </header>
 
       <Section
@@ -103,7 +158,15 @@ export function ConceptOverview({ concept }: { concept: Concept | undefined }) {
       >
         {(goal) => (
           <Row record={goal}>
+            <RecordField label="Status">
+              <RecordStatus status={goal.status} />
+            </RecordField>
             <RecordField label="Metric">{goal.metric}</RecordField>
+            {goal.latestValue !== null && (
+              <RecordField label="Latest value">
+                {formatValue(goal.latestValue)}
+              </RecordField>
+            )}
           </Row>
         )}
       </Section>
@@ -113,6 +176,16 @@ export function ConceptOverview({ concept }: { concept: Concept | undefined }) {
         empty="No Decisions yet. A Decision serves a Goal and links to its evidence."
         records={decisions}
         cards
+        action={
+          <Link
+            from="/$product"
+            to="/$product/decisions/new"
+            params={true}
+            className={classes.jump}
+          >
+            Propose a Decision
+          </Link>
+        }
       >
         {(decision) => <DecisionCard decision={decision} />}
       </Section>
@@ -137,7 +210,27 @@ export function ConceptOverview({ concept }: { concept: Concept | undefined }) {
         records={insights}
       >
         {(insight) => (
-          <Row record={insight}>
+          <Row
+            record={insight}
+            actions={
+              insight.status === 'draft' && (
+                <InsightTriage
+                  insight={insight}
+                  citedBy={decisions
+                    .filter(({ evidence }) =>
+                      evidence.some(({ id }) => id === insight.id),
+                    )
+                    .map(({ id }) => id)}
+                  onKeep={triage('Kept', onKeep, drafts.indexOf(insight))}
+                  onDiscard={triage(
+                    'Discarded',
+                    onDiscard,
+                    drafts.indexOf(insight),
+                  )}
+                />
+              )
+            }
+          >
             {insight.status && (
               <RecordField label="Status">
                 <RecordStatus status={insight.status} />

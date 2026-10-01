@@ -126,7 +126,7 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 - `--leading-title` is only for large text that stays on one line, such as the name of the app. A record title wraps, so it is not such text.
 - Headings are never italic. Italic is for emphasis in a paragraph.
 - A long title wraps: `overflow-wrap: anywhere`, `min-width: 0` and `text-wrap: balance`. Do not truncate a title, the title is the content.
-- Paragraphs are `--measure-prose` wide at most. A page is `--measure-page` wide at most, a page with only a form or a message `--measure-form`.
+- Paragraphs are `--measure-prose` wide at most. A page is `--measure-page` wide at most, a page with only a form or a message `--measure-form`. A form with a long-text field is `--measure-prose` wide at most.
 - Numbers in a column: `font-variant-numeric: tabular-nums`.
 - Dates are ISO, `2026-09-29`, in a `<time>` element.
 
@@ -170,17 +170,26 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 ## Component voice
 
 - Record reference: the id in `--font-mono` and `--color-accent`, then the title in `--color-ink`, both in one link. The id does not wrap. The underline shows on hover.
-- Status: a small square plus the word. Accepted is a filled square, proposed and draft are an outline, superseded is an outline with the word struck through.
+- Status: a small square plus the word. Accepted and achieved are a filled square, proposed, draft and open are an outline, superseded is an outline with the word struck through.
 - Labels are sentence case and have no colon: `Goal`, `Evidence`. No uppercase labels with wide letter spacing.
 - Each value has its label, also in a line of metadata: `Status`, `Date`, `Owner`.
 - A list without records says so in one sentence, such as `No evidence yet`. Do not hide the label.
 - A link looks like a link, a button looks like a button. One primary button per screen at most.
 - Controls have `--radius-control`.
+- Record actions: one line of small buttons and links below the fields of the record, in a row of a list or on the record page. The id of the record is in the name of each control, hidden from view. A failure shows below the line in `--color-danger`.
+- An action that cannot be undone asks a second time in the same place: one sentence that says what is lost, then a button that stops and a button that goes on. The button that stops has the focus. No dialog.
+- After a record action that worked, its button is gone. The page says the result in one polite live region, `Kept I2.`, and moves the focus.
+  - In a list: to the next record with the same action, or to the heading of the list.
+  - On a record page: to the heading of the page.
+- An action that the record cannot have is not there. One sentence in `--color-ink-soft` below the line says why: `I2 is evidence of D4, so you cannot discard it.`
+- A step that did not finish after a save shows in the field that it fills, with the command that finishes it. Example: the field `Issue` of a Decision when GitHub did not open the issue.
 - Text is plain and states facts. No marketing words, no exclamation marks, no made-up numbers.
 
 ## Navigation
 
-- The page frame is one bar: the name of the app links to the overview, then the account and the sign-out button. It does not stick to the viewport.
+- The page frame is one bar: the name of the app links to the overview, then the Product switch, then the account and the sign-out button. It does not stick to the viewport.
+- The Product switch is a select with the name of the Product of the page. A change goes to the overview of the other Product. The Product is the first part of each address: `/glue/concept/D5`.
+- A section of the overview has the link that adds a record to it on the line of its heading.
 - The first link of a page skips to the content. It shows when it has the focus.
 - The overview links to its sections, each with the number of its records.
 - A record page starts with a breadcrumb: the overview, then the section of the record.
@@ -191,10 +200,16 @@ Three families, all free (SIL Open Font License), self-hosted through Fontsource
 ## Forms
 
 - One column. The label is above its field. A hint is between the label and the field.
+- Most fields are required, so a required field has no mark. A field that can stay empty has `(optional)` after its label: `Reason (optional)`. The mark is in `--color-muted` and normal weight.
 - The text in a field is `--text-md`, so a phone does not zoom in.
 - The checks run on submit. Each bad field gets its error below it and the first bad field gets the focus. An error says how to fix the field.
 - An error of the whole form is above the fields, in `--color-danger`.
+- A form that saved a record goes to the page of the record. The polite live region says the result, `Proposed D4.`, and the heading of the page gets the focus.
 - The button stays active until the request starts. During the request it is disabled and says what it does: `Signing in`.
+- One of a few: a native select. Its first option says what to pick, `Pick a Goal`, and has no value.
+- One or more of many: a group of checkboxes in a `<fieldset>`, the `<legend>` is the label. The list has the border of a field and scrolls from 20 rem height. An error is below the list and the group points to it with `aria-describedby`.
+- Long text: a textarea that grows with its text (`field-sizing: content`), from 10 rem to 32 rem height. A hint says that Markdown works.
+- A link `Cancel` is after the button. It goes back to the page that the form came from.
 
 ## States
 
@@ -236,4 +251,4 @@ These parts have no design. Design them and add them here before you use them.
 - Dark scheme
 - Colours for warning and success
 - Tables outside the text of a record
-- Fields other than text, email and password
+- Fields other than text, email, password, select, checkbox group and long text

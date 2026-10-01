@@ -7,8 +7,13 @@ import { cors } from 'hono/cors'
 import { PayloadTooLargeError, parsePayload, toEventRows } from './capture.ts'
 import { toFunnelResults } from './funnel.ts'
 import type { FunnelQuery } from './funnel.ts'
+import { toMeanResults } from './mean.ts'
+import type { MeanQuery, PropertyFilter } from './mean.ts'
+import { toPersonIds } from './persons.ts'
 import { events } from './schema.ts'
 import type { AnalyticsDatabase } from './schema.ts'
+import { toValuesResults } from './values.ts'
+import type { ValuesQuery } from './values.ts'
 
 // The paths posthog-js and posthog-node post events to. With `strict: false`
 // each matches with and without the trailing slash the clients send.
@@ -22,6 +27,10 @@ const INSERT_CHUNK_ROWS = 1000
 
 // PostHog's default funnel window: 14 days.
 const DEFAULT_WINDOW_HOURS = 336
+
+// Values per breakdown that /api/values returns without and at most with a limit.
+const DEFAULT_VALUES_LIMIT = 100
+const MAX_VALUES_LIMIT = 1000
 
 export function createApp(options: {
   database: AnalyticsDatabase
@@ -88,7 +97,59 @@ export function createApp(options: {
           lt(events.timestamp, query.to),
         ),
       )
-    return context.json({ results: toFunnelResults(rows, query) })
+    // All identifies of the project, so an identify outside the dates still
+    // merges the ids. Merging is order-independent (toPersonIds resolves
+    // each root at union time), so this skips the sort.
+    const anonymousId = sql<string>`${events.properties}->>'$anon_distinct_id'`
+    const identifies = await database
+      .select({ distinctId: events.distinctId, anonymousId })
+      .from(events)
+      .where(
+        and(
+          eq(events.project, query.project),
+          eq(events.name, '$identify'),
+          sql`${anonymousId} is not null`,
+        ),
+      )
+    return context.json({
+      results: toFunnelResults(rows, query, toPersonIds(identifies)),
+    })
+  })
+
+  app.post('/api/mean', async (context) => {
+    const query = parseMeanQuery(await context.req.json().catch(() => null))
+    if (typeof query === 'string') return context.json({ error: query }, 400)
+
+    const rows = await database
+      .select({ properties: events.properties })
+      .from(events)
+      .where(
+        and(
+          eq(events.project, query.project),
+          eq(events.name, query.event),
+          gte(events.timestamp, query.from),
+          lt(events.timestamp, query.to),
+        ),
+      )
+    return context.json({ results: toMeanResults(rows, query) })
+  })
+
+  app.post('/api/values', async (context) => {
+    const query = parseValuesQuery(await context.req.json().catch(() => null))
+    if (typeof query === 'string') return context.json({ error: query }, 400)
+
+    const rows = await database
+      .select({ properties: events.properties })
+      .from(events)
+      .where(
+        and(
+          eq(events.project, query.project),
+          eq(events.name, query.event),
+          gte(events.timestamp, query.from),
+          lt(events.timestamp, query.to),
+        ),
+      )
+    return context.json({ results: toValuesResults(rows, query) })
   })
 
   app.get('/api/events', async (context) => {
@@ -160,6 +221,59 @@ function parseFunnelQuery(body: unknown): FunnelQuery | string {
     return 'window_hours must be a positive number'
   }
   return { project, steps, from: fromDate, to: toDate, breakdown, windowHours }
+}
+
+// Returns the query, or the reason it is invalid.
+function parseMeanQuery(body: unknown): MeanQuery | string {
+  if (typeof body !== 'object' || body === null) return 'body must be JSON'
+  const { project, event, property, from, to, where, breakdown } =
+    body as Record<string, unknown>
+  if (typeof project !== 'string') return 'project must be a string'
+  if (typeof event !== 'string') return 'event must be an event name'
+  if (typeof property !== 'string') return 'property must be a property name'
+  const fromDate = parseDate(from)
+  const toDate = parseDate(to)
+  if (!fromDate || !toDate) return 'from and to must be ISO dates'
+  if (where !== undefined && !isPropertyFilter(where)) {
+    return 'where must be { property, value } with a string, number or boolean value'
+  }
+  if (breakdown !== undefined && typeof breakdown !== 'string') {
+    return 'breakdown must be a property name'
+  }
+  return {
+    project,
+    event,
+    property,
+    from: fromDate,
+    to: toDate,
+    where,
+    breakdown,
+  }
+}
+
+// Returns the query, or the reason it is invalid.
+function parseValuesQuery(body: unknown): ValuesQuery | string {
+  const query = parseMeanQuery(body)
+  if (typeof query === 'string') return query
+  const { limit = DEFAULT_VALUES_LIMIT } = body as Record<string, unknown>
+  if (
+    typeof limit !== 'number' ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > MAX_VALUES_LIMIT
+  ) {
+    return `limit must be a whole number from 1 to ${MAX_VALUES_LIMIT}`
+  }
+  return { ...query, limit }
+}
+
+function isPropertyFilter(value: unknown): value is PropertyFilter {
+  if (typeof value !== 'object' || value === null) return false
+  const { property, value: filterValue } = value as Record<string, unknown>
+  return (
+    typeof property === 'string' &&
+    ['string', 'number', 'boolean'].includes(typeof filterValue)
+  )
 }
 
 function parseDate(value: unknown): Date | null {

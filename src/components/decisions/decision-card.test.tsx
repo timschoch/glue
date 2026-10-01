@@ -33,7 +33,7 @@ describe('DecisionCard', () => {
       'D42 Agents read the Concept through one export',
     )
     expect(link('D42 Agents read the Concept through one export')).toBe(
-      '/concept/D42',
+      '/glue/concept/D42',
     )
   })
 
@@ -66,9 +66,9 @@ describe('DecisionCard', () => {
     expect(
       screen.getAllByRole('listitem').map((item) => item.textContent),
     ).toEqual(['I3 Agents skip long documents', 'F9 An export is one request'])
-    expect(link('G7 Agents build from the Concept')).toBe('/concept/G7')
-    expect(link('I3 Agents skip long documents')).toBe('/concept/I3')
-    expect(link('F9 An export is one request')).toBe('/concept/F9')
+    expect(link('G7 Agents build from the Concept')).toBe('/glue/concept/G7')
+    expect(link('I3 Agents skip long documents')).toBe('/glue/concept/I3')
+    expect(link('F9 An export is one request')).toBe('/glue/concept/F9')
   })
 
   it('says that a Decision has no evidence', async () => {

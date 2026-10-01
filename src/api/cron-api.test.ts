@@ -26,6 +26,7 @@ const source: MetricSource = {
         })),
       },
     ]),
+  fetchMean: () => Promise.resolve([]),
 }
 
 beforeEach(async () => {
@@ -42,6 +43,7 @@ beforeEach(async () => {
         metric: 'signup to paid',
         source: 'okr',
         measure: {
+          kind: 'funnel',
           source: 'mock-analytics',
           steps: ['signed-up', 'paid'],
           target: 0.25,
@@ -69,9 +71,12 @@ function callCron(
   return handleMeasureCron({
     request: new Request('http://localhost/api/cron/measure', { headers }),
     cronSecret,
-    measure: () => {
+    measure: async () => {
       measureCalls += 1
-      return measureGoals({ db, source, now: new Date() })
+      return {
+        ...(await measureGoals({ db, source, now: new Date() })),
+        comments: { insights: [], skipped: [] },
+      }
     },
   })
 }

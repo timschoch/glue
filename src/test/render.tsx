@@ -36,10 +36,10 @@ export function shownValue(label: string): string {
   return (value?.textContent ?? '').replace(/\s+/g, ' ').trim()
 }
 
-// Renders a component as the page at `/`, in the theme, in a router that
-// knows the paths of Glue. The links of the component work, the pages behind
-// them are empty.
-export async function renderInRouter(ui: ReactNode) {
+// Renders a component as the overview of a Product, in the theme, in a router
+// that knows the paths of Glue. The links of the component work, the pages
+// behind them are empty.
+export async function renderInRouter(ui: ReactNode, path = '/glue') {
   const root = createRootRoute({
     component: () => (
       <MantineProvider theme={theme}>
@@ -47,17 +47,25 @@ export async function renderInRouter(ui: ReactNode) {
       </MantineProvider>
     ),
   })
-  const paths = ['/concept/$recordId', '/sign-in', '/sign-up']
+  const others = [
+    '/',
+    '/$product/concept/$recordId',
+    '/$product/decisions/new',
+    '/sign-in',
+    '/sign-up',
+  ]
   const router = createRouter({
     routeTree: root.addChildren([
       createRoute({
         getParentRoute: () => root,
-        path: '/',
+        path: '/$product',
         component: () => ui,
       }),
-      ...paths.map((path) => createRoute({ getParentRoute: () => root, path })),
+      ...others.map((other) =>
+        createRoute({ getParentRoute: () => root, path: other }),
+      ),
     ]),
-    history: createMemoryHistory({ initialEntries: ['/'] }),
+    history: createMemoryHistory({ initialEntries: [path] }),
   })
   await router.load()
 

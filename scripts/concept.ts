@@ -6,25 +6,29 @@ import { createDb } from '../src/db/client.ts'
 import type { ConceptDb } from '../src/db/client.ts'
 import {
   addConceptRecord,
+  addDecision,
   listConceptRecords,
   setAnalyticsProject,
-  setDecisionStatus,
-  setGoalMeasure,
   setProductRepository,
+  setSocialHandle,
   showConceptRecord,
+  updateDecision,
+  updateGoal,
 } from '../src/db/concept-records.ts'
 import type { ConceptFields, ConceptFolder } from '../src/db/concept-records.ts'
 import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
 import type { GoalMeasure } from '../src/db/goal-measure.ts'
-import type { DecisionStatus } from '../src/db/schema.ts'
+import type { DecisionStatus, GoalStatus } from '../src/db/schema.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 import { createGithubClient } from '../src/github/client.ts'
+import type { GithubClient } from '../src/github/client.ts'
 import { createDownstreamIssue } from '../src/github/downstream-issue.ts'
 import type { DownstreamIssue } from '../src/github/downstream-issue.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
   'analytics-project': 'analytics_project',
+  'social-handle': 'social_handle',
   'enforced-by': 'enforced_by',
   'superseded-by': 'superseded_by',
 }
@@ -38,10 +42,12 @@ const KNOWN_FIELDS = new Set(
       'body',
       'status',
       'superseded_by',
+      'supersedes',
       'name',
       'measure',
       'analytics_project',
       'repository',
+      'social_handle',
     ]),
 )
 
@@ -109,48 +115,50 @@ export function formatDownstreamIssue(
   }
 }
 
-// An accepted Decision opens its issue downstream. A GitHub failure keeps
-// the Decision change and only reports the missing issue.
-async function handleDownstreamIssue(
-  db: ConceptDb,
-  product: string,
-  decisionId: string,
-) {
-  const issue = await createDownstreamIssue(
-    db,
-    createGithubClient(),
-    product,
-    decisionId,
-  )
-  console.error(formatDownstreamIssue(product, decisionId, issue))
-  return issue
-}
-
 async function collectStdin(): Promise<string> {
   const chunks: Buffer[] = []
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer)
   return Buffer.concat(chunks).toString('utf8').trim()
 }
 
+function formatFieldValue(value: unknown) {
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'object' && value !== null) return JSON.stringify(value)
+  return String(value)
+}
+
 function printRecord(record: Awaited<ReturnType<typeof showConceptRecord>>) {
   console.log(record.id)
   for (const [key, value] of Object.entries(record.fields)) {
-    console.log(`${key}: ${value}`)
+    console.log(`${key}: ${formatFieldValue(value)}`)
   }
   if (record.goal) console.log(`goal: ${record.goal.id} ${record.goal.title}`)
   for (const item of record.evidence ?? []) {
     console.log(`evidence: ${item.id} ${item.title}`)
   }
   if (record.supersededBy) console.log(`superseded_by: ${record.supersededBy}`)
+  for (const id of record.supersedes ?? []) console.log(`supersedes: ${id}`)
   if (record.body) console.log(`\n${record.body}`)
 }
 
-async function main() {
-  const [command, ...rest] = process.argv.slice(2)
+function main() {
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) throw new Error('DATABASE_URL is required')
-  const db = createDb(databaseUrl)
+  return runConcept(
+    createDb(databaseUrl),
+    createGithubClient,
+    process.argv.slice(2),
+  )
+}
 
+// One command of `pnpm concept`. A write that leaves a Decision accepted
+// opens its issue downstream. A GitHub failure keeps the write, and the
+// command says that the issue is missing.
+export async function runConcept(
+  db: ConceptDb,
+  getGithub: () => GithubClient,
+  [command, ...rest]: string[],
+) {
   switch (command) {
     case 'list': {
       const [maybeFolder, ...flagArgs] = rest
@@ -181,9 +189,19 @@ async function main() {
       const body = bodyFlag === '-' ? await collectStdin() : (bodyFlag ?? '')
       delete flags.product
       delete flags.body
-      const id = await addConceptRecord(db, product, folder, flags, body)
+      if (folder !== 'decisions') {
+        console.log(await addConceptRecord(db, product, folder, flags, body))
+        return
+      }
+      const { id, issue } = await addDecision(
+        db,
+        getGithub(),
+        product,
+        flags,
+        body,
+      )
       console.log(id)
-      if (folder === 'decisions') await handleDownstreamIssue(db, product, id)
+      console.error(formatDownstreamIssue(product, id, issue))
       return
     }
     case 'set': {
@@ -191,25 +209,29 @@ async function main() {
       const flags = parseFlags(flagArgs)
       const product = (flags.product as string | undefined) ?? 'glue'
       if (id.startsWith('G')) {
-        if (!flags.measure) throw new Error('set G<n> needs --measure')
-        await setGoalMeasure(db, product, id, flags.measure as GoalMeasure)
+        await updateGoal(db, product, id, {
+          measure: flags.measure as GoalMeasure | undefined,
+          status: flags.status as GoalStatus | undefined,
+        })
         return
       }
-      await setDecisionStatus(
+      const { issue } = await updateDecision(
         db,
+        getGithub(),
         product,
         id,
         flags.status as DecisionStatus,
         flags.superseded_by as string | undefined,
       )
-      await handleDownstreamIssue(db, product, id)
+      console.error(formatDownstreamIssue(product, id, issue))
       return
     }
     case 'downstream': {
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
       const product = (flags.product as string | undefined) ?? 'glue'
-      const issue = await handleDownstreamIssue(db, product, id)
+      const issue = await createDownstreamIssue(db, getGithub(), product, id)
+      console.error(formatDownstreamIssue(product, id, issue))
       if (issue.kind === 'failed') process.exitCode = 1
       return
     }
@@ -224,9 +246,10 @@ async function main() {
   }
 }
 
-// `product set <slug> --analytics-project <key> --repository owner/name`:
-// the analytics project the Product's Goals are measured from (an empty key
-// removes it) and the GitHub repository that builds the Product.
+// `product set <slug> --analytics-project <key> --repository owner/name
+// --social-handle <handle>`: the analytics project the Product's Goals are
+// measured from, the GitHub repository that builds the Product, and its
+// handle in the social channel. An empty key or handle removes it.
 async function handleProductCommand(
   db: ConceptDb,
   [command, slug, ...rest]: string[],
@@ -237,15 +260,24 @@ async function handleProductCommand(
   const flags = parseFlags(rest)
   const analyticsProject = flags.analytics_project as string | undefined
   const repository = flags.repository as string | undefined
-  if (!slug || (analyticsProject === undefined && !repository)) {
+  const socialHandle = flags.social_handle as string | undefined
+  if (
+    !slug ||
+    (analyticsProject === undefined &&
+      !repository &&
+      socialHandle === undefined)
+  ) {
     throw new Error(
-      'product set needs <slug> and --analytics-project or --repository owner/name',
+      'product set needs <slug> and --analytics-project, --repository owner/name or --social-handle',
     )
   }
   if (analyticsProject !== undefined) {
     await setAnalyticsProject(db, slug, analyticsProject || null)
   }
   if (repository) await setProductRepository(db, slug, repository)
+  if (socialHandle !== undefined) {
+    await setSocialHandle(db, slug, socialHandle || null)
+  }
 }
 
 // Tokens for the Concept HTTP API, one Product each.

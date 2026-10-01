@@ -1,16 +1,26 @@
 // @vitest-environment jsdom
 import { screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import type { ComponentProps } from 'react'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { Concept } from '../../db/concept.ts'
 import { renderInRouter } from '../../test/render.tsx'
+import { Announcer } from '../page/announcer.tsx'
 import { ConceptOverview } from './concept-overview.tsx'
 
 const goal = { id: 'G1', title: 'Agents build from the Concept' }
 
 const concept: Concept = {
   product: { slug: 'glue', name: 'Glue' },
-  goals: [{ ...goal, metric: 'Share of tickets with a Decision' }],
+  goals: [
+    {
+      ...goal,
+      metric: 'Share of tickets with a Decision',
+      status: 'open',
+      latestValue: null,
+    },
+  ],
   decisions: [
     {
       id: 'D1',
@@ -60,6 +70,11 @@ const empty: Concept = {
   facts: [],
 }
 
+const handlers = {
+  onKeep: () => Promise.resolve(undefined),
+  onDiscard: () => Promise.resolve(undefined),
+}
+
 function section(name: string) {
   return within(screen.getByRole('region', { name }))
 }
@@ -67,7 +82,7 @@ function section(name: string) {
 describe('ConceptOverview', () => {
   // The breadcrumb of a record and the link of a missing page say Concept too.
   it('has the name Concept, the one name of the overview', async () => {
-    await renderInRouter(<ConceptOverview concept={concept} />)
+    await renderInRouter(<ConceptOverview {...handlers} concept={concept} />)
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
       'Concept',
@@ -75,7 +90,7 @@ describe('ConceptOverview', () => {
   })
 
   it('shows the title of a Decision in the size of the other record titles', async () => {
-    await renderInRouter(<ConceptOverview concept={concept} />)
+    await renderInRouter(<ConceptOverview {...handlers} concept={concept} />)
 
     const sizes = screen
       .getAllByRole('heading', { level: 3 })
@@ -86,7 +101,7 @@ describe('ConceptOverview', () => {
   })
 
   it('shows Goals, then Decisions, then Guardrails, then Insights and Facts', async () => {
-    await renderInRouter(<ConceptOverview concept={concept} />)
+    await renderInRouter(<ConceptOverview {...handlers} concept={concept} />)
 
     expect(
       screen
@@ -96,7 +111,7 @@ describe('ConceptOverview', () => {
   })
 
   it('links each section with the number of its records', async () => {
-    await renderInRouter(<ConceptOverview concept={concept} />)
+    await renderInRouter(<ConceptOverview {...handlers} concept={concept} />)
 
     const sections = within(
       screen.getByRole('navigation', { name: 'Sections' }),
@@ -117,17 +132,17 @@ describe('ConceptOverview', () => {
   })
 
   it.each([
-    ['Goals', 'G1 Agents build from the Concept', '/concept/G1'],
+    ['Goals', 'G1 Agents build from the Concept', '/glue/concept/G1'],
     [
       'Decisions',
       'D2 Agents read the Concept through one export',
-      '/concept/D2',
+      '/glue/concept/D2',
     ],
-    ['Guardrails', 'R1 No query over 200 ms', '/concept/R1'],
-    ['Insights', 'I2 The build failed on a type error', '/concept/I2'],
-    ['Facts', 'F1 An export is one request', '/concept/F1'],
+    ['Guardrails', 'R1 No query over 200 ms', '/glue/concept/R1'],
+    ['Insights', 'I2 The build failed on a type error', '/glue/concept/I2'],
+    ['Facts', 'F1 An export is one request', '/glue/concept/F1'],
   ])('links each record in %s to its page', async (name, record, path) => {
-    await renderInRouter(<ConceptOverview concept={concept} />)
+    await renderInRouter(<ConceptOverview {...handlers} concept={concept} />)
 
     expect(
       section(name).getByRole('link', { name: record }).getAttribute('href'),
@@ -135,7 +150,7 @@ describe('ConceptOverview', () => {
   })
 
   it('shows what measures a Goal and what enforces a Guardrail', async () => {
-    await renderInRouter(<ConceptOverview concept={concept} />)
+    await renderInRouter(<ConceptOverview {...handlers} concept={concept} />)
 
     expect(
       section('Goals').getByText('Metric').nextElementSibling?.textContent,
@@ -146,10 +161,45 @@ describe('ConceptOverview', () => {
     ).toBe('verify ci')
   })
 
-  it('shows the date of each Insight, and the status of a draft', async () => {
-    await renderInRouter(<ConceptOverview concept={concept} />)
+  it('shows the status of each Goal, and its latest value when it has one', async () => {
+    await renderInRouter(
+      <ConceptOverview
+        {...handlers}
+        concept={{
+          ...concept,
+          goals: [
+            ...concept.goals,
+            {
+              id: 'G2',
+              title: 'The task is easy',
+              metric: 'SEQ mean',
+              status: 'achieved',
+              latestValue: 5.256,
+            },
+          ],
+        }}
+      />,
+    )
 
-    const [first, draft] = section('Insights').getAllByRole('listitem')
+    const [open, achieved] = section('Goals').getAllByRole('listitem')
+
+    expect(
+      within(open).getByText('Status').nextElementSibling?.textContent,
+    ).toBe('Open')
+    expect(within(open).queryByText('Latest value')).toBeNull()
+    expect(
+      within(achieved).getByText('Status').nextElementSibling?.textContent,
+    ).toBe('Achieved')
+    expect(
+      within(achieved).getByText('Latest value').nextElementSibling
+        ?.textContent,
+    ).toBe('5.26')
+  })
+
+  it('shows the date of each Insight, and the status of a draft', async () => {
+    await renderInRouter(<ConceptOverview {...handlers} concept={concept} />)
+
+    const [draft, first] = section('Insights').getAllByRole('listitem')
 
     expect(within(first).getByText('2026-01-10')).toBeDefined()
     expect(within(first).queryByText('Status')).toBeNull()
@@ -179,20 +229,178 @@ describe('ConceptOverview', () => {
   ])(
     'says that %s has no records, and what belongs there',
     async (name, text) => {
-      await renderInRouter(<ConceptOverview concept={empty} />)
+      await renderInRouter(<ConceptOverview {...handlers} concept={empty} />)
 
       expect(section(name).getByText(text)).toBeDefined()
       expect(section(name).queryAllByRole('listitem')).toEqual([])
     },
   )
 
-  it('says how to get a Concept when the Product has none', async () => {
-    await renderInRouter(<ConceptOverview concept={undefined} />)
+  describe('the draft Insights', () => {
+    const drafts: Concept = {
+      ...concept,
+      insights: [
+        ...concept.insights,
+        {
+          id: 'I3',
+          title: 'A review found a missing test',
+          date: '2026-03-04',
+          status: 'draft',
+        },
+      ],
+    }
 
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
-      'No Concept yet',
+    const draft = () => within(section('Insights').getAllByRole('listitem')[0])
+
+    it('come first in the Insights', async () => {
+      await renderInRouter(<ConceptOverview {...handlers} concept={drafts} />)
+
+      expect(
+        section('Insights')
+          .getAllByRole('heading', { level: 3 })
+          .map((title) => title.textContent.slice(0, 2)),
+      ).toEqual(['I2', 'I3', 'I1'])
+    })
+
+    it.each([
+      [concept, '1 draft Insight to triage'],
+      [drafts, '2 draft Insights to triage'],
+    ])(
+      'have their number at the top, with a link to them',
+      async (shown, name) => {
+        await renderInRouter(<ConceptOverview {...handlers} concept={shown} />)
+
+        expect(screen.getByRole('link', { name }).getAttribute('href')).toBe(
+          '#insights',
+        )
+      },
     )
-    expect(screen.getByText('pnpm concept add')).toBeDefined()
-    expect(screen.queryByRole('navigation', { name: 'Sections' })).toBeNull()
+
+    it('have no number at the top when there are none', async () => {
+      await renderInRouter(<ConceptOverview {...handlers} concept={empty} />)
+
+      expect(screen.queryByRole('link', { name: /to triage/ })).toBeNull()
+    })
+
+    it('keeps the draft of the row on request', async () => {
+      const onKeep = vi.fn(() => Promise.resolve(undefined))
+      await renderInRouter(
+        <ConceptOverview {...handlers} onKeep={onKeep} concept={drafts} />,
+      )
+
+      await userEvent.click(draft().getByRole('button', { name: 'Keep I2' }))
+
+      expect(onKeep).toHaveBeenCalledExactlyOnceWith('I2')
+    })
+
+    it('discards the draft of the row after a second request', async () => {
+      const onDiscard = vi.fn(() => Promise.resolve(undefined))
+      await renderInRouter(
+        <ConceptOverview
+          {...handlers}
+          onDiscard={onDiscard}
+          concept={drafts}
+        />,
+      )
+
+      await userEvent.click(draft().getByRole('button', { name: 'Discard I2' }))
+      await userEvent.click(
+        draft().getByRole('button', { name: 'Discard I2 for good' }),
+      )
+
+      expect(onDiscard).toHaveBeenCalledExactlyOnceWith('I2')
+    })
+
+    function renderAnnounced(
+      shown: Concept,
+      actions: Partial<ComponentProps<typeof ConceptOverview>> = {},
+    ) {
+      return renderInRouter(
+        <Announcer>
+          <ConceptOverview {...handlers} {...actions} concept={shown} />
+        </Announcer>,
+      )
+    }
+
+    it('says that the draft was kept, and moves the focus to the next draft', async () => {
+      await renderAnnounced(drafts)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Keep I2' }))
+
+      expect(screen.getByRole('status').textContent).toBe('Kept I2.')
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Keep I3' }),
+      )
+    })
+
+    it('says that the last draft was discarded, and moves the focus to the heading', async () => {
+      await renderAnnounced(drafts)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Discard I3' }))
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Discard I3 for good' }),
+      )
+
+      expect(screen.getByRole('status').textContent).toBe('Discarded I3.')
+      expect(document.activeElement).toBe(
+        screen.getByRole('heading', { name: 'Insights' }),
+      )
+    })
+
+    it('says nothing, and keeps the focus, when the draft was not kept', async () => {
+      await renderAnnounced(drafts, {
+        onKeep: () => Promise.resolve({ message: 'Sign in again' }),
+      })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Keep I2' }))
+
+      expect(screen.getByRole('status').textContent).toBe('')
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Keep I2' }),
+      )
+    })
+
+    it('has no Discard for a draft that is the evidence of a Decision', async () => {
+      const [accepted, proposed] = concept.decisions
+      await renderAnnounced({
+        ...drafts,
+        decisions: [
+          accepted,
+          { ...proposed, evidence: [{ id: 'I2', title: 'The build failed' }] },
+        ],
+      })
+
+      expect(screen.queryByRole('button', { name: 'Discard I2' })).toBeNull()
+      expect(
+        screen.getByText('I2 is evidence of D2, so you cannot discard it.'),
+      ).toBeDefined()
+      expect(screen.getByRole('button', { name: 'Discard I3' })).toBeDefined()
+    })
+
+    it('links the draft of the row to the Decision form', async () => {
+      await renderInRouter(<ConceptOverview {...handlers} concept={drafts} />)
+
+      expect(
+        draft()
+          .getByRole('link', { name: 'Propose a Decision from I2' })
+          .getAttribute('href'),
+      ).toBe('/glue/decisions/new?evidence=I2')
+    })
+
+    it('has no triage for an Insight that is not a draft', async () => {
+      await renderInRouter(<ConceptOverview {...handlers} concept={drafts} />)
+
+      expect(screen.queryByRole('button', { name: 'Keep I1' })).toBeNull()
+    })
+  })
+
+  it('links to the form for a new Decision', async () => {
+    await renderInRouter(<ConceptOverview {...handlers} concept={concept} />)
+
+    expect(
+      section('Decisions')
+        .getByRole('link', { name: 'Propose a Decision' })
+        .getAttribute('href'),
+    ).toBe('/glue/decisions/new')
   })
 })

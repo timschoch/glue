@@ -1,6 +1,168 @@
-import { describe, expect, it } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/pglite'
+import { migrate } from 'drizzle-orm/pglite/migrator'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { formatDownstreamIssue, parseFlags } from './concept.ts'
+import {
+  addConceptRecord,
+  setProductRepository,
+  showConceptRecord,
+} from '../src/db/concept-records.ts'
+import * as schema from '../src/db/schema.ts'
+import { createFakeGithub } from '../src/test/github.ts'
+import { formatDownstreamIssue, parseFlags, runConcept } from './concept.ts'
+
+describe('runConcept', () => {
+  let client: PGlite
+  let db: ReturnType<typeof drizzle<typeof schema>>
+  let fake: ReturnType<typeof createFakeGithub>
+
+  const decisionFlags = [
+    '--product',
+    'flexibeck',
+    '--title',
+    'Check the types before the push',
+    '--date',
+    '2026-03-03',
+    '--owner',
+    'Ada',
+    '--goal',
+    'G1',
+    '--evidence',
+    'F1',
+  ]
+
+  function run(...args: string[]) {
+    return runConcept(db, () => fake.github, args)
+  }
+
+  beforeEach(async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fake = createFakeGithub()
+    client = new PGlite()
+    db = drizzle(client, { schema })
+    await migrate(db, { migrationsFolder: './drizzle' })
+    await addConceptRecord(
+      db,
+      'flexibeck',
+      'goals',
+      { title: 'Ship faster', metric: 'lead time', source: 'okr' },
+      '',
+    )
+    await addConceptRecord(
+      db,
+      'flexibeck',
+      'facts',
+      { title: 'CI takes ten minutes', source: 'verify ci' },
+      '',
+    )
+    await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck-next')
+  })
+
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await client.close()
+  })
+
+  async function showIssueUrl(id: string) {
+    const [row] = await db
+      .select({ issueUrl: schema.decisions.issueUrl })
+      .from(schema.decisions)
+      .where(eq(schema.decisions.recordId, id))
+    return row.issueUrl
+  }
+
+  it('opens no issue for a Decision that it adds as proposed', async () => {
+    await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
+
+    expect(fake.issues).toEqual([])
+  })
+
+  it('opens the downstream issue when it sets a Decision to accepted', async () => {
+    await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
+
+    await run('set', 'D1', '--product', 'flexibeck', '--status', 'accepted')
+
+    expect(fake.issues).toHaveLength(1)
+    expect(await showIssueUrl('D1')).not.toBeNull()
+  })
+
+  it('opens the downstream issue of a Decision that supersedes another one', async () => {
+    await run('add', 'decisions', ...decisionFlags, '--status', 'accepted')
+
+    await run(
+      'add',
+      'decisions',
+      ...decisionFlags,
+      '--status',
+      'accepted',
+      '--supersedes',
+      'D1',
+    )
+
+    expect(fake.issues).toHaveLength(2)
+    expect(await showIssueUrl('D2')).not.toBeNull()
+    expect((await showConceptRecord(db, 'flexibeck', 'D1')).supersededBy).toBe(
+      'D2',
+    )
+  })
+
+  it('closes a Goal as achieved', async () => {
+    await run('set', 'G1', '--product', 'flexibeck', '--status', 'achieved')
+
+    const goal = await showConceptRecord(db, 'flexibeck', 'G1')
+    expect(goal.fields.status).toBe('achieved')
+  })
+
+  it('shows the measure of a Goal as JSON', async () => {
+    const measure = {
+      kind: 'mean',
+      source: 'mock-analytics',
+      event: 'survey sent',
+      property: '$survey_response',
+      target_change: 1,
+      window_days: 7,
+    }
+    await run(
+      'set',
+      'G1',
+      '--product',
+      'flexibeck',
+      '--measure',
+      JSON.stringify(measure),
+    )
+
+    await run('show', 'G1', '--product', 'flexibeck')
+
+    const lines: string[] = vi
+      .mocked(console.log)
+      .mock.calls.map(([line]) => line)
+    const measureLine = lines.find((line) => line.startsWith('measure: '))
+    expect(JSON.parse(measureLine?.slice('measure: '.length) ?? '')).toEqual(
+      measure,
+    )
+    expect(lines).toContain('status: open')
+    expect(lines).toContain('baseline: null')
+  })
+  it('sets the social handle of a Product, and an empty handle removes it', async () => {
+    const findHandle = async () => {
+      const [row] = await db
+        .select({ handle: schema.products.socialHandle })
+        .from(schema.products)
+        .where(eq(schema.products.slug, 'flexibeck'))
+      return row.handle
+    }
+
+    await run('product', 'set', 'flexibeck', '--social-handle', 'flexibeck')
+    const handle = await findHandle()
+    await run('product', 'set', 'flexibeck', '--social-handle', '')
+
+    expect(handle).toBe('flexibeck')
+    expect(await findHandle()).toBeNull()
+  })
+})
 
 describe('parseFlags', () => {
   it('parses a flag into its field', () => {
@@ -16,6 +178,10 @@ describe('parseFlags', () => {
     expect(parseFlags(['--superseded-by', 'D2'])).toEqual({
       superseded_by: 'D2',
     })
+  })
+
+  it('parses the Decision that a new Decision supersedes', () => {
+    expect(parseFlags(['--supersedes', 'D1'])).toEqual({ supersedes: 'D1' })
   })
 
   it('splits --evidence on commas', () => {
@@ -39,6 +205,7 @@ describe('parseFlags', () => {
 
   it('parses --measure as the JSON of a Goal measure', () => {
     const measure = {
+      kind: 'funnel',
       source: 'mock-analytics',
       steps: ['signed-up', 'paid'],
       target: 0.25,
@@ -57,7 +224,7 @@ describe('parseFlags', () => {
   })
 
   it('rejects a --measure without its steps', () => {
-    const measure = { source: 'mock-analytics', target: 0.25 }
+    const measure = { kind: 'funnel', source: 'mock-analytics', target: 0.25 }
 
     expect(() => parseFlags(['--measure', JSON.stringify(measure)])).toThrow(
       /steps/,
