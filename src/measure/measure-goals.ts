@@ -198,8 +198,9 @@ function formatWindowSection(
   ].join('\n\n')
 }
 
-// A URL-like reference to the query. It is also the key that keeps a second
-// run over the same Goal and window from writing the Insight again.
+// A URL-like reference to the query, with all that changes its result. It is
+// also the key that keeps a second run over the same Goal, measure and window
+// from writing the Insight again.
 function formatQueryReference(
   { analyticsProject, goalRecordId, measure }: MeasuredGoal,
   fields: string[],
@@ -211,16 +212,20 @@ function formatQueryReference(
     `from=${formatDay(window.from)}`,
     `to=${formatDay(window.to)}`,
     ...(measure.breakdown ? [`breakdown=${measure.breakdown}`] : []),
+    ...(measure.kind === 'mean' && measure.baseline_value !== undefined
+      ? [`baseline_value=${encodeURIComponent(measure.baseline_value)}`]
+      : []),
   ].join('&')
   return `${measure.source}://${analyticsProject}/${measure.kind}?${query}`
 }
 
-async function hasInsight(db: ConceptDb, productId: number, source: string) {
+// The id of the Insight a measure run wrote for this query, or null.
+async function findInsightId(db: ConceptDb, productId: number, source: string) {
   const found = await db
-    .select({ id: insights.id })
+    .select({ id: insights.recordId })
     .from(insights)
     .where(and(eq(insights.productId, productId), eq(insights.source, source)))
-  return found.length > 0
+  return found.at(0)?.id ?? null
 }
 
 async function formatAcceptedSection(
@@ -294,21 +299,20 @@ async function listMeasuredGoals(
 }
 
 // The Insight the funnel Goal's last window calls for, or null when there is
-// none or it is written already.
+// none.
 async function measureFunnelGoal(
   db: ConceptDb,
   source: MetricSource,
   now: Date,
   measured: MeasuredGoal<FunnelMeasure>,
 ): Promise<MeasuredDraft | null> {
-  const { productId, goalRecordId, measure } = measured
+  const { goalRecordId, measure } = measured
   const lastWindow = windowBefore(now, measure.window_days)
   const reference = formatQueryReference(
     measured,
     [`steps=${measure.steps.join(',')}`],
     lastWindow,
   )
-  if (await hasInsight(db, productId, reference)) return null
 
   const [last, before] = await Promise.all(
     [lastWindow, windowBefore(lastWindow.from, measure.window_days)].map(
@@ -419,14 +423,14 @@ function findComparedMeans(
 }
 
 // The Insight of the mean Goal's last window, or null when it has no mean to
-// compare or it is written already.
+// compare.
 async function measureMeanGoal(
   db: ConceptDb,
   source: MetricSource,
   now: Date,
   measured: MeasuredGoal<MeanMeasure>,
 ): Promise<MeasuredDraft | null> {
-  const { productId, analyticsProject, goalRecordId, measure } = measured
+  const { analyticsProject, goalRecordId, measure } = measured
   const { event, property, where, breakdown } = measure
   const window = windowBefore(now, measure.window_days)
   const encode = encodeURIComponent
@@ -441,7 +445,6 @@ async function measureMeanGoal(
     ],
     window,
   )
-  if (await hasInsight(db, productId, reference)) return null
 
   const results = await source.fetchMean({
     project: analyticsProject,
@@ -489,6 +492,14 @@ function measureGoal(
     : measureFunnelGoal(db, source, now, { ...goal, measure })
 }
 
+type MeasureOptions = {
+  db: ConceptDb
+  source: MetricSource
+  now: Date
+  productSlug?: string
+  dryRun?: boolean
+}
+
 async function setProgress(
   db: ConceptDb,
   goalId: number,
@@ -501,13 +512,17 @@ async function setProgress(
     .where(eq(goals.id, goalId))
 }
 
-// The new Insight's id, or null when an overlapping run wrote it first.
+// Writes the Insight unless one exists for the same query: from an earlier
+// run, or from an overlapping run that wrote it first. A dry run writes
+// nothing, its new Insight has no id.
 async function addMeasuredInsight(
-  db: ConceptDb,
+  { db, now, dryRun = false }: MeasureOptions,
   goal: MeasuredGoal,
   draft: MeasuredDraft,
-  now: Date,
-) {
+): Promise<{ id: string | null; isDuplicate: boolean }> {
+  const existingId = await findInsightId(db, goal.productId, draft.source)
+  if (existingId) return { id: existingId, isDuplicate: true }
+  if (dryRun) return { id: null, isDuplicate: false }
   const fields = {
     title: draft.title,
     source: draft.source,
@@ -515,42 +530,44 @@ async function addMeasuredInsight(
     status: 'draft',
   }
   try {
-    return await addConceptRecord(
+    const id = await addConceptRecord(
       db,
       goal.productSlug,
       'insights',
       fields,
       draft.body,
     )
+    return { id, isDuplicate: false }
   } catch (error) {
-    if (await hasInsight(db, goal.productId, draft.source)) return null
+    const writtenId = await findInsightId(db, goal.productId, draft.source)
+    if (writtenId) return { id: writtenId, isDuplicate: true }
     throw error
   }
 }
 
-type MeasureOptions = {
-  db: ConceptDb
-  source: MetricSource
-  now: Date
-  productSlug?: string
-  dryRun?: boolean
-}
-
-// Measures one Goal, stores its progress and writes its Insight. null when
-// there is nothing to write or an overlapping run wrote it first.
+// Measures one Goal, stores its progress and writes its Insight. The progress
+// does not depend on the Insight: a duplicate Insight is skipped with the
+// reason, the progress is stored all the same. null when the measure calls for
+// no Insight.
 async function addGoalInsight(
-  { db, source, now, dryRun = false }: MeasureOptions,
+  options: MeasureOptions,
   goal: MeasuredGoal,
-): Promise<MeasuredInsight | null> {
+): Promise<MeasuredInsight | SkippedGoal | null> {
+  const { db, source, now, dryRun = false } = options
   const measuredDraft = await measureGoal(db, source, now, goal)
   if (!measuredDraft) return null
   const { progress, ...draft } = measuredDraft
   if (!dryRun && progress) {
     await setProgress(db, goal.goalId, progress, now)
   }
-  const id = dryRun ? null : await addMeasuredInsight(db, goal, draft, now)
-  if (!dryRun && id === null) return null
-  return { product: goal.productSlug, goal: goal.goalRecordId, id, ...draft }
+  const { id, isDuplicate } = await addMeasuredInsight(options, goal, draft)
+  const names = { product: goal.productSlug, goal: goal.goalRecordId }
+  return isDuplicate
+    ? {
+        ...names,
+        reason: `Insight ${id} holds this measure of this window already`,
+      }
+    : { ...names, id, ...draft }
 }
 
 export async function measureGoals(
@@ -564,8 +581,9 @@ export async function measureGoals(
   // One failing Goal, for example a metric source error, stops no other Goal.
   for (const goal of measured) {
     try {
-      const insight = await addGoalInsight(options, goal)
-      if (insight) written.push(insight)
+      const result = await addGoalInsight(options, goal)
+      if (result && 'reason' in result) skipped.push(result)
+      else if (result) written.push(result)
     } catch (error) {
       console.error(`measure ${goal.productSlug} ${goal.goalRecordId}`, error)
       const message = error instanceof Error ? error.message : String(error)
