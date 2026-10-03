@@ -1,14 +1,90 @@
+@use '@carbon/react/scss/breakpoint' as *;
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+@use '@carbon/react/scss/utilities/focus-outline' as *;
 
 $pinned-width: $spacing-13 * 2;
+
+// From this width the main window has room beside the pinned column.
+$pinned-breakpoint: 'lg';
 
 .breadcrumb {
   padding-inline: $spacing-05;
 }
 
+.switcher {
+  padding: $spacing-05 $spacing-05 0;
+}
+
+// The trail row: the trail at the start, the count of pins at the end.
 .trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: $spacing-05;
   margin-block-end: $spacing-07;
+}
+
+// The records of the trail are one group, in the order they were opened.
+.records {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+.record {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  align-items: center;
+  color: $text-primary;
+  gap: $spacing-03;
+}
+
+// A glyph that is no control: the arrow of the trail, the pinned sign.
+.glyph {
+  flex-shrink: 0;
+  fill: $icon-secondary;
+}
+
+// The count of pins stands in for the pinned column.
+.pinCount {
+  margin-inline-start: auto;
+
+  @include breakpoint($pinned-breakpoint) {
+    display: none;
+  }
+}
+
+// The pinned records, one group.
+.stack {
+  display: flex;
+  flex-direction: column;
+  padding: $spacing-05;
+  gap: $spacing-03;
+  inline-size: $pinned-width;
+}
+
+// A pinned record: a surface on the layer below it.
+.card {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  align-items: center;
+  padding: $spacing-05;
+  background-color: $layer;
+  color: $text-primary;
+  gap: $spacing-03;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $layer-hover;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
 }
 
 .content {
@@ -16,7 +92,9 @@ $pinned-width: $spacing-13 * 2;
 }
 
 .besidePinned {
-  margin-inline-end: $pinned-width;
+  @include breakpoint($pinned-breakpoint) {
+    margin-inline-end: $pinned-width;
+  }
 }
 
 // The stack of pinned records. It is no panel: the records lie on the canvas.
@@ -32,4 +110,8 @@ $pinned-width: $spacing-13 * 2;
   overflow-y: auto;
   padding-block: $spacing-07;
   padding-inline-end: $spacing-07;
+
+  @include breakpoint-down($pinned-breakpoint) {
+    display: none;
+  }
 }

@@ -1,7 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
-import { ClickableTile } from '@carbon/react'
-
 import { Frame } from './frame.tsx'
 
 const meta = {
@@ -10,6 +8,8 @@ const meta = {
   parameters: { layout: 'fullscreen' },
   args: {
     project: 'Bakeday',
+    projects: ['Bakeday', 'Flexibeck'],
+    onProjectChange: () => {},
     section: 'Decide',
     concepts: [
       { name: 'Technique videos', concepts: ['Step videos', 'Creator videos'] },
@@ -26,11 +26,5 @@ export default meta
 export const Default: StoryObj<typeof meta> = {}
 
 export const Pinned: StoryObj<typeof meta> = {
-  args: {
-    pinned: ['Videos are too long', 'Show each technique'].map((record) => (
-      <ClickableTile key={record} href="#">
-        {record}
-      </ClickableTile>
-    )),
-  },
+  args: { pinned: ['Videos are too long', 'Show each technique'] },
 }
