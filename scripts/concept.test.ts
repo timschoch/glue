@@ -11,7 +11,12 @@ import {
 } from '../src/db/concept-records.ts'
 import * as schema from '../src/db/schema.ts'
 import { createFakeGithub } from '../src/test/github.ts'
-import { formatDownstreamIssue, parseFlags, runConcept } from './concept.ts'
+import {
+  formatDownstreamIssue,
+  main,
+  parseFlags,
+  runConcept,
+} from './concept.ts'
 
 describe('runConcept', () => {
   let client: PGlite
@@ -19,7 +24,7 @@ describe('runConcept', () => {
   let fake: ReturnType<typeof createFakeGithub>
 
   const decisionFlags = [
-    '--product',
+    '--project',
     'flexibeck',
     '--title',
     'Check the types before the push',
@@ -83,7 +88,7 @@ describe('runConcept', () => {
   it('opens the downstream issue when it sets a Decision to accepted', async () => {
     await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
 
-    await run('set', 'D1', '--product', 'flexibeck', '--status', 'accepted')
+    await run('set', 'D1', '--project', 'flexibeck', '--status', 'accepted')
 
     expect(fake.issues).toHaveLength(1)
     expect(await showIssueUrl('D1')).not.toBeNull()
@@ -110,7 +115,7 @@ describe('runConcept', () => {
   })
 
   it('closes a Goal as achieved', async () => {
-    await run('set', 'G1', '--product', 'flexibeck', '--status', 'achieved')
+    await run('set', 'G1', '--project', 'flexibeck', '--status', 'achieved')
 
     const goal = await showConceptRecord(db, 'flexibeck', 'G1')
     expect(goal.fields.status).toBe('achieved')
@@ -128,13 +133,13 @@ describe('runConcept', () => {
     await run(
       'set',
       'G1',
-      '--product',
+      '--project',
       'flexibeck',
       '--measure',
       JSON.stringify(measure),
     )
 
-    await run('show', 'G1', '--product', 'flexibeck')
+    await run('show', 'G1', '--project', 'flexibeck')
 
     const lines: string[] = vi
       .mocked(console.log)
@@ -155,12 +160,72 @@ describe('runConcept', () => {
       return row.handle
     }
 
-    await run('product', 'set', 'flexibeck', '--social-handle', 'flexibeck')
+    await run('project', 'set', 'flexibeck', '--social-handle', 'flexibeck')
     const handle = await findHandle()
-    await run('product', 'set', 'flexibeck', '--social-handle', '')
+    await run('project', 'set', 'flexibeck', '--social-handle', '')
 
     expect(handle).toBe('flexibeck')
     expect(await findHandle()).toBeNull()
+  })
+
+  it('rejects the old product command and names project set', async () => {
+    await expect(
+      run('product', 'set', 'flexibeck', '--social-handle', 'flexibeck'),
+    ).rejects.toThrow('"product" is gone: use "pnpm concept project set"')
+  })
+
+  it('rejects an unknown command and points to the help', async () => {
+    await expect(run('lst')).rejects.toThrow(
+      'unknown command "lst". See pnpm concept --help',
+    )
+  })
+})
+
+describe('main', () => {
+  const printHelp = async (...args: string[]) => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    await main(args, undefined)
+    const lines: string[] = log.mock.calls.map(([line]) => line)
+    vi.restoreAllMocks()
+    return lines.join('\n')
+  }
+
+  it('prints every command when it gets no command', async () => {
+    const help = await printHelp()
+
+    for (const command of [
+      'list [<type>]',
+      'show <id>',
+      'add <type>',
+      'set <id>',
+      'downstream <id>',
+      'project set <slug>',
+      'token create',
+      'token list',
+      'token revoke <id>',
+    ]) {
+      expect(help).toContain(`pnpm concept ${command}`)
+    }
+  })
+
+  it('prints the flags, and the fields that each type needs', async () => {
+    const help = await printHelp('--help')
+
+    expect(help).toContain('--project <slug>')
+    expect(help).toContain(
+      'decisions: --title --date --owner --status --goal --evidence',
+    )
+    expect(help).toContain('guardrails: --title --enforced-by')
+  })
+
+  it('prints the help for --help after a command', async () => {
+    expect(await printHelp('add', '--help')).toContain('pnpm concept list')
+  })
+
+  it('needs DATABASE_URL for a command', async () => {
+    await expect(main(['list'], undefined)).rejects.toThrow(
+      'DATABASE_URL is required',
+    )
   })
 })
 
@@ -191,8 +256,8 @@ describe('parseFlags', () => {
   })
 
   it('parses the --name of a token', () => {
-    expect(parseFlags(['--product', 'flexibeck', '--name', 'bot'])).toEqual({
-      product: 'flexibeck',
+    expect(parseFlags(['--project', 'flexibeck', '--name', 'bot'])).toEqual({
+      project: 'flexibeck',
       name: 'bot',
     })
   })
@@ -237,6 +302,12 @@ describe('parseFlags', () => {
     })
   })
 
+  it('rejects the old --product and names --project', () => {
+    expect(() => parseFlags(['--product', 'flexibeck'])).toThrow(
+      '"--product" is gone: use "--project"',
+    )
+  })
+
   it('rejects an unknown flag', () => {
     expect(() => parseFlags(['--titel', 'x'])).toThrow(/unknown flag "--titel"/)
   })
@@ -265,7 +336,7 @@ describe('formatDownstreamIssue', () => {
         message: 'GitHub create issue: 403',
       }),
     ).toBe(
-      'issue missing: GitHub create issue: 403\nRetry: pnpm concept downstream D2 --product flexibeck',
+      'issue missing: GitHub create issue: 403\nRetry: pnpm concept downstream D2 --project flexibeck',
     )
   })
 

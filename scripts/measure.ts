@@ -1,4 +1,4 @@
-// `pnpm measure [--product <slug>] [--dry-run]`: the measure step. Reads the
+// `pnpm measure [--project <slug>] [--dry-run]`: the measure step. Reads the
 // funnel of each Goal with a measure from mock analytics and writes a draft
 // Insight when the Goal misses its target or moved (Decision D14). Reads the
 // new comments of each Product with a social handle from mock social and
@@ -19,10 +19,12 @@ export function parseMeasureArgs(args: string[]): MeasureArgs {
     const arg = args[index]
     if (arg === '--dry-run') {
       parsed.dryRun = true
-    } else if (arg === '--product') {
+    } else if (arg === '--project') {
       index += 1
-      if (index >= args.length) throw new Error('"--product" needs a value')
+      if (index >= args.length) throw new Error('"--project" needs a value')
       parsed.productSlug = args[index]
+    } else if (arg === '--product') {
+      throw new Error('"--product" is gone: use "--project"')
     } else {
       throw new Error(`unknown flag "${arg}"`)
     }

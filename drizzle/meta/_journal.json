@@ -71,6 +71,13 @@
       "when": 1791024000000,
       "tag": "0009_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791034522761,
+      "tag": "0010_part_tables",
+      "breakpoints": true
     }
   ]
 }
