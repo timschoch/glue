@@ -7,6 +7,7 @@ import type { GoalMeasure } from './goal-measure.ts'
 import type { Kind } from './kinds.ts'
 import type { EvidenceLevel, PartType } from './schema.ts'
 import { kinds } from './kinds.ts'
+import { sortById } from './record-id.ts'
 import * as schema from './schema.ts'
 
 // The read side of the Part model: the shapes of a Project, a Concept and a
@@ -120,10 +121,8 @@ const neededSummary = {
 // Parts sort by their type, then by the number of their record id: D2 comes
 // before D10.
 function sortParts(items: PartSummary[]): PartSummary[] {
-  return items.sort(
-    (left, right) =>
-      partTypes.indexOf(left.type) - partTypes.indexOf(right.type) ||
-      Number(left.id.slice(1)) - Number(right.id.slice(1)),
+  return partTypes.flatMap((type) =>
+    sortById(items.filter((item) => item.type === type)),
   )
 }
 
@@ -267,7 +266,10 @@ export async function findConcept(
   const slotTypes = concept.kind === null ? [] : kinds[concept.kind].slots
 
   return {
-    ...concept.node,
+    slug: concept.slug,
+    title: concept.title,
+    kind: concept.kind,
+    concepts: concept.node.concepts,
     path,
     parts: homeParts,
     linkedParts,

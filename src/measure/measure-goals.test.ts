@@ -3,12 +3,12 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { findConcept, findRecord } from '../db/concept.ts'
 import {
   addConceptRecord,
   setAnalyticsProject,
   updateGoal,
 } from '../db/concept-records.ts'
+import { findConcept, findRecord } from '../db/legacy-records.ts'
 import type {
   FunnelMeasure,
   GoalMeasure,
@@ -307,7 +307,7 @@ describe('measureGoals', () => {
 
   it('skips a Goal whose stored measure is no longer valid', async () => {
     await addGoal(measure)
-    await client.query(`update goals set measure = '{"source": "posthog"}'`)
+    await client.query(`update measures set measure = '{"source": "posthog"}'`)
     const { source, queries } = createFakeSource(belowTarget)
 
     const { insights, skipped } = await measureGoals({ db, source, now: NOW })
@@ -377,11 +377,11 @@ describe('measureGoals', () => {
     await addConceptRecord(
       db,
       'flexibeck',
-      'facts',
-      { title: 'Most users drop at activation', source: 'interviews' },
+      'guardrails',
+      { title: 'Onboarding takes one screen', enforced_by: 'review' },
       '',
     )
-    const decision = { owner: 'Owner', goal: 'G1', evidence: ['F1'] }
+    const decision = { owner: 'Owner', goal: 'G1', evidence: ['R1'] }
     await addConceptRecord(
       db,
       'flexibeck',

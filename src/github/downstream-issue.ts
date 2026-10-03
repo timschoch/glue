@@ -1,9 +1,10 @@
 // An accepted Decision flows downstream: Glue opens one GitHub issue for it
 // in the repository of its Product, so the builders of the Product build it.
 import type { ConceptDb } from '../db/client.ts'
-import { findProduct, findRecord } from '../db/concept.ts'
+import { findProduct } from '../db/concept.ts'
 import type { Decision, RecordReference } from '../db/concept.ts'
-import { setDecisionIssueUrl } from '../db/concept-records.ts'
+import { findRecord } from '../db/legacy-records.ts'
+import { updatePart } from '../db/part-records.ts'
 import type { GithubClient, IssueInput } from './client.ts'
 
 export type DownstreamIssue =
@@ -50,7 +51,7 @@ export async function createDownstreamIssue(
   if (decision.status !== 'accepted') return { kind: 'not-accepted' }
   const product = await findProduct(db, productSlug)
   if (!product?.repository) return { kind: 'no-repository' }
-  const { id: productId, repository } = product
+  const { repository } = product
 
   let url: string
   try {
@@ -62,6 +63,13 @@ export async function createDownstreamIssue(
     }
   }
 
-  await setDecisionIssueUrl(db, productId, decisionId, url)
+  // A Decision with an issue keeps it.
+  await updatePart(
+    db,
+    productSlug,
+    decisionId,
+    { issueUrl: url },
+    { issueUrl: null },
+  )
   return { kind: 'created', url }
 }

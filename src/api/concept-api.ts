@@ -4,26 +4,27 @@
 import { z } from 'zod'
 
 import type { ConceptDb } from '../db/client.ts'
-import {
-  decisionSchema,
-  findConcept,
-  findRecord,
-  insightSchema,
-} from '../db/concept.ts'
+import { decisionSchema, insightSchema } from '../db/concept.ts'
 import type { LinkedRecord } from '../db/concept.ts'
 import { CONCEPT_FIELDS } from '../db/concept-fields.ts'
 import {
   addConceptRecord,
   addDecision,
+  FACT_REMOVED,
   goalChangeSchema,
-  InvalidRecordError,
-  ProductNotFoundError,
   updateDecision,
   updateGoal,
 } from '../db/concept-records.ts'
 import type { DecisionChange } from '../db/concept-records.ts'
 import { proposalSchema } from '../db/decision-proposal.ts'
 import { goalMeasureSchema } from '../db/goal-measure.ts'
+import { findConcept, findRecord } from '../db/legacy-records.ts'
+import {
+  InvalidRecordError,
+  isUniqueViolation,
+  ProductNotFoundError,
+} from '../db/record-errors.ts'
+import { typeOfRecordId } from '../db/record-id.ts'
 import { findProductByToken } from '../db/tokens.ts'
 import type { GithubClient } from '../github/client.ts'
 import {
@@ -71,10 +72,6 @@ export const insightInputSchema = z
   })
   .meta({ id: 'InsightInput' })
 
-export const factInputSchema = z
-  .object({ title: text, source: text, body })
-  .meta({ id: 'FactInput' })
-
 // The fields that a person writes in the app come from the schema of the
 // app, so the two entry points have one set of rules.
 export const decisionInputSchema = z
@@ -115,7 +112,6 @@ export const inputSchemas = {
   goals: goalInputSchema,
   insights: insightInputSchema,
   decisions: decisionInputSchema,
-  facts: factInputSchema,
 }
 
 // The folders a client may change records in.
@@ -160,18 +156,6 @@ class ApiError extends Error {
   ) {
     super(message)
   }
-}
-
-const UNIQUE_VIOLATION = '23505'
-
-function isUniqueViolation(error: unknown): boolean {
-  const cause = error instanceof Error && error.cause ? error.cause : error
-  return (
-    typeof cause === 'object' &&
-    cause !== null &&
-    'code' in cause &&
-    cause.code === UNIQUE_VIOLATION
-  )
 }
 
 // Any other error is a bug: it goes on to the server as a 500.
@@ -261,9 +245,10 @@ async function findFolderRecord({
 }: ApiRequest): Promise<LinkedRecord> {
   const folder = parseFolder(params.folder)
   const recordId = params.recordId ?? ''
-  const record = recordId.startsWith(CONCEPT_FIELDS[folder].prefix)
-    ? await findRecord(db, params.project, recordId)
-    : undefined
+  const record =
+    typeOfRecordId(recordId) === CONCEPT_FIELDS[folder].type
+      ? await findRecord(db, params.project, recordId)
+      : undefined
   if (!record) {
     throw new ApiError('not-found', `${folder} "${recordId}" not found`)
   }
@@ -304,6 +289,7 @@ export function handleAddRecord(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
     const { db, github, request, params } = input
     const { project, folder } = params
+    if (folder === 'facts') throw new ApiError('invalid-request', FACT_REMOVED)
     if (!isKeyOf(inputSchemas, folder)) {
       throw new ApiError('not-found', `cannot add ${folder} here`)
     }

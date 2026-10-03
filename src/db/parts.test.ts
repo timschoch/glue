@@ -181,6 +181,12 @@ describe('findConcept', () => {
     })
   })
 
+  it('carries no count of its Parts: it has the Parts', async () => {
+    const concept = await findConcept(db, 'glue', 'part-model')
+
+    expect(concept).not.toHaveProperty('partCount')
+  })
+
   it('returns the path from the root down to the parent', async () => {
     const concept = await findConcept(db, 'glue', 'read-model')
 

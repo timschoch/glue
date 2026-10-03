@@ -46,14 +46,14 @@ beforeEach(async () => {
   await addConceptRecord(
     db,
     'flexibeck',
-    'facts',
-    { title: 'p95 load time is 3s', source: 'monitoring' },
+    'guardrails',
+    { title: 'No query over 200ms', enforced_by: 'monitoring' },
     '',
   )
   await addConceptRecord(
     db,
     'glue',
-    'facts',
+    'insights',
     { title: 'Glue keeps the why', source: 'readme' },
     '',
   )
@@ -159,9 +159,10 @@ describe('GET /concept', () => {
         latestValue: null,
       },
     ])
-    expect(response.body.facts).toEqual([
-      { id: 'F1', title: 'p95 load time is 3s' },
+    expect(response.body.guardrails).toEqual([
+      { id: 'R1', title: 'No query over 200ms', enforcedBy: 'monitoring' },
     ])
+    expect(response.body.facts).toEqual([])
   })
 })
 
@@ -243,16 +244,28 @@ describe('Insights', () => {
 })
 
 describe('Facts', () => {
-  it('adds a Fact', async () => {
-    const added = await call(
+  it('answers 400 for a new Fact and names the types to add instead', async () => {
+    const response = await call(
       handleAddRecord,
       'POST',
       { project: 'flexibeck', folder: 'facts' },
       { title: 'The budget is 0', source: 'owner' },
     )
 
-    expect(added.status).toBe(201)
-    expect(added.body).toMatchObject({ kind: 'fact', id: 'F2', body: '' })
+    expect(response.status).toBe(400)
+    expect(response.body.error).toEqual({
+      code: 'invalid-request',
+      message: 'Fact is no longer a type (D26): add an Insight or a Guardrail.',
+    })
+  })
+
+  it('lists no Facts', async () => {
+    const response = await call(handleListRecords, 'GET', {
+      project: 'flexibeck',
+      folder: 'facts',
+    })
+
+    expect(response.status).toBe(200)
   })
 })
 
@@ -263,7 +276,7 @@ describe('Decisions', () => {
     owner: 'orchestrator',
     status: 'accepted',
     goal: 'G1',
-    evidence: ['F1'],
+    evidence: ['R1'],
     body: 'Cache reads at the edge.',
   }
 
@@ -280,7 +293,7 @@ describe('Decisions', () => {
       kind: 'decision',
       id: 'D1',
       goal: { id: 'G1', title: 'Ship faster' },
-      evidence: [{ id: 'F1', title: 'p95 load time is 3s' }],
+      evidence: [{ id: 'R1', title: 'No query over 200ms' }],
     })
   })
 
@@ -293,7 +306,7 @@ describe('Decisions', () => {
     )
 
     expect(response.status).toBe(400)
-    expect(response.body.error.message).toBe('evidence "I9" not found')
+    expect(response.body.error.message).toBe('insight "I9" not found')
   })
 
   it('answers 400 for evidence of another Product', async () => {
@@ -301,10 +314,11 @@ describe('Decisions', () => {
       handleAddRecord,
       'POST',
       { project: 'flexibeck', folder: 'decisions' },
-      { ...decision, evidence: ['F2'] },
+      { ...decision, evidence: ['I1'] },
     )
 
     expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('insight "I1" not found')
   })
 
   it('answers 400 for a Decision without evidence', async () => {
@@ -487,7 +501,7 @@ describe('paths that name no record', () => {
     const response = await call(handleGetRecord, 'GET', {
       project: 'flexibeck',
       folder: 'goals',
-      recordId: 'F1',
+      recordId: 'R1',
     })
 
     expect(response.status).toBe(404)

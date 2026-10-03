@@ -61,7 +61,6 @@ const folders: Record<ConceptFolder, FolderSchemas> = {
     name: 'Fact',
     record: factSchema,
     summary: conceptSummarySchemas.facts,
-    input: inputSchemas.facts,
   },
   guardrails: {
     name: 'Guardrail',

@@ -7,11 +7,9 @@ import type { ConceptDb } from '../src/db/client.ts'
 import {
   addConceptRecord,
   addDecision,
-  listConceptRecords,
   setAnalyticsProject,
   setProductRepository,
   setSocialHandle,
-  showConceptRecord,
   updateDecision,
   updateGoal,
 } from '../src/db/concept-records.ts'
@@ -20,6 +18,10 @@ import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
 import type { DecisionStatus, GoalStatus } from '../src/db/concept-fields.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
 import type { GoalMeasure } from '../src/db/goal-measure.ts'
+import {
+  listConceptRecords,
+  showConceptRecord,
+} from '../src/db/legacy-records.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 import { createGithubClient } from '../src/github/client.ts'
 import type { GithubClient } from '../src/github/client.ts'
@@ -149,12 +151,15 @@ const FIELD_TO_FLAG = Object.fromEntries(
 )
 
 function formatHelp() {
-  const types = Object.entries(CONCEPT_FIELDS).map(([folder, { required }]) => {
-    const flags = required
-      .filter((field) => field !== 'id')
-      .map((field) => `--${FIELD_TO_FLAG[field] ?? field}`)
-    return `  ${folder}: ${flags.join(' ')}`
-  })
+  // Fact is no longer a type (D26), so `add` does not take it.
+  const types = Object.entries(CONCEPT_FIELDS)
+    .filter(([, { type }]) => type !== null)
+    .map(([folder, { required }]) => {
+      const flags = required
+        .filter((field) => field !== 'id')
+        .map((field) => `--${FIELD_TO_FLAG[field] ?? field}`)
+      return `  ${folder}: ${flags.join(' ')}`
+    })
   return [
     'pnpm concept list [<type>]',
     'pnpm concept show <id>',

@@ -212,7 +212,8 @@ export const decisionEvidence = pgTable(
   ],
 )
 
-// The tables of the Part model. No code reads or writes them yet.
+// The tables of the Part model. They hold the records. The tables of the
+// records above are read-only: ticket 135 drops them.
 
 // A Concept is assembled from Parts and holds smaller Concepts. The Concept
 // without a parent is the root of its Project.
@@ -255,6 +256,9 @@ export const partTypes = [
   'metric',
 ] as const
 export type PartType = (typeof partTypes)[number]
+
+// The Part types that a Decision takes as evidence.
+export const evidenceTypes = ['insight', 'guardrail'] as const
 
 export const evidenceLevels = ['hunch', 'pattern', 'confirmed'] as const
 export type EvidenceLevel = (typeof evidenceLevels)[number]

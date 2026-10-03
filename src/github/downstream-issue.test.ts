@@ -3,12 +3,12 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { findRecord } from '../db/concept.ts'
 import {
   addConceptRecord,
   setDecisionStatus,
   setProductRepository,
 } from '../db/concept-records.ts'
+import { findRecord } from '../db/legacy-records.ts'
 import * as schema from '../db/schema.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
 import { createDownstreamIssue } from './downstream-issue.ts'
@@ -26,7 +26,7 @@ async function addDecision(status: schema.DecisionStatus) {
       owner: 'Orchestrator',
       status,
       goal: 'G1',
-      evidence: ['I1', 'F1'],
+      evidence: ['I1', 'R1'],
     },
     'Cache all reads at the edge.',
   )
@@ -53,8 +53,8 @@ beforeEach(async () => {
   await addConceptRecord(
     db,
     'flexibeck',
-    'facts',
-    { title: 'p95 load time is 3s', source: 'monitoring' },
+    'guardrails',
+    { title: 'No query over 200ms', enforced_by: 'monitoring' },
     '',
   )
   await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck-next')
@@ -94,7 +94,7 @@ describe('createDownstreamIssue', () => {
             '',
             'Evidence:',
             '- I1 Users churn on slow loads',
-            '- F1 p95 load time is 3s',
+            '- R1 No query over 200ms',
             '',
             'Supersedes:',
             '- D1 Cache every page',
@@ -157,7 +157,7 @@ describe('createDownstreamIssue', () => {
     await addConceptRecord(
       db,
       'glue',
-      'facts',
+      'insights',
       { title: 'Glue keeps the why', source: 'readme' },
       '',
     )
@@ -170,7 +170,7 @@ describe('createDownstreamIssue', () => {
         owner: 'Orchestrator',
         status: 'accepted',
         goal: 'G1',
-        evidence: ['F1'],
+        evidence: ['I1'],
       },
       '',
     )

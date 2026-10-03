@@ -5,7 +5,7 @@
 import type { ConceptDb } from '../db/client.ts'
 import { listSocialProducts } from '../db/concept.ts'
 import type { SocialProduct } from '../db/concept.ts'
-import { addCommentInsight } from '../db/concept-records.ts'
+import { addCommentInsight } from '../db/part-records.ts'
 import { SENTIMENTS } from './sentiment.ts'
 import type {
   Sentiment,
@@ -145,12 +145,10 @@ async function measureProduct(
     from: product.readUntil,
     until: comments[comments.length - 1].createdAt,
   }
-  const fields = {
-    title: draft.title,
-    source: draft.source,
+  const id = await addCommentInsight(db, product.slug, read, {
+    ...draft,
     date: formatDay(now),
-  }
-  const id = await addCommentInsight(db, product.id, read, fields, draft.body)
+  })
   return id === null ? null : { product: product.slug, id, ...draft }
 }
 
