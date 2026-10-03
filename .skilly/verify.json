@@ -45,6 +45,11 @@
           "why": "The design system's Storybook deploys from main to its own Vercel project. A story that does not build must fail here, not there."
         },
         {
+          "name": "lint styles",
+          "run": "pnpm run --if-present lint:styles",
+          "why": "Only Carbon tokens in src/design-system. stylelint fails on a raw colour and a raw size."
+        },
+        {
           "name": "audit",
           "run": "pnpm audit --audit-level=high",
           "tier": "tool",
