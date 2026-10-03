@@ -158,7 +158,7 @@ export const conceptSchema = z
 
 export type Concept = z.infer<typeof conceptSchema>
 
-const { products, goals, decisions, insights, facts, guardrails } = schema
+const { projects, goals, decisions, insights, facts, guardrails } = schema
 const { decisionEvidence } = schema
 
 // Ids sort by their number: D2 comes before D10.
@@ -173,8 +173,8 @@ export function sortById<TItem extends { id: string }>(
 export async function findProduct(db: ConceptDb, productSlug: string) {
   const found = await db
     .select()
-    .from(products)
-    .where(eq(products.slug, productSlug))
+    .from(projects)
+    .where(eq(projects.slug, productSlug))
   return found.at(0)
 }
 
@@ -182,9 +182,9 @@ export type Product = Concept['product']
 
 export function listProducts(db: ConceptDb): Promise<Product[]> {
   return db
-    .select({ slug: products.slug, name: products.name })
-    .from(products)
-    .orderBy(products.slug)
+    .select({ slug: projects.slug, name: projects.name })
+    .from(projects)
+    .orderBy(projects.slug)
 }
 
 // A Product whose public comments Glue reads, with its read position.
@@ -202,19 +202,19 @@ export async function listSocialProducts(
 ): Promise<SocialProduct[]> {
   const rows = await db
     .select({
-      id: products.id,
-      slug: products.slug,
-      handle: products.socialHandle,
-      readUntil: products.commentsReadUntil,
+      id: projects.id,
+      slug: projects.slug,
+      handle: projects.socialHandle,
+      readUntil: projects.commentsReadUntil,
     })
-    .from(products)
+    .from(projects)
     .where(
       and(
-        isNotNull(products.socialHandle),
-        productSlug === undefined ? undefined : eq(products.slug, productSlug),
+        isNotNull(projects.socialHandle),
+        productSlug === undefined ? undefined : eq(projects.slug, productSlug),
       ),
     )
-    .orderBy(products.id)
+    .orderBy(projects.id)
   return rows.flatMap(({ handle, ...row }) =>
     handle ? [{ ...row, handle }] : [],
   )
@@ -225,21 +225,21 @@ export async function listSocialProducts(
 export function listGoalsWithMeasure(db: ConceptDb, productSlug?: string) {
   return db
     .select({
-      productId: products.id,
-      productSlug: products.slug,
-      analyticsProject: products.analyticsProject,
+      productId: projects.id,
+      productSlug: projects.slug,
+      analyticsProject: projects.analyticsProject,
       goalId: goals.id,
       goalRecordId: goals.recordId,
       baseline: goals.baseline,
       measure: goals.measure,
     })
     .from(goals)
-    .innerJoin(products, eq(goals.productId, products.id))
+    .innerJoin(projects, eq(goals.productId, projects.id))
     .where(
       and(
         isNotNull(goals.measure),
         eq(goals.status, 'open'),
-        productSlug === undefined ? undefined : eq(products.slug, productSlug),
+        productSlug === undefined ? undefined : eq(projects.slug, productSlug),
       ),
     )
     .orderBy(goals.id)
@@ -268,9 +268,9 @@ export function listDecisionStatuses(db: ConceptDb, productSlug: string) {
       supersededById: supersededBy.recordId,
     })
     .from(decisions)
-    .innerJoin(products, eq(decisions.productId, products.id))
+    .innerJoin(projects, eq(decisions.productId, projects.id))
     .leftJoin(supersededBy, eq(supersededBy.id, decisions.supersededById))
-    .where(eq(products.slug, productSlug))
+    .where(eq(projects.slug, productSlug))
 }
 
 // The id of the Product's Insight with this source, or null.
