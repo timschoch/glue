@@ -65,7 +65,7 @@ Consumers on Biome 2.x merge [biome.json](biome.json) into theirs. It covers keb
 
 | Rule | What you judge |
 | --- | --- |
-| 1 | The word matches `CONTEXT.md`, and the repo's word won over the request's |
+| 1 | The word matches `GLOSSARY.md`, and the repo's word won over the request's |
 | 2 | A new word went through term-check and the user signed it off |
 | 3 | The name says the role, not the type |
 | 5 | The name repeats nothing the call site says |

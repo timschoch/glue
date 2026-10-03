@@ -25,7 +25,7 @@ Concept hub: why a product is built the way it is. See [README.md](README.md).
 
 ## Build run
 
-Agents build Glue in a run. The Orchestrator plans and merges, Workers build, the Owner decides. Terms: [CONTEXT.md](CONTEXT.md#build-run).
+Agents build Glue in a run. The Orchestrator plans and merges, Workers build, the Owner decides. Terms: [GLOSSARY.md](GLOSSARY.md#build-run).
 
 ### Roles
 
@@ -105,7 +105,7 @@ A deliberate skip of a blocked shell command: `GLUE_OVERRIDE="<reason>"` in the 
 
 ## Docs
 
-- Domain language: [CONTEXT.md](CONTEXT.md)
+- Domain language: [GLOSSARY.md](GLOSSARY.md)
 - The target model: [docs/concept.md](docs/concept.md)
 - Glue's own Concept: Goals, Decisions, Insights, Facts, Guardrails in the Neon database. Read it before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. Another Product: `--product <slug>`. Record types: [src/db/concept-fields.ts](src/db/concept-fields.ts). Every ticket and PR names its Decision id.
 - Measure step: `pnpm collect-insights` turns failed checks, blocked reviews and overrides into draft Insights.
@@ -123,4 +123,4 @@ Default five roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 
 ### Domain docs
 
-Single-context: root `CONTEXT.md` + `docs/adr/`. See [docs/agents/domain.md](docs/agents/domain.md).
+Single-context: root `GLOSSARY.md` + `docs/adr/`. See [docs/agents/domain.md](docs/agents/domain.md).

@@ -13,7 +13,7 @@ Exception — the user posts a skills.sh URL: that skill lives outside the hub. 
 - Remove: `npx -y github:timschoch/skilly remove <name...>` — removing a bundle keeps skills still claimed by another bundle
 - Pull the hub's current state: `npx -y github:timschoch/skilly update`
 
-Every verb ends with its own commit, push, and PR — do not commit or push for it. On `main` it branches to `chore/skilly-setup` by itself.
+Every verb ends with its own commit, push, and PR — do not commit or push for it. On `main` it branches to `chore/skilly-setup` by itself. On any other branch it stops before the commit when `.claude/hooks/check-branch-name.mjs` refuses the name: rename with `git branch -m <type>/<description>`, then run the verb again.
 
 Never hand-edit skilly-owned files — the nightly sync wipes and rewrites them:
 

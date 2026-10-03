@@ -12,9 +12,21 @@ Good defaults, not law — the developer's word overrides anything here.
 6. A reply about an existing item reuses its number. Only a new item counts up.
    - Bad: agent "3. The server needs auth." User "3. Which auth?" Agent "4. OAuth."
    - Good: agent "3. The server needs auth." User "3. Which auth?" Agent "3. OAuth."
-7. Sub-items nest under their parent number: `12.1`, `12.2`.
+7. Sub-items nest under their parent number: `12.1`, `12.2`. Write each one as its own nested `-` bullet. A bare `12.1` line is not a Markdown list item, so it renders on the parent's line.
    - Bad: "12. Three options: A foo, B bar, C baz."
-   - Good: "12. Three options:" then `12.1 foo`, `12.2 bar`, `12.3 baz`.
+   - Bad: `12.1 foo` and `12.2 bar` on their own lines without `-`. They render as one line.
+   - Good:
+     ```markdown
+     12. Three options:
+         - 12.1 foo
+         - 12.2 bar
+         - 12.3 baz
+     ```
 8. A question with two or more options gets one sub-item per option. Mark your pick with **recommended** at the start of its sub-item. No separate "I recommend" sentence.
    - Bad: "1. Fix it with the same dot rule for folders and files? Or the narrower fix from the issue? I recommend the same dot rule."
-   - Good: "1. How do you want it fixed?" then `1.1 **recommended** same dot rule for folders and files`, `1.2 narrower fix from the issue, only for route folders`.
+   - Good:
+     ```markdown
+     1. How do you want it fixed?
+        - 1.1 **recommended** same dot rule for folders and files
+        - 1.2 narrower fix from the issue, only for route folders
+     ```
