@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.0](https://github.com/timschoch/glue/compare/v1.7.0...v1.8.0) (2026-10-03)
+
+
+### Features
+
+* **db:** cut over to the Part model ([#173](https://github.com/timschoch/glue/issues/173)) ([850dffb](https://github.com/timschoch/glue/commit/850dffbec3bcfb19c8d41d70bd53e15af851cb15)), closes [#132](https://github.com/timschoch/glue/issues/132)
+* **design-system:** add the Concept view with type groups and empty slots ([#169](https://github.com/timschoch/glue/issues/169)) ([cb0e3aa](https://github.com/timschoch/glue/commit/cb0e3aaf581f73d78935722f6b5a02be1e21090a)), closes [#164](https://github.com/timschoch/glue/issues/164)
+* **design-system:** add the record view ([#167](https://github.com/timschoch/glue/issues/167)) ([1d5c0b1](https://github.com/timschoch/glue/commit/1d5c0b134eb0fa3f7361d0c99397fde258a9d5cd)), closes [#162](https://github.com/timschoch/glue/issues/162)
+* **design-system:** close the left panel below lg and open it over the main window ([#163](https://github.com/timschoch/glue/issues/163)) ([5e67b69](https://github.com/timschoch/glue/commit/5e67b69e1c736a66b175ede0b541a3b8795b00ee)), closes [#155](https://github.com/timschoch/glue/issues/155)
+
+
+### Bug Fixes
+
+* **verify:** read Decisions for the PR gate over the Glue API ([#161](https://github.com/timschoch/glue/issues/161)) ([734b141](https://github.com/timschoch/glue/commit/734b1411df82e4e0dce96915258bd2d1f788fc5b)), closes [#149](https://github.com/timschoch/glue/issues/149)
+
 ## [1.7.0](https://github.com/timschoch/glue/compare/v1.6.1...v1.7.0) (2026-10-03)
 
 
