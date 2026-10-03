@@ -2,7 +2,7 @@ import type {
   DecisionStatus,
   GoalStatus,
   InsightStatus,
-} from '../../db/schema.ts'
+} from '../../db/concept-fields.ts'
 import classes from './record-status.module.css'
 
 type Status = DecisionStatus | GoalStatus | InsightStatus

@@ -4,7 +4,12 @@
 import { z } from 'zod'
 
 import type { ConceptDb } from '../db/client.ts'
-import { decisionSchema, findConcept, findRecord } from '../db/concept.ts'
+import {
+  decisionSchema,
+  findConcept,
+  findRecord,
+  insightSchema,
+} from '../db/concept.ts'
 import type { LinkedRecord } from '../db/concept.ts'
 import { CONCEPT_FIELDS } from '../db/concept-fields.ts'
 import {
@@ -19,7 +24,6 @@ import {
 import type { DecisionChange } from '../db/concept-records.ts'
 import { proposalSchema } from '../db/decision-proposal.ts'
 import { goalMeasureSchema } from '../db/goal-measure.ts'
-import { decisionStatuses, insightStatuses } from '../db/schema.ts'
 import { findProductByToken } from '../db/tokens.ts'
 import type { GithubClient } from '../github/client.ts'
 import {
@@ -62,7 +66,7 @@ export const insightInputSchema = z
     title: text,
     date: z.iso.date().optional(),
     source: text,
-    status: z.enum(insightStatuses).optional(),
+    status: insightSchema.shape.status.unwrap().optional(),
     body,
   })
   .meta({ id: 'InsightInput' })
@@ -78,7 +82,7 @@ export const decisionInputSchema = z
     title: proposalSchema.shape.title,
     date: z.iso.date().optional(),
     owner: proposalSchema.shape.owner,
-    status: z.enum(decisionStatuses),
+    status: decisionSchema.shape.status,
     goal: proposalSchema.shape.goal,
     evidence: proposalSchema.shape.evidence,
     superseded_by: text.optional(),
@@ -89,7 +93,7 @@ export const decisionInputSchema = z
 
 export const decisionUpdateSchema = z
   .object({
-    status: z.enum(decisionStatuses),
+    status: decisionSchema.shape.status,
     superseded_by: text.optional(),
   })
   .meta({ id: 'DecisionUpdate' })

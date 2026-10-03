@@ -2,11 +2,10 @@
 // from its social channel, label their sentiment, and write one draft
 // Insight with the counts and quotes (Decision D22). The comments stay in
 // the channel; Glue stores only the Insight.
-import { and, eq, isNotNull } from 'drizzle-orm'
-
 import type { ConceptDb } from '../db/client.ts'
+import { listSocialProducts } from '../db/concept.ts'
+import type { SocialProduct } from '../db/concept.ts'
 import { addCommentInsight } from '../db/concept-records.ts'
-import { products } from '../db/schema.ts'
 import { SENTIMENTS } from './sentiment.ts'
 import type {
   Sentiment,
@@ -48,41 +47,10 @@ export type CommentMeasureResult = {
   skipped: SkippedProduct[]
 }
 
-type SocialProduct = {
-  id: number
-  slug: string
-  handle: string
-  readUntil: Date | null
-}
-
 type ScoredComment = SocialComment & SentimentScore
 
 function formatDay(date: Date) {
   return date.toISOString().slice(0, 10)
-}
-
-async function listSocialProducts(
-  db: ConceptDb,
-  productSlug: string | undefined,
-): Promise<SocialProduct[]> {
-  const rows = await db
-    .select({
-      id: products.id,
-      slug: products.slug,
-      handle: products.socialHandle,
-      readUntil: products.commentsReadUntil,
-    })
-    .from(products)
-    .where(
-      and(
-        isNotNull(products.socialHandle),
-        productSlug === undefined ? undefined : eq(products.slug, productSlug),
-      ),
-    )
-    .orderBy(products.id)
-  return rows.flatMap(({ handle, ...row }) =>
-    handle ? [{ ...row, handle }] : [],
-  )
 }
 
 // Comment text as plain text on one line of the Insight's Markdown.
