@@ -1,0 +1,164 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// A specimen is one group: the sample and the token it shows.
+.specimens {
+  display: grid;
+  gap: $spacing-07;
+  justify-items: start;
+}
+
+.specimen {
+  display: grid;
+  gap: $spacing-03;
+  justify-items: start;
+}
+
+.token {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}
+
+.surface {
+  display: grid;
+  padding: $spacing-05;
+  gap: $spacing-07;
+}
+
+// Layers
+.background {
+  background-color: $background;
+}
+
+.layer-01 {
+  background-color: $layer-01;
+}
+
+.layer-02 {
+  background-color: $layer-02;
+}
+
+.layer-03 {
+  background-color: $layer-03;
+}
+
+// Text colours
+.text-primary {
+  @include type-style('body-compact-01');
+
+  color: $text-primary;
+}
+
+.text-secondary {
+  @include type-style('body-compact-01');
+
+  color: $text-secondary;
+}
+
+.text-placeholder {
+  @include type-style('body-compact-01');
+
+  color: $text-placeholder;
+}
+
+// Support colours: the sign and its word are one group.
+.sign {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  align-items: center;
+  color: $text-primary;
+  gap: $spacing-03;
+}
+
+.support-success {
+  fill: $support-success;
+}
+
+.support-warning {
+  fill: $support-warning;
+
+  // The dark mark inside the glyph keeps it readable on a light layer.
+  [data-icon-path='inner-path'] {
+    fill: $icon-primary;
+    opacity: 1;
+  }
+}
+
+.support-error {
+  fill: $support-error;
+}
+
+.icon-primary {
+  fill: $icon-primary;
+}
+
+// Type scale
+.heading-03 {
+  @include type-style('heading-03');
+
+  color: $text-primary;
+}
+
+.heading-compact-02 {
+  @include type-style('heading-compact-02');
+
+  color: $text-primary;
+}
+
+.heading-compact-01 {
+  @include type-style('heading-compact-01');
+
+  color: $text-primary;
+}
+
+.label-01 {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}
+
+// Spacing scale: the width of the box is the step.
+.spacing-03,
+.spacing-05,
+.spacing-07 {
+  border: 1px solid $border-subtle-01;
+  block-size: $spacing-05;
+}
+
+.spacing-03 {
+  inline-size: $spacing-03;
+}
+
+.spacing-05 {
+  inline-size: $spacing-05;
+}
+
+.spacing-07 {
+  inline-size: $spacing-07;
+}
+
+// Borders
+.border-subtle,
+.border-interactive,
+.border-strong {
+  @include type-style('body-compact-01');
+
+  padding: $spacing-05;
+  color: $text-primary;
+}
+
+.border-subtle {
+  border: 1px solid $border-subtle-01;
+}
+
+.border-interactive {
+  background-color: $layer-selected-01;
+  border-inline-start: 3px solid $border-interactive;
+}
+
+.border-strong {
+  border: 1px dashed $border-strong-01;
+}

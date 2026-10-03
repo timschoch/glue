@@ -1,0 +1,34 @@
+// The Carbon theme of Glue: g10, one font family, and a shell whose panels
+// are surfaces on the canvas.
+@use '@carbon/react/scss/config' with (
+  $font-path: '@ibm/plex',
+  $use-per-family-plex: true
+);
+@use '@carbon/react/scss/fonts' with (
+  $fonts: (
+    IBM-Plex-Mono: false,
+    IBM-Plex-Serif: false,
+  )
+);
+@use '@carbon/react/scss/themes';
+@use '@carbon/react/scss/theme' with (
+  $theme: themes.$g10
+);
+@use '@carbon/react';
+
+// The tokens as custom properties, so a stylesheet compiled on its own reads
+// the same theme.
+:root {
+  @include theme.theme();
+}
+
+// Carbon paints the header and the side nav as canvas. In Glue they are
+// surfaces, so inside them the canvas tokens point at the first layer.
+.#{config.$prefix}--header,
+.#{config.$prefix}--side-nav {
+  --#{config.$prefix}-background: #{theme.$layer-01};
+  --#{config.$prefix}-background-hover: #{theme.$layer-hover-01};
+  --#{config.$prefix}-background-active: #{theme.$layer-active-01};
+  --#{config.$prefix}-background-selected: #{theme.$layer-selected-01};
+  --#{config.$prefix}-background-selected-hover: #{theme.$layer-selected-hover-01};
+}
