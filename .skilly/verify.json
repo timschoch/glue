@@ -40,6 +40,11 @@
         { "name": "unit", "run": "pnpm exec vitest run --passWithNoTests", "target": "vitest.config.ts" },
         { "name": "build", "run": "pnpm run --if-present build" },
         {
+          "name": "storybook build",
+          "run": "pnpm run --if-present build-storybook",
+          "why": "The design system's Storybook deploys from main to its own Vercel project. A story that does not build must fail here, not there."
+        },
+        {
           "name": "audit",
           "run": "pnpm audit --audit-level=high",
           "tier": "tool",
