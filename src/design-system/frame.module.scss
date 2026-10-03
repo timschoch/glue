@@ -1,0 +1,35 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+
+$pinned-width: $spacing-13 * 2;
+
+.breadcrumb {
+  padding-inline: $spacing-05;
+}
+
+.trail {
+  margin-block-end: $spacing-07;
+}
+
+.content {
+  background-color: $background;
+}
+
+.besidePinned {
+  margin-inline-end: $pinned-width;
+}
+
+// The stack of pinned records. It is no panel: the records lie on the canvas.
+.pinned {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  background-color: $background;
+  gap: $spacing-03;
+  inline-size: $pinned-width;
+  inset-block: $spacing-09 0;
+  inset-inline-end: 0;
+  overflow-y: auto;
+  padding-block: $spacing-07;
+  padding-inline-end: $spacing-07;
+}

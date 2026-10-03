@@ -23,6 +23,7 @@ export default [
       '.agents/**',
       '.claude/**',
       '.output/**',
+      'storybook-static/**',
     ],
   },
 ]
