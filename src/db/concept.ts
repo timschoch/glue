@@ -1,5 +1,5 @@
 import type { SQL } from 'drizzle-orm'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 
@@ -170,7 +170,7 @@ export function sortById<TItem extends { id: string }>(
   )
 }
 
-async function findProduct(db: ConceptDb, productSlug: string) {
+export async function findProduct(db: ConceptDb, productSlug: string) {
   const found = await db
     .select()
     .from(products)
@@ -185,6 +185,120 @@ export function listProducts(db: ConceptDb): Promise<Product[]> {
     .select({ slug: products.slug, name: products.name })
     .from(products)
     .orderBy(products.slug)
+}
+
+// A Product whose public comments Glue reads, with its read position.
+export type SocialProduct = {
+  id: number
+  slug: string
+  handle: string
+  readUntil: Date | null
+}
+
+// The Products with a social handle: all of them, or the one of the slug.
+export async function listSocialProducts(
+  db: ConceptDb,
+  productSlug?: string,
+): Promise<SocialProduct[]> {
+  const rows = await db
+    .select({
+      id: products.id,
+      slug: products.slug,
+      handle: products.socialHandle,
+      readUntil: products.commentsReadUntil,
+    })
+    .from(products)
+    .where(
+      and(
+        isNotNull(products.socialHandle),
+        productSlug === undefined ? undefined : eq(products.slug, productSlug),
+      ),
+    )
+    .orderBy(products.id)
+  return rows.flatMap(({ handle, ...row }) =>
+    handle ? [{ ...row, handle }] : [],
+  )
+}
+
+// The open Goals with a measure, each with the Product that holds it: of all
+// Products, or of the one of the slug. The measure is as stored, not parsed.
+export function listGoalsWithMeasure(db: ConceptDb, productSlug?: string) {
+  return db
+    .select({
+      productId: products.id,
+      productSlug: products.slug,
+      analyticsProject: products.analyticsProject,
+      goalId: goals.id,
+      goalRecordId: goals.recordId,
+      baseline: goals.baseline,
+      measure: goals.measure,
+    })
+    .from(goals)
+    .innerJoin(products, eq(goals.productId, products.id))
+    .where(
+      and(
+        isNotNull(goals.measure),
+        eq(goals.status, 'open'),
+        productSlug === undefined ? undefined : eq(products.slug, productSlug),
+      ),
+    )
+    .orderBy(goals.id)
+}
+
+// The accepted Decisions that serve the Goal, by the Goal's row id.
+export async function listAcceptedDecisions(
+  db: ConceptDb,
+  goalId: number,
+): Promise<RecordReference[]> {
+  const accepted = await db
+    .select({ id: decisions.recordId, title: decisions.title })
+    .from(decisions)
+    .where(and(eq(decisions.goalId, goalId), eq(decisions.status, 'accepted')))
+  return sortById(accepted)
+}
+
+// The status of each Decision of the Product, with the id of the Decision
+// that superseded it.
+export function listDecisionStatuses(db: ConceptDb, productSlug: string) {
+  const supersededBy = alias(decisions, 'superseded_by')
+  return db
+    .select({
+      id: decisions.recordId,
+      status: decisions.status,
+      supersededById: supersededBy.recordId,
+    })
+    .from(decisions)
+    .innerJoin(products, eq(decisions.productId, products.id))
+    .leftJoin(supersededBy, eq(supersededBy.id, decisions.supersededById))
+    .where(eq(products.slug, productSlug))
+}
+
+// The id of the Product's Insight with this source, or null.
+export async function findInsightIdBySource(
+  db: ConceptDb,
+  productId: number,
+  source: string,
+) {
+  const found = await db
+    .select({ id: insights.recordId })
+    .from(insights)
+    .where(and(eq(insights.productId, productId), eq(insights.source, source)))
+  return found.at(0)?.id ?? null
+}
+
+// The source and the date of each Insight of the Product. An unknown Product
+// has none.
+export async function listInsightSources(db: ConceptDb, productSlug: string) {
+  const product = await findProduct(db, productSlug)
+  if (!product) return []
+  return db
+    .select({
+      id: insights.recordId,
+      source: insights.source,
+      date: insights.date,
+    })
+    .from(insights)
+    .where(eq(insights.productId, product.id))
 }
 
 // The evidence of each Decision that matches, by the Decision's row id.

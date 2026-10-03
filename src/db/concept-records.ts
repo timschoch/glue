@@ -1,4 +1,4 @@
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import type { GithubClient } from '../github/client.ts'
@@ -687,6 +687,42 @@ export async function setSocialHandle(
     .where(eq(products.slug, productSlug))
     .returning({ id: products.id })
   if (updated.length === 0) throw new ProductNotFoundError(productSlug)
+}
+
+// What a measure run read for a mean Goal, and when.
+export type GoalReading = {
+  baseline: number
+  latestValue: number
+  latestBreakdownValue: string | null
+  measuredAt: Date
+}
+
+// Stores the reading on the Goal, by the Goal's row id.
+export async function setGoalReading(
+  db: ConceptDb,
+  goalId: number,
+  reading: GoalReading,
+): Promise<void> {
+  await db.update(schema.goals).set(reading).where(eq(schema.goals.id, goalId))
+}
+
+// Sets the issue that builds the Decision. A Decision with an issue keeps it.
+export async function setDecisionIssueUrl(
+  db: ConceptDb,
+  productId: number,
+  id: string,
+  issueUrl: string,
+): Promise<void> {
+  await db
+    .update(schema.decisions)
+    .set({ issueUrl })
+    .where(
+      and(
+        eq(schema.decisions.productId, productId),
+        eq(schema.decisions.recordId, id),
+        isNull(schema.decisions.issueUrl),
+      ),
+    )
 }
 
 export const goalChangeSchema = z.object({

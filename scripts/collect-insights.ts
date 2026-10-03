@@ -9,12 +9,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { eq } from 'drizzle-orm'
-
 import { createDb } from '../src/db/client.ts'
 import type { ConceptDb } from '../src/db/client.ts'
+import { listInsightSources } from '../src/db/concept.ts'
 import { addConceptRecord } from '../src/db/concept-records.ts'
-import * as schema from '../src/db/schema.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PRODUCT_SLUG = 'glue'
@@ -61,23 +59,11 @@ export function toInsights(
   return insights
 }
 
-export async function loadExistingInsights(
+export function loadExistingInsights(
   db: ConceptDb,
   productSlug: string,
 ): Promise<(ExistingInsight & { date: string })[]> {
-  const products = await db
-    .select({ id: schema.products.id })
-    .from(schema.products)
-    .where(eq(schema.products.slug, productSlug))
-  if (products.length === 0) return []
-  return db
-    .select({
-      id: schema.insights.recordId,
-      source: schema.insights.source,
-      date: schema.insights.date,
-    })
-    .from(schema.insights)
-    .where(eq(schema.insights.productId, products[0].id))
+  return listInsightSources(db, productSlug)
 }
 
 export async function addInsights(

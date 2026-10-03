@@ -1,18 +1,21 @@
 // The measure step of the cycle: read each Goal's measure from its metric
 // source and write a draft Insight. A funnel Goal gets one when it misses its
 // target or moved. A mean Goal gets one on each run, with its baseline.
-import { and, eq, isNotNull } from 'drizzle-orm'
 import { z } from 'zod'
 
 import type { ConceptDb } from '../db/client.ts'
-import { addConceptRecord } from '../db/concept-records.ts'
+import {
+  findInsightIdBySource,
+  listAcceptedDecisions,
+  listGoalsWithMeasure,
+} from '../db/concept.ts'
+import { addConceptRecord, setGoalReading } from '../db/concept-records.ts'
 import { goalMeasureSchema } from '../db/goal-measure.ts'
 import type {
   FunnelMeasure,
   GoalMeasure,
   MeanMeasure,
 } from '../db/goal-measure.ts'
-import { decisions, goals, insights, products } from '../db/schema.ts'
 import type { FunnelResult, MeanResult, MetricSource } from './metric-source.ts'
 
 const DAY_MILLISECONDS = 86_400_000
@@ -219,26 +222,11 @@ function formatQueryReference(
   return `${measure.source}://${analyticsProject}/${measure.kind}?${query}`
 }
 
-// The id of the Insight a measure run wrote for this query, or null.
-async function findInsightId(db: ConceptDb, productId: number, source: string) {
-  const found = await db
-    .select({ id: insights.recordId })
-    .from(insights)
-    .where(and(eq(insights.productId, productId), eq(insights.source, source)))
-  return found.at(0)?.id ?? null
-}
-
 async function formatAcceptedSection(
   db: ConceptDb,
   { goalId, goalRecordId }: MeasuredGoal,
 ) {
-  const accepted = await db
-    .select({ id: decisions.recordId, title: decisions.title })
-    .from(decisions)
-    .where(and(eq(decisions.goalId, goalId), eq(decisions.status, 'accepted')))
-  accepted.sort(
-    (left, right) => Number(left.id.slice(1)) - Number(right.id.slice(1)),
-  )
+  const accepted = await listAcceptedDecisions(db, goalId)
   return [
     `## Decisions accepted for ${goalRecordId}`,
     accepted.length === 0
@@ -254,26 +242,7 @@ async function listMeasuredGoals(
   db: ConceptDb,
   productSlug: string | undefined,
 ) {
-  const rows = await db
-    .select({
-      productId: products.id,
-      productSlug: products.slug,
-      analyticsProject: products.analyticsProject,
-      goalId: goals.id,
-      goalRecordId: goals.recordId,
-      baseline: goals.baseline,
-      measure: goals.measure,
-    })
-    .from(goals)
-    .innerJoin(products, eq(goals.productId, products.id))
-    .where(
-      and(
-        isNotNull(goals.measure),
-        eq(goals.status, 'open'),
-        productSlug === undefined ? undefined : eq(products.slug, productSlug),
-      ),
-    )
-    .orderBy(goals.id)
+  const rows = await listGoalsWithMeasure(db, productSlug)
   const measured: MeasuredGoal[] = []
   const skipped: SkippedGoal[] = []
   for (const { analyticsProject, measure, ...row } of rows) {
@@ -500,18 +469,6 @@ type MeasureOptions = {
   dryRun?: boolean
 }
 
-async function setProgress(
-  db: ConceptDb,
-  goalId: number,
-  progress: Progress,
-  now: Date,
-) {
-  await db
-    .update(goals)
-    .set({ ...progress, measuredAt: now })
-    .where(eq(goals.id, goalId))
-}
-
 // Writes the Insight unless one exists for the same query: from an earlier
 // run, or from an overlapping run that wrote it first. A dry run writes
 // nothing, its new Insight has no id.
@@ -520,7 +477,11 @@ async function addMeasuredInsight(
   goal: MeasuredGoal,
   draft: MeasuredDraft,
 ): Promise<{ id: string | null; isDuplicate: boolean }> {
-  const existingId = await findInsightId(db, goal.productId, draft.source)
+  const existingId = await findInsightIdBySource(
+    db,
+    goal.productId,
+    draft.source,
+  )
   if (existingId) return { id: existingId, isDuplicate: true }
   if (dryRun) return { id: null, isDuplicate: false }
   const fields = {
@@ -539,7 +500,11 @@ async function addMeasuredInsight(
     )
     return { id, isDuplicate: false }
   } catch (error) {
-    const writtenId = await findInsightId(db, goal.productId, draft.source)
+    const writtenId = await findInsightIdBySource(
+      db,
+      goal.productId,
+      draft.source,
+    )
     if (writtenId) return { id: writtenId, isDuplicate: true }
     throw error
   }
@@ -558,7 +523,7 @@ async function addGoalInsight(
   if (!measuredDraft) return null
   const { progress, ...draft } = measuredDraft
   if (!dryRun && progress) {
-    await setProgress(db, goal.goalId, progress, now)
+    await setGoalReading(db, goal.goalId, { ...progress, measuredAt: now })
   }
   const { id, isDuplicate } = await addMeasuredInsight(options, goal, draft)
   const names = { product: goal.productSlug, goal: goal.goalRecordId }
