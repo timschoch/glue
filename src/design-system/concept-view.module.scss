@@ -1,0 +1,88 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The width of a card: the width of the pinned column.
+$card-width: $spacing-13 * 2;
+
+// The head, the row of Concepts and the type groups are separate groups.
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-07;
+}
+
+// The things of one group belong together.
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.title {
+  @include type-style('heading-03');
+
+  color: $text-primary;
+  overflow-wrap: anywhere;
+}
+
+.groupTitle {
+  @include type-style('heading-compact-02');
+
+  color: $text-primary;
+}
+
+.label {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}
+
+// The cards, tiles and empty slots of one group, in columns of one width.
+.items {
+  display: grid;
+  align-items: start;
+  gap: $spacing-03;
+  grid-template-columns: repeat(auto-fill, minmax(min($card-width, 100%), 1fr));
+}
+
+.conceptTitle {
+  @include type-style('heading-compact-01');
+
+  color: $text-primary;
+  overflow-wrap: anywhere;
+}
+
+// The link sign and the home Concept of a linked Part.
+.home {
+  @include type-style('label-01');
+
+  display: flex;
+  align-items: center;
+  color: $text-secondary;
+  gap: $spacing-03;
+}
+
+.glyph {
+  flex-shrink: 0;
+  fill: $icon-secondary;
+}
+
+// An empty slot: the dashed border says missing. Its button lies below the
+// type word at the start edge, as on a card.
+.emptySlot {
+  display: flex;
+  flex-direction: column;
+  border: 1px dashed $border-strong-01;
+}
+
+.slotType {
+  @include type-style('label-01');
+
+  padding: $spacing-05;
+  color: $text-secondary;
+}
+
+.add {
+  align-self: flex-start;
+}

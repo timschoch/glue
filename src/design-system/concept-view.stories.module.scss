@@ -1,0 +1,8 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+
+// The view lies on the canvas of the main window.
+.canvas {
+  padding: $spacing-07;
+  background-color: $background;
+}
