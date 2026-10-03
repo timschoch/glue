@@ -29,18 +29,6 @@ $text-width: $spacing-13 * 4;
   gap: $spacing-03;
 }
 
-// The card takes the room that the control to remove it leaves.
-.pick {
-  display: flex;
-  align-items: flex-start;
-  gap: $spacing-03;
-
-  > :first-child {
-    flex: 1;
-    min-inline-size: 0;
-  }
-}
-
 .buttons {
   display: flex;
   gap: $spacing-03;

@@ -171,7 +171,7 @@ function PartPicker({
       {pickedParts.length > 0 && (
         <ul aria-label={label} className={styles.picks}>
           {pickedParts.map((part) => (
-            <li key={part.id} className={styles.pick}>
+            <li key={part.id}>
               <Card
                 minimal
                 type={part.type}
@@ -180,15 +180,8 @@ function PartPicker({
                 trust={part.trust}
                 href={part.href}
                 onOpen={onOpen && ((event) => onOpen(part.id, event))}
+                action={{ label: 'Remove', onClick: () => onRemove(part.id) }}
               />
-              <Button
-                kind="ghost"
-                size="sm"
-                aria-label={`Remove ${part.id}`}
-                onClick={() => onRemove(part.id)}
-              >
-                Remove
-              </Button>
             </li>
           ))}
         </ul>

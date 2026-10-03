@@ -343,9 +343,7 @@ describe('PartForm', () => {
 
     expect(within(first).getAllByRole('button')).toHaveLength(1)
 
-    await userEvent.click(
-      within(first).getByRole('button', { name: 'Remove I7' }),
-    )
+    await userEvent.click(within(first).getByRole('button', { name: 'Remove' }))
 
     expect(picks('Evidence')).toEqual(['Videos are too long'])
 
@@ -358,7 +356,7 @@ describe('PartForm', () => {
     renderForm()
 
     await pick('Evidence', 'I7', 'I7 Bakers want step videos')
-    await userEvent.click(screen.getByRole('button', { name: 'Remove I7' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
     await pick('Evidence', 'I7', 'I7 Bakers want step videos')
 
     expect(picks('Evidence')).toEqual(['Bakers want step videos'])
@@ -379,7 +377,7 @@ describe('PartForm', () => {
 
     expect(saveButton().disabled).toBe(false)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remove G2' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
 
     expect(picks('Goal')).toEqual([])
     expect(saveButton().disabled).toBe(true)
