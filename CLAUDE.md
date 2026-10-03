@@ -82,7 +82,7 @@ Build the smallest Glue that runs the whole [loop](docs/concept.md#1-the-loop), 
 
 ### Design
 
-- The look and its rules live in Glue, in the Product `design-system`: `pnpm concept list --product design-system`. Read its Guardrails before a UI ticket.
+- The look and its rules live in Glue, in the Project `design-system`: `pnpm concept list --project design-system`. Read its Guardrails before a UI ticket.
 - No text that describes the UI: no legends, hints or explaining sentences. One style, one meaning.
 - Build UI with the `better-*` skills. Use `break` and `variant` for stress tests and options.
 
@@ -107,7 +107,7 @@ A deliberate skip of a blocked shell command: `GLUE_OVERRIDE="<reason>"` in the 
 
 - Domain language: [GLOSSARY.md](GLOSSARY.md)
 - The target model: [docs/concept.md](docs/concept.md)
-- Glue's own Concept: Goals, Decisions, Insights, Facts, Guardrails in the Neon database. Read it before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. Another Product: `--product <slug>`. Record types: [src/db/concept-fields.ts](src/db/concept-fields.ts). Every ticket and PR names its Decision id.
+- Glue's own Concept: Goals, Decisions, Insights, Facts, Guardrails in the Neon database. Read it before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. Another Project: `--project <slug>`. Record types: [src/db/concept-fields.ts](src/db/concept-fields.ts). Every ticket and PR names its Decision id.
 - Measure step: `pnpm collect-insights` turns failed checks, blocked reviews and overrides into draft Insights.
 - Decisions about the repo's tooling that serve no Goal: [docs/adr/](docs/adr/)
 
