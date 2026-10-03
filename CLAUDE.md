@@ -10,7 +10,7 @@ Concept hub: why a product is built the way it is. See [README.md](README.md).
 
 ## Rules
 
-- UI: Mantine + CSS Modules. No Tailwind.
+- UI: Carbon (`@carbon/react`) with its tokens, and CSS Modules. No Tailwind. A Mantine screen stays until its Carbon screen ships. No screen mixes both kits.
 - Branches `<type>/<description>`, conventional commits. Never push to `main`; open a PR.
 - Skills in [skills-lock.json](skills-lock.json) are synced by skilly: change them in the hub, https://github.com/timschoch/skilly. Repo-owned skills (not in the lock) live in `.agents/skills/` too, for example [t3-threads](.agents/skills/t3-threads/SKILL.md).
 - A skill with `disable-model-invocation` refuses the Skill tool: read its `SKILL.md` in full and apply it. Examples: `ask-matt`, `interface-review`, `break`, `variant`.
@@ -29,40 +29,41 @@ Agents build Glue in a run. The Orchestrator plans and merges, Workers build, th
 
 ### Roles
 
-| Role          | May                                                                                                                                                                  | May not                                                                                                                                                            | Done when                                                                           |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| Owner (human) | Set Goals and Guardrails, sign off Versions, merge the release PR                                                                                                    |                                                                                                                                                                    | Confirms or rolls back provisional Versions                                         |
-| Orchestrator  | Plan rings, write tickets, spawn and steer Workers, pick research or build, pick free OSS, merge through the [merge gate](#merge-gate), sign Versions as provisional | Write product code, spend money, change Goals or Guardrails, merge the release PR                                                                                  | The run goal is reached, or it halts                                                |
-| Worker        | Build one ticket in its own worktree and branch, commit, push, open a PR, add free OSS dependencies, ask the Orchestrator                                            | Merge, touch another worktree, change workflow files (`CLAUDE.md`, `.claude/`, `.github/`, `.husky/`, `.skilly/`, `.agents/skills/`), use secrets it was not given | PR open, `verify ci` green, tests written first, final line `RESULT: done <PR URL>` |
+| Role          | May                                                                                                                                                                                                                 | May not                                                                                                                                                            | Done when                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| Owner (human) | Set Goals and Guardrails, sign off Versions, answer proposed Decisions in Glue                                                                                                                                      |                                                                                                                                                                    | Confirms or rolls back provisional Versions                                         |
+| Orchestrator  | Plan circles, write tickets, spawn and steer Workers, pick research or build, pick free OSS, merge through the [merge gate](#merge-gate), merge the release PR at the end of a circle, sign Versions as provisional | Write product code, spend money, change Goals or Guardrails                                                                                                        | The run goal is reached, or it halts                                                |
+| Worker        | Build one ticket in its own worktree and branch, commit, push, open a PR, add free OSS dependencies, ask the Orchestrator                                                                                           | Merge, touch another worktree, change workflow files (`CLAUDE.md`, `.claude/`, `.github/`, `.husky/`, `.skilly/`, `.agents/skills/`), use secrets it was not given | PR open, `verify ci` green, tests written first, final line `RESULT: done <PR URL>` |
 
 - Spawn and watch Workers with [t3-threads](.agents/skills/t3-threads/SKILL.md). Per repo: 3 Workers + 1 Orchestrator at most.
 - A Worker that cannot go on ends with `RESULT: blocked <why>` or `RESULT: question <question>`, never silence.
-- Run goal: the open issue labelled `run-goal` on `timschoch/glue`. The Orchestrator records it as Glue's first Goal.
+- Run goal: the open issue labelled `run-goal` on `timschoch/glue`. The Orchestrator records it as a Goal in Glue.
 
 ### Owner contact
 
 - The Owner checks in every few hours. Work on what is not blocked.
-- Ask the Owner with a GitHub issue labelled `ready-for-human`: one question, the options, your pick.
-- Ask the Owner only what the Owner's role owns (see [Roles](#roles)). The Orchestrator accepts Decisions and plans rings itself.
-  - Bad: "D1 to D4 are `proposed`. Do you accept them? Can I start ring 1?"
-  - Good: "I accepted D1 to D4 and started ring 1."
+- Ask the Owner in Glue: a `proposed` Decision with the options and your pick in its body. The Owner answers in the Glue app. The chat gets one short message per circle.
+- A thing Glue cannot hold (credentials, sign-ups, trials): a GitHub issue labelled `ready-for-human`.
+- Ask the Owner only what the Owner's role owns (see [Roles](#roles)). The Orchestrator accepts Decisions and plans circles itself.
+  - Bad: "D1 to D4 are `proposed`. Do you accept them? Can I start circle 1?"
+  - Good: "I accepted D1 to D4 and started circle 1."
 - Ask early for anything that takes the Owner time: credentials, sign-ups (agents have no email account), trials.
 - Halt the run only when all work is blocked or something broke badly. Halt: issue labelled `ready-for-human`, title starts with `HALT:`.
 
 ### Build concentric
 
-Build the smallest Glue that runs the whole cycle, then widen every part of it together:
+Build the smallest Glue that runs the whole [loop](docs/concept.md#1-the-loop), then widen every part of it together:
 
-`Insight → Decision → Concept and Guardrails → build → measure → Insight`
+`Understand → Decide → Design → Build → Use → Understand`
 
-- Ring 0: Glue's own Concept exists and agents read it. The cheapest form wins, files in the repo are fine.
-- Each next ring moves more of the cycle into the Glue app and removes the ring-0 workarounds.
-- Dogfood from ring 0:
+- Circles: listed in the run goal issue. Each circle ends with a release to the main deployment.
+- Glue builds Glue. Use what the Glue app, its HTTP API and `pnpm concept` have. What is hard to use becomes an issue labelled `user-feedback`. Glue reads these issues as Signals.
+- Dogfood:
   - No ticket without the Decision it implements.
   - No Decision without a Goal and evidence (Insight or Fact).
   - Findings go back as Insights: verify failures, review findings, research, analytics, Owner feedback.
 - How Guardrails get enforced (CI, MCP, exports) is product work. Record it as Decisions in Glue.
-- Ring report to the Owner at the end of each ring: shipped, Insights, Decisions proposed, overrides used, next ring.
+- Circle report to the Owner at the end of each circle: shipped, Insights, Decisions proposed, overrides used, next circle.
 
 ### Scope
 
@@ -81,8 +82,9 @@ Build the smallest Glue that runs the whole cycle, then widen every part of it t
 
 ### Design
 
-- First UI ticket: run `hallmark` once for the design direction. Output: `design.md` and tokens as a Mantine theme and CSS variables.
-- After that every screen uses those tokens. Build UI with the `better-*` skills. Use `break` and `variant` for stress tests and options.
+- The look and its rules live in Glue, in the Product `design-system`: `pnpm concept list --product design-system`. Read its Guardrails before a UI ticket.
+- No text that describes the UI: no legends, hints or explaining sentences. One style, one meaning.
+- Build UI with the `better-*` skills. Use `break` and `variant` for stress tests and options.
 
 ### Merge gate
 
@@ -96,6 +98,7 @@ A deliberate skip of a blocked shell command: `GLUE_OVERRIDE="<reason>"` in the 
 
 ### Second product
 
+- Paused in the run of [issue 103](https://github.com/timschoch/glue/issues/103).
 - At 30 to 40% of Glue's cycle, when Glue is usable, rebuild flexibeck from [its vision](https://github.com/timschoch/flexibeck/blob/main/docs/vision.html) in a new repo, with its own Vercel project and Neon database on free tiers.
 - A second Orchestrator runs it with Glue as its concept hub. It talks to the Owner directly.
 - It files what Glue lacks as issues on `timschoch/glue`. Those issues are Insights for Glue.
@@ -103,7 +106,8 @@ A deliberate skip of a blocked shell command: `GLUE_OVERRIDE="<reason>"` in the 
 ## Docs
 
 - Domain language: [CONTEXT.md](CONTEXT.md)
-- Glue's own Concept: Goals, Decisions, Insights, Facts, Guardrails in the Neon database. Read it before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. Record types: [src/db/concept-fields.ts](src/db/concept-fields.ts). Every ticket and PR names its Decision id.
+- The target model: [docs/concept.md](docs/concept.md)
+- Glue's own Concept: Goals, Decisions, Insights, Facts, Guardrails in the Neon database. Read it before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. Another Product: `--product <slug>`. Record types: [src/db/concept-fields.ts](src/db/concept-fields.ts). Every ticket and PR names its Decision id.
 - Measure step: `pnpm collect-insights` turns failed checks, blocked reviews and overrides into draft Insights.
 - Decisions about the repo's tooling that serve no Goal: [docs/adr/](docs/adr/)
 
