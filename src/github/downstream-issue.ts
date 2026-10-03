@@ -1,11 +1,9 @@
 // An accepted Decision flows downstream: Glue opens one GitHub issue for it
 // in the repository of its Product, so the builders of the Product build it.
-import { and, eq, isNull } from 'drizzle-orm'
-
 import type { ConceptDb } from '../db/client.ts'
-import { findRecord } from '../db/concept.ts'
+import { findProduct, findRecord } from '../db/concept.ts'
 import type { Decision, RecordReference } from '../db/concept.ts'
-import * as schema from '../db/schema.ts'
+import { setDecisionIssueUrl } from '../db/concept-records.ts'
 import type { GithubClient, IssueInput } from './client.ts'
 
 export type DownstreamIssue =
@@ -50,14 +48,9 @@ export async function createDownstreamIssue(
   if (decision?.kind !== 'decision') return { kind: 'not-found' }
   if (decision.issueUrl) return { kind: 'existing', url: decision.issueUrl }
   if (decision.status !== 'accepted') return { kind: 'not-accepted' }
-  const [{ id: productId, repository }] = await db
-    .select({
-      id: schema.products.id,
-      repository: schema.products.repository,
-    })
-    .from(schema.products)
-    .where(eq(schema.products.slug, productSlug))
-  if (!repository) return { kind: 'no-repository' }
+  const product = await findProduct(db, productSlug)
+  if (!product?.repository) return { kind: 'no-repository' }
+  const { id: productId, repository } = product
 
   let url: string
   try {
@@ -69,15 +62,6 @@ export async function createDownstreamIssue(
     }
   }
 
-  await db
-    .update(schema.decisions)
-    .set({ issueUrl: url })
-    .where(
-      and(
-        eq(schema.decisions.productId, productId),
-        eq(schema.decisions.recordId, decisionId),
-        isNull(schema.decisions.issueUrl),
-      ),
-    )
+  await setDecisionIssueUrl(db, productId, decisionId, url)
   return { kind: 'created', url }
 }
