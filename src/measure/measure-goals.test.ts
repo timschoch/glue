@@ -299,7 +299,7 @@ describe('measureGoals', () => {
           product: 'flexibeck',
           goal: 'G1',
           reason:
-            'the Product has no analytics project: pnpm concept product set flexibeck --analytics-project <key>',
+            'the Product has no analytics project: pnpm concept project set flexibeck --analytics-project <key>',
         },
       ],
     })

@@ -17,7 +17,7 @@ import {
   handleGetConcept,
   handleGetRecord,
   handleListRecords,
-  handleMeasureProduct,
+  handleMeasureProject,
   handleUpdateRecord,
 } from './concept-api.ts'
 import type { ApiRequest } from './concept-api.ts'
@@ -98,7 +98,7 @@ describe('authentication', () => {
     const response = await handleGetConcept({
       db,
       request: request('GET'),
-      params: { product: 'flexibeck' },
+      params: { project: 'flexibeck' },
     })
 
     expect(response.status).toBe(401)
@@ -111,17 +111,20 @@ describe('authentication', () => {
     const response = await handleGetConcept({
       db,
       request: request('GET', { token: 'glue_wrong' }),
-      params: { product: 'flexibeck' },
+      params: { project: 'flexibeck' },
     })
 
     expect(response.status).toBe(401)
   })
 
-  it('answers 404 for another Product', async () => {
-    const response = await call(handleGetConcept, 'GET', { product: 'glue' })
+  it('answers 404 for another Project', async () => {
+    const response = await call(handleGetConcept, 'GET', { project: 'glue' })
 
     expect(response.status).toBe(404)
-    expect(response.body.error.code).toBe('not-found')
+    expect(response.body.error).toEqual({
+      code: 'not-found',
+      message: 'project "glue" not found',
+    })
   })
 
   it('accepts the Bearer scheme in any case, RFC 7235', async () => {
@@ -132,7 +135,7 @@ describe('authentication', () => {
     const response = await handleGetConcept({
       db,
       request: new Request('http://localhost/api/v1', { headers }),
-      params: { product: 'flexibeck' },
+      params: { project: 'flexibeck' },
     })
 
     expect(response.status).toBe(200)
@@ -142,7 +145,7 @@ describe('authentication', () => {
 describe('GET /concept', () => {
   it('returns the records of the Product grouped by type', async () => {
     const response = await call(handleGetConcept, 'GET', {
-      product: 'flexibeck',
+      project: 'flexibeck',
     })
 
     expect(response.status).toBe(200)
@@ -167,7 +170,7 @@ describe('Insights', () => {
     const added = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'insights' },
+      { project: 'flexibeck', folder: 'insights' },
       {
         title: 'Users churn on slow loads',
         date: '2026-09-30',
@@ -180,7 +183,7 @@ describe('Insights', () => {
     expect(added.body).toMatchObject({ kind: 'insight', id: 'I1' })
 
     const read = await call(handleGetRecord, 'GET', {
-      product: 'flexibeck',
+      project: 'flexibeck',
       folder: 'insights',
       recordId: 'I1',
     })
@@ -197,7 +200,7 @@ describe('Insights', () => {
     })
 
     const listed = await call(handleListRecords, 'GET', {
-      product: 'flexibeck',
+      project: 'flexibeck',
       folder: 'insights',
     })
     expect(listed.body).toEqual([
@@ -214,7 +217,7 @@ describe('Insights', () => {
     const response = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'insights' },
+      { project: 'flexibeck', folder: 'insights' },
       { source: 'interviews' },
     )
 
@@ -232,7 +235,7 @@ describe('Insights', () => {
         headers: { authorization: `Bearer ${token}` },
         body: '{',
       }),
-      params: { product: 'flexibeck', folder: 'insights' },
+      params: { project: 'flexibeck', folder: 'insights' },
     })
 
     expect(response.status).toBe(400)
@@ -244,7 +247,7 @@ describe('Facts', () => {
     const added = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'facts' },
+      { project: 'flexibeck', folder: 'facts' },
       { title: 'The budget is 0', source: 'owner' },
     )
 
@@ -268,7 +271,7 @@ describe('Decisions', () => {
     const added = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'decisions' },
+      { project: 'flexibeck', folder: 'decisions' },
       decision,
     )
 
@@ -285,7 +288,7 @@ describe('Decisions', () => {
     const response = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'decisions' },
+      { project: 'flexibeck', folder: 'decisions' },
       { ...decision, evidence: ['I9'] },
     )
 
@@ -297,7 +300,7 @@ describe('Decisions', () => {
     const response = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'decisions' },
+      { project: 'flexibeck', folder: 'decisions' },
       { ...decision, evidence: ['F2'] },
     )
 
@@ -308,7 +311,7 @@ describe('Decisions', () => {
     const response = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'decisions' },
+      { project: 'flexibeck', folder: 'decisions' },
       { ...decision, evidence: [] },
     )
 
@@ -316,7 +319,7 @@ describe('Decisions', () => {
   })
 
   it('supersedes a Decision by another', async () => {
-    const params = { product: 'flexibeck', folder: 'decisions' }
+    const params = { project: 'flexibeck', folder: 'decisions' }
     await call(handleAddRecord, 'POST', params, decision)
     await call(handleAddRecord, 'POST', params, {
       ...decision,
@@ -342,7 +345,7 @@ describe('Decisions', () => {
     const added = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'decisions' },
+      { project: 'flexibeck', folder: 'decisions' },
       decision,
     )
 
@@ -355,7 +358,7 @@ describe('Decisions', () => {
   })
 
   it('opens the issue when a Decision moves to accepted, once', async () => {
-    const params = { product: 'flexibeck', folder: 'decisions' }
+    const params = { project: 'flexibeck', folder: 'decisions' }
     await call(handleAddRecord, 'POST', params, {
       ...decision,
       status: 'proposed',
@@ -388,7 +391,7 @@ describe('Decisions', () => {
     const added = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'decisions' },
+      { project: 'flexibeck', folder: 'decisions' },
       decision,
     )
 
@@ -401,7 +404,7 @@ describe('Decisions', () => {
   })
 
   it('adds a Decision that supersedes another, and the old one names it', async () => {
-    const params = { product: 'flexibeck', folder: 'decisions' }
+    const params = { project: 'flexibeck', folder: 'decisions' }
     await call(handleAddRecord, 'POST', params, decision)
 
     const added = await call(handleAddRecord, 'POST', params, {
@@ -427,7 +430,7 @@ describe('Decisions', () => {
   })
 
   it('answers 400 for a proposed Decision that supersedes another', async () => {
-    const params = { product: 'flexibeck', folder: 'decisions' }
+    const params = { project: 'flexibeck', folder: 'decisions' }
     await call(handleAddRecord, 'POST', params, decision)
 
     const response = await call(handleAddRecord, 'POST', params, {
@@ -443,7 +446,7 @@ describe('Decisions', () => {
   })
 
   it('answers 400 for a superseded Decision without superseded_by', async () => {
-    const params = { product: 'flexibeck', folder: 'decisions' }
+    const params = { project: 'flexibeck', folder: 'decisions' }
     await call(handleAddRecord, 'POST', params, decision)
 
     const response = await call(
@@ -460,7 +463,7 @@ describe('Decisions', () => {
     const response = await call(
       handleUpdateRecord,
       'PATCH',
-      { product: 'flexibeck', folder: 'decisions', recordId: 'D9' },
+      { project: 'flexibeck', folder: 'decisions', recordId: 'D9' },
       { status: 'accepted' },
     )
 
@@ -468,7 +471,7 @@ describe('Decisions', () => {
   })
 
   it('gives two Decisions that follow each other different ids', async () => {
-    const params = { product: 'flexibeck', folder: 'decisions' }
+    const params = { project: 'flexibeck', folder: 'decisions' }
     const responses = await Promise.all([
       call(handleAddRecord, 'POST', params, decision),
       call(handleAddRecord, 'POST', params, decision),
@@ -482,7 +485,7 @@ describe('Decisions', () => {
 describe('paths that name no record', () => {
   it('answers 404 for a record of another folder', async () => {
     const response = await call(handleGetRecord, 'GET', {
-      product: 'flexibeck',
+      project: 'flexibeck',
       folder: 'goals',
       recordId: 'F1',
     })
@@ -492,7 +495,7 @@ describe('paths that name no record', () => {
 
   it('answers 404 for a folder that does not exist', async () => {
     const response = await call(handleListRecords, 'GET', {
-      product: 'flexibeck',
+      project: 'flexibeck',
       folder: 'ideas',
     })
 
@@ -503,7 +506,7 @@ describe('paths that name no record', () => {
     const response = await call(
       handleAddRecord,
       'POST',
-      { product: 'flexibeck', folder: 'guardrails' },
+      { project: 'flexibeck', folder: 'guardrails' },
       { title: 'No paid tools', enforced_by: 'review' },
     )
 
@@ -514,7 +517,7 @@ describe('paths that name no record', () => {
     const response = await call(
       handleUpdateRecord,
       'PATCH',
-      { product: 'flexibeck', folder: 'facts', recordId: 'F1' },
+      { project: 'flexibeck', folder: 'facts', recordId: 'F1' },
       { title: 'p95 load time is 2s' },
     )
 
@@ -530,7 +533,7 @@ describe('Goals', () => {
     target: 0.25,
     window_days: 7,
   }
-  const params = { product: 'flexibeck', folder: 'goals' }
+  const params = { project: 'flexibeck', folder: 'goals' }
 
   it('adds a Goal with a measure', async () => {
     const added = await call(handleAddRecord, 'POST', params, {
@@ -713,7 +716,7 @@ describe('POST /measure', () => {
     await call(
       handleUpdateRecord,
       'PATCH',
-      { product: 'flexibeck', folder: 'goals', recordId: 'G1' },
+      { project: 'flexibeck', folder: 'goals', recordId: 'G1' },
       {
         measure: {
           kind: 'funnel',
@@ -727,10 +730,10 @@ describe('POST /measure', () => {
   })
 
   it('answers 401 without a token', async () => {
-    const response = await handleMeasureProduct({
+    const response = await handleMeasureProject({
       db,
       request: request('POST'),
-      params: { product: 'flexibeck' },
+      params: { project: 'flexibeck' },
       source,
     })
 
@@ -738,10 +741,10 @@ describe('POST /measure', () => {
   })
 
   it('measures the Goals of the Product and returns the new Insights', async () => {
-    const response = await handleMeasureProduct({
+    const response = await handleMeasureProject({
       db,
       request: request('POST', { token }),
-      params: { product: 'flexibeck' },
+      params: { project: 'flexibeck' },
       source,
     })
 
