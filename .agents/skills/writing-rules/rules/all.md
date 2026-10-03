@@ -12,7 +12,7 @@
 
 ## 2. Words and links
 
-- 201 Use the repo's `CONTEXT.md` term, never a synonym. Missing there? Define it where you use it and raise the gap.
+- 201 Use the repo's `GLOSSARY.md` term, never a synonym. Missing there? Define it where you use it and raise the gap.
 - 202 Link everything linkable: files, folders, docs, skills, issues — inside tables too. Link the section that owns the fact.
 - 203 A path you name must exist.
 - 204 Renamed a term? Rename it everywhere in the same PR. `git grep` the old word to prove none is left.
@@ -28,6 +28,6 @@
 ## 4. Where a statement lives
 
 - 401 One piece of content lives in one file; every other file links to it. Exception: an ADR is a dated record and repeats what it needs.
-- 403 Read `CONTEXT.md`, related docs and ADRs before writing. Never contradict quietly — fix the conflicting file in the same PR or say so out loud.
+- 403 Read `GLOSSARY.md`, related docs and ADRs before writing. Never contradict quietly — fix the conflicting file in the same PR or say so out loud.
 - 406 English for every repo artifact. UI copy follows the product's language.
 - 409 Writing into a folder? Follow its `__template.md`, or the pattern of the five newest files there.

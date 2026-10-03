@@ -498,10 +498,11 @@ function baseRef() {
   return git('rev-parse', '--verify', '--quiet', `origin/${branch}`).status === 0 ? `origin/${branch}` : branch;
 }
 
-// Files the branch adds or changes over its base. Untouched files are out of
-// scope by construction: the gate never asks for a rename sweep.
+// Files the branch adds or changes over its base, read from the working tree so
+// staged work counts before its commit. Untouched files are out of scope by
+// construction: the gate never asks for a rename sweep.
 function changedFiles(ref) {
-  const diff = git('diff', '--name-only', '--diff-filter=ACMR', `${ref}...HEAD`);
+  const diff = git('diff', '--merge-base', '--name-only', '--diff-filter=ACMR', ref);
   if (diff.status !== 0) throw new Error(`git diff over ${ref} failed: ${diff.stderr.trim()}`);
   return diff.stdout.split('\n').filter(Boolean);
 }

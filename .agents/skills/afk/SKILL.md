@@ -22,7 +22,7 @@ The user waits on nothing. In the first reply:
       1.3 merged PR
    ```
 
-2. Spawn a researcher agent in the background. Pick its model per the repo's model rule. Task: read the issue with its comments, the code it names, `CONTEXT.md` and related ADRs, then return a draft of the brief below.
+2. Spawn a researcher agent in the background. Pick its model per the repo's model rule. Task: read the issue with its comments, the code it names, `GLOSSARY.md` and related ADRs, then return a draft of the brief below.
 3. End the turn.
 
 Numbering follows `.claude/rules/workflow-dialog.md`.

@@ -11,7 +11,7 @@ Before you name anything, run `node .agents/skills/naming/scripts/config.mjs` an
 
 ## Rules
 
-1. One word per thing, and the word comes from `CONTEXT.md`. Look there first, then in existing types, DB tables and API routes. The repo's word beats the request's word.
+1. One word per thing, and the word comes from `GLOSSARY.md`. Look there first, then in existing types, DB tables and API routes. The repo's word beats the request's word.
 
    | Good | Bad | Why |
    | --- | --- | --- |
@@ -19,11 +19,11 @@ Before you name anything, run `node .agents/skills/naming/scripts/config.mjs` an
    | `Testimonial` type, `testimonials` table, `/api/testimonials` | `Testimonial` type, `reviews` table | one word per thing, everywhere |
    | `order` | `purchase` beside `order` | two words for one thing splits the search |
 
-2. No word yet? Run [term-check](.agents/skills/term-check/SKILL.md), show the result to the user, get sign-off, then add the word to `CONTEXT.md` through [domain-modeling](.agents/skills/domain-modeling/SKILL.md), which owns that file.
+2. No word yet? Run [term-check](.agents/skills/term-check/SKILL.md), show the result to the user, get sign-off, then add the word to `GLOSSARY.md` through [domain-modeling](.agents/skills/domain-modeling/SKILL.md), which owns that file.
 
    | Good | Bad | Why |
    | --- | --- | --- |
-   | `carryOver`, term-checked, in `CONTEXT.md` | `carryOver`, invented in the PR | a new word needs the user's sign-off |
+   | `carryOver`, term-checked, in `GLOSSARY.md` | `carryOver`, invented in the PR | a new word needs the user's sign-off |
    | `caseStudy` recorded with plural `caseStudies` | `caseStudy` with no entry | the next agent picks a different word |
    | `grid` added to the role list | `Grid` used, list unchanged | a role outside the closed list is a new word |
 
@@ -69,13 +69,13 @@ Before you name anything, run `node .agents/skills/naming/scripts/config.mjs` an
    | `isEmpty`, `canRetry` | `empty()`, `retryAllowed` | a check carries the prefix |
    | `enabled` | `notDisabled` | positive names only |
 
-8. Entity singular, collection plural. Record an irregular plural in `CONTEXT.md` next to the word.
+8. Entity singular, collection plural. Record an irregular plural in `GLOSSARY.md` next to the word.
 
    | Good | Bad | Why |
    | --- | --- | --- |
    | type `Testimonial`, file `testimonial.ts` | type `Testimonials` | one entity is singular |
    | table, path, folder `testimonials` | table `testimonial` | a collection is plural |
-   | `case_studies`, plural recorded in `CONTEXT.md` | `case_studys` | an irregular plural is written down once |
+   | `case_studies`, plural recorded in `GLOSSARY.md` | `case_studys` | an irregular plural is written down once |
 
 9. No `enum`. Use a string-literal union or an `as const` object. The discriminant key is `discriminant` in naming.json (`kind`). Own values are kebab-case; values mirrored from an external API stay verbatim.
 
@@ -107,7 +107,7 @@ Before you name anything, run `node .agents/skills/naming/scripts/config.mjs` an
     | --- | --- | --- |
     | `draft` renamed to `proposal` in code, docs and DB in one PR | code renamed, docs still say `draft` | two words for one thing |
     | `retryCount` after the value stopped being a limit | `maxRetries` kept | the name lies |
-    | rename plus a `CONTEXT.md` update | rename only | the glossary is the source |
+    | rename plus a `GLOSSARY.md` update | rename only | the glossary is the source |
 
 ## Per-project overrides
 
