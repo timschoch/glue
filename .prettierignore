@@ -3,6 +3,7 @@ pnpm-lock.yaml
 yarn.lock
 .temp
 .output
+storybook-static
 src/routeTree.gen.ts
 
 # skilly-owned files
