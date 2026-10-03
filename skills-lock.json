@@ -303,6 +303,12 @@
       "skillPath": "bundles/tech-posthog/skills/posthog-cli/SKILL.md",
       "computedHash": "644c38a541449b69ee0ac985ad1398f5a1e93be6e9ccff2fc0c14090e167c9ae"
     },
+    "pr": {
+      "source": "timschoch/mattpocock-skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/pr/SKILL.md",
+      "computedHash": "22a15d4d469344b38e03eb0e95772478393975836289393b1bad3c0febcdc679"
+    },
     "principle-encode-lessons-in-structure": {
       "source": "cursor/plugins",
       "sourceType": "github",
