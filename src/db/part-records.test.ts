@@ -12,7 +12,6 @@ import {
   vi,
 } from 'vitest'
 
-import { InvalidRecordError, ProductNotFoundError } from './concept-records.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import {
   addConcept,
@@ -20,11 +19,12 @@ import {
   addPart,
   addProject,
   removeJoint,
-  setMeasure,
+  removePart,
   setReading,
   supersedeDecision,
   updatePart,
 } from './part-records.ts'
+import { InvalidRecordError, ProductNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
 
 let client: PGlite
@@ -133,6 +133,12 @@ describe('addProject', () => {
     expect(await listConcepts()).toEqual([
       { projectId: 1, parentId: null, slug: 'glue', title: 'glue', kind: null },
     ])
+  })
+
+  it('gives back the row id of the Project, new or not', async () => {
+    expect(await addProject(db, 'glue')).toBe(1)
+    expect(await addProject(db, 'flexibeck')).toBe(2)
+    expect(await addProject(db, 'glue')).toBe(1)
   })
 
   it('keeps one Project and one root Concept when it runs twice', async () => {
@@ -372,6 +378,91 @@ describe('addPart', () => {
     expect(await addPart(db, 'glue', guardrail)).toBe('R13')
   })
 
+  it('counts on from the highest id when the counter is below it', async () => {
+    await addPart(db, 'glue', guardrail)
+    await db.insert(schema.parts).values({
+      projectId: 1,
+      conceptId: 1,
+      type: 'guardrail',
+      recordId: 'R12',
+      title: 'Budget is 0',
+      enforcedBy: 'review',
+    })
+
+    expect(await addPart(db, 'glue', guardrail)).toBe('R13')
+    expect(await addPart(db, 'glue', guardrail)).toBe('R14')
+  })
+
+  it('adds a Goal with how Glue measures it', async () => {
+    await addPart(db, 'glue', { ...goal, measure: funnel })
+
+    expect(await db.select().from(schema.measures)).toMatchObject([
+      { partId: 1, measure: funnel, baseline: null },
+    ])
+  })
+
+  it('refuses a second Insight of the same measure query', async () => {
+    const measured = { ...insight, source: 'mock-analytics://glue/funnel?a=1' }
+    await addPart(db, 'glue', measured)
+
+    await expect(addPart(db, 'glue', measured)).rejects.toThrow(
+      new InvalidRecordError(
+        'an Insight with the source "mock-analytics://glue/funnel?a=1" exists already',
+      ),
+    )
+    expect(await addPart(db, 'glue', insight)).toBe('I2')
+    expect(await addPart(db, 'glue', insight)).toBe('I3')
+  })
+
+  it('adds a Decision that is superseded, with its successor', async () => {
+    await addPart(db, 'glue', goal)
+    await addPart(db, 'glue', insight)
+    await addPart(db, 'glue', decision)
+
+    await addPart(db, 'glue', {
+      ...decision,
+      status: 'superseded',
+      supersededBy: 'D1',
+    })
+
+    // The Part 3 is D1.
+    expect(await showPart('D2')).toMatchObject({
+      status: 'superseded',
+      supersededById: 3,
+    })
+  })
+
+  it('refuses a superseded Decision with a successor that is not accepted', async () => {
+    await addPart(db, 'glue', goal)
+    await addPart(db, 'glue', insight)
+    await addPart(db, 'glue', { ...decision, status: 'proposed' })
+
+    await expect(
+      addPart(db, 'glue', {
+        ...decision,
+        status: 'superseded',
+        supersededBy: 'D1',
+      }),
+    ).rejects.toThrow(new InvalidRecordError('"D1" is not accepted'))
+    await expect(
+      addPart(db, 'glue', { ...decision, supersededBy: 'D1' }),
+    ).rejects.toThrow(
+      new InvalidRecordError(
+        'the status "superseded" and "supersededBy" go together',
+      ),
+    )
+  })
+
+  it('refuses a Decision that needs two Goals', async () => {
+    await addPart(db, 'glue', goal)
+    await addPart(db, 'glue', goal)
+    await addPart(db, 'glue', insight)
+
+    await expect(
+      addPart(db, 'glue', { ...decision, needs: ['G1', 'G2', 'I1'] }),
+    ).rejects.toThrow(new InvalidRecordError('a Decision needs one Goal'))
+  })
+
   it('supersedes a Decision with the Decision it adds', async () => {
     await addPart(db, 'glue', goal)
     await addPart(db, 'glue', insight)
@@ -457,7 +548,7 @@ describe('addPart', () => {
 
     await expect(
       addPart(db, 'glue', { ...guardrail, needs: ['G1'] }),
-    ).rejects.toThrow(new InvalidRecordError('"G1" not found'))
+    ).rejects.toThrow(new InvalidRecordError('goal "G1" not found'))
   })
 
   it('refuses a Part in a Project that does not exist', async () => {
@@ -506,7 +597,6 @@ describe('addPart', () => {
       addPart(db, 'glue', { ...goal, status: 'accepted' }),
     ).rejects.toThrow(InvalidRecordError)
     await expect(
-      // @ts-expect-error a Decision becomes superseded by its successor only
       addPart(db, 'glue', { ...decision, status: 'superseded' }),
     ).rejects.toThrow(InvalidRecordError)
   })
@@ -599,10 +689,51 @@ describe('updatePart', () => {
   it('refuses a Part that the Project does not have', async () => {
     await expect(
       updatePart(db, 'glue', 'R7', { title: 'UI is Carbon' }),
-    ).rejects.toThrow(new InvalidRecordError('"R7" not found'))
+    ).rejects.toThrow(new InvalidRecordError('guardrail "R7" not found'))
     await expect(
       updatePart(db, 'flexibeck', 'R1', { title: 'UI is Carbon' }),
     ).rejects.toThrow(ProductNotFoundError)
+  })
+
+  it('changes nothing when the Part is not in the expected state', async () => {
+    const accepted = { status: 'accepted' } as const
+    const proposed = { status: 'proposed' }
+
+    expect(await updatePart(db, 'glue', 'D1', accepted, proposed)).toBe(true)
+    expect(await updatePart(db, 'glue', 'D1', accepted, proposed)).toBe(false)
+    expect(
+      await updatePart(db, 'glue', 'I1', { status: null }, { status: null }),
+    ).toBe(false)
+    expect(await showPart('I1')).toMatchObject({ status: 'draft' })
+  })
+
+  it('sets the issue of a Decision only when it has none', async () => {
+    const first = { issueUrl: 'https://github.com/timschoch/glue/issues/1' }
+    const second = { issueUrl: 'https://github.com/timschoch/glue/issues/2' }
+    const none = { issueUrl: null }
+
+    expect(await updatePart(db, 'glue', 'D1', first, none)).toBe(true)
+    expect(await updatePart(db, 'glue', 'D1', second, none)).toBe(false)
+    expect(await showPart('D1')).toMatchObject(first)
+  })
+
+  it('sets the measure and the status of a Goal as one change', async () => {
+    await updatePart(db, 'glue', 'G1', { measure: funnel, status: 'achieved' })
+
+    expect(await showPart('G1')).toMatchObject({ status: 'achieved' })
+    expect(await db.select().from(schema.measures)).toMatchObject([
+      { partId: 1, measure: funnel },
+    ])
+  })
+
+  it('sets no measure when the Part is not in the expected state', async () => {
+    const change = { measure: funnel, status: 'achieved' } as const
+
+    expect(
+      await updatePart(db, 'glue', 'G1', change, { status: 'achieved' }),
+    ).toBe(false)
+    expect(await showPart('G1')).toMatchObject({ status: 'open' })
+    expect(await db.select().from(schema.measures)).toEqual([])
   })
 
   it('refuses a change without a field', async () => {
@@ -635,6 +766,46 @@ describe('updatePart', () => {
       // @ts-expect-error a Decision becomes superseded by its successor only
       updatePart(db, 'glue', 'D1', { status: 'superseded' }),
     ).rejects.toThrow(InvalidRecordError)
+  })
+})
+
+describe('removePart', () => {
+  beforeEach(async () => {
+    await addProject(db, 'glue')
+    await addPart(db, 'glue', goal)
+    await addPart(db, 'glue', { ...insight, status: 'draft' })
+    await addPart(db, 'glue', guardrail)
+  })
+
+  it('removes the Part with the Joints to the Parts that it needs', async () => {
+    await addPart(db, 'glue', decision)
+
+    expect(await removePart(db, 'glue', 'D1')).toBe(true)
+
+    expect(await listJoints()).toEqual([])
+    expect(await db.select().from(schema.parts)).toHaveLength(3)
+  })
+
+  it('keeps a Part that another Part needs', async () => {
+    await addPart(db, 'glue', decision)
+
+    expect(await removePart(db, 'glue', 'I1', { status: 'draft' })).toBe(false)
+
+    expect(await listJoints()).toHaveLength(2)
+    expect(await db.select().from(schema.parts)).toHaveLength(4)
+  })
+
+  it('keeps a Part that is not in the expected state', async () => {
+    await updatePart(db, 'glue', 'I1', { status: null })
+
+    expect(await removePart(db, 'glue', 'I1', { status: 'draft' })).toBe(false)
+    expect(await removePart(db, 'glue', 'I1', { status: null })).toBe(true)
+  })
+
+  it('refuses a Part that the Project does not have', async () => {
+    await expect(removePart(db, 'glue', 'I7')).rejects.toThrow(
+      new InvalidRecordError('insight "I7" not found'),
+    )
   })
 })
 
@@ -688,10 +859,10 @@ describe('addJoint', () => {
 
     await expect(
       addJoint(db, 'glue', { part: 'R1', needs: 'E1' }),
-    ).rejects.toThrow(new InvalidRecordError('"E1" not found'))
+    ).rejects.toThrow(new InvalidRecordError('entity "E1" not found'))
     await expect(
       addJoint(db, 'glue', { part: 'E1', needs: 'R1' }),
-    ).rejects.toThrow(new InvalidRecordError('"E1" not found'))
+    ).rejects.toThrow(new InvalidRecordError('entity "E1" not found'))
     await expect(
       addJoint(db, 'bakeday', { part: 'R1', needs: 'G1' }),
     ).rejects.toThrow(ProductNotFoundError)
@@ -705,9 +876,9 @@ describe('addJoint', () => {
 
   it('refuses a second Joint of the same two Parts, in either direction', async () => {
     await expect(
-      addJoint(db, 'glue', { part: 'D1', needs: 'G1' }),
+      addJoint(db, 'glue', { part: 'D1', needs: 'I1' }),
     ).rejects.toThrow(
-      new InvalidRecordError('"D1" and "G1" have a Joint already'),
+      new InvalidRecordError('"D1" and "I1" have a Joint already'),
     )
     await expect(
       addJoint(db, 'glue', { part: 'G1', needs: 'D1', twoWay: true }),
@@ -715,6 +886,16 @@ describe('addJoint', () => {
       new InvalidRecordError('"G1" and "D1" have a Joint already'),
     )
     expect(await listJoints()).toHaveLength(2)
+  })
+
+  it('refuses a second Goal for a Decision', async () => {
+    await addPart(db, 'glue', goal)
+
+    await expect(
+      addJoint(db, 'glue', { part: 'D1', needs: 'G2' }),
+    ).rejects.toThrow(new InvalidRecordError('"D1" has a Goal already'))
+    expect(await listJoints()).toHaveLength(2)
+    expect(await addJoint(db, 'glue', { part: 'R1', needs: 'G2' })).toBe(3)
   })
 })
 
@@ -812,6 +993,31 @@ describe('supersedeDecision', () => {
     )
   })
 
+  // The other request runs between the read of the two Decisions and the
+  // statement of this request.
+  it('refuses two Decisions that supersede each other at the same time', async () => {
+    const execute = db.execute.bind(db)
+    const competing = vi.spyOn(db, 'execute')
+    competing.mockImplementationOnce(((query: Parameters<typeof execute>[0]) =>
+      supersedeDecision(db, 'glue', 'D2', 'D1').then(() =>
+        execute(query),
+      )) as typeof db.execute)
+
+    await expect(supersedeDecision(db, 'glue', 'D1', 'D2')).rejects.toThrow(
+      new InvalidRecordError('"D2" is not accepted'),
+    )
+    competing.mockRestore()
+
+    expect(await showPart('D1')).toMatchObject({
+      status: 'accepted',
+      supersededById: null,
+    })
+    expect(await showPart('D2')).toMatchObject({
+      status: 'superseded',
+      supersededById: 4,
+    })
+  })
+
   it('refuses a Decision as its own successor', async () => {
     await expect(supersedeDecision(db, 'glue', 'D1', 'D1')).rejects.toThrow(
       new InvalidRecordError('a Decision cannot supersede itself'),
@@ -829,19 +1035,19 @@ describe('supersedeDecision', () => {
 
   it('refuses a Decision that the Project does not have', async () => {
     await expect(supersedeDecision(db, 'glue', 'D7', 'D2')).rejects.toThrow(
-      new InvalidRecordError('"D7" not found'),
+      new InvalidRecordError('decision "D7" not found'),
     )
     await expect(supersedeDecision(db, 'glue', 'D1', 'D7')).rejects.toThrow(
-      new InvalidRecordError('"D7" not found'),
+      new InvalidRecordError('decision "D7" not found'),
     )
   })
 })
 
-describe('setMeasure', () => {
+describe('updatePart with a measure', () => {
   beforeEach(addGluedParts)
 
   it('stores how Glue measures a Goal', async () => {
-    await setMeasure(db, 'glue', 'G1', funnel)
+    await updatePart(db, 'glue', 'G1', { measure: funnel })
 
     expect(await db.select().from(schema.measures)).toEqual([
       {
@@ -858,7 +1064,7 @@ describe('setMeasure', () => {
   it('stores how Glue measures a Metric', async () => {
     await addPart(db, 'glue', { type: 'metric', title: 'Ease of use' })
 
-    await setMeasure(db, 'glue', 'M1', mean)
+    await updatePart(db, 'glue', 'M1', { measure: mean })
 
     expect(await db.select().from(schema.measures)).toMatchObject([
       { partId: 5, measure: mean },
@@ -866,10 +1072,10 @@ describe('setMeasure', () => {
   })
 
   it('removes the readings of the measure that it replaces', async () => {
-    await setMeasure(db, 'glue', 'G1', mean)
+    await updatePart(db, 'glue', 'G1', { measure: mean })
     await setReading(db, 'glue', 'G1', reading)
 
-    await setMeasure(db, 'glue', 'G1', funnel)
+    await updatePart(db, 'glue', 'G1', { measure: funnel })
 
     expect(await db.select().from(schema.measures)).toEqual([
       {
@@ -884,34 +1090,28 @@ describe('setMeasure', () => {
   })
 
   it('stops measuring the Part when the measure is null', async () => {
-    await setMeasure(db, 'glue', 'G1', funnel)
+    await updatePart(db, 'glue', 'G1', { measure: funnel })
 
-    await setMeasure(db, 'glue', 'G1', null)
+    await updatePart(db, 'glue', 'G1', { measure: null })
 
     expect(await db.select().from(schema.measures)).toEqual([])
   })
 
   it('refuses a measure on a Part that is not a Goal or a Metric', async () => {
-    await expect(setMeasure(db, 'glue', 'R1', funnel)).rejects.toThrow(
-      new InvalidRecordError('"R1" is not a Goal or a Metric'),
-    )
-  })
-
-  it('refuses a measure that is not a funnel or a mean', async () => {
     await expect(
-      // @ts-expect-error a funnel has steps
-      setMeasure(db, 'glue', 'G1', {
-        kind: 'funnel',
-        source: 'mock-analytics',
-      }),
+      updatePart(db, 'glue', 'R1', { measure: funnel, title: 'UI is Carbon' }),
     ).rejects.toThrow(InvalidRecordError)
     expect(await db.select().from(schema.measures)).toEqual([])
   })
 
-  it('refuses a Part that the Project does not have', async () => {
-    await expect(setMeasure(db, 'glue', 'G7', funnel)).rejects.toThrow(
-      new InvalidRecordError('"G7" not found'),
-    )
+  it('refuses a measure that is not a funnel or a mean', async () => {
+    await expect(
+      updatePart(db, 'glue', 'G1', {
+        // @ts-expect-error a funnel has steps
+        measure: { kind: 'funnel', source: 'mock-analytics' },
+      }),
+    ).rejects.toThrow(InvalidRecordError)
+    expect(await db.select().from(schema.measures)).toEqual([])
   })
 })
 
@@ -919,7 +1119,7 @@ describe('setReading', () => {
   beforeEach(addGluedParts)
 
   it('stores what a measure run read, and when', async () => {
-    await setMeasure(db, 'glue', 'G1', mean)
+    await updatePart(db, 'glue', 'G1', { measure: mean })
 
     await setReading(db, 'glue', 'G1', reading)
 
@@ -936,7 +1136,7 @@ describe('setReading', () => {
 
   it('refuses a Part that the Project does not have', async () => {
     await expect(setReading(db, 'glue', 'G7', reading)).rejects.toThrow(
-      new InvalidRecordError('"G7" not found'),
+      new InvalidRecordError('goal "G7" not found'),
     )
   })
 })

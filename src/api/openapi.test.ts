@@ -25,7 +25,6 @@ describe('GET /api/v1/openapi.json', () => {
           `post ${root}/goals`,
           `post ${root}/insights`,
           `post ${root}/decisions`,
-          `post ${root}/facts`,
           `patch ${root}/goals/{recordId}`,
           `patch ${root}/decisions/{recordId}`,
           `post ${root}/measure`,
@@ -78,10 +77,18 @@ describe('GET /api/v1/openapi.json', () => {
         'MeasuredInsight',
         'SkippedGoal',
         'InsightInput',
-        'FactInput',
         'Error',
       ]),
     )
+  })
+
+  it('describes no way to add a Fact: a Fact is no longer a type', async () => {
+    const document = await handleGetOpenApi().json()
+
+    expect(document.paths['/api/v1/projects/{project}/facts'].post).toBe(
+      undefined,
+    )
+    expect(Object.keys(document.components.schemas)).not.toContain('FactInput')
   })
 
   it('describes the downstream issue of a Decision', async () => {

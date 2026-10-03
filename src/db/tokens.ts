@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 
 import type { ConceptDb } from './client.ts'
-import { addProductId } from './concept-records.ts'
+import { addProject } from './part-records.ts'
 import { projects, tokens } from './schema.ts'
 
 const TOKEN_BYTES = 32
@@ -18,7 +18,7 @@ export async function createToken(
   productSlug: string,
   name: string,
 ): Promise<{ id: number; token: string }> {
-  const projectId = await addProductId(db, productSlug)
+  const projectId = await addProject(db, productSlug)
   const token = `glue_${randomBytes(TOKEN_BYTES).toString('base64url')}`
   const [row] = await db
     .insert(tokens)

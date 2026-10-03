@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addConceptRecord,
   setProductRepository,
-  showConceptRecord,
 } from '../src/db/concept-records.ts'
+import { showConceptRecord } from '../src/db/legacy-records.ts'
 import * as schema from '../src/db/schema.ts'
 import { createFakeGithub } from '../src/test/github.ts'
 import {
@@ -35,7 +35,7 @@ describe('runConcept', () => {
     '--goal',
     'G1',
     '--evidence',
-    'F1',
+    'R1',
   ]
 
   function run(...args: string[]) {
@@ -59,8 +59,8 @@ describe('runConcept', () => {
     await addConceptRecord(
       db,
       'flexibeck',
-      'facts',
-      { title: 'CI takes ten minutes', source: 'verify ci' },
+      'guardrails',
+      { title: 'CI takes ten minutes at most', enforced_by: 'verify ci' },
       '',
     )
     await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck-next')
@@ -72,11 +72,8 @@ describe('runConcept', () => {
   })
 
   async function showIssueUrl(id: string) {
-    const [row] = await db
-      .select({ issueUrl: schema.decisions.issueUrl })
-      .from(schema.decisions)
-      .where(eq(schema.decisions.recordId, id))
-    return row.issueUrl
+    const record = await showConceptRecord(db, 'flexibeck', id)
+    return record.fields.issue ?? null
   }
 
   it('opens no issue for a Decision that it adds as proposed', async () => {
@@ -174,6 +171,23 @@ describe('runConcept', () => {
     ).rejects.toThrow('"product" is gone: use "pnpm concept project set"')
   })
 
+  it('refuses to add a Fact and names the types to add instead', async () => {
+    await expect(
+      run(
+        'add',
+        'facts',
+        '--project',
+        'flexibeck',
+        '--title',
+        'CI takes ten minutes',
+        '--source',
+        'verify ci',
+      ),
+    ).rejects.toThrow(
+      'Fact is no longer a type (D26): add an Insight or a Guardrail.',
+    )
+  })
+
   it('rejects an unknown command and points to the help', async () => {
     await expect(run('lst')).rejects.toThrow(
       'unknown command "lst". See pnpm concept --help',
@@ -216,6 +230,7 @@ describe('main', () => {
       'decisions: --title --date --owner --status --goal --evidence',
     )
     expect(help).toContain('guardrails: --title --enforced-by')
+    expect(help).not.toContain('facts:')
   })
 
   it('prints the help for --help after a command', async () => {

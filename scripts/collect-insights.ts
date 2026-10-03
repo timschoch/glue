@@ -11,8 +11,8 @@ import { fileURLToPath } from 'node:url'
 
 import { createDb } from '../src/db/client.ts'
 import type { ConceptDb } from '../src/db/client.ts'
-import { listInsightSources } from '../src/db/concept.ts'
 import { addConceptRecord } from '../src/db/concept-records.ts'
+import { listInsightSources } from '../src/db/legacy-records.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PRODUCT_SLUG = 'glue'

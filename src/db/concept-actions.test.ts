@@ -11,12 +11,9 @@ import {
   createConceptActions,
   goalUpdateInputSchema,
 } from './concept-actions.ts'
-import {
-  addConceptRecord,
-  setProductRepository,
-  showConceptRecord,
-} from './concept-records.ts'
+import { addConceptRecord, setProductRepository } from './concept-records.ts'
 import { proposalInputSchema, recordInputSchema } from './decision-proposal.ts'
+import { listConceptRecords, showConceptRecord } from './legacy-records.ts'
 import * as schema from './schema.ts'
 
 let client: PGlite
@@ -81,9 +78,9 @@ const proposal = {
 }
 
 async function listRecordIds() {
-  const rows = await db.select().from(schema.insights)
-  const decisions = await db.select().from(schema.decisions)
-  return [...rows, ...decisions].map((row) => `${row.recordId} ${row.status}`)
+  const rows = await listConceptRecords(db, 'flexibeck', 'insights')
+  const decisions = await listConceptRecords(db, 'flexibeck', 'decisions')
+  return [...rows, ...decisions].map((row) => `${row.id} ${row.status}`.trim())
 }
 
 const decision = { product: 'flexibeck', recordId: 'D1' }
@@ -127,7 +124,7 @@ describe('a server function with a session', () => {
     await addConceptRecord(
       db,
       'glue',
-      'facts',
+      'insights',
       { title: 'Glue keeps the why', source: 'readme' },
       '',
     )
@@ -150,7 +147,7 @@ describe('a server function with a session', () => {
   it('keeps a draft Insight', async () => {
     expect(await actions.keepInsight(draft)).toBeUndefined()
 
-    expect(await listRecordIds()).toEqual(['I1 null'])
+    expect(await listRecordIds()).toEqual(['I1'])
   })
 
   it('discards a draft Insight', async () => {
@@ -263,7 +260,7 @@ describe('a server function with a session', () => {
   it('says which rule a Decision breaks', async () => {
     expect(
       await actions.proposeDecision({ ...proposal, evidence: ['I9'] }),
-    ).toEqual({ message: 'evidence "I9" not found' })
+    ).toEqual({ message: 'insight "I9" not found' })
   })
 })
 
