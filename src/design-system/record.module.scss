@@ -32,35 +32,6 @@ $text-width: $card-width * 2;
   gap: $spacing-03;
 }
 
-.solid,
-.flagged,
-.not-ready,
-.wrong {
-  flex-shrink: 0;
-}
-
-.solid {
-  fill: $support-success;
-}
-
-.flagged {
-  fill: $support-warning;
-
-  // The dark mark inside the glyph keeps it readable on a light layer.
-  [data-icon-path='inner-path'] {
-    fill: $icon-primary;
-    opacity: 1;
-  }
-}
-
-.not-ready {
-  fill: $support-error;
-}
-
-.wrong {
-  fill: $icon-primary;
-}
-
 .pin {
   margin-inline-start: auto;
 }
@@ -194,17 +165,4 @@ $text-width: $card-width * 2;
   align-items: start;
   gap: $spacing-03;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, $card-width), 1fr));
-}
-
-// A card, and below it the Concept of a Part that a link joins.
-.end {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-03;
-}
-
-.concept {
-  @include type-style('label-01');
-
-  color: $text-secondary;
 }
