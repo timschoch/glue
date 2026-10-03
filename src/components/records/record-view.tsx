@@ -113,7 +113,7 @@ function MissingIssue({ decisionId }: { decisionId: string }) {
     <>
       Not opened: GitHub did not answer. To open it, run{' '}
       <code>
-        pnpm concept downstream {decisionId} --product {product}
+        pnpm concept downstream {decisionId} --project {product}
       </code>
     </>
   )

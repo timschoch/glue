@@ -12,25 +12,51 @@ describe('GET /api/v1/openapi.json', () => {
     const routes = Object.entries(document.paths).flatMap(([path, item]) =>
       Object.keys(item as object).map((method) => `${method} ${path}`),
     )
-    const product = '/api/v1/products/{product}'
     expect(routes.sort()).toEqual(
-      [
-        `get ${product}/concept`,
-        ...['goals', 'decisions', 'insights', 'facts', 'guardrails'].flatMap(
-          (folder) => [
-            `get ${product}/${folder}`,
-            `get ${product}/${folder}/{recordId}`,
-          ],
-        ),
-        `post ${product}/goals`,
-        `post ${product}/insights`,
-        `post ${product}/decisions`,
-        `post ${product}/facts`,
-        `patch ${product}/goals/{recordId}`,
-        `patch ${product}/decisions/{recordId}`,
-        `post ${product}/measure`,
-      ].sort(),
+      ['/api/v1/projects/{project}', '/api/v1/products/{product}']
+        .flatMap((root) => [
+          `get ${root}/concept`,
+          ...['goals', 'decisions', 'insights', 'facts', 'guardrails'].flatMap(
+            (folder) => [
+              `get ${root}/${folder}`,
+              `get ${root}/${folder}/{recordId}`,
+            ],
+          ),
+          `post ${root}/goals`,
+          `post ${root}/insights`,
+          `post ${root}/decisions`,
+          `post ${root}/facts`,
+          `patch ${root}/goals/{recordId}`,
+          `patch ${root}/decisions/{recordId}`,
+          `post ${root}/measure`,
+        ])
+        .sort(),
     )
+  })
+
+  it('marks every products route as deprecated, and no projects route', async () => {
+    const document = await handleGetOpenApi().json()
+    const deprecatedByRoot: Record<string, Array<boolean>> = {}
+    for (const [path, item] of Object.entries(document.paths)) {
+      const root = path.split('/')[3]
+      const operations = Object.values(item as object)
+      deprecatedByRoot[root] = (deprecatedByRoot[root] ?? []).concat(
+        operations.map((operation) => operation.deprecated === true),
+      )
+    }
+
+    expect(new Set(deprecatedByRoot.products)).toEqual(new Set([true]))
+    expect(new Set(deprecatedByRoot.projects)).toEqual(new Set([false]))
+  })
+
+  it('gives every operation its own id', async () => {
+    const document = await handleGetOpenApi().json()
+    const ids = Object.values(document.paths).flatMap((item) =>
+      Object.values(item as object).map((operation) => operation.operationId),
+    )
+
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toContain('getConcept')
   })
 
   it('describes the bearer token and the shared schemas', async () => {
@@ -61,9 +87,9 @@ describe('GET /api/v1/openapi.json', () => {
   it('describes the downstream issue of a Decision', async () => {
     const document = await handleGetOpenApi().json()
     const { schemas } = document.components
-    const decisions = document.paths['/api/v1/products/{product}/decisions']
+    const decisions = document.paths['/api/v1/projects/{project}/decisions']
     const decision =
-      document.paths['/api/v1/products/{product}/decisions/{recordId}']
+      document.paths['/api/v1/projects/{project}/decisions/{recordId}']
     const changed = { $ref: '#/components/schemas/ChangedDecision' }
 
     expect(schemas.Decision.properties.issueUrl).toMatchObject({
