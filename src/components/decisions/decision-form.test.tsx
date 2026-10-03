@@ -28,7 +28,9 @@ const concept: Concept = {
     },
   ],
   decisions: [],
-  guardrails: [],
+  guardrails: [
+    { id: 'R1', title: 'An export is one request', enforcedBy: 'verify ci' },
+  ],
   insights: [
     {
       id: 'I1',
@@ -43,7 +45,7 @@ const concept: Concept = {
       status: 'draft',
     },
   ],
-  facts: [{ id: 'F1', title: 'An export is one request' }],
+  facts: [],
 }
 
 const superseded: Decision = {
@@ -57,7 +59,7 @@ const superseded: Decision = {
   goal: { id: 'G2', title: 'The Owner decides fast' },
   evidence: [
     { id: 'I1', title: 'Agents skip long documents' },
-    { id: 'F1', title: 'An export is one request' },
+    { id: 'R1', title: 'An export is one request' },
   ],
   supersededBy: null,
   supersedes: [],
@@ -107,7 +109,7 @@ async function fill() {
     'G1',
   )
   await userEvent.click(evidence().getByRole('checkbox', { name: /^I2/ }))
-  await userEvent.click(evidence().getByRole('checkbox', { name: /^F1/ }))
+  await userEvent.click(evidence().getByRole('checkbox', { name: /^R1/ }))
   await userEvent.type(field('Reason (optional)'), 'Files do not scale.')
 }
 
@@ -129,7 +131,7 @@ describe('DecisionForm', () => {
     expect(field('Owner').value).toBe('Ada')
   })
 
-  it('offers each Goal, and each Insight and Fact as evidence', async () => {
+  it('offers each Goal, and each Insight and Guardrail as evidence', async () => {
     await renderForm()
 
     expect(
@@ -145,7 +147,7 @@ describe('DecisionForm', () => {
       evidence()
         .getAllByRole<HTMLInputElement>('checkbox')
         .map((box) => box.value),
-    ).toEqual(['I1', 'I2', 'F1'])
+    ).toEqual(['I1', 'I2', 'R1'])
     expect(checked()).toEqual([])
   })
 
@@ -167,7 +169,7 @@ describe('DecisionForm', () => {
     expect(onPropose).toHaveBeenCalledExactlyOnceWith({
       title: 'The Concept lives in the database',
       goal: 'G1',
-      evidence: ['I2', 'F1'],
+      evidence: ['I2', 'R1'],
       body: 'Files do not scale.',
       owner: 'Ada',
       supersedes: undefined,
@@ -187,7 +189,9 @@ describe('DecisionForm', () => {
     expect(
       screen.getByText('Pick the Goal that the Decision serves.'),
     ).toBeDefined()
-    expect(screen.getByText('Pick one Insight or Fact or more.')).toBeDefined()
+    expect(
+      screen.getByText('Pick one Insight or Guardrail or more.'),
+    ).toBeDefined()
     expect(
       screen.getByText('Enter the name of the person who owns the Decision.'),
     ).toBeDefined()
@@ -212,7 +216,7 @@ describe('DecisionForm', () => {
       screen
         .getByRole('group', { name: 'Evidence' })
         .getAttribute('aria-describedby'),
-    ).toBe(screen.getByText('Pick one Insight or Fact or more.').id)
+    ).toBe(screen.getByText('Pick one Insight or Guardrail or more.').id)
   })
 
   it('says what it does during the request, and takes no second request', async () => {
@@ -288,7 +292,7 @@ describe('DecisionForm', () => {
       expect(
         screen.getByRole<HTMLSelectElement>('combobox', { name: 'Goal' }).value,
       ).toBe('G2')
-      expect(checked()).toEqual(['I1', 'F1'])
+      expect(checked()).toEqual(['I1', 'R1'])
       expect(field('Reason (optional)').value).toBe('Files are easy to read.')
       expect(field('Owner').value).toBe('Ada')
     })
@@ -316,7 +320,7 @@ describe('DecisionForm', () => {
       expect(onPropose).toHaveBeenCalledExactlyOnceWith({
         title: 'The Concept lives in the database',
         goal: 'G2',
-        evidence: ['I1', 'F1'],
+        evidence: ['I1', 'R1'],
         body: 'Files are easy to read.',
         owner: 'Ada',
         supersedes: 'D4',
@@ -338,8 +342,8 @@ describe('DecisionForm', () => {
       'A Decision serves a Goal. This Concept has no Goal yet.',
     ],
     [
-      { ...concept, insights: [], facts: [] },
-      'A Decision links to its evidence. This Concept has no Insight and no Fact yet.',
+      { ...concept, insights: [], guardrails: [] },
+      'A Decision links to its evidence. This Concept has no Insight and no Guardrail yet.',
     ],
   ])(
     'has no fields when the Concept cannot have a Decision',

@@ -56,6 +56,7 @@ const insight: Insight = {
   date: '2026-01-10',
   source: 'https://example.com/research?round=2',
   status: 'draft',
+  evidenceLevel: null,
   body: 'Three of four agents read only the first screen.',
   decisions: [{ id: 'D5', title: 'The Concept lives in the database' }],
 }
@@ -76,6 +77,7 @@ const guardrail: Guardrail = {
   id: 'R1',
   title: 'No query over 200 ms',
   enforcedBy: 'verify ci',
+  source: null,
   body: 'A slow query stops the build.',
 }
 

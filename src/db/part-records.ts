@@ -8,7 +8,11 @@ import { goalMeasureSchema } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import { kinds } from './kinds.ts'
 import type { Kind } from './kinds.ts'
-import { InvalidRecordError, isUniqueViolation } from './record-errors.ts'
+import {
+  InvalidRecordError,
+  isUniqueViolation,
+  JointNotFoundError,
+} from './record-errors.ts'
 import { RECORD_LETTERS, typeOfRecordId } from './record-id.ts'
 import * as schema from './schema.ts'
 
@@ -56,7 +60,7 @@ export async function addProject(
   return idRowsSchema.parse(result).rows[0].id
 }
 
-const conceptSchema = z.strictObject({
+export const newConceptSchema = z.strictObject({
   slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, {
     error: 'a slug is lowercase words joined by hyphens',
   }),
@@ -67,7 +71,7 @@ const conceptSchema = z.strictObject({
   }),
 })
 
-export type NewConcept = z.input<typeof conceptSchema>
+export type NewConcept = z.input<typeof newConceptSchema>
 
 // The Concept of the slug, or the root Concept of the Project.
 async function findConceptId(
@@ -98,7 +102,7 @@ export async function addConcept(
   projectSlug: string,
   concept: NewConcept,
 ): Promise<string> {
-  const { slug, title, kind, parent } = parseInput(conceptSchema, concept)
+  const { slug, title, kind, parent } = parseInput(newConceptSchema, concept)
   const projectId = await getProjectId(db, projectSlug)
   const parentId = await findConceptId(db, projectId, parent)
   const added = await db
@@ -226,6 +230,40 @@ export type NewPart = {
 export type PartChange = {
   [Type in schema.PartType]: z.input<(typeof changeSchemas)[Type]>
 }[schema.PartType]
+
+const placeShape = placeSchema.omit({ type: true }).shape
+
+// A new Part as a request sends it: its type, its place and the fields of
+// its type.
+export const newPartSchema = z.discriminatedUnion('type', [
+  fieldSchemas.insight.extend({ type: z.literal('insight'), ...placeShape }),
+  fieldSchemas.goal.extend({ type: z.literal('goal'), ...placeShape }),
+  fieldSchemas.decision.extend({ type: z.literal('decision'), ...placeShape }),
+  fieldSchemas.guardrail.extend({
+    type: z.literal('guardrail'),
+    ...placeShape,
+  }),
+  fieldSchemas.entity.extend({ type: z.literal('entity'), ...placeShape }),
+  fieldSchemas.flow.extend({ type: z.literal('flow'), ...placeShape }),
+  fieldSchemas.metric.extend({ type: z.literal('metric'), ...placeShape }),
+])
+
+// Reads a new Part from the flags of the CLI.
+export function parseNewPart(input: unknown): NewPart {
+  return parseInput(newPartSchema, input)
+}
+
+// A change of a Part as a request sends it. updatePart reads it with the
+// schema of the type of the Part.
+export const partChangeSchema = z.union(Object.values(changeSchemas))
+
+// Reads the change of a Part of the type from a request.
+export function parsePartChange(
+  type: schema.PartType,
+  input: unknown,
+): PartChange {
+  return parseInput(changeSchemas[type], input)
+}
 
 // The letter of a record id names the type, so the error names it too.
 function toNotFoundError(recordId: string) {
@@ -627,7 +665,7 @@ export async function removePart(
   return removed.length > 0
 }
 
-const jointSchema = z.strictObject({
+export const newJointSchema = z.strictObject({
   part: z
     .string()
     .meta({ description: 'The record id of the Part that needs' }),
@@ -635,7 +673,7 @@ const jointSchema = z.strictObject({
   twoWay: z.boolean().optional(),
 })
 
-export type NewJoint = z.input<typeof jointSchema>
+export type NewJoint = z.input<typeof newJointSchema>
 
 // Glues two Parts of the Project, and gives back the id of the Joint. Parts
 // with different home Concepts make a link: the same Joint, never a copy.
@@ -645,7 +683,7 @@ export async function addJoint(
   projectSlug: string,
   joint: NewJoint,
 ): Promise<number> {
-  const { part, needs, twoWay = false } = parseInput(jointSchema, joint)
+  const { part, needs, twoWay = false } = parseInput(newJointSchema, joint)
   if (part === needs) throw new InvalidRecordError('a Part cannot need itself')
   const projectId = await getProjectId(db, projectSlug)
   const [needingPart, neededPart] = await findParts(db, projectId, [
@@ -735,10 +773,9 @@ export async function removeJoint(
     .from(joints)
     .innerJoin(parts, eq(joints.partId, parts.id))
     .where(and(eq(joints.id, jointId), eq(parts.projectId, projectId)))
+  if (found.length === 0) throw new JointNotFoundError(jointId)
   throw new InvalidRecordError(
-    found.length === 0
-      ? `joint ${jointId} not found`
-      : `a Decision needs a Goal and evidence: joint ${jointId} is its last one`,
+    `a Decision needs a Goal and evidence: joint ${jointId} is its last one`,
   )
 }
 

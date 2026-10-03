@@ -13,6 +13,10 @@ import * as schema from './schema.ts'
 // The read side of the Part model: the shapes of a Project, a Concept and a
 // Part as Glue shows them.
 
+// The words of the Part model, for the code outside src/db.
+export { evidenceLevels, partTypes } from './schema.ts'
+export type { EvidenceLevel, PartType } from './schema.ts'
+
 export type PartSummary = {
   // The record id, for example D12.
   id: string

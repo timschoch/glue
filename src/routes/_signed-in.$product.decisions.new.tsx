@@ -21,10 +21,10 @@ function parseId(input: unknown, kinds: string): string | undefined {
 }
 
 export const Route = createFileRoute('/_signed-in/$product/decisions/new')({
-  // `evidence` is the Insight or the Fact that the Decision starts from.
+  // `evidence` is the Insight or the Guardrail that the Decision starts from.
   // `supersedes` is the Decision that the new Decision replaces.
   validateSearch: (search): { evidence?: string; supersedes?: string } => ({
-    evidence: parseId(search.evidence, 'IF'),
+    evidence: parseId(search.evidence, 'IR'),
     supersedes: parseId(search.supersedes, 'D'),
   }),
   loaderDeps: ({ search: { supersedes } }) => ({ supersedes }),

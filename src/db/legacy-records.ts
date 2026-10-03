@@ -1,5 +1,5 @@
 import type { SQL } from 'drizzle-orm'
-import { and, eq, inArray, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, ne, notInArray, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import type { ConceptDb } from './client.ts'
@@ -258,6 +258,7 @@ async function findInsight(
       date,
       source,
       status: insightStatus,
+      evidenceLevel: parts.evidenceLevel,
       body: parts.body,
     })
     .from(parts)
@@ -279,7 +280,12 @@ async function findGuardrail(
   recordId: string,
 ): Promise<Guardrail | undefined> {
   const found = await db
-    .select({ ...reference, enforcedBy, body: parts.body })
+    .select({
+      ...reference,
+      enforcedBy,
+      source: parts.source,
+      body: parts.body,
+    })
     .from(parts)
     .where(isRecord(projectId, 'guardrail', recordId))
   const guardrail = found.at(0)
@@ -447,6 +453,21 @@ async function showDecision(
 ): Promise<ShownRecord | undefined> {
   const decision = await findDecision(db, projectId, recordId)
   if (!decision) return undefined
+  // What it needs next to its Goal and its evidence: a Part of any other
+  // type.
+  const needed = alias(parts, 'needed')
+  const needs = await db
+    .select({ id: needed.recordId, title: needed.title })
+    .from(joints)
+    .innerJoin(parts, eq(joints.partId, parts.id))
+    .innerJoin(needed, eq(joints.neededPartId, needed.id))
+    .where(
+      and(
+        isRecord(projectId, 'decision', recordId),
+        notInArray(needed.type, ['goal', ...schema.evidenceTypes]),
+      ),
+    )
+    .orderBy(joints.id)
   return {
     fields: {
       title: decision.title,
@@ -458,6 +479,7 @@ async function showDecision(
     body: decision.body,
     goal: decision.goal,
     evidence: decision.evidence,
+    needs,
     supersededBy: decision.supersededBy?.id,
     supersedes: decision.supersedes.map(({ id }) => id),
   }

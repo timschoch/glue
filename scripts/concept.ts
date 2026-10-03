@@ -18,10 +18,24 @@ import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
 import type { DecisionStatus, GoalStatus } from '../src/db/concept-fields.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
 import type { GoalMeasure } from '../src/db/goal-measure.ts'
+import type { Kind } from '../src/db/kinds.ts'
 import {
   listConceptRecords,
   showConceptRecord,
 } from '../src/db/legacy-records.ts'
+import {
+  addConcept,
+  addJoint,
+  addPart,
+  addProject,
+  parseNewPart,
+  parsePartChange,
+  removeJoint,
+  updatePart,
+} from '../src/db/part-records.ts'
+import { evidenceLevels, findPart, listParts } from '../src/db/parts.ts'
+import type { Part, PartType } from '../src/db/parts.ts'
+import { typeOfRecordId } from '../src/db/record-id.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 import { createGithubClient } from '../src/github/client.ts'
 import type { GithubClient } from '../src/github/client.ts'
@@ -33,7 +47,26 @@ const FLAG_TO_FIELD: Record<string, string> = {
   'social-handle': 'social_handle',
   'enforced-by': 'enforced_by',
   'superseded-by': 'superseded_by',
+  level: 'evidence_level',
 }
+
+// The fields that a Part names in another way than the flags do.
+const FIELD_TO_PART_KEY: Record<string, string> = {
+  enforced_by: 'enforcedBy',
+  evidence_level: 'evidenceLevel',
+}
+
+// The Part types without a record shape of today. `list`, `show` and `add`
+// read and write them as Parts.
+const PART_FOLDERS = {
+  entities: 'entity',
+  flows: 'flow',
+  metrics: 'metric',
+} as const
+
+type PartFolder = keyof typeof PART_FOLDERS
+
+const PART_TYPES: readonly PartType[] = Object.values(PART_FOLDERS)
 
 const KNOWN_FIELDS = new Set(
   Object.values(CONCEPT_FIELDS)
@@ -45,6 +78,11 @@ const KNOWN_FIELDS = new Set(
       'status',
       'superseded_by',
       'supersedes',
+      'evidence_level',
+      'needs',
+      'concept',
+      'kind',
+      'parent',
       'name',
       'measure',
       'analytics_project',
@@ -68,13 +106,27 @@ function parseMeasure(value: string): GoalMeasure {
 }
 
 function parseFlagValue(key: string, value: string) {
-  if (key === 'evidence') return value.split(',')
+  if (key === 'evidence' || key === 'needs') return value.split(',')
   if (key === 'measure') return parseMeasure(value)
   return value
 }
 
 function isConceptFolder(value: string | undefined): value is ConceptFolder {
   return value !== undefined && value in CONCEPT_FIELDS
+}
+
+function isPartFolder(value: string | undefined): value is PartFolder {
+  return value !== undefined && value in PART_FOLDERS
+}
+
+// The flags as the fields of a Part.
+function toPartInput(flags: ConceptFields) {
+  return Object.fromEntries(
+    Object.entries(flags).map(([field, value]) => [
+      FIELD_TO_PART_KEY[field] ?? field,
+      value,
+    ]),
+  )
 }
 
 export function parseFlags(args: string[]): ConceptFields {
@@ -126,6 +178,12 @@ async function collectStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8').trim()
 }
 
+// The body of the flags. `-` reads it from stdin.
+async function readBody(flags: ConceptFields): Promise<string | undefined> {
+  const body = flags.body as string | undefined
+  return body === '-' ? collectStdin() : body
+}
+
 function formatFieldValue(value: unknown) {
   if (value instanceof Date) return value.toISOString()
   if (typeof value === 'object' && value !== null) return JSON.stringify(value)
@@ -141,9 +199,29 @@ function printRecord(record: Awaited<ReturnType<typeof showConceptRecord>>) {
   for (const item of record.evidence ?? []) {
     console.log(`evidence: ${item.id} ${item.title}`)
   }
+  for (const item of record.needs ?? []) {
+    console.log(`needs: ${item.id} ${item.title}`)
+  }
   if (record.supersededBy) console.log(`superseded_by: ${record.supersededBy}`)
   for (const id of record.supersedes ?? []) console.log(`supersedes: ${id}`)
   if (record.body) console.log(`\n${record.body}`)
+}
+
+// An Entity, a Flow or a Metric: the fields that it has, its home Concept
+// and the Parts that it needs.
+function printPart(part: Part) {
+  console.log(part.id)
+  console.log(`title: ${part.title}`)
+  if (part.owner) console.log(`owner: ${part.owner}`)
+  if (part.source) console.log(`source: ${part.source}`)
+  if (part.measure) {
+    console.log(`measure: ${JSON.stringify(part.measure.measure)}`)
+  }
+  console.log(`concept: ${part.concept}`)
+  for (const { part: needed } of part.needs) {
+    console.log(`needs: ${needed.id} ${needed.title}`)
+  }
+  if (part.body) console.log(`\n${part.body}`)
 }
 
 const FIELD_TO_FLAG = Object.fromEntries(
@@ -164,19 +242,32 @@ function formatHelp() {
     'pnpm concept list [<type>]',
     'pnpm concept show <id>',
     'pnpm concept add <type> <flags of the type> [--body <text>, or - for stdin]',
-    'pnpm concept set <id> [--status <status>] [--superseded-by <id>] [--measure <json>]',
+    'pnpm concept set <id> <flags of the type>',
     'pnpm concept downstream <id>',
+    'pnpm concept concept add <slug> --title <title> [--kind <kind>] [--parent <slug>]',
+    'pnpm concept joint add <id> <needed id> [--two-way]',
+    'pnpm concept joint remove <id> <needed id>',
+    'pnpm concept project add <slug>',
     'pnpm concept project set <slug> [--analytics-project <key>] [--repository <owner/name>] [--social-handle <handle>]',
     'pnpm concept token create --project <slug> --name <name>',
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set and downstream take --project <slug>. The default is glue.',
+    'list, show, add, set, downstream, concept and joint take --project <slug>. The default is glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
-    '  goals also take --measure <json>, decisions --supersedes <id>',
-    '  --evidence takes ids with commas between them: I1,I2',
+    `  ${Object.keys(PART_FOLDERS).join(', ')}: --title`,
+    '  goals and metrics also take --measure <json>, decisions --supersedes <id>',
+    `  insights also take --level ${evidenceLevels.join('|')} and --status draft`,
+    '  guardrails, entities, flows and metrics also take --source',
+    '  entities, flows and metrics also take --owner',
+    '  each type takes --concept <slug>: its home Concept. The default is the root.',
+    '  decisions, entities, flows and metrics take --needs: the records that it needs',
+    '  --evidence and --needs take ids with commas between them: I1,I2',
+    '',
+    'set on a Goal takes --status and --measure, on a Decision --status and --superseded-by.',
+    'On each other type it takes the flags of the type.',
   ].join('\n')
 }
 
@@ -201,11 +292,23 @@ export async function runConcept(
 ) {
   switch (command) {
     case 'list': {
-      const [maybeFolder, ...flagArgs] = rest
-      const folder = isConceptFolder(maybeFolder) ? maybeFolder : undefined
-      const flags = parseFlags(folder ? flagArgs : rest)
+      const [first] = rest
+      const folder =
+        isConceptFolder(first) || isPartFolder(first) ? first : undefined
+      const flags = parseFlags(folder ? rest.slice(1) : rest)
       const product = (flags.project as string | undefined) ?? 'glue'
-      const rows = await listConceptRecords(db, product, folder)
+      const rows = [
+        ...(isPartFolder(folder)
+          ? []
+          : await listConceptRecords(db, product, folder)),
+        ...(isConceptFolder(folder)
+          ? []
+          : await listParts(
+              db,
+              product,
+              folder ? [PART_FOLDERS[folder]] : Object.values(PART_FOLDERS),
+            )),
+      ]
       for (const row of rows) {
         console.log([row.id, row.status, row.title].filter(Boolean).join('  '))
       }
@@ -215,20 +318,35 @@ export async function runConcept(
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
       const product = (flags.project as string | undefined) ?? 'glue'
-      printRecord(await showConceptRecord(db, product, id))
+      const type = typeOfRecordId(id)
+      if (!type || !PART_TYPES.includes(type)) {
+        printRecord(await showConceptRecord(db, product, id))
+        return
+      }
+      const part = await findPart(db, product, id)
+      if (!part) throw new Error(`"${id}" not found`)
+      printPart(part)
       return
     }
     case 'add': {
       const [folder, ...flagArgs] = rest
-      if (!isConceptFolder(folder)) {
+      if (!isConceptFolder(folder) && !isPartFolder(folder)) {
         throw new Error(`"${folder}" is not a Concept type`)
       }
       const flags = parseFlags(flagArgs)
       const product = (flags.project as string | undefined) ?? 'glue'
-      const bodyFlag = flags.body as string | undefined
-      const body = bodyFlag === '-' ? await collectStdin() : (bodyFlag ?? '')
+      const body = (await readBody(flags)) ?? ''
       delete flags.project
       delete flags.body
+      if (isPartFolder(folder)) {
+        const part = parseNewPart({
+          ...toPartInput(flags),
+          type: PART_FOLDERS[folder],
+          body,
+        })
+        console.log(await addPart(db, product, part))
+        return
+      }
       if (folder !== 'decisions') {
         console.log(await addConceptRecord(db, product, folder, flags, body))
         return
@@ -255,6 +373,14 @@ export async function runConcept(
         })
         return
       }
+      const type = typeOfRecordId(id)
+      if (!type) throw new Error(`"${id}" is not a Concept id`)
+      if (type !== 'decision') {
+        const { project: _project, ...fields } = flags
+        const change = { ...toPartInput(fields), body: await readBody(flags) }
+        await updatePart(db, product, id, parsePartChange(type, change))
+        return
+      }
       const { issue } = await updateDecision(
         db,
         getGithub(),
@@ -275,6 +401,12 @@ export async function runConcept(
       if (issue.kind === 'failed') process.exitCode = 1
       return
     }
+    case 'concept':
+      await handleConceptCommand(db, rest)
+      return
+    case 'joint':
+      await handleJointCommand(db, rest)
+      return
     case 'project':
       await handleProjectCommand(db, rest)
       return
@@ -288,6 +420,54 @@ export async function runConcept(
   }
 }
 
+// `concept add <slug> --title <title>`: nests a Concept in the Concept of
+// `--parent`, or in the root.
+async function handleConceptCommand(
+  db: ConceptDb,
+  [command, slug, ...rest]: string[],
+) {
+  if (command !== 'add') {
+    throw new Error(`unknown concept command "${command}"`)
+  }
+  const flags = parseFlags(rest)
+  const project = (flags.project as string | undefined) ?? 'glue'
+  console.log(
+    await addConcept(db, project, {
+      slug,
+      title: flags.title as string,
+      kind: flags.kind as Kind | undefined,
+      parent: flags.parent as string | undefined,
+    }),
+  )
+}
+
+// `joint add <id> <needed id>` glues two Parts: the first needs the second.
+// `--two-way`: they need each other. `joint remove` takes the Joint away.
+async function handleJointCommand(
+  db: ConceptDb,
+  [command, id, neededId, ...rest]: string[],
+) {
+  const twoWay = rest.includes('--two-way')
+  const flags = parseFlags(rest.filter((arg) => arg !== '--two-way'))
+  const project = (flags.project as string | undefined) ?? 'glue'
+  switch (command) {
+    case 'add':
+      await addJoint(db, project, { part: id, needs: neededId, twoWay })
+      return
+    case 'remove': {
+      const part = await findPart(db, project, id)
+      const joint = part?.needs.find((end) => end.part.id === neededId)
+      if (!joint) throw new Error(`"${id}" and "${neededId}" have no Joint`)
+      await removeJoint(db, project, joint.jointId)
+      return
+    }
+    default:
+      throw new Error(`unknown joint command "${command}"`)
+  }
+}
+
+// `project add <slug>` adds a Project with its root Concept.
+//
 // `project set <slug> --analytics-project <key> --repository owner/name
 // --social-handle <handle>`: the analytics project the Product's Goals are
 // measured from, the GitHub repository that builds the Product, and its
@@ -296,6 +476,11 @@ async function handleProjectCommand(
   db: ConceptDb,
   [command, slug, ...rest]: string[],
 ) {
+  if (command === 'add') {
+    if (!slug) throw new Error('project add needs <slug>')
+    await addProject(db, slug)
+    return
+  }
   if (command !== 'set') {
     throw new Error(`unknown project command "${command}"`)
   }

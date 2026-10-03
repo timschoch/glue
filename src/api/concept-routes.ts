@@ -14,10 +14,24 @@ import {
   handleUpdateRecord,
 } from './concept-api.ts'
 import type { ApiRequest } from './concept-api.ts'
+import {
+  handleAddConcept,
+  handleAddJoint,
+  handleAddPart,
+  handleGetPart,
+  handleGetProject,
+  handleGetProjectConcept,
+  handleListParts,
+  handleRemoveJoint,
+  handleUpdatePart,
+} from './part-api.ts'
 
-type PathParams = { folder?: string; recordId?: string } & (
-  { project: string } | { product: string }
-)
+type PathParams = {
+  folder?: string
+  recordId?: string
+  concept?: string
+  jointId?: string
+} & ({ project: string } | { product: string })
 
 type RouteRequest = { request: Request; params: PathParams }
 
@@ -33,6 +47,41 @@ function toApiRequest({ request, params }: RouteRequest): ApiRequest {
     request,
     params: toProjectParams(params),
   }
+}
+
+function toChangeRequest(route: RouteRequest) {
+  return { ...toApiRequest(route), github: createGithubClient() }
+}
+
+// The routes of the Part model. They have no deprecated `products` path.
+export const projectHandlers = {
+  GET: (route: RouteRequest) => handleGetProject(toApiRequest(route)),
+}
+
+export const projectConceptsHandlers = {
+  POST: (route: RouteRequest) => handleAddConcept(toApiRequest(route)),
+}
+
+export const projectConceptHandlers = {
+  GET: (route: RouteRequest) => handleGetProjectConcept(toApiRequest(route)),
+}
+
+export const partsHandlers = {
+  GET: (route: RouteRequest) => handleListParts(toApiRequest(route)),
+  POST: (route: RouteRequest) => handleAddPart(toChangeRequest(route)),
+}
+
+export const partHandlers = {
+  GET: (route: RouteRequest) => handleGetPart(toApiRequest(route)),
+  PATCH: (route: RouteRequest) => handleUpdatePart(toChangeRequest(route)),
+}
+
+export const jointsHandlers = {
+  POST: (route: RouteRequest) => handleAddJoint(toApiRequest(route)),
+}
+
+export const jointHandlers = {
+  DELETE: (route: RouteRequest) => handleRemoveJoint(toApiRequest(route)),
 }
 
 export const conceptHandlers = {

@@ -49,7 +49,7 @@ export function DecisionForm({
   const evidenceProblem = useId()
 
   // The records that can be the evidence of the Decision.
-  const options = [...concept.insights, ...concept.facts]
+  const options = [...concept.insights, ...concept.guardrails]
   const picked = superseded
     ? superseded.evidence.map(({ id }) => id)
     : evidence
@@ -59,7 +59,7 @@ export function DecisionForm({
     concept.goals.length === 0
       ? 'A Decision serves a Goal. This Concept has no Goal yet.'
       : options.length === 0
-        ? 'A Decision links to its evidence. This Concept has no Insight and no Fact yet.'
+        ? 'A Decision links to its evidence. This Concept has no Insight and no Guardrail yet.'
         : undefined
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

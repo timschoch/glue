@@ -75,6 +75,7 @@ export const insightSchema = z
     date: z.iso.date(),
     source: z.string(),
     status: z.enum(schema.insightStatuses).nullable(),
+    evidenceLevel: z.enum(schema.evidenceLevels).nullable(),
     body: z.string(),
     decisions: z.array(recordReferenceSchema),
   })
@@ -99,6 +100,7 @@ export const guardrailSchema = z
     kind: z.literal('guardrail'),
     ...recordReferenceSchema.shape,
     enforcedBy: z.string(),
+    source: z.string().nullable(),
     body: z.string(),
   })
   .meta({ id: 'Guardrail' })

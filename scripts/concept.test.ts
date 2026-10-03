@@ -188,6 +188,283 @@ describe('runConcept', () => {
     )
   })
 
+  function logged(): string[] {
+    return vi.mocked(console.log).mock.calls.map(([line]) => line)
+  }
+
+  const insightFlags = [
+    '--project',
+    'flexibeck',
+    '--title',
+    'Lists load in 3 seconds',
+    '--source',
+    'analytics',
+  ]
+
+  it('adds an Insight with its Evidence level, and shows the level', async () => {
+    await run('add', 'insights', ...insightFlags, '--level', 'confirmed')
+
+    await run('show', 'I1', '--project', 'flexibeck')
+
+    expect(logged()).toContain('evidenceLevel: confirmed')
+  })
+
+  it('refuses an Evidence level that is no level, and names the levels', async () => {
+    await expect(
+      run('add', 'insights', ...insightFlags, '--level', 'observed'),
+    ).rejects.toThrow(/"hunch".*"pattern".*"confirmed"/)
+  })
+
+  it('refuses an Insight status other than draft, and names draft', async () => {
+    await expect(
+      run('add', 'insights', ...insightFlags, '--status', 'confirmed'),
+    ).rejects.toThrow('"draft"')
+
+    await run('list', 'insights', '--project', 'flexibeck')
+    expect(logged()).toEqual([])
+  })
+
+  it('adds a draft Insight', async () => {
+    await run('add', 'insights', ...insightFlags, '--status', 'draft')
+
+    await run('list', 'insights', '--project', 'flexibeck')
+
+    expect(logged()).toEqual(['I1', 'I1  draft  Lists load in 3 seconds'])
+  })
+
+  it('shows the source of a Guardrail', async () => {
+    await run(
+      'add',
+      'guardrails',
+      '--project',
+      'flexibeck',
+      '--title',
+      'No query over 200ms',
+      '--enforced-by',
+      'monitoring',
+      '--source',
+      'the hosting contract',
+    )
+
+    await run('show', 'R2', '--project', 'flexibeck')
+
+    expect(logged()).toContain('source: the hosting contract')
+  })
+
+  it('changes the fields of a Guardrail that the flags name', async () => {
+    await run(
+      'set',
+      'R1',
+      '--project',
+      'flexibeck',
+      '--title',
+      'CI takes five minutes at most',
+      '--enforced-by',
+      'the CI budget',
+      '--body',
+      'D32 halved the budget.',
+    )
+
+    const guardrail = await showConceptRecord(db, 'flexibeck', 'R1')
+    expect(guardrail.fields).toMatchObject({
+      title: 'CI takes five minutes at most',
+      enforcedBy: 'the CI budget',
+    })
+    expect(guardrail.body).toBe('D32 halved the budget.')
+  })
+
+  it('refuses a flag that the type of the record does not have', async () => {
+    await expect(
+      run('set', 'R1', '--project', 'flexibeck', '--level', 'confirmed'),
+    ).rejects.toThrow('evidenceLevel')
+  })
+
+  it('adds a Decision that needs another Decision, and shows it', async () => {
+    await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
+
+    await run(
+      'add',
+      'decisions',
+      ...decisionFlags,
+      '--status',
+      'proposed',
+      '--needs',
+      'D1',
+    )
+    await run('show', 'D2', '--project', 'flexibeck')
+
+    expect(logged()).toContain('needs: D1 Check the types before the push')
+    expect(logged()).toContain('evidence: R1 CI takes ten minutes at most')
+  })
+
+  it.each([
+    ['entities', 'E1'],
+    ['flows', 'F1'],
+    ['metrics', 'M1'],
+  ])('adds to the %s, lists and shows %s', async (folder, recordId) => {
+    await run(
+      'add',
+      folder,
+      '--project',
+      'flexibeck',
+      '--title',
+      'Build time',
+      '--owner',
+      'Ada',
+      '--needs',
+      'R1',
+      '--body',
+      'From the push to the green check.',
+    )
+    await run('list', folder, '--project', 'flexibeck')
+    await run('show', recordId, '--project', 'flexibeck')
+
+    expect(logged()).toEqual([
+      recordId,
+      `${recordId}  Build time`,
+      recordId,
+      'title: Build time',
+      'owner: Ada',
+      'concept: flexibeck',
+      'needs: R1 CI takes ten minutes at most',
+      '\nFrom the push to the green check.',
+    ])
+  })
+
+  it('lists the Entities, Flows and Metrics after the other records', async () => {
+    await run('add', 'flows', '--project', 'flexibeck', '--title', 'Push')
+
+    await run('list', '--project', 'flexibeck')
+
+    expect(logged().slice(1)).toEqual([
+      'G1  open  Ship faster',
+      'R1  CI takes ten minutes at most',
+      'F1  Push',
+    ])
+  })
+
+  it('adds a Metric with its measure', async () => {
+    const measure = {
+      kind: 'mean',
+      source: 'mock-analytics',
+      event: 'survey sent',
+      property: '$survey_response',
+      target_change: 1,
+      window_days: 7,
+    }
+    await run(
+      'add',
+      'metrics',
+      '--project',
+      'flexibeck',
+      '--title',
+      'Ease of the first build',
+      '--measure',
+      JSON.stringify(measure),
+    )
+
+    await run('show', 'M1', '--project', 'flexibeck')
+
+    const line = logged().find((shown) => shown.startsWith('measure: '))
+    expect(JSON.parse(line?.slice('measure: '.length) ?? '')).toEqual(measure)
+  })
+
+  it('refuses a flag that an Entity does not have', async () => {
+    await expect(
+      run(
+        'add',
+        'entities',
+        '--project',
+        'flexibeck',
+        '--title',
+        'Cart',
+        '--enforced-by',
+        'CI',
+      ),
+    ).rejects.toThrow('enforcedBy')
+  })
+
+  it('adds a Concept, and a Part with its home there', async () => {
+    await run(
+      'concept',
+      'add',
+      'checkout',
+      '--project',
+      'flexibeck',
+      '--title',
+      'Checkout',
+      '--kind',
+      'brief',
+    )
+    await run(
+      'add',
+      'flows',
+      '--project',
+      'flexibeck',
+      '--title',
+      'Pay the cart',
+      '--concept',
+      'checkout',
+    )
+
+    await run('show', 'F1', '--project', 'flexibeck')
+
+    expect(logged()).toContain('checkout')
+    expect(logged()).toContain('concept: checkout')
+  })
+
+  it('refuses a Concept without a title', async () => {
+    await expect(
+      run('concept', 'add', 'checkout', '--project', 'flexibeck'),
+    ).rejects.toThrow('title')
+  })
+
+  it('glues two Parts with a Joint, then removes the Joint', async () => {
+    await run('add', 'flows', '--project', 'flexibeck', '--title', 'Push')
+
+    await run('joint', 'add', 'F1', 'R1', '--project', 'flexibeck')
+    await run('show', 'F1', '--project', 'flexibeck')
+    const glued = logged()
+    await run('joint', 'remove', 'F1', 'R1', '--project', 'flexibeck')
+    vi.mocked(console.log).mockClear()
+    await run('show', 'F1', '--project', 'flexibeck')
+
+    expect(glued).toContain('needs: R1 CI takes ten minutes at most')
+    expect(logged()).toEqual(['F1', 'title: Push', 'concept: flexibeck'])
+  })
+
+  it('glues two Parts that need each other', async () => {
+    await run('add', 'flows', '--project', 'flexibeck', '--title', 'Push')
+    await run('add', 'entities', '--project', 'flexibeck', '--title', 'Branch')
+
+    await run('joint', 'add', 'F1', 'E1', '--two-way', '--project', 'flexibeck')
+    await run('show', 'E1', '--project', 'flexibeck')
+
+    expect(logged()).toContain('needs: F1 Push')
+  })
+
+  it('says that two Parts have no Joint to remove', async () => {
+    await expect(
+      run('joint', 'remove', 'G1', 'R1', '--project', 'flexibeck'),
+    ).rejects.toThrow('"G1" and "R1" have no Joint')
+  })
+
+  it('adds a Project with its root Concept', async () => {
+    await run('project', 'add', 'design-system')
+    await run(
+      'add',
+      'entities',
+      '--project',
+      'design-system',
+      '--title',
+      'Token',
+    )
+
+    await run('show', 'E1', '--project', 'design-system')
+
+    expect(logged()).toContain('concept: design-system')
+  })
+
   it('rejects an unknown command and points to the help', async () => {
     await expect(run('lst')).rejects.toThrow(
       'unknown command "lst". See pnpm concept --help',
@@ -214,6 +491,10 @@ describe('main', () => {
       'set <id>',
       'downstream <id>',
       'project set <slug>',
+      'project add <slug>',
+      'concept add <slug>',
+      'joint add <id> <needed id>',
+      'joint remove <id> <needed id>',
       'token create',
       'token list',
       'token revoke <id>',
@@ -231,6 +512,8 @@ describe('main', () => {
     )
     expect(help).toContain('guardrails: --title --enforced-by')
     expect(help).not.toContain('facts:')
+    expect(help).toContain('entities, flows, metrics: --title')
+    expect(help).toContain('--level hunch|pattern|confirmed')
   })
 
   it('prints the help for --help after a command', async () => {

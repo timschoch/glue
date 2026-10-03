@@ -32,9 +32,11 @@ const concept = {
     },
   ],
   decisions: [],
-  guardrails: [],
+  guardrails: [
+    { id: 'R1', title: 'An export is one request', enforcedBy: 'verify ci' },
+  ],
   insights: [],
-  facts: [{ id: 'F1', title: 'An export is one request' }],
+  facts: [],
 }
 
 const oldDecision: Decision = {
@@ -46,7 +48,7 @@ const oldDecision: Decision = {
   status: 'accepted',
   body: '',
   goal: { id: 'G1', title: 'Agents build from the Concept' },
-  evidence: [{ id: 'F1', title: 'An export is one request' }],
+  evidence: [{ id: 'R1', title: 'An export is one request' }],
   supersededBy: null,
   supersedes: [],
   issueUrl: null,
@@ -103,7 +105,7 @@ async function expectResult(message: string) {
 
 describe('the Decision form after the save', () => {
   it('says that the Decision is proposed and moves the focus to its title', async () => {
-    await renderPage('/glue/decisions/new?evidence=F1')
+    await renderPage('/glue/decisions/new?evidence=R1')
     await userEvent.type(
       await screen.findByRole('textbox', { name: 'Title' }),
       'The Concept lives in the database',

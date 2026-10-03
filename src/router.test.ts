@@ -28,6 +28,7 @@ const guardrail = {
   id: 'R1',
   title: 'No query over 200ms',
   enforcedBy: 'none yet',
+  source: null,
   body: '',
 }
 
@@ -178,18 +179,21 @@ describe('a Concept route with a session', () => {
     },
   )
 
-  it('opens the Decision form with the Insight from the address as evidence', async () => {
-    const routerContext = signedIn()
+  it.each(['I3', 'R2'])(
+    'opens the Decision form with %s from the address as evidence',
+    async (evidence) => {
+      const routerContext = signedIn()
 
-    const location = await load(
-      '/flexibeck/decisions/new?evidence=I3',
-      routerContext,
-    )
+      const location = await load(
+        `/flexibeck/decisions/new?evidence=${evidence}`,
+        routerContext,
+      )
 
-    expect(location.search).toEqual({ evidence: 'I3' })
-    expect(routerContext.fetchConcept).toHaveBeenCalledWith('flexibeck')
-    expect(routerContext.fetchRecord).not.toHaveBeenCalled()
-  })
+      expect(location.search).toEqual({ evidence })
+      expect(routerContext.fetchConcept).toHaveBeenCalledWith('flexibeck')
+      expect(routerContext.fetchRecord).not.toHaveBeenCalled()
+    },
+  )
 
   it('reads the Decision that the form supersedes', async () => {
     const routerContext = signedIn()
@@ -250,7 +254,7 @@ describe('a Concept route with a session', () => {
     ).toBe('notFound')
   })
 
-  it.each(['evidence=nope', 'supersedes=I3'])(
+  it.each(['evidence=nope', 'evidence=F1', 'supersedes=I3'])(
     'does not give %s from the address to the Decision form',
     async (search) => {
       const routerContext = signedIn()

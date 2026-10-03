@@ -20,6 +20,19 @@ import {
   measureResultSchema,
   updateSchemas,
 } from './concept-api.ts'
+import {
+  addedJointSchema,
+  changedPartSchema,
+  conceptInputSchema,
+  jointInputSchema,
+  partInputSchema,
+  partSchema,
+  partSummarySchema,
+  partTypesQuerySchema,
+  partUpdateSchema,
+  projectConceptSchema,
+  projectSchema,
+} from './part-api.ts'
 
 // `/api/v1/projects/{project}`, and the deprecated `/api/v1/products/{product}`.
 type PathParameter = 'project' | 'product'
@@ -196,6 +209,150 @@ function listPaths(parameter: PathParameter) {
   )
 }
 
+// The Part model has no deprecated twin: it starts under `projects`.
+function listPartPaths() {
+  const root = '/api/v1/projects/{project}'
+  const path = z.object({ project: slug })
+  return {
+    [root]: {
+      get: {
+        operationId: 'getProject',
+        summary: 'Read the Project with the tree of its Concepts',
+        requestParams: { path },
+        responses: {
+          200: { description: 'The Project', ...jsonContent(projectSchema) },
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/concepts`]: {
+      post: {
+        operationId: 'addConcept',
+        summary: 'Nest a Concept in the root Concept or in another one',
+        requestParams: { path },
+        requestBody: jsonContent(conceptInputSchema),
+        responses: {
+          201: {
+            description: 'The new Concept',
+            ...jsonContent(projectConceptSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/concepts/{concept}`]: {
+      get: {
+        operationId: 'getProjectConcept',
+        summary: 'Read one Concept with its Parts, Joints and slots',
+        requestParams: {
+          path: path.extend({
+            concept: z
+              .string()
+              .meta({ description: 'The slug of the Concept' }),
+          }),
+        },
+        responses: {
+          200: {
+            description: 'The Concept',
+            ...jsonContent(projectConceptSchema),
+          },
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/parts`]: {
+      get: {
+        operationId: 'listParts',
+        summary: 'List the Parts of the Project: all, or the ones of the types',
+        requestParams: {
+          path,
+          query: z.object({ type: partTypesQuerySchema.optional() }),
+        },
+        responses: {
+          200: {
+            description: 'The Parts, by type, then by number',
+            ...jsonContent(z.array(partSummarySchema)),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+      post: {
+        operationId: 'addPart',
+        summary: 'Add a Part to its home Concept, with the Parts that it needs',
+        requestParams: { path },
+        requestBody: jsonContent(partInputSchema),
+        responses: {
+          201: {
+            description: 'The new Part',
+            ...jsonContent(changedPartSchema),
+          },
+          ...errorResponses,
+        },
+      },
+    },
+    [`${root}/parts/{recordId}`]: {
+      get: {
+        operationId: 'getPart',
+        summary: 'Read one Part with its Joints in both directions',
+        requestParams: { path: path.extend({ recordId }) },
+        responses: {
+          200: { description: 'The Part', ...jsonContent(partSchema) },
+          ...readErrorResponses,
+        },
+      },
+      patch: {
+        operationId: 'updatePart',
+        summary: 'Change the fields of a Part that the request names',
+        requestParams: { path: path.extend({ recordId }) },
+        requestBody: jsonContent(partUpdateSchema),
+        responses: {
+          200: {
+            description: 'The changed Part',
+            ...jsonContent(changedPartSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/joints`]: {
+      post: {
+        operationId: 'addJoint',
+        summary: 'Glue two Parts: one needs the other, or both need each other',
+        requestParams: { path },
+        requestBody: jsonContent(jointInputSchema),
+        responses: {
+          201: {
+            description: 'The id of the new Joint',
+            ...jsonContent(addedJointSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/joints/{jointId}`]: {
+      delete: {
+        operationId: 'removeJoint',
+        summary:
+          'Remove a Joint, but not the last Goal or evidence of a Decision',
+        requestParams: {
+          path: path.extend({
+            jointId: z.string().meta({ description: 'The id of the Joint' }),
+          }),
+        },
+        responses: {
+          204: { description: 'The Joint is gone' },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+  }
+}
+
 const openApiDocument = createDocument({
   openapi: '3.1.0',
   info: {
@@ -210,7 +367,11 @@ const openApiDocument = createDocument({
   components: {
     securitySchemes: { token: { type: 'http', scheme: 'bearer' } },
   },
-  paths: { ...listPaths('project'), ...listPaths('product') },
+  paths: {
+    ...listPartPaths(),
+    ...listPaths('project'),
+    ...listPaths('product'),
+  },
 })
 
 export function handleGetOpenApi() {

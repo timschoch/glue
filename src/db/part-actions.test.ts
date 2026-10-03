@@ -1,0 +1,345 @@
+import { PGlite } from '@electric-sql/pglite'
+import { isRedirect } from '@tanstack/react-router'
+import { drizzle } from 'drizzle-orm/pglite'
+import { migrate } from 'drizzle-orm/pglite/migrator'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import type { Session } from '../authentication/session.ts'
+import type { GithubClient } from '../github/client.ts'
+import { createFakeGithub, failingGithub } from '../test/github.ts'
+import { setProductRepository } from './concept-records.ts'
+import {
+  createPartActions,
+  jointRemoveInputSchema,
+  partAddInputSchema,
+  partListInputSchema,
+  partUpdateInputSchema,
+} from './part-actions.ts'
+import { addJoint, addPart, addProject } from './part-records.ts'
+import { findPart, findProject, listParts } from './parts.ts'
+import * as schema from './schema.ts'
+
+let client: PGlite
+let db: ReturnType<typeof drizzle<typeof schema>>
+
+// The session and the GitHub of the request in the test.
+let session: Session | undefined
+let fake: ReturnType<typeof createFakeGithub>
+let github: GithubClient
+
+const actions = createPartActions({
+  findSession: () => Promise.resolve(session),
+  getDb: () => db,
+  getGithub: () => github,
+})
+
+const project = 'flexibeck'
+
+beforeEach(async () => {
+  session = undefined
+  fake = createFakeGithub()
+  github = fake.github
+  client = new PGlite()
+  db = drizzle(client, { schema })
+  await migrate(db, { migrationsFolder: './drizzle' })
+  await addProject(db, project)
+  await setProductRepository(db, project, 'timschoch/flexibeck-next')
+  await addPart(db, project, {
+    type: 'goal',
+    title: 'Ship faster',
+    metric: 'lead time',
+    source: 'okr',
+  })
+  await addPart(db, project, {
+    type: 'insight',
+    title: 'The build failed on a type error',
+    source: 'verify ci',
+  })
+})
+
+afterEach(async () => {
+  await client.close()
+})
+
+function signIn() {
+  session = { user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' } }
+}
+
+const decision = {
+  type: 'decision' as const,
+  title: 'Check the types before the push',
+  owner: 'Ada',
+  needs: ['G1', 'I1'],
+}
+
+const requests = {
+  listProjects: () => actions.listProjects(),
+  findProject: () => actions.findProject({ project }),
+  findConcept: () => actions.findConcept({ project, concept: project }),
+  listParts: () => actions.listParts({ project }),
+  findPart: () => actions.findPart({ project, recordId: 'G1' }),
+  addConcept: () =>
+    actions.addConcept({
+      project,
+      concept: { slug: 'checkout', title: 'Checkout' },
+    }),
+  addPart: () =>
+    actions.addPart({ project, part: { type: 'flow', title: 'Push' } }),
+  updatePart: () =>
+    actions.updatePart({
+      project,
+      recordId: 'G1',
+      change: { title: 'Ship slower' },
+    }),
+  addJoint: () =>
+    actions.addJoint({ project, joint: { part: 'I1', needs: 'G1' } }),
+  removeJoint: () => actions.removeJoint({ project, jointId: 1 }),
+} satisfies Record<keyof typeof actions, () => Promise<unknown>>
+
+async function readProject() {
+  const found = await findProject(db, project)
+  const goal = await findPart(db, project, 'G1')
+  return {
+    concepts: found?.concept.concepts.map(({ slug }) => slug),
+    parts: (await listParts(db, project)).map(({ id }) => id),
+    goal: [goal?.title, goal?.neededBy.length],
+  }
+}
+
+describe('a server function of the Part model without a session', () => {
+  it.each(Object.keys(actions) as (keyof typeof actions)[])(
+    '%s sends the person to sign-in and writes nothing',
+    async (name) => {
+      const refused = await requests[name]().then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+
+      expect(isRedirect(refused) && refused.options.to).toBe('/sign-in')
+      expect(await readProject()).toEqual({
+        concepts: [],
+        parts: ['I1', 'G1'],
+        goal: ['Ship faster', 0],
+      })
+    },
+  )
+})
+
+describe('a server function of the Part model with a session', () => {
+  beforeEach(signIn)
+
+  it('lists the Projects', async () => {
+    await addProject(db, 'glue')
+
+    expect(await actions.listProjects()).toEqual([
+      { slug: 'flexibeck', name: 'flexibeck' },
+      { slug: 'glue', name: 'glue' },
+    ])
+  })
+
+  it('reads the Project with the tree of its Concepts', async () => {
+    await requests.addConcept()
+
+    const found = await actions.findProject({ project })
+
+    expect(found?.concept).toMatchObject({
+      slug: 'flexibeck',
+      partCount: 2,
+      concepts: [{ slug: 'checkout', title: 'Checkout', partCount: 0 }],
+    })
+  })
+
+  it('answers nothing for a Project, a Concept and a Part that do not exist', async () => {
+    expect(await actions.findProject({ project: 'nope' })).toBeUndefined()
+    expect(
+      await actions.findConcept({ project, concept: 'nope' }),
+    ).toBeUndefined()
+    expect(await actions.findPart({ project, recordId: 'G9' })).toBeUndefined()
+  })
+
+  it('reads a Concept with its Parts', async () => {
+    const concept = await actions.findConcept({ project, concept: project })
+
+    expect(concept?.parts.map(({ id }) => id)).toEqual(['I1', 'G1'])
+  })
+
+  it('lists the Parts of the Project, and the Parts of the types', async () => {
+    const all = await actions.listParts({ project })
+    const goals = await actions.listParts({ project, types: ['goal'] })
+
+    expect(all.map(({ id }) => id)).toEqual(['I1', 'G1'])
+    expect(goals.map(({ id }) => id)).toEqual(['G1'])
+  })
+
+  it('reads a Part with its Joints', async () => {
+    await addJoint(db, project, { part: 'I1', needs: 'G1' })
+
+    const part = await actions.findPart({ project, recordId: 'I1' })
+
+    expect(part).toMatchObject({
+      id: 'I1',
+      type: 'insight',
+      source: 'verify ci',
+    })
+    expect(part?.needs.map((end) => end.part.id)).toEqual(['G1'])
+  })
+
+  it('adds a Concept', async () => {
+    expect(await requests.addConcept()).toEqual({ slug: 'checkout' })
+    expect((await readProject()).concepts).toEqual(['checkout'])
+  })
+
+  it('answers a Concept that exists already as a failure', async () => {
+    await requests.addConcept()
+
+    expect(await requests.addConcept()).toEqual({
+      message: 'concept "checkout" exists already',
+    })
+  })
+
+  it('adds a Part to a Concept', async () => {
+    await requests.addConcept()
+
+    const saved = await actions.addPart({
+      project,
+      part: { type: 'flow', title: 'Pay the cart', concept: 'checkout' },
+    })
+
+    expect(saved).toEqual({ id: 'F1', issueMissing: false })
+    expect(await findPart(db, project, 'F1')).toMatchObject({
+      title: 'Pay the cart',
+      concept: 'checkout',
+    })
+    expect(fake.issues).toEqual([])
+  })
+
+  it('opens the downstream issue of a Decision that it adds as accepted', async () => {
+    const saved = await actions.addPart({
+      project,
+      part: { ...decision, status: 'accepted' },
+    })
+
+    expect(saved).toEqual({ id: 'D1', issueMissing: false })
+    expect(fake.issues).toHaveLength(1)
+  })
+
+  it('keeps the Decision and says that the issue is missing when GitHub fails', async () => {
+    github = failingGithub
+
+    const saved = await actions.addPart({
+      project,
+      part: { ...decision, status: 'accepted' },
+    })
+
+    expect(saved).toEqual({ id: 'D1', issueMissing: true })
+    expect((await findPart(db, project, 'D1'))?.status).toBe('accepted')
+  })
+
+  it('answers a Part that breaks a rule as a failure', async () => {
+    const refused = await actions.addPart({
+      project,
+      part: { ...decision, status: 'proposed', needs: ['G1'] },
+    })
+
+    expect(refused).toEqual({
+      message: 'a Decision needs evidence: an Insight or a Guardrail',
+    })
+  })
+
+  it('changes the fields of a Part', async () => {
+    const saved = await actions.updatePart({
+      project,
+      recordId: 'I1',
+      change: { title: 'The build fails on type errors', status: 'draft' },
+    })
+
+    expect(saved).toEqual({ id: 'I1', issueMissing: false })
+    expect(await findPart(db, project, 'I1')).toMatchObject({
+      title: 'The build fails on type errors',
+      status: 'draft',
+    })
+  })
+
+  it('opens the downstream issue when it accepts a Decision', async () => {
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'proposed' },
+    })
+
+    const saved = await actions.updatePart({
+      project,
+      recordId: 'D1',
+      change: { status: 'accepted' },
+    })
+
+    expect(saved).toEqual({ id: 'D1', issueMissing: false })
+    expect(fake.issues).toHaveLength(1)
+  })
+
+  it('answers a change with a field of another type as a failure', async () => {
+    const refused = await actions.updatePart({
+      project,
+      recordId: 'I1',
+      change: { enforcedBy: 'verify ci' },
+    })
+
+    expect(refused).toMatchObject({
+      message: expect.stringContaining('enforcedBy'),
+    })
+  })
+
+  it('glues two Parts with a Joint, then removes the Joint', async () => {
+    const added = await requests.addJoint()
+    const glued = await findPart(db, project, 'I1')
+    const removed = await actions.removeJoint({ project, jointId: 1 })
+
+    expect(added).toEqual({ id: 1 })
+    expect(glued?.needs.map((end) => end.part.id)).toEqual(['G1'])
+    expect(removed).toBeUndefined()
+    expect((await findPart(db, project, 'I1'))?.needs).toEqual([])
+  })
+
+  it('answers a Joint that does not exist as a failure', async () => {
+    expect(await actions.removeJoint({ project, jointId: 7 })).toEqual({
+      message: 'joint 7 not found',
+    })
+  })
+})
+
+describe('the input of a server function of the Part model', () => {
+  it('takes only the Part types', () => {
+    const listed = partListInputSchema.safeParse({ project, types: ['fact'] })
+
+    expect(listed.success).toBe(false)
+  })
+
+  it('refuses a Part with a field that its type does not have', () => {
+    const added = partAddInputSchema.safeParse({
+      project,
+      part: { type: 'entity', title: 'Cart', enforcedBy: 'verify ci' },
+    })
+
+    expect(added.success).toBe(false)
+  })
+
+  it('refuses an Insight with a status other than draft', () => {
+    const added = partAddInputSchema.safeParse({
+      project,
+      part: { type: 'insight', title: 'x', source: 'y', status: 'confirmed' },
+    })
+    const changed = partUpdateInputSchema.safeParse({
+      project,
+      recordId: 'I1',
+      change: { status: 'confirmed' },
+    })
+
+    expect(added.success).toBe(false)
+    expect(changed.success).toBe(false)
+  })
+
+  it('takes the id of a Joint as a whole number', () => {
+    const removed = jointRemoveInputSchema.safeParse({ project, jointId: 1.5 })
+
+    expect(removed.success).toBe(false)
+  })
+})

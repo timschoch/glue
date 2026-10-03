@@ -41,6 +41,8 @@ export type ConceptShowResult = {
   body: string
   goal?: { id: string; title: string }
   evidence?: { id: string; title: string }[]
+  // The Parts that a Decision needs next to its Goal and its evidence.
+  needs?: { id: string; title: string }[]
   supersededBy?: string
   supersedes?: string[]
 }
@@ -134,10 +136,12 @@ export async function addConceptRecord(
   if (folder !== 'decisions') await addProject(db, productSlug)
 
   const title = fields.title as string
+  const concept = fields.concept as string | undefined
   switch (folder) {
     case 'goals':
       return addPart(db, productSlug, {
         type: 'goal',
+        concept,
         title,
         metric: fields.metric as string,
         source: fields.source as string,
@@ -147,17 +151,22 @@ export async function addConceptRecord(
     case 'insights':
       return addPart(db, productSlug, {
         type: 'insight',
+        concept,
         title,
         date: fields.date as string,
         source: fields.source as string,
-        status: fields.status as 'draft' | undefined,
+        status: fields.status as schema.InsightStatus | undefined,
+        evidenceLevel: fields.evidence_level as
+          schema.EvidenceLevel | undefined,
         body,
       })
     case 'guardrails':
       return addPart(db, productSlug, {
         type: 'guardrail',
+        concept,
         title,
         enforcedBy: fields.enforced_by as string,
+        source: fields.source as string | undefined,
         body,
       })
     case 'decisions': {
@@ -166,6 +175,7 @@ export async function addConceptRecord(
         throw new InvalidRecordError('"evidence" is required')
       return addPart(db, productSlug, {
         type: 'decision',
+        concept,
         title,
         date: fields.date as string,
         owner: fields.owner as string,
@@ -175,6 +185,7 @@ export async function addConceptRecord(
           ...evidence.map((id) =>
             requireType(id, schema.evidenceTypes, 'evidence'),
           ),
+          ...(Array.isArray(fields.needs) ? fields.needs : []),
         ],
         supersedes: fields.supersedes as string | undefined,
         supersededBy: fields.superseded_by as string | undefined,
