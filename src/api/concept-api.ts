@@ -1,6 +1,6 @@
-// The Concept HTTP API. The server routes in src/routes/api/ call these
-// handlers. The schemas here validate requests and document them in
-// openapi.ts.
+// The Concept HTTP API. The server routes in src/routes/api/ reach these
+// handlers through concept-routes.ts. The schemas here validate requests and
+// document them in openapi.ts.
 import { z } from 'zod'
 
 import type { ConceptDb } from '../db/client.ts'
@@ -36,7 +36,7 @@ import type { MetricSource } from '../measure/metric-source.ts'
 export type ApiRequest = {
   db: ConceptDb
   request: Request
-  params: { product: string; folder?: string; recordId?: string }
+  params: { project: string; folder?: string; recordId?: string }
 }
 
 // A request that can accept a Decision, and so open its downstream issue.
@@ -212,19 +212,19 @@ function isKeyOf<TObject extends object>(
 
 const BEARER = /^Bearer (\S+)$/i
 
-// A token opens the Concept of its own Product only. Another Product
-// answers 404, so a token does not reveal which Products exist.
+// A token opens the Concept of its own Project only. Another Project
+// answers 404, so a token does not reveal which Projects exist.
 async function validateToken({ db, request, params }: ApiRequest) {
   const token = request.headers.get('authorization')?.match(BEARER)?.[1]
-  const product = token ? await findProductByToken(db, token) : undefined
-  if (!product) {
+  const project = token ? await findProductByToken(db, token) : undefined
+  if (!project) {
     throw new ApiError(
       'unauthorized',
       'send a valid token as "Authorization: Bearer <token>"',
     )
   }
-  if (product !== params.product) {
-    throw new ApiError('not-found', `product "${params.product}" not found`)
+  if (project !== params.project) {
+    throw new ApiError('not-found', `project "${params.project}" not found`)
   }
 }
 
@@ -262,7 +262,7 @@ async function findFolderRecord({
   const folder = parseFolder(params.folder)
   const recordId = params.recordId ?? ''
   const record = recordId.startsWith(CONCEPT_FIELDS[folder].prefix)
-    ? await findRecord(db, params.product, recordId)
+    ? await findRecord(db, params.project, recordId)
     : undefined
   if (!record) {
     throw new ApiError('not-found', `${folder} "${recordId}" not found`)
@@ -274,7 +274,7 @@ async function findChangedDecision(
   { db, params }: ApiRequest,
   { id, issue }: DecisionChange,
 ) {
-  const decision = await findRecord(db, params.product, id)
+  const decision = await findRecord(db, params.project, id)
   return issue.kind === 'failed'
     ? { ...decision, issueError: issue.message }
     : decision
@@ -282,14 +282,14 @@ async function findChangedDecision(
 
 export function handleGetConcept(input: ApiRequest) {
   return handleApiRequest(input, async () =>
-    Response.json(await findConcept(input.db, input.params.product)),
+    Response.json(await findConcept(input.db, input.params.project)),
   )
 }
 
 export function handleListRecords(input: ApiRequest) {
   return handleApiRequest(input, async () => {
     const folder = parseFolder(input.params.folder)
-    const concept = await findConcept(input.db, input.params.product)
+    const concept = await findConcept(input.db, input.params.project)
     return Response.json(concept?.[folder] ?? [])
   })
 }
@@ -303,7 +303,7 @@ export function handleGetRecord(input: ApiRequest) {
 export function handleAddRecord(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
     const { db, github, request, params } = input
-    const { product, folder } = params
+    const { project, folder } = params
     if (!isKeyOf(inputSchemas, folder)) {
       throw new ApiError('not-found', `cannot add ${folder} here`)
     }
@@ -314,12 +314,12 @@ export function handleAddRecord(input: ChangeRequest) {
       folder === 'decisions'
         ? await findChangedDecision(
             input,
-            await addDecision(db, github, product, fields, recordBody),
+            await addDecision(db, github, project, fields, recordBody),
           )
         : await findRecord(
             db,
-            product,
-            await addConceptRecord(db, product, folder, fields, recordBody),
+            project,
+            await addConceptRecord(db, project, folder, fields, recordBody),
           )
     return Response.json(record, { status: 201 })
   })
@@ -335,14 +335,14 @@ export function handleUpdateRecord(input: ChangeRequest) {
     const json = await parseJson(request)
     if (params.folder === 'goals') {
       const change = goalUpdateSchema.parse(json)
-      await updateGoal(db, params.product, record.id, change)
-      return Response.json(await findRecord(db, params.product, record.id))
+      await updateGoal(db, params.project, record.id, change)
+      return Response.json(await findRecord(db, params.project, record.id))
     }
     const update = decisionUpdateSchema.parse(json)
     const change = await updateDecision(
       db,
       github,
-      params.product,
+      params.project,
       record.id,
       update.status,
       update.superseded_by,
@@ -351,9 +351,9 @@ export function handleUpdateRecord(input: ChangeRequest) {
   })
 }
 
-// Measures the Goals of the Product now. Returns the Insights it wrote and
+// Measures the Goals of the Project now. Returns the Insights it wrote and
 // the Goals it could not measure.
-export function handleMeasureProduct(
+export function handleMeasureProject(
   input: ApiRequest & { source: MetricSource },
 ) {
   return handleApiRequest(input, async () => {
@@ -361,7 +361,7 @@ export function handleMeasureProduct(
       db: input.db,
       source: input.source,
       now: new Date(),
-      productSlug: input.params.product,
+      productSlug: input.params.project,
     })
     return Response.json(result)
   })

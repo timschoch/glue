@@ -38,7 +38,7 @@ const KNOWN_FIELDS = new Set(
     .flatMap((type) => type.required as readonly string[])
     .filter((field) => field !== 'id')
     .concat([
-      'product',
+      'project',
       'body',
       'status',
       'superseded_by',
@@ -81,6 +81,9 @@ export function parseFlags(args: string[]): ConceptFields {
     const arg = args[index]
     if (!arg.startsWith('--')) continue
     const flagName = arg.slice(2)
+    if (flagName === 'product') {
+      throw new Error('"--product" is gone: use "--project"')
+    }
     const key = FLAG_TO_FIELD[flagName] ?? flagName
     if (!KNOWN_FIELDS.has(key)) {
       throw new Error(`unknown flag "--${flagName}"`)
@@ -111,7 +114,7 @@ export function formatDownstreamIssue(
     case 'not-found':
       return `no issue: decision "${decisionId}" not found`
     case 'failed':
-      return `issue missing: ${issue.message}\nRetry: pnpm concept downstream ${decisionId} --product ${product}`
+      return `issue missing: ${issue.message}\nRetry: pnpm concept downstream ${decisionId} --project ${product}`
   }
 }
 
@@ -141,14 +144,46 @@ function printRecord(record: Awaited<ReturnType<typeof showConceptRecord>>) {
   if (record.body) console.log(`\n${record.body}`)
 }
 
-function main() {
-  const databaseUrl = process.env.DATABASE_URL
+const FIELD_TO_FLAG = Object.fromEntries(
+  Object.entries(FLAG_TO_FIELD).map(([flag, field]) => [field, flag]),
+)
+
+function formatHelp() {
+  const types = Object.entries(CONCEPT_FIELDS).map(([folder, { required }]) => {
+    const flags = required
+      .filter((field) => field !== 'id')
+      .map((field) => `--${FIELD_TO_FLAG[field] ?? field}`)
+    return `  ${folder}: ${flags.join(' ')}`
+  })
+  return [
+    'pnpm concept list [<type>]',
+    'pnpm concept show <id>',
+    'pnpm concept add <type> <flags of the type> [--body <text>, or - for stdin]',
+    'pnpm concept set <id> [--status <status>] [--superseded-by <id>] [--measure <json>]',
+    'pnpm concept downstream <id>',
+    'pnpm concept project set <slug> [--analytics-project <key>] [--repository <owner/name>] [--social-handle <handle>]',
+    'pnpm concept token create --project <slug> --name <name>',
+    'pnpm concept token list',
+    'pnpm concept token revoke <id>',
+    '',
+    'list, show, add, set and downstream take --project <slug>. The default is glue.',
+    '',
+    'Types, and the flags that add needs:',
+    ...types,
+    '  goals also take --measure <json>, decisions --supersedes <id>',
+    '  --evidence takes ids with commas between them: I1,I2',
+  ].join('\n')
+}
+
+// No command, or `--help` at any place, prints the commands. It needs no
+// database.
+export async function main(args: string[], databaseUrl: string | undefined) {
+  if (args.length === 0 || args.includes('--help')) {
+    console.log(formatHelp())
+    return
+  }
   if (!databaseUrl) throw new Error('DATABASE_URL is required')
-  return runConcept(
-    createDb(databaseUrl),
-    createGithubClient,
-    process.argv.slice(2),
-  )
+  await runConcept(createDb(databaseUrl), createGithubClient, args)
 }
 
 // One command of `pnpm concept`. A write that leaves a Decision accepted
@@ -164,7 +199,7 @@ export async function runConcept(
       const [maybeFolder, ...flagArgs] = rest
       const folder = isConceptFolder(maybeFolder) ? maybeFolder : undefined
       const flags = parseFlags(folder ? flagArgs : rest)
-      const product = (flags.product as string | undefined) ?? 'glue'
+      const product = (flags.project as string | undefined) ?? 'glue'
       const rows = await listConceptRecords(db, product, folder)
       for (const row of rows) {
         console.log([row.id, row.status, row.title].filter(Boolean).join('  '))
@@ -174,7 +209,7 @@ export async function runConcept(
     case 'show': {
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
-      const product = (flags.product as string | undefined) ?? 'glue'
+      const product = (flags.project as string | undefined) ?? 'glue'
       printRecord(await showConceptRecord(db, product, id))
       return
     }
@@ -184,10 +219,10 @@ export async function runConcept(
         throw new Error(`"${folder}" is not a Concept type`)
       }
       const flags = parseFlags(flagArgs)
-      const product = (flags.product as string | undefined) ?? 'glue'
+      const product = (flags.project as string | undefined) ?? 'glue'
       const bodyFlag = flags.body as string | undefined
       const body = bodyFlag === '-' ? await collectStdin() : (bodyFlag ?? '')
-      delete flags.product
+      delete flags.project
       delete flags.body
       if (folder !== 'decisions') {
         console.log(await addConceptRecord(db, product, folder, flags, body))
@@ -207,7 +242,7 @@ export async function runConcept(
     case 'set': {
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
-      const product = (flags.product as string | undefined) ?? 'glue'
+      const product = (flags.project as string | undefined) ?? 'glue'
       if (id.startsWith('G')) {
         await updateGoal(db, product, id, {
           measure: flags.measure as GoalMeasure | undefined,
@@ -229,33 +264,35 @@ export async function runConcept(
     case 'downstream': {
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
-      const product = (flags.product as string | undefined) ?? 'glue'
+      const product = (flags.project as string | undefined) ?? 'glue'
       const issue = await createDownstreamIssue(db, getGithub(), product, id)
       console.error(formatDownstreamIssue(product, id, issue))
       if (issue.kind === 'failed') process.exitCode = 1
       return
     }
-    case 'product':
-      await handleProductCommand(db, rest)
+    case 'project':
+      await handleProjectCommand(db, rest)
       return
+    case 'product':
+      throw new Error('"product" is gone: use "pnpm concept project set"')
     case 'token':
       await handleTokenCommand(db, rest)
       return
     default:
-      throw new Error(`unknown command "${command}"`)
+      throw new Error(`unknown command "${command}". See pnpm concept --help`)
   }
 }
 
-// `product set <slug> --analytics-project <key> --repository owner/name
+// `project set <slug> --analytics-project <key> --repository owner/name
 // --social-handle <handle>`: the analytics project the Product's Goals are
 // measured from, the GitHub repository that builds the Product, and its
 // handle in the social channel. An empty key or handle removes it.
-async function handleProductCommand(
+async function handleProjectCommand(
   db: ConceptDb,
   [command, slug, ...rest]: string[],
 ) {
   if (command !== 'set') {
-    throw new Error(`unknown product command "${command}"`)
+    throw new Error(`unknown project command "${command}"`)
   }
   const flags = parseFlags(rest)
   const analyticsProject = flags.analytics_project as string | undefined
@@ -268,7 +305,7 @@ async function handleProductCommand(
       socialHandle === undefined)
   ) {
     throw new Error(
-      'product set needs <slug> and --analytics-project, --repository owner/name or --social-handle',
+      'project set needs <slug> and --analytics-project, --repository owner/name or --social-handle',
     )
   }
   if (analyticsProject !== undefined) {
@@ -285,10 +322,10 @@ async function handleTokenCommand(db: ConceptDb, [command, ...rest]: string[]) {
   switch (command) {
     case 'create': {
       const flags = parseFlags(rest)
-      const product = flags.product as string | undefined
+      const product = flags.project as string | undefined
       const name = flags.name as string | undefined
       if (!product || !name) {
-        throw new Error('token create needs --product and --name')
+        throw new Error('token create needs --project and --name')
       }
       const { token } = await createToken(db, product, name)
       console.log(token)
@@ -315,7 +352,7 @@ async function handleTokenCommand(db: ConceptDb, [command, ...rest]: string[]) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
+  main(process.argv.slice(2), process.env.DATABASE_URL).catch((error) => {
     console.error(error.message)
     process.exit(1)
   })

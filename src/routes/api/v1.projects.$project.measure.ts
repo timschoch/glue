@@ -1,8 +1,7 @@
-// Deprecated path: `/api/v1/projects/$project/measure` replaces it.
 import { createFileRoute } from '@tanstack/react-router'
 
 import { measureHandlers } from '../../api/concept-routes.ts'
 
-export const Route = createFileRoute('/api/v1/products/$product/measure')({
+export const Route = createFileRoute('/api/v1/projects/$project/measure')({
   server: { handlers: measureHandlers },
 })

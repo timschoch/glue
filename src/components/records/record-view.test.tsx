@@ -202,7 +202,7 @@ describe('RecordView', () => {
     )
 
     expect(shownValue('Issue')).toBe(
-      'Not opened: GitHub did not answer. To open it, run pnpm concept downstream D5 --product glue',
+      'Not opened: GitHub did not answer. To open it, run pnpm concept downstream D5 --project glue',
     )
   })
 

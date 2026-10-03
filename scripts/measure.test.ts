@@ -7,8 +7,8 @@ describe('parseMeasureArgs', () => {
     expect(parseMeasureArgs([])).toEqual({ dryRun: false })
   })
 
-  it('parses --product and --dry-run', () => {
-    expect(parseMeasureArgs(['--product', 'flexibeck', '--dry-run'])).toEqual({
+  it('parses --project and --dry-run', () => {
+    expect(parseMeasureArgs(['--project', 'flexibeck', '--dry-run'])).toEqual({
       productSlug: 'flexibeck',
       dryRun: true,
     })
@@ -20,9 +20,15 @@ describe('parseMeasureArgs', () => {
     )
   })
 
-  it('rejects --product without a value', () => {
-    expect(() => parseMeasureArgs(['--product'])).toThrow(
-      /"--product" needs a value/,
+  it('rejects --project without a value', () => {
+    expect(() => parseMeasureArgs(['--project'])).toThrow(
+      /"--project" needs a value/,
+    )
+  })
+
+  it('rejects the old --product and names --project', () => {
+    expect(() => parseMeasureArgs(['--product', 'glue'])).toThrow(
+      '"--product" is gone: use "--project"',
     )
   })
 })

@@ -258,7 +258,7 @@ async function listMeasuredGoals(
       skip(`the measure is not valid: ${z.prettifyError(parsed.error)}`)
     } else if (!analyticsProject) {
       skip(
-        `the Product has no analytics project: pnpm concept product set ${row.productSlug} --analytics-project <key>`,
+        `the Product has no analytics project: pnpm concept project set ${row.productSlug} --analytics-project <key>`,
       )
     } else {
       measured.push({ ...row, analyticsProject, measure: parsed.data })
