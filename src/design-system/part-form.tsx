@@ -11,26 +11,16 @@ import {
 import { useId, useState } from 'react'
 import type { FormEvent, MouseEvent } from 'react'
 
-import { Card } from './card.tsx'
+import { Card, evidenceLevels, partTypes } from './card.tsx'
 import styles from './part-form.module.scss'
 import type { EvidenceLevel, PartType, Trust } from './card.tsx'
 
-const partTypes = {
-  insight: 'Insight',
-  goal: 'Goal',
-  decision: 'Decision',
-  guardrail: 'Guardrail',
-  entity: 'Entity',
-  flow: 'Flow',
-  metric: 'Metric',
-} as const
-
 // The Evidence levels of an Insight. A Signal is not an Insight yet.
-const evidenceLevels = [
-  ['hunch', 'Hunch'],
-  ['pattern', 'Pattern'],
-  ['confirmed', 'Confirmed'],
-] as const
+const insightLevels = [
+  'hunch',
+  'pattern',
+  'confirmed',
+] as const satisfies ReadonlyArray<EvidenceLevel>
 
 // A Part that a picker offers, with what its minimal card shows.
 export type PartFormPart = {
@@ -263,15 +253,17 @@ export function PartForm({
             onChange={({ target }) =>
               change({
                 evidenceLevel:
-                  evidenceLevels.find(
-                    ([level]) => level === target.value,
-                  )?.[0] ?? null,
+                  insightLevels.find((level) => level === target.value) ?? null,
               })
             }
           >
             <SelectItem value="" text="" />
-            {evidenceLevels.map(([level, word]) => (
-              <SelectItem key={level} value={level} text={word} />
+            {insightLevels.map((level) => (
+              <SelectItem
+                key={level}
+                value={level}
+                text={evidenceLevels[level]}
+              />
             ))}
           </Select>
         )

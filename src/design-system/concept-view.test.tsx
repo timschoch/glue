@@ -17,6 +17,7 @@ function part(id: string, type: Part['type'], title: string): Part {
     title,
     status: null,
     concept: 'technique-videos',
+    conceptTitle: 'Technique videos',
     trust: 'solid',
   }
 }
@@ -55,6 +56,9 @@ const BRIEF: Concept = {
     { type: 'guardrail', filled: false },
   ],
 }
+
+// The colour of a label or a state, as the style writes it.
+const TEXT_SECONDARY = 'var(--cds-text-secondary, #525252)'
 
 afterEach(cleanup)
 
@@ -167,7 +171,7 @@ describe('ConceptView', () => {
     expect(onOpenPart.mock.calls[0][0].id).toBe('E3')
   })
 
-  it('shows an empty slot of the Kind at the place of its type, with one button', async () => {
+  it('shows an empty slot of the Kind at the place of its type, as its one button', async () => {
     const onAddPart = vi.fn()
     renderView({ concept: BRIEF, onAddPart })
 
@@ -184,7 +188,7 @@ describe('ConceptView', () => {
     const decisions = within(group('Decisions'))
 
     expect(decisions.queryByRole('link')).toBeNull()
-    expect(decisions.getByText('Decision')).toBeDefined()
+    expect(decisions.getByRole('listitem').textContent).toBe('Add Decision')
     expect(within(group('Goals')).queryByRole('button')).toBeNull()
 
     await userEvent.click(
@@ -197,14 +201,12 @@ describe('ConceptView', () => {
   it('draws the empty slot with the dashed border', () => {
     renderView({ concept: BRIEF })
 
-    const slot = within(group('Decisions')).getByText('Decision').parentElement
+    const slot = within(group('Decisions')).getByRole('listitem')
 
-    expect(slot && border(slot)).toBe(
-      '1px dashed var(--cds-border-strong-01, #8d8d8d)',
-    )
+    expect(border(slot)).toBe('1px dashed var(--cds-border-strong-01, #8d8d8d)')
   })
 
-  it('shows a linked Part after the Parts of its type, with the link sign and its home Concept', () => {
+  it('shows a linked Part after the Parts of its type, with the name of its home Concept on the card', () => {
     renderView({
       concept: {
         ...CONCEPT,
@@ -212,21 +214,25 @@ describe('ConceptView', () => {
           {
             ...part('I21', 'insight', 'Novices stop at long videos'),
             concept: 'ux-study',
+            conceptTitle: 'UX study',
           },
         ],
       },
     })
 
     const insights = within(group('Insights'))
-    const sign = insights.getByRole('img', { name: 'Link' })
+    const [home, linked] = insights.getAllByRole('link')
 
+    expect([home, linked].map((card) => card.getAttribute('href'))).toEqual([
+      '#I7',
+      '#I21',
+    ])
+    expect(within(linked).getByText('UX study')).toBeDefined()
+    expect(within(home).queryByText('Technique videos')).toBeNull()
     expect(
-      insights.getAllByRole('link').map((card) => card.getAttribute('href')),
-    ).toEqual(['#I7', '#I21'])
-    expect(sign.parentElement?.textContent).toBe('ux-study')
-    expect(
-      within(group('Goals')).queryByRole('img', { name: 'Link' }),
-    ).toBeNull()
+      insights.getAllByRole('listitem').map((item) => item.children.length),
+    ).toEqual([1, 1])
+    expect(insights.queryByRole('img', { name: 'Link' })).toBeNull()
   })
 
   it('counts a linked Part as the Part of its slot', () => {
@@ -234,7 +240,11 @@ describe('ConceptView', () => {
       concept: {
         ...BRIEF,
         linkedParts: [
-          { ...part('D7', 'decision', 'Ask the UX team'), concept: 'ux-study' },
+          {
+            ...part('D7', 'decision', 'Ask the UX team'),
+            concept: 'ux-study',
+            conceptTitle: 'UX study',
+          },
         ],
         slots: BRIEF.slots.map((slot) =>
           slot.type === 'decision' ? { ...slot, filled: true } : slot,
@@ -303,11 +313,14 @@ describe('ConceptView', () => {
     expect(groups()).toEqual(['Goals', 'Decisions'])
   })
 
-  it('replaces the groups of an empty Concept with a title and one button', async () => {
+  it('replaces the groups of an empty Concept with plain words and one button', async () => {
     const onAddPart = vi.fn()
     renderView({ concept: { ...CONCEPT, parts: [] }, onAddPart })
 
-    expect(groups()).toEqual(['No Parts'])
+    const words = screen.getByText('No Parts')
+
+    expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
+    expect(getComputedStyle(words).color).toBe(TEXT_SECONDARY)
     expect(screen.queryByRole('region')).toBeNull()
 
     await userEvent.click(screen.getByRole('button', { name: 'Add Part' }))
@@ -318,6 +331,7 @@ describe('ConceptView', () => {
   it('shows an empty lens the same way', () => {
     renderView({ types: [] })
 
-    expect(groups()).toEqual(['No Parts'])
+    expect(screen.getByText('No Parts')).toBeDefined()
+    expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
   })
 })

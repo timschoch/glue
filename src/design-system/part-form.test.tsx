@@ -309,7 +309,7 @@ describe('PartForm', () => {
 
     expect(card.getAttribute('href')).toBe('#I7')
     expect(within(card).getByRole('img', { name: 'Solid' })).toBeDefined()
-    expect(card.textContent).toBe('SolidInsightI7Bakers want step videos')
+    expect(card.textContent).toBe('Solid Insight I7 Bakers want step videos')
     expect(picker('Evidence')).toHaveProperty('value', '')
 
     await userEvent.click(picker('Evidence'))

@@ -85,6 +85,14 @@ function tooltip(button: HTMLElement): string | undefined {
     .find((candidate) => candidate.id === id)?.textContent
 }
 
+// The box of the action button: the last thing of the card, after the click
+// target.
+function actionStyle(): CSSStyleDeclaration {
+  const action = screen.getByRole('link').parentElement?.lastElementChild
+  if (!action) throw new Error('The card has no action')
+  return getComputedStyle(action)
+}
+
 // The texts of the card, in the order of the document.
 function texts(card: HTMLElement): Array<string> {
   return [...card.querySelectorAll('span, p')]
@@ -174,6 +182,56 @@ describe('Card', () => {
     ])
   })
 
+  it('shows the name of the home Concept as the last line', () => {
+    render(
+      <Card
+        {...DECISION}
+        workState="draft"
+        owner="Mara"
+        concept="First bake"
+      />,
+    )
+
+    expect(texts(screen.getByRole('link')).slice(3)).toEqual([
+      'Draft',
+      'Mara',
+      'First bake',
+    ])
+    expect(screen.getAllByRole('img')).toHaveLength(1)
+  })
+
+  it('names the link with spaces between its slots', () => {
+    render(
+      <Card
+        {...DECISION}
+        type="insight"
+        recordId="I3"
+        evidenceLevel="pattern"
+        summary="A baker sees the hands."
+        emptySlots={['goal', 'metric']}
+        workState="to-check"
+        owner="Mara"
+        concept="First bake"
+      />,
+    )
+
+    expect(
+      screen.getByRole('link', {
+        name: 'Solid Insight I3 Pattern Show the video of the creator A baker sees the hands. Goal Metric To check Mara First bake',
+      }),
+    ).toBeDefined()
+  })
+
+  it('names the link of the minimal card with spaces too', () => {
+    render(<Card {...DECISION} minimal />)
+
+    expect(
+      screen.getByRole('link', {
+        name: 'Solid Decision D12 Show the video of the creator',
+      }),
+    ).toBeDefined()
+  })
+
   it('leaves out a slot that has no content', () => {
     render(<Card {...DECISION} workState="draft" />)
 
@@ -234,6 +292,46 @@ describe('Card', () => {
     expect(onOpen).not.toHaveBeenCalled()
   })
 
+  it('puts an action with a label below the last line, at the start', () => {
+    render(
+      <Card {...DECISION} action={{ label: 'Pick up', onClick: () => {} }} />,
+    )
+
+    const { insetBlockStart, insetBlockEnd, insetInlineStart } = actionStyle()
+
+    expect([insetBlockStart, insetBlockEnd, insetInlineStart]).toEqual([
+      'auto',
+      '0px',
+      '0px',
+    ])
+  })
+
+  it('puts an action with an icon at the end of the first line', () => {
+    render(
+      <Card
+        {...DECISION}
+        minimal
+        action={{ label: 'Unpin', icon: PinFilled, onClick: () => {} }}
+      />,
+    )
+
+    const { insetBlockStart, insetBlockEnd, insetInlineEnd } = actionStyle()
+
+    expect([insetBlockStart, insetBlockEnd, insetInlineEnd]).toEqual([
+      '8px',
+      'auto',
+      '8px',
+    ])
+  })
+
+  it('is no tab stop when it repeats a link beside it', async () => {
+    render(<Card {...DECISION} minimal tabIndex={-1} />)
+
+    await userEvent.tab()
+
+    expect(document.activeElement).toBe(document.body)
+  })
+
   it('gives the focus to the card first, then to the button', async () => {
     render(
       <Card {...DECISION} action={{ label: 'Pick up', onClick: () => {} }} />,
@@ -259,6 +357,7 @@ describe('Card', () => {
         emptySlots={['metric']}
         workState="review"
         owner="Mara"
+        concept="First bake"
       />,
     )
 

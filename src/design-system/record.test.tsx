@@ -271,7 +271,7 @@ describe('Record', () => {
     expect(screen.queryByText('Bakers want step videos')).toBeNull()
   })
 
-  it('closes the minimal card when the focus leaves', async () => {
+  it('closes the minimal card when the focus leaves, and the card is no tab stop', async () => {
     renderRecord(
       { body: 'It builds on #I7 and #G2.' },
       { bodyParts: [INSIGHT, GOAL] },
@@ -279,11 +279,8 @@ describe('Record', () => {
 
     await userEvent.tab()
     await userEvent.tab()
-    await userEvent.tab()
 
-    expect(document.activeElement).toBe(
-      screen.getByText('Bakers want step videos').closest('a'),
-    )
+    expect(screen.getByText('Bakers want step videos')).toBeDefined()
 
     await userEvent.tab()
 
@@ -370,17 +367,21 @@ describe('Record', () => {
     ])
   })
 
-  it('shows the issue of a Decision as a link', () => {
+  it('shows the issue of a Decision as a link in the short form', () => {
     renderRecord({ issueUrl: 'https://github.com/timschoch/glue/issues/162' })
 
     expect(screen.getByRole('term').textContent).toBe('Issue')
     expect(
-      screen
-        .getByRole('link', {
-          name: 'https://github.com/timschoch/glue/issues/162',
-        })
-        .getAttribute('href'),
+      screen.getByRole('link', { name: '#162' }).getAttribute('href'),
     ).toBe('https://github.com/timschoch/glue/issues/162')
+  })
+
+  it('shows an issue address with no number as it is', () => {
+    renderRecord({ issueUrl: 'https://example.com/issues' })
+
+    expect(
+      screen.getByRole('link', { name: 'https://example.com/issues' }),
+    ).toBeDefined()
   })
 
   it('shows the Joints as two groups of cards: needs and needed by', async () => {
@@ -408,7 +409,7 @@ describe('Record', () => {
     expect(onOpen.mock.calls[0][0]).toBe('G2')
   })
 
-  it('names the Concept of a Part that a link joins', () => {
+  it('names the home Concept of a Part that a link joins, on its card', () => {
     renderRecord({
       needs: [
         { jointId: 1, link: false, part: INSIGHT },
@@ -421,7 +422,10 @@ describe('Record', () => {
     ).getAllByRole('listitem')
 
     expect(within(local).queryByText('Technique videos')).toBeNull()
-    expect(within(linked).getByText('First bake')).toBeDefined()
+    expect(
+      within(within(linked).getByRole('link')).getByText('First bake'),
+    ).toBeDefined()
+    expect(linked.children).toHaveLength(1)
   })
 
   it('shows the Decision that supersedes it and the Decisions it supersedes', () => {

@@ -12,7 +12,15 @@ function part(
   title: string,
   trust: ConceptViewPart['trust'] = 'solid',
 ): ConceptViewPart {
-  return { id, type, title, status: null, concept: 'technique-videos', trust }
+  return {
+    id,
+    type,
+    title,
+    status: null,
+    concept: 'technique-videos',
+    conceptTitle: 'Technique videos',
+    trust,
+  }
 }
 
 const concept: Concept = {
@@ -35,6 +43,7 @@ const concept: Concept = {
     {
       ...part('I21', 'insight', 'Novices stop at long videos'),
       concept: 'ux-study',
+      conceptTitle: 'UX study',
     },
   ],
   slots: [],
