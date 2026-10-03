@@ -28,3 +28,12 @@ export const Default: StoryObj<typeof meta> = {}
 export const Pinned: StoryObj<typeof meta> = {
   args: { pinned: ['Videos are too long', 'Show each technique'] },
 }
+
+// A narrow window, with the left panel open over the main window.
+export const PanelOpen: StoryObj<typeof meta> = {
+  args: Pinned.args,
+  globals: { viewport: { value: 'mobile1' } },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole('button', { name: 'Menu' }))
+  },
+}

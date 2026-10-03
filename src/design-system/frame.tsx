@@ -6,6 +6,7 @@ import {
   Content,
   Dropdown,
   Header,
+  HeaderMenuButton,
   Layer,
   Link,
   Popover,
@@ -17,7 +18,7 @@ import {
   SideNavMenu,
   SideNavMenuItem,
 } from '@carbon/react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import styles from './frame.module.scss'
@@ -52,7 +53,8 @@ function current(isCurrent: boolean) {
 // The frame of every screen: the header with the breadcrumb, the left panel
 // with the Project switcher, the sections and the Concepts, the main window
 // with the trail, and the right column while a record is pinned. A window
-// too narrow for the column shows the count of pins in the trail row.
+// too narrow for the column shows the count of pins in the trail row, and
+// keeps the left panel closed until the menu button of the header opens it.
 export function Frame({
   project,
   projects,
@@ -79,6 +81,9 @@ export function Frame({
 }) {
   // In a narrow window the stack of pinned records opens over the main window.
   const [stackOpen, setStackOpen] = useState(false)
+  // In a narrow window the left panel opens over the main window.
+  const [panelOpen, setPanelOpen] = useState(false)
+  const menuButton = useRef<HTMLButtonElement>(null)
   const isPinned = pinned.length > 0
   const cards = pinned.map((record) => (
     <a key={record} href="#" className={styles.card}>
@@ -90,69 +95,101 @@ export function Frame({
 
   return (
     <>
-      <Header aria-label="Glue">
-        <Breadcrumb noTrailingSlash className={styles.breadcrumb}>
-          {conceptPath.map((name, index) => (
-            <BreadcrumbItem
-              key={name}
-              href="#"
-              isCurrentPage={index === conceptPath.length - 1}
-            >
-              {name}
-            </BreadcrumbItem>
-          ))}
-        </Breadcrumb>
-      </Header>
-      <SideNav aria-label="Main" isFixedNav expanded isChildOfHeader={false}>
-        <Layer className={styles.switcher}>
-          <Dropdown
-            id="project"
-            titleText="Project"
-            hideLabel
-            label="Project"
-            items={[...projects]}
-            selectedItem={project}
-            onChange={({ selectedItem }) => {
-              if (selectedItem) onProjectChange(selectedItem)
-            }}
+      <div
+        // In the capture phase: Carbon's Dropdown keeps Escape to itself.
+        onKeyDownCapture={({ key }) => {
+          if (key !== 'Escape' || !panelOpen) return
+          setPanelOpen(false)
+          menuButton.current?.focus()
+        }}
+        // A focus that leaves the header and its panel is a click outside.
+        onBlur={({ currentTarget, relatedTarget }) => {
+          if (!currentTarget.contains(relatedTarget)) setPanelOpen(false)
+        }}
+      >
+        <Header aria-label="Glue">
+          <HeaderMenuButton
+            ref={menuButton}
+            aria-label="Menu"
+            aria-expanded={panelOpen}
+            isActive={panelOpen}
+            onClick={() => setPanelOpen((open) => !open)}
           />
-        </Layer>
-        <SideNavItems>
-          {sections.map((name) => (
-            <SideNavLink key={name} href="#" {...current(name === section)}>
-              {name}
-            </SideNavLink>
-          ))}
-          <SideNavDivider />
-          {concepts.map((concept) =>
-            concept.concepts ? (
-              <SideNavMenu
-                key={concept.name}
-                title={concept.name}
-                defaultExpanded={conceptPath.includes(concept.name)}
-              >
-                {concept.concepts.map((name) => (
-                  <SideNavMenuItem
-                    key={name}
-                    href="#"
-                    {...current(name === currentConcept)}
-                  >
-                    {name}
-                  </SideNavMenuItem>
-                ))}
-              </SideNavMenu>
-            ) : (
-              <SideNavLink
-                key={concept.name}
+          <Breadcrumb noTrailingSlash className={styles.breadcrumb}>
+            {conceptPath.map((name, index) => (
+              <BreadcrumbItem
+                key={name}
                 href="#"
-                {...current(concept.name === currentConcept)}
+                isCurrentPage={index === conceptPath.length - 1}
               >
-                {concept.name}
-              </SideNavLink>
-            ),
-          )}
-        </SideNavItems>
-      </SideNav>
+                {name}
+              </BreadcrumbItem>
+            ))}
+          </Breadcrumb>
+          <SideNav
+            aria-label="Main"
+            expanded={panelOpen}
+            onOverlayClick={() => setPanelOpen(false)}
+            // A choice in the panel closes it.
+            onClick={({ target }) => {
+              if (target instanceof Element && target.closest('a')) {
+                setPanelOpen(false)
+              }
+            }}
+          >
+            <Layer className={styles.switcher}>
+              <Dropdown
+                id="project"
+                titleText="Project"
+                hideLabel
+                label="Project"
+                items={[...projects]}
+                selectedItem={project}
+                onChange={({ selectedItem }) => {
+                  if (!selectedItem) return
+                  onProjectChange(selectedItem)
+                  setPanelOpen(false)
+                }}
+              />
+            </Layer>
+            <SideNavItems>
+              {sections.map((name) => (
+                <SideNavLink key={name} href="#" {...current(name === section)}>
+                  {name}
+                </SideNavLink>
+              ))}
+              <SideNavDivider />
+              {concepts.map((concept) =>
+                concept.concepts ? (
+                  <SideNavMenu
+                    key={concept.name}
+                    title={concept.name}
+                    defaultExpanded={conceptPath.includes(concept.name)}
+                  >
+                    {concept.concepts.map((name) => (
+                      <SideNavMenuItem
+                        key={name}
+                        href="#"
+                        {...current(name === currentConcept)}
+                      >
+                        {name}
+                      </SideNavMenuItem>
+                    ))}
+                  </SideNavMenu>
+                ) : (
+                  <SideNavLink
+                    key={concept.name}
+                    href="#"
+                    {...current(concept.name === currentConcept)}
+                  >
+                    {concept.name}
+                  </SideNavLink>
+                ),
+              )}
+            </SideNavItems>
+          </SideNav>
+        </Header>
+      </div>
       <Content
         className={
           isPinned ? `${styles.content} ${styles.besidePinned}` : styles.content
@@ -179,6 +216,7 @@ export function Frame({
                 open={stackOpen}
                 align="bottom-end"
                 caret={false}
+                backgroundToken="background"
                 onRequestClose={() => setStackOpen(false)}
                 // Carbon closes on Escape only while the focus is in the stack.
                 onKeyDown={({ key }) => {
@@ -197,7 +235,7 @@ export function Frame({
                   {pinned.length}
                 </Button>
                 <PopoverContent>
-                  <Layer className={styles.stack}>{cards}</Layer>
+                  <div className={styles.stack}>{cards}</div>
                 </PopoverContent>
               </Popover>
             )}
