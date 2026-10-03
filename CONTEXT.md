@@ -4,20 +4,45 @@ Use these terms in code, docs, issues and UI. A new term goes here first. Layout
 
 ## Product
 
-| Term        | Meaning                                                                                                              |
-| ----------- | -------------------------------------------------------------------------------------------------------------------- |
-| Company     | The customer account. Owns many Products and their users.                                                            |
-| Product     | What a Glue workspace describes: an app, a website, a service. Glue holds the why for one or more Products.          |
-| Concept     | The structured record of why a Product is built the way it is. The single source of truth for one Product.           |
-| Version     | An immutable, numbered state of a Concept. Downstream tools read signed-off Versions only.                           |
-| Goal        | A target the Product must reach, as a KPI or OKR with a metric source. Every Decision serves a Goal.                 |
-| Decision    | One choice with its reason, date and owner. Serves a Goal and links to the evidence behind it.                       |
-| Insight     | A finding from UX research, usage data or feedback. Evidence for Decisions.                                          |
-| Fact        | A verified statement: a constraint, a number, a contract. Evidence for Decisions.                                    |
-| Guardrail   | A rule every change to the Product must respect. Enforced downstream, not suggested.                                 |
-| Integration | A sync with an outside tool that reads from or writes to a Concept.                                                  |
-| Mock        | A stand-in for an outside tool (analytics, CRM, design system) that Glue integrates with. Lives outside Glue's code. |
-| Token       | A secret that opens the Concept of one Product over the HTTP API. Glue stores only its hash.                         |
+| Term        | Meaning                                                                                                                                                   |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Company     | The customer account. Owns many Products and their users.                                                                                                 |
+| Product     | What a Glue workspace describes: an app, a website, a service. Glue holds the why for one or more Products.                                               |
+| Concept     | Parts assembled with glue: the why of one Product, or of one area of it. A Concept can hold smaller Concepts. Today the code has one Concept per Product. |
+| Version     | An immutable, numbered state of a Part or a Concept. Downstream tools read signed-off Versions only.                                                      |
+| Goal        | A target the Product must reach, as a KPI or OKR with a metric source. Every Decision serves a Goal.                                                      |
+| Decision    | One choice with its reason, date and owner. Serves a Goal and links to the evidence behind it.                                                            |
+| Insight     | A finding from UX research, usage data or feedback. Evidence for Decisions.                                                                               |
+| Fact        | A verified statement: a constraint, a number, a contract. Evidence for Decisions.                                                                         |
+| Guardrail   | A rule every change to the Product must respect. Enforced downstream, not suggested.                                                                      |
+| Integration | A sync with an outside tool that reads from or writes to a Concept.                                                                                       |
+| Mock        | A stand-in for an outside tool (analytics, CRM, design system) that Glue integrates with. Lives outside Glue's code.                                      |
+| Token       | A secret that opens the Concept of one Product over the HTTP API. Glue stores only its hash.                                                              |
+
+## Concept model
+
+The target model. Diagrams and rules: [docs/concept.md](docs/concept.md). The app does not have all of it yet.
+
+| Term           | Meaning                                                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project        | The top level that holds Concepts: a Product, or other work such as a UX study. Today the code has only Product.                                |
+| Part           | One record in a Concept. Types: Insight, Goal, Decision, Guardrail, Entity, Flow, Metric. Has one home Concept and one owner.                   |
+| Entity         | A Part that names a thing the Product has, for example Technique.                                                                               |
+| Flow           | A Part that says how something moves, step by step.                                                                                             |
+| Metric         | A Part that says if it worked: a reading against a target.                                                                                      |
+| Kind           | The slots a Concept must fill, for example Brief. A slot with no Part shows as an empty slot.                                                   |
+| Brief          | A Kind of Concept that says what to build. Not a Part.                                                                                          |
+| Contract       | One frozen Version of a Concept. A build names the Contract Version it was built with, and a gate checks the build against it.                  |
+| Joint          | The glue between two Parts. One-way (A needs B) or two-way. Across a Concept edge it is a link, never a copy.                                   |
+| Loop           | Understand, Decide, Design, Build, Use, then Understand again. Each Concept runs its own loop. A step is not a job role.                        |
+| Signal         | One raw observation from an outside tool. Many Signals become few Insights.                                                                     |
+| Evidence level | How sure an Insight is: Signal, Hunch, Pattern, Confirmed.                                                                                      |
+| Trust          | What a reader can rely on, shown as a light: Solid (green), Flagged (yellow), Not ready (red), Wrong (black). Only Trust travels along a Joint. |
+| Work state     | What the owner of a Part has to do: To check, Waiting, Draft, Review, Published. Not the Draft in [Cycle](#cycle).                              |
+| Tier           | Tier 1 Parts are what a coding agent reads: Flow, Entity, Guardrail. Tier 2 Parts are the why.                                                  |
+| Lens           | A filter over all Parts. It changes what you see first, never where a Part lives or who may open it.                                            |
+| Flight level   | How much a view shows: Strategic (a summary) or Operational (raw details).                                                                      |
+| Mine           | The app section that shows what needs you now.                                                                                                  |
 
 ## Cycle
 
