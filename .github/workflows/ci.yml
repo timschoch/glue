@@ -35,5 +35,4 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - run: node .agents/skills/verify/scripts/verify.mjs ci
         env:
-          CONCEPT_DATABASE_URL: ${{ secrets.CONCEPT_DATABASE_URL }} # read-only role glue_ci: the PR gate checks Decision ids against Glue's Concept
           GLUE_API_TOKEN: ${{ secrets.GLUE_API_TOKEN }} # read token of the Project glue: the PR gate reads Decisions over Glue's HTTP API
