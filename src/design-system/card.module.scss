@@ -41,6 +41,11 @@ $action-height: $spacing-07;
   inset-inline-start: 0;
 }
 
+// The glyph of an icon button starts at the edge of the content.
+.iconAction {
+  inset-inline-start: $spacing-03;
+}
+
 // Line 1: the sign and the type line are one group.
 .signs {
   @include type-style('label-01');

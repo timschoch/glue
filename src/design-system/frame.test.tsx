@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import './theme.scss'
 import { Frame } from './frame.tsx'
+import type { FramePin } from './frame.tsx'
 
 // The g10 values of the two layers, from Carbon's theme table.
 const BACKGROUND = '#f4f4f4'
@@ -27,7 +28,26 @@ const PANEL_WIDTH = '16rem'
 const TOKEN = /^var\((--[\w-]+)/
 
 // The pinned records, newest first.
-const PINNED = ['Videos are too long', 'Show each technique']
+const PINNED: ReadonlyArray<FramePin> = [
+  {
+    type: 'insight',
+    recordId: 'I7',
+    title: 'Videos are too long',
+    trust: 'flagged',
+  },
+  {
+    type: 'decision',
+    recordId: 'D12',
+    title: 'Show each technique',
+    trust: 'solid',
+  },
+]
+
+// The texts of the two pinned cards, in the order of the document.
+const PINNED_TEXTS = [
+  ['Insight', 'I7', 'Videos are too long'],
+  ['Decision', 'D12', 'Show each technique'],
+]
 
 // jsdom has no matchMedia, Carbon's side nav asks it for the breakpoint.
 window.matchMedia = (query) => ({
@@ -47,8 +67,9 @@ Element.prototype.scrollIntoView = () => {}
 afterEach(cleanup)
 
 function renderFrame(
-  pinned: ReadonlyArray<string> = [],
+  pinned: ReadonlyArray<FramePin> = [],
   onProjectChange: (project: string) => void = () => {},
+  onUnpin: (recordId: string) => void = () => {},
 ) {
   render(
     <Frame
@@ -66,6 +87,7 @@ function renderFrame(
       conceptPath={['Technique videos', 'Step videos']}
       trail={['Show each technique', 'Videos are too long']}
       pinned={pinned}
+      onUnpin={onUnpin}
     >
       Content
     </Frame>,
@@ -168,6 +190,30 @@ function overlay(): Element {
   return found
 }
 
+// The cards of the stack that opens over the main window. jsdom does not
+// show or hide the stack: Carbon's popover does it in CSS.
+function stackCards(): Array<HTMLElement> {
+  return within(screen.getByRole('main'))
+    .getAllByRole('link', { hidden: true })
+    .filter((link) => link.closest('[class*="popover-content"]') !== null)
+}
+
+// The tooltip that names an icon button. Testing Library does not read the
+// name from a closed tooltip, a browser does.
+function tooltip(button: HTMLElement): string | undefined {
+  const id = button.getAttribute('aria-labelledby')
+  return screen
+    .getAllByRole('tooltip', { hidden: true })
+    .find((candidate) => candidate.id === id)?.textContent
+}
+
+// The texts of a card, in the order of the document.
+function texts(card: HTMLElement): Array<string> {
+  return [...card.querySelectorAll('span, p')]
+    .filter((element) => element.children.length === 0)
+    .map((element) => element.textContent)
+}
+
 // The background colour of an element.
 function layer(element: HTMLElement): string {
   return resolved(element, getComputedStyle(element).backgroundColor)
@@ -223,15 +269,11 @@ describe('Frame', () => {
 
     const column = screen.getByRole('complementary', { name: 'Pinned' })
 
-    expect(
-      within(column)
-        .getAllByRole('link')
-        .map((link) => link.textContent),
-    ).toEqual(['Videos are too long', 'Show each technique'])
+    expect(within(column).getAllByRole('link').map(texts)).toEqual(PINNED_TEXTS)
     expect(layer(column)).toBe(BACKGROUND)
   })
 
-  it('shows each pinned record as a light card with the pinned sign', () => {
+  it('shows each pinned record as a light minimal card with its Trust sign', () => {
     renderFrame(PINNED)
 
     const cards = within(
@@ -240,8 +282,30 @@ describe('Frame', () => {
 
     expect(cards.map(layer)).toEqual([LAYER_01, LAYER_01])
     expect(
-      cards.map((card) => within(card).getAllByRole('img', { name: 'Pinned' })),
-    ).toHaveLength(PINNED.length)
+      cards.map((card) =>
+        within(card).getByRole('img').getAttribute('aria-label'),
+      ),
+    ).toEqual(['Flagged', 'Solid'])
+  })
+
+  it('removes a pin with the one button of its card', async () => {
+    const onUnpin = vi.fn()
+    renderFrame(PINNED, undefined, onUnpin)
+
+    const column = within(screen.getByRole('complementary', { name: 'Pinned' }))
+    const buttons = column.getAllByRole('button')
+
+    expect(
+      buttons.map((button) => button.querySelectorAll('svg').length),
+    ).toEqual([1, 1])
+    expect(buttons.map(tooltip)).toEqual(['Unpin', 'Unpin'])
+    expect(
+      column.getAllByRole('link').some((card) => card.querySelector('button')),
+    ).toBe(false)
+
+    await userEvent.click(buttons[1])
+
+    expect(onUnpin).toHaveBeenCalledExactlyOnceWith('D12')
   })
 
   it('marks the focused pinned card with the 2px focus', () => {
@@ -278,14 +342,11 @@ describe('Frame', () => {
     const main = screen.getByRole('main')
     const trail = within(main).getByRole('navigation', { name: 'Trail' })
     const count = within(main).getByRole('button', { name: '2 pinned' })
-    // jsdom does not show or hide the stack: Carbon's popover does it in CSS.
-    const stack = within(main)
-      .getAllByRole('link', { name: /^Pinned/, hidden: true })
-      .map((card) => card.textContent)
+    const stack = stackCards().map(texts)
 
     expect(trail.parentElement?.contains(count)).toBe(true)
     expect(count.textContent).toBe('2')
-    expect(stack).toEqual(PINNED)
+    expect(stack).toEqual(PINNED_TEXTS)
     expect(count.getAttribute('aria-expanded')).toBe('false')
 
     await userEvent.click(count)
@@ -398,11 +459,8 @@ describe('Frame', () => {
   it('shows the pinned card as a light card on the canvas in the stack too', () => {
     renderFrame(PINNED)
 
-    const cards = within(screen.getByRole('main')).getAllByRole('link', {
-      name: /^Pinned/,
-      hidden: true,
-    })
-    const [stack] = cards.map((card) => card.parentElement?.parentElement)
+    const cards = stackCards()
+    const stack = cards[0].closest<HTMLElement>('[class*="popover-content"]')
 
     expect(cards.map(layer)).toEqual([LAYER_01, LAYER_01])
     expect(stack && layer(stack)).toBe(BACKGROUND)

@@ -21,6 +21,8 @@ import {
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import { Card } from './card.tsx'
+import type { CardProps } from './card.tsx'
 import styles from './frame.module.scss'
 
 export const sections = [
@@ -37,6 +39,9 @@ export type Section = (typeof sections)[number]
 
 // A Concept of the Project, with the names of the Concepts one level inside it.
 export type FrameConcept = { name: string; concepts?: ReadonlyArray<string> }
+
+// A pinned record: what its minimal card shows.
+export type FramePin = Pick<CardProps, 'type' | 'recordId' | 'title' | 'trust'>
 
 // The left panel shows two levels of Concepts.
 const PANEL_LEVELS = 2
@@ -64,6 +69,7 @@ export function Frame({
   conceptPath,
   trail = [],
   pinned = [],
+  onUnpin,
   children,
 }: {
   project: string
@@ -76,7 +82,8 @@ export function Frame({
   // The records opened on the way to the open record, the open record last.
   trail?: ReadonlyArray<string>
   // The pinned records, newest first.
-  pinned?: ReadonlyArray<string>
+  pinned?: ReadonlyArray<FramePin>
+  onUnpin: (recordId: string) => void
   children?: ReactNode
 }) {
   // In a narrow window the stack of pinned records opens over the main window.
@@ -85,11 +92,18 @@ export function Frame({
   const [panelOpen, setPanelOpen] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const isPinned = pinned.length > 0
-  const cards = pinned.map((record) => (
-    <a key={record} href="#" className={styles.card}>
-      <PinFilled aria-label="Pinned" className={styles.glyph} />
-      {record}
-    </a>
+  const cards = pinned.map((pin) => (
+    <Card
+      key={pin.recordId}
+      {...pin}
+      minimal
+      href="#"
+      action={{
+        label: 'Unpin',
+        icon: PinFilled,
+        onClick: () => onUnpin(pin.recordId),
+      }}
+    />
   ))
   const currentConcept = conceptPath.slice(0, PANEL_LEVELS).at(-1)
 

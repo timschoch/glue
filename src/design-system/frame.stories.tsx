@@ -10,6 +10,7 @@ const meta = {
     project: 'Bakeday',
     projects: ['Bakeday', 'Flexibeck'],
     onProjectChange: () => {},
+    onUnpin: () => {},
     section: 'Decide',
     concepts: [
       { name: 'Technique videos', concepts: ['Step videos', 'Creator videos'] },
@@ -26,7 +27,22 @@ export default meta
 export const Default: StoryObj<typeof meta> = {}
 
 export const Pinned: StoryObj<typeof meta> = {
-  args: { pinned: ['Videos are too long', 'Show each technique'] },
+  args: {
+    pinned: [
+      {
+        type: 'insight',
+        recordId: 'I7',
+        title: 'Videos are too long',
+        trust: 'flagged',
+      },
+      {
+        type: 'decision',
+        recordId: 'D12',
+        title: 'Show each technique',
+        trust: 'solid',
+      },
+    ],
+  },
 }
 
 // A narrow window, with the left panel open over the main window.

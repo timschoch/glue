@@ -4,6 +4,7 @@ import {
   Misuse,
   WarningAltFilled,
 } from '@carbon/icons-react'
+import type { CarbonIconType } from '@carbon/icons-react'
 import { Button } from '@carbon/react'
 import type { MouseEvent } from 'react'
 
@@ -66,7 +67,8 @@ export type CardProps = {
   minimal?: boolean
   href: string
   onOpen?: (event: MouseEvent<HTMLAnchorElement>) => void
-  action?: { label: string; onClick: () => void }
+  // With an icon, the button shows the icon and the label names it.
+  action?: { label: string; icon?: CarbonIconType; onClick: () => void }
 }
 
 // The card of one Part. The whole card is one click target that opens the
@@ -87,7 +89,6 @@ export function Card({
   action,
 }: CardProps) {
   const { word, Glyph } = signs[trust]
-  const button = minimal ? undefined : action
 
   return (
     <div className={styles.card}>
@@ -95,7 +96,7 @@ export function Card({
         href={href}
         onClick={onOpen}
         className={
-          button ? `${styles.target} ${styles.aboveAction}` : styles.target
+          action ? `${styles.target} ${styles.aboveAction}` : styles.target
         }
       >
         <span className={styles.signs}>
@@ -128,15 +129,26 @@ export function Card({
           </>
         )}
       </a>
-      {button && (
-        <Button
-          kind="ghost"
-          size="sm"
-          className={styles.action}
-          onClick={button.onClick}
+      {action && (
+        <div
+          className={
+            action.icon
+              ? `${styles.action} ${styles.iconAction}`
+              : styles.action
+          }
         >
-          {button.label}
-        </Button>
+          <Button
+            kind="ghost"
+            size="sm"
+            hasIconOnly={Boolean(action.icon)}
+            renderIcon={action.icon}
+            iconDescription={action.label}
+            tooltipAlignment="start"
+            onClick={action.onClick}
+          >
+            {action.icon ? undefined : action.label}
+          </Button>
+        </div>
       )}
     </div>
   )

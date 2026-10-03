@@ -2,7 +2,6 @@
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
 @use '@carbon/react/scss/type' as *;
-@use '@carbon/react/scss/utilities/focus-outline' as *;
 
 // The width of Carbon's side nav.
 $panel-width: $spacing-10 * 4;
@@ -44,7 +43,7 @@ $pinned-breakpoint: 'lg';
   gap: $spacing-03;
 }
 
-// A glyph that is no control: the arrow of the trail, the pinned sign.
+// A glyph that is no control: the arrow of the trail.
 .glyph {
   flex-shrink: 0;
   fill: $icon-secondary;
@@ -66,27 +65,6 @@ $pinned-breakpoint: 'lg';
   padding: $spacing-05;
   gap: $spacing-03;
   inline-size: $pinned-width;
-}
-
-// A pinned record: a surface on the layer below it.
-.card {
-  @include type-style('body-compact-01');
-
-  display: flex;
-  align-items: center;
-  padding: $spacing-05;
-  background-color: $layer;
-  color: $text-primary;
-  gap: $spacing-03;
-  text-decoration: none;
-
-  &:hover {
-    background-color: $layer-hover;
-  }
-
-  &:focus {
-    @include focus-outline('outline');
-  }
 }
 
 .content {
