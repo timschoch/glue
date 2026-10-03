@@ -1,8 +1,15 @@
+import { ArrowRight, PinFilled } from '@carbon/icons-react'
 import {
   Breadcrumb,
   BreadcrumbItem,
+  Button,
   Content,
+  Dropdown,
   Header,
+  Layer,
+  Link,
+  Popover,
+  PopoverContent,
   SideNav,
   SideNavDivider,
   SideNavItems,
@@ -10,7 +17,8 @@ import {
   SideNavMenu,
   SideNavMenuItem,
 } from '@carbon/react'
-import type { ReactElement, ReactNode } from 'react'
+import { useState } from 'react'
+import type { ReactNode } from 'react'
 
 import styles from './frame.module.scss'
 
@@ -42,10 +50,13 @@ function current(isCurrent: boolean) {
 }
 
 // The frame of every screen: the header with the breadcrumb, the left panel
-// with the sections and the Concepts, the main window with the trail, and the
-// right column while a record is pinned.
+// with the Project switcher, the sections and the Concepts, the main window
+// with the trail, and the right column while a record is pinned. A window
+// too narrow for the column shows the count of pins in the trail row.
 export function Frame({
   project,
+  projects,
+  onProjectChange,
   section,
   concepts,
   conceptPath,
@@ -54,6 +65,8 @@ export function Frame({
   children,
 }: {
   project: string
+  projects: ReadonlyArray<string>
+  onProjectChange: (project: string) => void
   section: Section
   concepts: ReadonlyArray<FrameConcept>
   // The open Concept and the Concepts around it, outermost first.
@@ -61,22 +74,29 @@ export function Frame({
   // The records opened on the way to the open record, the open record last.
   trail?: ReadonlyArray<string>
   // The pinned records, newest first.
-  pinned?: ReadonlyArray<ReactElement>
+  pinned?: ReadonlyArray<string>
   children?: ReactNode
 }) {
+  // In a narrow window the stack of pinned records opens over the main window.
+  const [stackOpen, setStackOpen] = useState(false)
   const isPinned = pinned.length > 0
-  const breadcrumb = [project, ...conceptPath]
+  const cards = pinned.map((record) => (
+    <a key={record} href="#" className={styles.card}>
+      <PinFilled aria-label="Pinned" className={styles.glyph} />
+      {record}
+    </a>
+  ))
   const currentConcept = conceptPath.slice(0, PANEL_LEVELS).at(-1)
 
   return (
     <>
       <Header aria-label="Glue">
         <Breadcrumb noTrailingSlash className={styles.breadcrumb}>
-          {breadcrumb.map((name, index) => (
+          {conceptPath.map((name, index) => (
             <BreadcrumbItem
               key={name}
               href="#"
-              isCurrentPage={index === breadcrumb.length - 1}
+              isCurrentPage={index === conceptPath.length - 1}
             >
               {name}
             </BreadcrumbItem>
@@ -84,6 +104,19 @@ export function Frame({
         </Breadcrumb>
       </Header>
       <SideNav aria-label="Main" isFixedNav expanded isChildOfHeader={false}>
+        <Layer className={styles.switcher}>
+          <Dropdown
+            id="project"
+            titleText="Project"
+            hideLabel
+            label="Project"
+            items={[...projects]}
+            selectedItem={project}
+            onChange={({ selectedItem }) => {
+              if (selectedItem) onProjectChange(selectedItem)
+            }}
+          />
+        </Layer>
         <SideNavItems>
           {sections.map((name) => (
             <SideNavLink key={name} href="#" {...current(name === section)}>
@@ -125,28 +158,56 @@ export function Frame({
           isPinned ? `${styles.content} ${styles.besidePinned}` : styles.content
         }
       >
-        {trail.length > 0 && (
-          <Breadcrumb
-            aria-label="Trail"
-            noTrailingSlash
-            className={styles.trail}
-          >
-            {trail.map((record, index) => (
-              <BreadcrumbItem
-                key={record}
-                href="#"
-                isCurrentPage={index === trail.length - 1}
+        {(trail.length > 0 || isPinned) && (
+          <div className={styles.trail}>
+            <nav aria-label="Trail">
+              <ol className={styles.records}>
+                {trail.map((record, index) => (
+                  <li key={record} className={styles.record}>
+                    {index > 0 && <ArrowRight className={styles.glyph} />}
+                    {index === trail.length - 1 ? (
+                      <span aria-current="page">{record}</span>
+                    ) : (
+                      <Link href="#">{record}</Link>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </nav>
+            {isPinned && (
+              <Popover
+                open={stackOpen}
+                align="bottom-end"
+                caret={false}
+                onRequestClose={() => setStackOpen(false)}
+                // Carbon closes on Escape only while the focus is in the stack.
+                onKeyDown={({ key }) => {
+                  if (key === 'Escape') setStackOpen(false)
+                }}
+                className={styles.pinCount}
               >
-                {record}
-              </BreadcrumbItem>
-            ))}
-          </Breadcrumb>
+                <Button
+                  kind="ghost"
+                  size="sm"
+                  renderIcon={PinFilled}
+                  aria-label={`${pinned.length} pinned`}
+                  aria-expanded={stackOpen}
+                  onClick={() => setStackOpen((open) => !open)}
+                >
+                  {pinned.length}
+                </Button>
+                <PopoverContent>
+                  <Layer className={styles.stack}>{cards}</Layer>
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
         )}
         {children}
       </Content>
       {isPinned && (
         <aside aria-label="Pinned" className={styles.pinned}>
-          {pinned}
+          {cards}
         </aside>
       )}
     </>
