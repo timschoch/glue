@@ -9,14 +9,15 @@ import {
   addDecision,
   discardInsight,
   goalChangeSchema,
-  InvalidRecordError,
   keepInsight,
   updateGoal,
 } from './concept-records.ts'
 import type { DecisionChange } from './concept-records.ts'
-import { findConcept, findRecord, listProducts } from './concept.ts'
 import { recordInputSchema } from './decision-proposal.ts'
 import type { ProposalInput, RecordInput } from './decision-proposal.ts'
+import { findConcept, findRecord } from './legacy-records.ts'
+import { listProjects } from './parts.ts'
+import { InvalidRecordError } from './record-errors.ts'
 
 // A person closes a Goal as achieved or opens it again. The app changes the
 // status only, with the rule of the HTTP API. The measure stays.
@@ -66,7 +67,7 @@ export function createConceptActions({
   }
 
   return {
-    listProducts: withSession((db) => listProducts(db)),
+    listProducts: withSession((db) => listProjects(db)),
 
     findConcept: withSession((db, product: string) => findConcept(db, product)),
 

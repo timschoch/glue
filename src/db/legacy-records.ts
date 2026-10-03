@@ -1,15 +1,15 @@
 import type { SQL } from 'drizzle-orm'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import type { ConceptDb } from './client.ts'
-import { ProductNotFoundError } from './concept-records.ts'
+import { CONCEPT_FIELDS } from './concept-fields.ts'
 import type {
   ConceptFolder,
   ConceptListRow,
   ConceptShowResult,
 } from './concept-records.ts'
-import { findProduct, sortById } from './concept.ts'
+import { findProduct, getProjectId } from './concept.ts'
 import type {
   Concept,
   Decision,
@@ -18,7 +18,7 @@ import type {
   Insight,
   RecordReference,
 } from './concept.ts'
-import { isRecordId } from './record-id.ts'
+import { sortById, typeOfRecordId } from './record-id.ts'
 import * as schema from './schema.ts'
 
 // The record shapes of today, read from the tables of the Part model. The
@@ -68,7 +68,7 @@ async function listDecisionLinks(db: ConceptDb, matches: SQL | undefined) {
     .where(
       and(
         eq(parts.type, 'decision'),
-        inArray(needed.type, ['goal', 'insight', 'guardrail']),
+        inArray(needed.type, ['goal', ...schema.evidenceTypes]),
         matches,
       ),
     )
@@ -295,14 +295,14 @@ type Finder = (
   recordId: string,
 ) => Promise<LegacyRecord | undefined>
 
-// The first letter of a record id names the type of the record. F is the
-// letter of a Flow now, and the id of a Fact is dropped (D38). So an F id
-// has no record of today.
-const finders: Partial<Record<string, Finder>> = {
-  G: findGoal,
-  D: findDecision,
-  I: findInsight,
-  R: findGuardrail,
+// The Part types that have a record shape of today. F is the letter of a
+// Flow now, and the id of a Fact is dropped (D38). So an F id has no record
+// of today.
+const finders: Partial<Record<schema.PartType, Finder>> = {
+  goal: findGoal,
+  decision: findDecision,
+  insight: findInsight,
+  guardrail: findGuardrail,
 }
 
 export async function findRecord(
@@ -310,11 +310,12 @@ export async function findRecord(
   projectSlug: string,
   recordId: string,
 ): Promise<LegacyRecord | undefined> {
-  if (!isRecordId(recordId)) return undefined
+  const find = finders[typeOfRecordId(recordId) ?? 'flow']
+  if (!find) return undefined
   const project = await findProduct(db, projectSlug)
   if (!project) return undefined
 
-  return finders[recordId[0]]?.(db, project.id, recordId)
+  return find(db, project.id, recordId)
 }
 
 // The open Goals with a measure, each with the Project that holds it: of all
@@ -363,22 +364,6 @@ export async function listAcceptedDecisions(
   return sortById(accepted)
 }
 
-// The status of each Decision of the Project, with the id of the Decision
-// that superseded it.
-export function listDecisionStatuses(db: ConceptDb, projectSlug: string) {
-  const supersededBy = alias(parts, 'superseded_by')
-  return db
-    .select({
-      id: parts.recordId,
-      status: decisionStatus,
-      supersededById: supersededBy.recordId,
-    })
-    .from(parts)
-    .innerJoin(projects, eq(parts.projectId, projects.id))
-    .leftJoin(supersededBy, eq(supersededBy.id, parts.supersededById))
-    .where(and(eq(projects.slug, projectSlug), eq(parts.type, 'decision')))
-}
-
 // The id of the Insight of the Project with this source, or null.
 export async function findInsightIdBySource(
   db: ConceptDb,
@@ -402,35 +387,38 @@ export function listInsightSources(db: ConceptDb, projectSlug: string) {
     .where(and(eq(projects.slug, projectSlug), eq(parts.type, 'insight')))
 }
 
-async function getProjectId(db: ConceptDb, projectSlug: string) {
-  const project = await findProduct(db, projectSlug)
-  if (!project) throw new ProductNotFoundError(projectSlug)
-  return project.id
-}
-
 // The folders of today in the order of the list, each with its Part type.
-// The folder of the Facts has none.
-const FOLDER_TYPES: [ConceptFolder, schema.PartType][] = [
-  ['goals', 'goal'],
-  ['decisions', 'decision'],
-  ['insights', 'insight'],
-  ['guardrails', 'guardrail'],
-]
+const FOLDER_TYPES = Object.entries(CONCEPT_FIELDS).map(
+  ([folder, { type }]) => ({ folder, type }),
+)
 
+// The list leaves out what the show does not find: a Decision without a
+// Goal has no shape of today.
 export async function listConceptRecords(
   db: ConceptDb,
   projectSlug: string,
   folder?: ConceptFolder,
 ): Promise<ConceptListRow[]> {
   const projectId = await getProjectId(db, projectSlug)
+  const hasGoal = sql`exists (
+    select 1 from "joints" as joint, "parts" as needed
+    where joint."part_id" = ${parts.id}
+      and needed."id" = joint."needed_part_id"
+      and needed."type" = 'goal'
+  )`
   const rows = await db
     .select({ type: parts.type, ...reference, status: parts.status })
     .from(parts)
-    .where(eq(parts.projectId, projectId))
+    .where(
+      and(
+        eq(parts.projectId, projectId),
+        or(ne(parts.type, 'decision'), hasGoal),
+      ),
+    )
 
   return FOLDER_TYPES.filter(
-    ([listed]) => folder === undefined || listed === folder,
-  ).flatMap(([, type]) =>
+    (listed) => folder === undefined || listed.folder === folder,
+  ).flatMap(({ type }) =>
     sortById(
       rows
         .filter((row) => row.type === type)
@@ -503,22 +491,12 @@ async function showGuardrail(
   return { fields, body }
 }
 
-// The folder of the Facts has no entry: an F id is a Concept id of today,
-// and it resolves to nothing (D38).
+// The folder of the Facts has no entry: Fact is no longer a type (D26).
 const showers: Partial<Record<ConceptFolder, typeof showGoal>> = {
   goals: showGoal,
   decisions: showDecision,
   insights: showInsight,
   guardrails: showGuardrail,
-}
-
-// The folder of today that the first letter of a record id names.
-const FOLDER_BY_LETTER: Partial<Record<string, ConceptFolder>> = {
-  G: 'goals',
-  D: 'decisions',
-  I: 'insights',
-  F: 'facts',
-  R: 'guardrails',
 }
 
 export async function showConceptRecord(
@@ -527,10 +505,15 @@ export async function showConceptRecord(
   id: string,
 ): Promise<ConceptShowResult> {
   const projectId = await getProjectId(db, projectSlug)
-  const folder = FOLDER_BY_LETTER[id[0]]
-  if (!folder) throw new Error(`"${id}" is not a Concept id`)
+  const type = typeOfRecordId(id)
+  if (!type) throw new Error(`"${id}" is not a Concept id`)
 
-  const record = await showers[folder]?.(db, projectId, id)
-  if (!record) throw new Error(`"${id}" not found`)
+  // An Entity, a Flow and a Metric have no folder: these views do not show
+  // them.
+  const folder = (Object.keys(showers) as ConceptFolder[]).find(
+    (shown) => CONCEPT_FIELDS[shown].type === type,
+  )
+  const record = folder && (await showers[folder]?.(db, projectId, id))
+  if (!folder || !record) throw new Error(`"${id}" not found`)
   return { id, folder, ...record }
 }

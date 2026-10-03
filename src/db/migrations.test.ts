@@ -7,6 +7,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { addConceptRecord } from './concept-records.ts'
 import { kinds } from './kinds.ts'
+import { findRecord } from './legacy-records.ts'
+import { addPart } from './part-records.ts'
+import { findPart, findProject, listParts } from './parts.ts'
 import * as schema from './schema.ts'
 import { findProductByToken } from './tokens.ts'
 
@@ -14,6 +17,7 @@ const countersMigration = '0005_record_counters.sql'
 const goalStatusMigration = '0006_goal_mean_status.sql'
 const projectsMigration = '0009_projects.sql'
 const partTablesMigration = '0010_part_tables.sql'
+const cutoverMigration = '0011_part_model_cutover.sql'
 
 let client: PGlite
 
@@ -75,8 +79,8 @@ describe('the migration that adds the record counters', () => {
   it('gives the next record the number after the highest one', async () => {
     await client.exec(`
       insert into products (slug, name) values ('glue', 'Glue');
-      insert into facts (product_id, record_id, title, source) values
-        (1, 'F2', 'An export is one request', 'API contract');
+      insert into insights (product_id, record_id, title, date, source) values
+        (1, 'I2', 'An export is one request', '2026-09-01', 'API contract');
     `)
 
     await runMigration(countersMigration)
@@ -85,11 +89,11 @@ describe('the migration that adds the record counters', () => {
     const id = await addConceptRecord(
       drizzle(client, { schema }),
       'glue',
-      'facts',
+      'insights',
       { title: 'CI takes ten minutes', source: 'verify ci' },
       '',
     )
-    expect(id).toBe('F3')
+    expect(id).toBe('I3')
   })
 })
 
@@ -456,5 +460,367 @@ describe('the migration that adds the tables of the Part model', () => {
         parts_insert: false,
       },
     ])
+  })
+})
+
+describe('the migration that copies the records into the Part model', () => {
+  // Project 1 is glue, Project 2 is flexibeck.
+  // glue: the Facts F10, F2 and F1 have the row ids 1, 2 and 3. D35 makes F2
+  // a Guardrail. The Insight counter is at 5, above the highest id I2.
+  // The Decision D2 superseded D1 and has the evidence F2, I1, F10, I2, F1.
+  // flexibeck: D35 makes F2 a Guardrail and F10 a Hunch.
+  beforeEach(async () => {
+    await runMigrationsBefore(cutoverMigration)
+    await client.exec(`
+      insert into projects (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
+      insert into goals (product_id, record_id, title, metric, source, status, measure, baseline, latest_value, latest_breakdown_value, measured_at, body) values
+        (1, 'G1', 'More users pay', 'signup to paid', 'okr', 'open',
+          '{"kind":"funnel","source":"mock-analytics","steps":["signed-up","paid"],"target":0.2,"window_days":7}',
+          4.2, 5.1, 'v2', '2026-10-02T06:00:00Z', ''),
+        (1, 'G2', 'Ship faster', 'lead time', 'okr', 'achieved', null, null, null, null, null, ''),
+        (2, 'G1', 'Plans fit the day', 'plans accepted', 'vision', 'open', null, null, null, null, null, 'Stay within F2.');
+      insert into insights (product_id, record_id, title, date, source, status, body) values
+        (1, 'I1', 'Bakers want step videos', '2026-09-01', 'interview', null, ''),
+        (1, 'I2', 'The build failed on a type error', '2026-09-02', 'verify ci', 'draft', 'See F2 and F10, not PDF2 or F100.');
+      insert into facts (product_id, record_id, title, source, body) values
+        (1, 'F10', 'Glue has its Concept in a database', 'README', 'Since ring 1.'),
+        (1, 'F2', 'Findings go back as Insights', 'CLAUDE.md', ''),
+        (1, 'F1', 'Files in the repo are fine', 'ring 0', ''),
+        (2, 'F2', 'AI only structures input', 'vision', ''),
+        (2, 'F3', 'A recipe is a tree of steps', 'vision', ''),
+        (2, 'F10', 'Home bakers with jobs', 'vision', '');
+      insert into guardrails (product_id, record_id, title, enforced_by, body) values
+        (1, 'R1', 'Budget 0', 'the Owner', '');
+      insert into decisions (product_id, record_id, title, date, owner, status, goal_id, body, issue_url) values
+        (1, 'D1', 'Show a photo', '2026-09-03', 'Tim', 'superseded', 1, '', null),
+        (1, 'D2', 'Show the video of the creator', '2026-09-04', 'Tim', 'accepted', 1,
+          'Builds on F1, F2 and F10.', 'https://github.com/timschoch/glue/issues/7'),
+        (2, 'D1', 'Plan from the finish time', '2026-09-05', 'Ada', 'proposed', 3, '', null);
+      update decisions set superseded_by_id = 2 where id = 1;
+      insert into decision_evidence (decision_id, insight_id, fact_id) values
+        (1, 1, null),
+        (2, null, 2),
+        (2, 1, null),
+        (2, null, 1),
+        (2, 2, null),
+        (2, null, 3),
+        (3, null, 6),
+        (3, null, 5);
+      insert into record_counters (product_id, folder, last_number) values
+        (1, 'insights', 5),
+        (1, 'decisions', 1),
+        (1, 'facts', 10),
+        (2, 'facts', 10);
+    `)
+    await runMigration(cutoverMigration)
+  })
+
+  const today = () => new Date().toISOString().slice(0, 10)
+
+  it('gives each Project one root Concept that holds its Parts', async () => {
+    const db = drizzle(client, { schema })
+
+    expect(await findProject(db, 'glue')).toEqual({
+      slug: 'glue',
+      name: 'Glue',
+      concept: {
+        slug: 'glue',
+        title: 'Glue',
+        kind: null,
+        partCount: 10,
+        concepts: [],
+      },
+    })
+    expect((await findProject(db, 'flexibeck'))?.concept.partCount).toBe(5)
+  })
+
+  it('keeps each record id, and gives each Fact the next id of its new type in Fact number order', async () => {
+    const db = drizzle(client, { schema })
+
+    const glue = await listParts(db, 'glue')
+    expect(glue.map(({ id, type, status }) => [id, type, status])).toEqual([
+      ['I1', 'insight', null],
+      ['I2', 'insight', 'draft'],
+      ['I6', 'insight', null],
+      ['I7', 'insight', null],
+      ['G1', 'goal', 'open'],
+      ['G2', 'goal', 'achieved'],
+      ['D1', 'decision', 'superseded'],
+      ['D2', 'decision', 'accepted'],
+      ['R1', 'guardrail', null],
+      ['R2', 'guardrail', null],
+    ])
+    const flexibeck = await listParts(db, 'flexibeck')
+    expect(flexibeck.map(({ id, title }) => [id, title])).toEqual([
+      ['I1', 'A recipe is a tree of steps'],
+      ['I2', 'Home bakers with jobs'],
+      ['G1', 'Plans fit the day'],
+      ['D1', 'Plan from the finish time'],
+      ['R1', 'AI only structures input'],
+    ])
+  })
+
+  it('turns a Fact into a Confirmed Insight with its source and body', async () => {
+    const db = drizzle(client, { schema })
+
+    expect(await findPart(db, 'glue', 'I7')).toMatchObject({
+      type: 'insight',
+      title: 'Glue has its Concept in a database',
+      status: null,
+      source: 'README',
+      body: 'Since ring 1.',
+      date: today(),
+      evidenceLevel: 'confirmed',
+    })
+    expect(await findPart(db, 'glue', 'I6')).toMatchObject({
+      title: 'Files in the repo are fine',
+      evidenceLevel: 'confirmed',
+    })
+  })
+
+  it('turns a Fact of the list of D35 into a Guardrail or a Hunch', async () => {
+    const db = drizzle(client, { schema })
+
+    expect(await findPart(db, 'glue', 'R2')).toMatchObject({
+      type: 'guardrail',
+      title: 'Findings go back as Insights',
+      status: null,
+      source: 'CLAUDE.md',
+      enforcedBy: 'the merge gate and pnpm collect-insights',
+      evidenceLevel: null,
+    })
+    expect(await findPart(db, 'flexibeck', 'R1')).toMatchObject({
+      type: 'guardrail',
+      enforcedBy: 'not enforced yet',
+    })
+    expect(await findPart(db, 'flexibeck', 'I2')).toMatchObject({
+      type: 'insight',
+      evidenceLevel: 'hunch',
+    })
+    expect(await findPart(db, 'glue', 'I1')).toMatchObject({
+      date: '2026-09-01',
+      evidenceLevel: null,
+    })
+  })
+
+  it('glues each Decision to its Goal and to its evidence in the old order', async () => {
+    const db = drizzle(client, { schema })
+
+    const decision = await findPart(db, 'glue', 'D2')
+    expect(decision?.needs.map(({ part }) => part.id)).toEqual([
+      'G1',
+      'R2',
+      'I1',
+      'I7',
+      'I2',
+      'I6',
+    ])
+    expect(await findRecord(db, 'glue', 'D2')).toMatchObject({
+      date: '2026-09-04',
+      owner: 'Tim',
+      status: 'accepted',
+      issueUrl: 'https://github.com/timschoch/glue/issues/7',
+      goal: { id: 'G1', title: 'More users pay' },
+      evidence: [
+        { id: 'R2', title: 'Findings go back as Insights' },
+        { id: 'I1', title: 'Bakers want step videos' },
+        { id: 'I7', title: 'Glue has its Concept in a database' },
+        { id: 'I2', title: 'The build failed on a type error' },
+        { id: 'I6', title: 'Files in the repo are fine' },
+      ],
+    })
+    expect(await findRecord(db, 'flexibeck', 'D1')).toMatchObject({
+      goal: { id: 'G1', title: 'Plans fit the day' },
+      evidence: [
+        { id: 'I2', title: 'Home bakers with jobs' },
+        { id: 'I1', title: 'A recipe is a tree of steps' },
+      ],
+    })
+  })
+
+  it('keeps the Decision that superseded a Decision', async () => {
+    const db = drizzle(client, { schema })
+
+    expect(await findRecord(db, 'glue', 'D1')).toMatchObject({
+      status: 'superseded',
+      supersededBy: { id: 'D2', title: 'Show the video of the creator' },
+      evidence: [{ id: 'I1', title: 'Bakers want step videos' }],
+    })
+    expect(await findRecord(db, 'glue', 'D2')).toMatchObject({
+      supersededBy: null,
+      supersedes: [{ id: 'D1', title: 'Show a photo' }],
+    })
+  })
+
+  it('moves the measure and the readings of a Goal', async () => {
+    const db = drizzle(client, { schema })
+
+    expect(await findRecord(db, 'glue', 'G1')).toMatchObject({
+      metric: 'signup to paid',
+      source: 'okr',
+      status: 'open',
+      measure: {
+        kind: 'funnel',
+        source: 'mock-analytics',
+        steps: ['signed-up', 'paid'],
+        target: 0.2,
+        window_days: 7,
+      },
+      baseline: 4.2,
+      latestValue: 5.1,
+      latestBreakdownValue: 'v2',
+      measuredAt: '2026-10-02T06:00:00.000Z',
+    })
+    expect(await findRecord(db, 'glue', 'G2')).toMatchObject({
+      status: 'achieved',
+      measure: null,
+      measuredAt: null,
+    })
+  })
+
+  it('rewrites each old Fact id in a body to the new id in its Project', async () => {
+    const db = drizzle(client, { schema })
+
+    expect((await findPart(db, 'glue', 'D2'))?.body).toBe(
+      'Builds on I6, R2 and I7.',
+    )
+    expect((await findPart(db, 'glue', 'I2'))?.body).toBe(
+      'See R2 and I7, not PDF2 or F100.',
+    )
+    expect((await findPart(db, 'flexibeck', 'G1'))?.body).toBe(
+      'Stay within R1.',
+    )
+  })
+
+  it('starts each counter at the highest number that its type had', async () => {
+    const db = drizzle(client, { schema })
+
+    const insight = await addPart(db, 'glue', {
+      type: 'insight',
+      title: 'Bakers skip the long text',
+      source: 'interview',
+    })
+    const guardrail = await addPart(db, 'glue', {
+      type: 'guardrail',
+      title: 'Only the videos of the creator',
+      enforcedBy: 'review',
+    })
+    const decision = await addPart(db, 'glue', {
+      type: 'decision',
+      title: 'Show the steps as a list',
+      owner: 'Tim',
+      status: 'proposed',
+      needs: ['G1', 'I1'],
+    })
+    const goal = await addPart(db, 'flexibeck', {
+      type: 'goal',
+      title: 'Bakers come back',
+      metric: 'second plan',
+      source: 'vision',
+    })
+    const flow = await addPart(db, 'glue', {
+      type: 'flow',
+      title: 'Watch a technique while baking',
+    })
+
+    expect([insight, guardrail, decision, goal, flow]).toEqual([
+      'I8',
+      'R3',
+      'D3',
+      'G2',
+      'F1',
+    ])
+  })
+
+  it.each([
+    `insert into goals (product_id, record_id, title, metric, source) values (1, 'G3', 'Fewer errors', 'error rate', 'okr')`,
+    `update decisions set status = 'accepted' where record_id = 'D1'`,
+    `delete from insights where record_id = 'I2'`,
+    `insert into facts (product_id, record_id, title, source) values (1, 'F11', 'CI takes ten minutes', 'verify ci')`,
+    `update guardrails set title = 'Budget 5'`,
+    `delete from decision_evidence`,
+    `update record_counters set last_number = last_number + 1`,
+  ])('refuses the write to an old table: %s', async (write) => {
+    await expect(client.exec(write)).rejects.toThrow(
+      /is read-only: the Part model holds the records now/,
+    )
+  })
+
+  it('still lets the code from before the migration read the old tables', async () => {
+    const counts = await client.query(`
+      select
+        (select count(*)::integer from goals) as goals,
+        (select count(*)::integer from decisions) as decisions,
+        (select count(*)::integer from insights) as insights,
+        (select count(*)::integer from facts) as facts,
+        (select count(*)::integer from guardrails) as guardrails,
+        (select count(*)::integer from decision_evidence) as decision_evidence,
+        (select count(*)::integer from products) as products
+    `)
+    expect(counts.rows).toEqual([
+      {
+        goals: 3,
+        decisions: 3,
+        insights: 2,
+        facts: 6,
+        guardrails: 1,
+        decision_evidence: 8,
+        products: 2,
+      },
+    ])
+  })
+
+  // The label of each row that the rehearsal checks return.
+  async function rehearse() {
+    const checks = await client.exec(
+      await readFile('./scripts/rehearse-cutover.sql', 'utf8'),
+    )
+    expect(checks).toHaveLength(5)
+    return checks.flatMap(({ rows }) =>
+      rows.map((row) => (row as { label: string }).label),
+    )
+  }
+
+  it('passes each check of the rehearsal', async () => {
+    expect(await rehearse()).toEqual([])
+  })
+
+  it('fails the check of the rehearsal for each thing that is wrong', async () => {
+    // The Joints 2 and 3 of glue: D2 needs G1, D2 needs R2.
+    await client.exec(`
+      delete from parts where project_id = 1 and record_id = 'R1';
+      delete from joints where id in (2, 3);
+      update parts set body = 'See F10.' where project_id = 1 and record_id = 'G2';
+      update part_counters set last_number = 1 where project_id = 1 and type = 'insight';
+    `)
+
+    expect(await rehearse()).toEqual([
+      'the row count of a type differs',
+      'a Decision has no Joint to its Goal',
+      'the evidence of a Decision differs',
+      'a body names the old id of a Fact',
+      'a counter is below the highest number of its type',
+    ])
+  })
+
+  it('refuses a record id that is not one letter and a number', async () => {
+    const other = new PGlite()
+    try {
+      for (const file of await listMigrations()) {
+        if (file < cutoverMigration)
+          await other.exec(await readFile(`./drizzle/${file}`, 'utf8'))
+      }
+      await other.exec(`
+        insert into projects (slug, name) values ('glue', 'Glue');
+        insert into guardrails (product_id, record_id, title, enforced_by) values
+          (1, 'R-1', 'Budget 0', 'the Owner');
+      `)
+
+      await expect(
+        other.exec(await readFile(`./drizzle/${cutoverMigration}`, 'utf8')),
+      ).rejects.toThrow(/record id "R-1"/)
+    } finally {
+      await other.close()
+    }
   })
 })

@@ -3,14 +3,13 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { ProductNotFoundError } from './concept-records.ts'
+import { ProductNotFoundError } from './record-errors.ts'
 import {
   findConcept,
   findInsightIdBySource,
   findRecord,
   listAcceptedDecisions,
   listConceptRecords,
-  listDecisionStatuses,
   listGoalsWithMeasure,
   listInsightSources,
   showConceptRecord,
@@ -345,23 +344,6 @@ describe('listAcceptedDecisions', () => {
   })
 })
 
-describe('listDecisionStatuses', () => {
-  it('lists the status of each Decision, with the id of the Decision that superseded it', async () => {
-    await addParts()
-    await addReplacement()
-
-    const statuses = await listDecisionStatuses(db, 'glue')
-
-    expect(
-      statuses.sort((left, right) => left.id.localeCompare(right.id)),
-    ).toEqual([
-      { id: 'D1', status: 'superseded', supersededById: 'D2' },
-      { id: 'D2', status: 'accepted', supersededById: null },
-    ])
-    expect(await listDecisionStatuses(db, 'flexibeck')).toEqual([])
-  })
-})
-
 describe('findInsightIdBySource', () => {
   it('returns the id of the Insight of the Project with the source', async () => {
     await addParts()
@@ -420,6 +402,22 @@ describe('listConceptRecords', () => {
     const rows = await listConceptRecords(db, 'glue', 'guardrails')
 
     expect(rows.map(({ id }) => id)).toEqual(['R1', 'R2', 'R10'])
+  })
+
+  // The other reads leave such a Decision out too: the list must not name a
+  // record that show cannot find.
+  it('leaves out a Decision that needs no Goal', async () => {
+    await addParts()
+    await client.exec(`
+      insert into parts (project_id, concept_id, type, record_id, title, status, date, owner) values
+        (1, 1, 'decision', 'D2', 'Cache every page', 'proposed', '2026-02-01', 'tim');
+      insert into joints (part_id, needed_part_id) values (6, 2);
+    `)
+
+    const rows = await listConceptRecords(db, 'glue', 'decisions')
+
+    expect(rows.map(({ id }) => id)).toEqual(['D1'])
+    expect(await findRecord(db, 'glue', 'D2')).toBeUndefined()
   })
 
   it('lists no Facts: a Fact is no longer a type', async () => {

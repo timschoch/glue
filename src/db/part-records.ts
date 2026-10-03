@@ -1,15 +1,18 @@
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
-import { InvalidRecordError, ProductNotFoundError } from './concept-records.ts'
+import { getProjectId } from './concept.ts'
 import { goalMeasureSchema } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import { kinds } from './kinds.ts'
 import type { Kind } from './kinds.ts'
+import { InvalidRecordError, isUniqueViolation } from './record-errors.ts'
+import { RECORD_LETTERS, typeOfRecordId } from './record-id.ts'
 import * as schema from './schema.ts'
 
-// The write side of the Part model. No code calls it yet.
+// The write side of the Part model.
 //
 // The Neon HTTP driver has no transaction of its own. Thus each function
 // writes with one statement, so a network failure never leaves a part of
@@ -26,32 +29,31 @@ function parseInput<TOutput>(inputSchema: z.ZodType<TOutput>, input: unknown) {
   return parsed.data
 }
 
-async function findProjectId(db: ConceptDb, projectSlug: string) {
-  const projects = await db
-    .select({ id: schema.projects.id })
-    .from(schema.projects)
-    .where(eq(schema.projects.slug, projectSlug))
-  if (projects.length === 0) throw new ProductNotFoundError(projectSlug)
-  return projects[0].id
-}
+// The rows of a statement that gives back the row id of what it wrote.
+const idRowsSchema = z.object({ rows: z.array(z.object({ id: z.number() })) })
 
 // Adds the Project when it does not exist, and its root Concept when it has
-// none. The root takes the slug and the name of the Project.
+// none. The root takes the slug and the name of the Project. Gives back the
+// row id of the Project.
 export async function addProject(
   db: ConceptDb,
   projectSlug: string,
-): Promise<void> {
-  await db.execute(sql`
+): Promise<number> {
+  const result = await db.execute(sql`
     with project as (
       insert into "projects" ("slug", "name")
       values (${projectSlug}::text, ${projectSlug}::text)
       on conflict ("slug") do update set "slug" = excluded."slug"
       returning "id", "slug", "name"
+    ),
+    root as (
+      insert into "concepts" ("project_id", "slug", "title")
+      select "id", "slug", "name" from project
+      on conflict ("project_id") where "parent_id" is null do nothing
     )
-    insert into "concepts" ("project_id", "slug", "title")
-    select "id", "slug", "name" from project
-    on conflict ("project_id") where "parent_id" is null do nothing
+    select "id" from project
   `)
+  return idRowsSchema.parse(result).rows[0].id
 }
 
 const conceptSchema = z.strictObject({
@@ -97,7 +99,7 @@ export async function addConcept(
   concept: NewConcept,
 ): Promise<string> {
   const { slug, title, kind, parent } = parseInput(conceptSchema, concept)
-  const projectId = await findProjectId(db, projectSlug)
+  const projectId = await getProjectId(db, projectSlug)
   const parentId = await findConceptId(db, projectId, parent)
   const added = await db
     .insert(schema.concepts)
@@ -107,17 +109,6 @@ export async function addConcept(
   if (added.length === 0)
     throw new InvalidRecordError(`concept "${slug}" exists already`)
   return added[0].slug
-}
-
-// The first letter of the record id of each Part type (D38).
-const PREFIXES: Record<schema.PartType, string> = {
-  insight: 'I',
-  goal: 'G',
-  decision: 'D',
-  guardrail: 'R',
-  entity: 'E',
-  flow: 'F',
-  metric: 'M',
 }
 
 const date = z.iso.date()
@@ -131,9 +122,17 @@ const commonFields = {
 
 const plainSchema = z.strictObject(commonFields)
 
+// How Glue measures a Goal or a Metric. It goes in with the Part, as one
+// statement.
+const measure = goalMeasureSchema.optional()
+
+// A new measure reads another metric, so it removes the readings. null:
+// Glue stops measuring the Part.
+const measureChange = { measure: goalMeasureSchema.nullable().optional() }
+
 // The fields of each Part type. The check `parts_type_fields_check` holds
-// the same rules. A Decision becomes superseded by its successor only, so
-// that status is not a field value.
+// the same rules. A Decision is superseded only with its successor: see
+// `supersededBy` in placeSchema.
 const fieldSchemas = {
   insight: z.strictObject({
     ...commonFields,
@@ -147,31 +146,37 @@ const fieldSchemas = {
     source: text,
     metric: text,
     status: z.enum(schema.goalStatuses).optional(),
+    measure,
   }),
   decision: z.strictObject({
     ...commonFields,
     owner: text,
     date: date.optional(),
-    status: z.enum(['proposed', 'accepted']),
+    status: z.enum(schema.decisionStatuses),
     issueUrl: z.url().nullable().optional(),
   }),
   guardrail: z.strictObject({ ...commonFields, enforcedBy: text }),
   entity: plainSchema,
   flow: plainSchema,
-  metric: plainSchema,
+  metric: z.strictObject({ ...commonFields, measure }),
 }
 
+// A Decision that exists becomes superseded through supersedeDecision, so
+// that status is not a value of a change.
 const changeSchemas = {
   insight: fieldSchemas.insight.partial(),
-  goal: fieldSchemas.goal.partial(),
-  decision: fieldSchemas.decision.partial(),
+  goal: fieldSchemas.goal.partial().extend(measureChange),
+  decision: fieldSchemas.decision
+    .partial()
+    .extend({ status: z.enum(['proposed', 'accepted']).optional() }),
   guardrail: fieldSchemas.guardrail.partial(),
   entity: plainSchema.partial(),
   flow: plainSchema.partial(),
-  metric: plainSchema.partial(),
+  metric: fieldSchemas.metric.partial().extend(measureChange),
 }
 
-// The fields of all types as one shape: what a row of `parts` takes.
+// The fields of all types as one shape: what a row of `parts` takes, and
+// the measure of the Part.
 type PartFields = {
   title: string
   body?: string
@@ -183,6 +188,7 @@ type PartFields = {
   enforcedBy?: string
   issueUrl?: string | null
   evidenceLevel?: schema.EvidenceLevel | null
+  measure?: GoalMeasure | null
 }
 
 const partSchemas: Record<schema.PartType, z.ZodType<PartFields>> = fieldSchemas
@@ -204,6 +210,10 @@ const placeSchema = z.object({
   supersedes: z.string().optional().meta({
     description: 'The record id of the Decision that it replaces',
   }),
+  supersededBy: z.string().optional().meta({
+    description:
+      'The record id of the Decision that replaced it. It goes with the status superseded',
+  }),
 })
 
 type Place = Omit<z.input<typeof placeSchema>, 'type'>
@@ -216,6 +226,14 @@ export type NewPart = {
 export type PartChange = {
   [Type in schema.PartType]: z.input<(typeof changeSchemas)[Type]>
 }[schema.PartType]
+
+// The letter of a record id names the type, so the error names it too.
+function toNotFoundError(recordId: string) {
+  const type = typeOfRecordId(recordId)
+  return new InvalidRecordError(
+    type ? `${type} "${recordId}" not found` : `"${recordId}" not found`,
+  )
+}
 
 // The Parts of the record ids in the Project, in the order of the ids.
 async function findParts(
@@ -237,13 +255,13 @@ async function findParts(
     )
   return recordIds.map((recordId) => {
     const part = found.find((row) => row.recordId === recordId)
-    if (!part) throw new InvalidRecordError(`"${recordId}" not found`)
+    if (!part) throw toNotFoundError(recordId)
     return part
   })
 }
 
-async function findPart(db: ConceptDb, projectSlug: string, recordId: string) {
-  const projectId = await findProjectId(db, projectSlug)
+async function getPart(db: ConceptDb, projectSlug: string, recordId: string) {
+  const projectId = await getProjectId(db, projectSlug)
   const [part] = await findParts(db, projectId, [recordId])
   return part
 }
@@ -259,15 +277,153 @@ async function findDecision(
   return part
 }
 
-const EVIDENCE_TYPES: schema.PartType[] = ['insight', 'guardrail']
+const evidenceTypes: readonly schema.PartType[] = schema.evidenceTypes
 
-function todayUtc() {
+export function todayUtc() {
   return new Date().toISOString().slice(0, 10)
 }
 
 const addedPartSchema = z.object({
   rows: z.array(z.object({ record_id: z.string() })),
 })
+
+// A row of `parts`, with what goes in with it as one statement.
+type PartRow = {
+  projectId: number
+  conceptId: number
+  type: schema.PartType
+  fields: PartFields
+  // The row ids of the Parts that it needs, in the order of their Joints.
+  neededPartIds?: number[]
+  // The row id of the Decision that it supersedes.
+  supersedesId?: number
+  // The row id of the Decision that superseded it.
+  supersededById?: number
+}
+
+// Adds the Part, and gives back its record id. `gate` is a common table
+// expression with the name "gate": the Part goes in only when the gate gives
+// a row. null: the gate gave no row, and nothing changed.
+async function addPartRow(
+  db: ConceptDb,
+  row: PartRow,
+  gate?: SQL,
+): Promise<string | null> {
+  const { projectId, conceptId, type, fields, neededPartIds = [] } = row
+  const { supersedesId, supersededById } = row
+  const status = fields.status ?? (type === 'goal' ? 'open' : null)
+  const isDated = type === 'decision' || type === 'insight'
+
+  // The statement locks the Decision that it supersedes and adds nothing
+  // when that Decision is superseded already. Thus the second of two
+  // requests that supersede the same Decision changes nothing.
+  const partGate =
+    supersedesId === undefined
+      ? gate
+      : sql`gate as (
+          select "id" from "parts"
+          where "id" = ${supersedesId}::integer and "status" <> 'superseded'
+          for update
+        )`
+  // The Joints go in by their position, so their ids keep the order.
+  const neededValues = sql.join(
+    neededPartIds.map(
+      (neededPartId, position) =>
+        sql`(${position}::integer, ${neededPartId}::integer)`,
+    ),
+    sql`, `,
+  )
+  // The counter only grows, so the id of a deleted Part does not come back,
+  // and two statements never read the same number. A row that went in
+  // without the counter can have a higher number. Thus the step starts from
+  // the higher of the counter and the highest id.
+  const statement = sql`
+    with ${partGate === undefined ? sql`` : sql`${partGate},`}
+    counter as (
+      insert into "part_counters" ("project_id", "type", "last_number")
+      select
+        ${projectId}::integer,
+        ${type}::text,
+        (
+          select coalesce(max(substring("record_id" from 2)::integer), 0) + 1
+          from "parts"
+          where "project_id" = ${projectId}::integer and "type" = ${type}::text
+        )
+      ${partGate === undefined ? sql`` : sql`from gate`}
+      on conflict ("project_id", "type")
+      do update set "last_number" =
+        greatest("part_counters"."last_number", excluded."last_number" - 1) + 1
+      returning "last_number"
+    ),
+    added_part as (
+      insert into "parts" (
+        "project_id", "concept_id", "type", "record_id", "title", "body",
+        "owner", "status", "date", "source", "metric", "enforced_by",
+        "issue_url", "evidence_level", "superseded_by_id"
+      )
+      select
+        ${projectId}::integer,
+        ${conceptId}::integer,
+        ${type}::text,
+        ${RECORD_LETTERS[type]}::text || "last_number",
+        ${fields.title}::text,
+        ${fields.body ?? ''}::text,
+        ${fields.owner ?? null}::text,
+        ${status}::text,
+        ${fields.date ?? (isDated ? todayUtc() : null)}::date,
+        ${fields.source ?? null}::text,
+        ${fields.metric ?? null}::text,
+        ${fields.enforcedBy ?? null}::text,
+        ${fields.issueUrl ?? null}::text,
+        ${fields.evidenceLevel ?? null}::text,
+        ${supersededById ?? null}::integer
+      from counter
+      returning "id", "record_id"
+    )
+    ${
+      neededPartIds.length === 0
+        ? sql``
+        : sql`, added_joints as (
+            insert into "joints" ("part_id", "needed_part_id")
+            select added_part."id", needed."id"
+            from added_part,
+              (values ${neededValues}) as needed ("position", "id")
+            order by needed."position"
+          )`
+    }
+    ${
+      fields.measure
+        ? sql`, added_measure as (
+            insert into "measures" ("part_id", "measure")
+            select "id", ${JSON.stringify(fields.measure)}::jsonb
+            from added_part
+          )`
+        : sql``
+    }
+    ${
+      supersedesId === undefined
+        ? sql``
+        : sql`, superseded as (
+            update "parts"
+            set "status" = 'superseded',
+              "superseded_by_id" = (select "id" from added_part)
+            where "id" in (select "id" from gate)
+          )`
+    }
+    select "record_id" from added_part
+  `
+
+  // The measure run writes one Insight per query. The unique index refuses
+  // the second one, also when two runs overlap.
+  const result = await db.execute(statement).catch((error: unknown) => {
+    if (isUniqueViolation(error, 'parts_measure_source_unique'))
+      throw new InvalidRecordError(
+        `an Insight with the source "${fields.source}" exists already`,
+      )
+    throw error
+  })
+  return addedPartSchema.parse(result).rows.at(0)?.record_id ?? null
+}
 
 // Adds a Part to its home Concept, and gives back its record id.
 export async function addPart(
@@ -280,152 +436,195 @@ export async function addPart(
     concept,
     needs = [],
     supersedes,
+    supersededBy,
   } = parseInput(placeSchema, part)
   const {
     type: _type,
     concept: _concept,
     needs: _needs,
     supersedes: _supersedes,
+    supersededBy: _supersededBy,
     ...inputFields
   } = part
   const fields = parseInput(partSchemas[type], inputFields)
-  if (supersedes !== undefined && type !== 'decision')
+  if ((supersedes ?? supersededBy) !== undefined && type !== 'decision')
     throw new InvalidRecordError('only a Decision supersedes')
   if (supersedes !== undefined && fields.status !== 'accepted')
     throw new InvalidRecordError('"supersedes" needs the status "accepted"')
+  if ((fields.status === 'superseded') !== (supersededBy !== undefined))
+    throw new InvalidRecordError(
+      'the status "superseded" and "supersededBy" go together',
+    )
 
-  const projectId = await findProjectId(db, projectSlug)
+  const projectId = await getProjectId(db, projectSlug)
   const conceptId = await findConceptId(db, projectId, concept)
   const neededParts = await findParts(db, projectId, [...new Set(needs)])
   if (type === 'decision') {
-    if (!neededParts.some((needed) => needed.type === 'goal'))
+    const goals = neededParts.filter((needed) => needed.type === 'goal')
+    if (goals.length === 0)
       throw new InvalidRecordError('a Decision needs a Goal')
-    if (!neededParts.some((needed) => EVIDENCE_TYPES.includes(needed.type)))
+    if (goals.length > 1)
+      throw new InvalidRecordError('a Decision needs one Goal')
+    if (!neededParts.some((needed) => evidenceTypes.includes(needed.type)))
       throw new InvalidRecordError(
         'a Decision needs evidence: an Insight or a Guardrail',
       )
   }
-  const supersededId =
+  const supersedesId =
     supersedes === undefined
       ? undefined
       : (await findDecision(db, projectId, supersedes)).id
+  const successor =
+    supersededBy === undefined
+      ? undefined
+      : await findDecision(db, projectId, supersededBy)
+  if (successor && successor.status !== 'accepted')
+    throw new InvalidRecordError(`"${supersededBy}" is not accepted`)
 
-  const status = fields.status ?? (type === 'goal' ? 'open' : null)
-  const isDated = type === 'decision' || type === 'insight'
-
-  // The statement locks the Decision that it supersedes and adds nothing
-  // when that Decision is superseded already. Thus the second of two
-  // requests that supersede the same Decision changes nothing.
-  const oldDecision =
-    supersededId === undefined
-      ? sql``
-      : sql`old_decision as (
-          select "id" from "parts"
-          where "id" = ${supersededId}::integer and "status" <> 'superseded'
-          for update
-        ),`
-  // The Joints go in by their position, so their ids keep the order.
-  const neededValues = sql.join(
-    neededParts.map(
-      (needed, position) => sql`(${position}::integer, ${needed.id}::integer)`,
-    ),
-    sql`, `,
-  )
-  // The counter only grows, so the id of a deleted Part does not come back,
-  // and two statements never read the same number. A type without a counter
-  // counts on from its highest id.
-  const result = await db.execute(sql`
-    with ${oldDecision}
-    counter as (
-      insert into "part_counters" ("project_id", "type", "last_number")
-      select
-        ${projectId}::integer,
-        ${type}::text,
-        (
-          select coalesce(max(substring("record_id" from 2)::integer), 0) + 1
-          from "parts"
-          where "project_id" = ${projectId}::integer and "type" = ${type}::text
-        )
-      ${supersededId === undefined ? sql`` : sql`from old_decision`}
-      on conflict ("project_id", "type")
-      do update set "last_number" = "part_counters"."last_number" + 1
-      returning "last_number"
-    ),
-    added_part as (
-      insert into "parts" (
-        "project_id", "concept_id", "type", "record_id", "title", "body",
-        "owner", "status", "date", "source", "metric", "enforced_by",
-        "issue_url", "evidence_level"
-      )
-      select
-        ${projectId}::integer,
-        ${conceptId}::integer,
-        ${type}::text,
-        ${PREFIXES[type]}::text || "last_number",
-        ${fields.title}::text,
-        ${fields.body ?? ''}::text,
-        ${fields.owner ?? null}::text,
-        ${status}::text,
-        ${fields.date ?? (isDated ? todayUtc() : null)}::date,
-        ${fields.source ?? null}::text,
-        ${fields.metric ?? null}::text,
-        ${fields.enforcedBy ?? null}::text,
-        ${fields.issueUrl ?? null}::text,
-        ${fields.evidenceLevel ?? null}::text
-      from counter
-      returning "id", "record_id"
-    )
-    ${
-      neededParts.length === 0
-        ? sql``
-        : sql`, added_joints as (
-            insert into "joints" ("part_id", "needed_part_id")
-            select added_part."id", needed."id"
-            from added_part,
-              (values ${neededValues}) as needed ("position", "id")
-            order by needed."position"
-          )`
-    }
-    ${
-      supersededId === undefined
-        ? sql``
-        : sql`, superseded as (
-            update "parts"
-            set "status" = 'superseded',
-              "superseded_by_id" = (select "id" from added_part)
-            where "id" in (select "id" from old_decision)
-          )`
-    }
-    select "record_id" from added_part
-  `)
-
-  const { rows } = addedPartSchema.parse(result)
-  if (rows.length === 0)
+  const recordId = await addPartRow(db, {
+    projectId,
+    conceptId,
+    type,
+    fields,
+    neededPartIds: neededParts.map((needed) => needed.id),
+    supersedesId,
+    supersededById: successor?.id,
+  })
+  if (recordId === null)
     throw new InvalidRecordError(`"${supersedes}" is superseded already`)
-  return rows[0].record_id
+  return recordId
 }
 
-// Sets the fields that the change names. A superseded Decision that gets
-// another status has no successor any more.
+// Moves the comment read position of the Project from `read.from` to
+// `read.until` and adds the draft Insight about those comments, as one
+// statement: a network failure must not move the position without the
+// Insight. null when an overlapping run moved the position first: then
+// nothing is added.
+export async function addCommentInsight(
+  db: ConceptDb,
+  projectSlug: string,
+  read: { from: Date | null; until: Date },
+  insight: { title: string; source: string; date: string; body: string },
+): Promise<string | null> {
+  const fields = parseInput(partSchemas.insight, {
+    ...insight,
+    status: 'draft',
+  })
+  const projectId = await getProjectId(db, projectSlug)
+  const conceptId = await findConceptId(db, projectId, undefined)
+  return addPartRow(
+    db,
+    { projectId, conceptId, type: 'insight', fields },
+    sql`gate as (
+      update "projects"
+      set "comments_read_until" = ${read.until.toISOString()}::timestamptz
+      where "id" = ${projectId}::integer
+        and "comments_read_until" is not distinct from
+          ${read.from?.toISOString() ?? null}::timestamptz
+      returning "id"
+    )`,
+  )
+}
+
+// The state that a guarded write expects of the Part. The statement holds
+// it in its `where`. So of two requests at the same time, only the first
+// one writes.
+export type ExpectedPart = { status?: string | null; issueUrl?: string | null }
+
+function isExpected(partId: number, expected: ExpectedPart) {
+  const { parts } = schema
+  return and(
+    eq(parts.id, partId),
+    expected.status === undefined
+      ? undefined
+      : sql`${parts.status} is not distinct from ${expected.status}::text`,
+    expected.issueUrl === undefined
+      ? undefined
+      : sql`${parts.issueUrl} is not distinct from ${expected.issueUrl}::text`,
+  )
+}
+
+// Sets the fields that the change names, and the measure with them as one
+// statement. A superseded Decision that gets another status has no successor
+// any more. false: the Part was not in the expected state, and nothing
+// changed.
 export async function updatePart(
   db: ConceptDb,
   projectSlug: string,
   recordId: string,
   change: PartChange,
-): Promise<void> {
-  const part = await findPart(db, projectSlug, recordId)
-  const fields = parseInput(partChangeSchemas[part.type], change)
-  const values: unknown[] = Object.values(fields)
-  if (values.every((value) => value === undefined))
+  expected: ExpectedPart = {},
+): Promise<boolean> {
+  const part = await getPart(db, projectSlug, recordId)
+  const { measure: nextMeasure, ...columns } = parseInput(
+    partChangeSchemas[part.type],
+    change,
+  )
+  const values: unknown[] = Object.values(columns)
+  const hasColumns = values.some((value) => value !== undefined)
+  if (!hasColumns && nextMeasure === undefined)
     throw new InvalidRecordError('send at least one field')
-  await db
-    .update(schema.parts)
-    .set({
-      ...fields,
-      ...(part.type === 'decision' &&
-        fields.status !== undefined && { supersededById: null }),
-    })
-    .where(eq(schema.parts.id, part.id))
+
+  const { parts } = schema
+  const matches = isExpected(part.id, expected)
+  const changed = hasColumns
+    ? db
+        .update(parts)
+        .set({
+          ...columns,
+          ...(part.type === 'decision' &&
+            columns.status !== undefined && { supersededById: null }),
+        })
+        .where(matches)
+        .returning({ id: parts.id })
+    : db.select({ id: parts.id }).from(parts).where(matches)
+  const changedMeasure =
+    nextMeasure === null
+      ? sql`, removed_measure as (
+          delete from "measures"
+          where "part_id" in (select "id" from changed)
+        )`
+      : sql`, changed_measure as (
+          insert into "measures" ("part_id", "measure")
+          select "id", ${JSON.stringify(nextMeasure)}::jsonb from changed
+          on conflict ("part_id") do update set
+            "measure" = excluded."measure",
+            "baseline" = null,
+            "latest_value" = null,
+            "latest_breakdown_value" = null,
+            "measured_at" = null
+        )`
+  const result = await db.execute(sql`
+    with changed as ${changed}
+    ${nextMeasure === undefined ? sql`` : changedMeasure}
+    select "id" from changed
+  `)
+  return idRowsSchema.parse(result).rows.length > 0
+}
+
+// Removes the Part, with the Joints to the Parts that it needs. A Part that
+// another Part needs stays. false: a Part needs it, or it was not in the
+// expected state, and nothing changed.
+export async function removePart(
+  db: ConceptDb,
+  projectSlug: string,
+  recordId: string,
+  expected: ExpectedPart = {},
+): Promise<boolean> {
+  const part = await getPart(db, projectSlug, recordId)
+  const { parts } = schema
+  const removed = await db
+    .delete(parts)
+    .where(
+      and(
+        isExpected(part.id, expected),
+        sql`not exists (
+          select 1 from "joints" where "needed_part_id" = ${parts.id}
+        )`,
+      ),
+    )
+    .returning({ id: parts.id })
+  return removed.length > 0
 }
 
 const jointSchema = z.strictObject({
@@ -440,71 +639,102 @@ export type NewJoint = z.input<typeof jointSchema>
 
 // Glues two Parts of the Project, and gives back the id of the Joint. Parts
 // with different home Concepts make a link: the same Joint, never a copy.
+// A Decision has one Goal, so the statement adds no second one.
 export async function addJoint(
   db: ConceptDb,
   projectSlug: string,
   joint: NewJoint,
 ): Promise<number> {
-  const { part, needs, twoWay } = parseInput(jointSchema, joint)
+  const { part, needs, twoWay = false } = parseInput(jointSchema, joint)
   if (part === needs) throw new InvalidRecordError('a Part cannot need itself')
-  const projectId = await findProjectId(db, projectSlug)
+  const projectId = await getProjectId(db, projectSlug)
   const [needingPart, neededPart] = await findParts(db, projectId, [
     part,
     needs,
   ])
-  const added = await db
-    .insert(schema.joints)
-    .values({ partId: needingPart.id, neededPartId: neededPart.id, twoWay })
-    .onConflictDoNothing()
-    .returning({ id: schema.joints.id })
+  const isGoalOfDecision =
+    needingPart.type === 'decision' && neededPart.type === 'goal'
+  const hasNoGoal = sql`where not exists (
+    select 1 from "joints" as other, "parts" as other_needed
+    where other."part_id" = ${needingPart.id}::integer
+      and other_needed."id" = other."needed_part_id"
+      and other_needed."type" = 'goal'
+  )`
+  const result = await db.execute(sql`
+    insert into "joints" ("part_id", "needed_part_id", "two_way")
+    select
+      ${needingPart.id}::integer,
+      ${neededPart.id}::integer,
+      ${twoWay}::boolean
+    ${isGoalOfDecision ? hasNoGoal : sql``}
+    on conflict do nothing
+    returning "id"
+  `)
+  const added = idRowsSchema.parse(result).rows
   if (added.length === 0)
     throw new InvalidRecordError(
-      `"${part}" and "${needs}" have a Joint already`,
+      isGoalOfDecision
+        ? `"${part}" has a Goal already`
+        : `"${part}" and "${needs}" have a Joint already`,
     )
   return added[0].id
 }
 
+const decisionNeedTypes = ['goal', ...schema.evidenceTypes]
+
 // Removes the Joint, but not the last Goal and not the last evidence that a
-// Decision needs: addPart refuses a Decision without them.
+// Decision needs: addPart refuses a Decision without them. The statement
+// locks all Joints of the Part that needs, in the order of their ids. So of
+// two requests that remove the last two at the same time, the second one
+// sees that the first Joint is gone.
 export async function removeJoint(
   db: ConceptDb,
   projectSlug: string,
   jointId: number,
 ): Promise<void> {
-  const projectId = await findProjectId(db, projectSlug)
-  const { joints } = schema
-  const inProject = and(
-    eq(joints.id, jointId),
-    sql`${joints.partId} in (
-      select "id" from "parts" where "project_id" = ${projectId}::integer
-    )`,
-  )
-  const removed = await db
-    .delete(joints)
-    .where(
-      and(
-        inProject,
-        sql`not exists (
-          select 1 from "parts" as part, "parts" as needed
-          where part."id" = ${joints.partId}
-            and needed."id" = ${joints.neededPartId}
-            and part."type" = 'decision'
-            and needed."type" in ('goal', 'insight', 'guardrail')
-            and not exists (
-              select 1 from "joints" as other, "parts" as other_needed
-              where other."part_id" = ${joints.partId}
-                and other."id" <> ${joints.id}
-                and other_needed."id" = other."needed_part_id"
-                and other_needed."type" in ('goal', 'insight', 'guardrail')
-                and (other_needed."type" = 'goal') = (needed."type" = 'goal')
-            )
-        )`,
-      ),
+  const projectId = await getProjectId(db, projectSlug)
+  const result = await db.execute(sql`
+    with locked as (
+      select
+        joint."id",
+        part."type" as "part_type",
+        needed."type" as "needed_type"
+      from "joints" as joint
+      join "parts" as part on part."id" = joint."part_id"
+      join "parts" as needed on needed."id" = joint."needed_part_id"
+      where part."project_id" = ${projectId}::integer
+        and joint."part_id" = (
+          select "part_id" from "joints" where "id" = ${jointId}::integer
+        )
+      order by joint."id"
+      for update of joint
     )
-    .returning({ id: joints.id })
-  if (removed.length > 0) return
+    delete from "joints"
+    where "id" = (
+      select target."id" from locked as target
+      where target."id" = ${jointId}::integer
+        and not (
+          target."part_type" = 'decision'
+          and target."needed_type" in ${decisionNeedTypes}
+          and not exists (
+            select 1 from locked as other
+            where other."id" <> target."id"
+              and other."needed_type" in ${decisionNeedTypes}
+              and (other."needed_type" = 'goal')
+                = (target."needed_type" = 'goal')
+          )
+        )
+    )
+    returning "id"
+  `)
+  if (idRowsSchema.parse(result).rows.length > 0) return
 
-  const found = await db.select({ id: joints.id }).from(joints).where(inProject)
+  const { joints, parts } = schema
+  const found = await db
+    .select({ id: joints.id })
+    .from(joints)
+    .innerJoin(parts, eq(joints.partId, parts.id))
+    .where(and(eq(joints.id, jointId), eq(parts.projectId, projectId)))
   throw new InvalidRecordError(
     found.length === 0
       ? `joint ${jointId} not found`
@@ -513,8 +743,10 @@ export async function removeJoint(
 }
 
 // Replaces a Decision with an accepted one. The old Decision keeps its
-// record id and points to its successor. The update itself asks for a
-// Decision that is not superseded, so it keeps its first successor.
+// record id and points to its successor. The statement locks both Decisions
+// in the order of their ids, and asks for a Decision that is not superseded
+// and for a successor that is accepted. So a Decision keeps its first
+// successor, and two Decisions never supersede each other.
 export async function supersedeDecision(
   db: ConceptDb,
   projectSlug: string,
@@ -523,54 +755,37 @@ export async function supersedeDecision(
 ): Promise<void> {
   if (recordId === supersededByRecordId)
     throw new InvalidRecordError('a Decision cannot supersede itself')
-  const projectId = await findProjectId(db, projectSlug)
+  const projectId = await getProjectId(db, projectSlug)
   const decision = await findDecision(db, projectId, recordId)
   const successor = await findDecision(db, projectId, supersededByRecordId)
-  if (successor.status !== 'accepted')
-    throw new InvalidRecordError(`"${supersededByRecordId}" is not accepted`)
+  const toNotAcceptedError = () =>
+    new InvalidRecordError(`"${supersededByRecordId}" is not accepted`)
+  if (successor.status !== 'accepted') throw toNotAcceptedError()
 
-  const { parts } = schema
-  const superseded = await db
-    .update(parts)
-    .set({ status: 'superseded', supersededById: successor.id })
-    .where(and(eq(parts.id, decision.id), ne(parts.status, 'superseded')))
-    .returning({ id: parts.id })
-  if (superseded.length === 0)
-    throw new InvalidRecordError(`"${recordId}" is superseded already`)
-}
+  const result = await db.execute(sql`
+    with locked as (
+      select "id", "status" from "parts"
+      where "id" in (${decision.id}::integer, ${successor.id}::integer)
+      order by "id"
+      for update
+    )
+    update "parts"
+    set "status" = 'superseded', "superseded_by_id" = ${successor.id}::integer
+    where "id" = ${decision.id}::integer
+      and (
+        select "status" from locked where "id" = ${decision.id}::integer
+      ) <> 'superseded'
+      and (
+        select "status" from locked where "id" = ${successor.id}::integer
+      ) = 'accepted'
+    returning "id"
+  `)
+  if (idRowsSchema.parse(result).rows.length > 0) return
 
-const MEASURED_TYPES: schema.PartType[] = ['goal', 'metric']
-
-// Sets how Glue measures a Goal or a Metric. A new measure reads another
-// metric, so it removes the readings. null: Glue stops measuring the Part.
-export async function setMeasure(
-  db: ConceptDb,
-  projectSlug: string,
-  recordId: string,
-  measure: GoalMeasure | null,
-): Promise<void> {
-  const part = await findPart(db, projectSlug, recordId)
-  if (!MEASURED_TYPES.includes(part.type))
-    throw new InvalidRecordError(`"${recordId}" is not a Goal or a Metric`)
-  const { measures } = schema
-  if (measure === null) {
-    await db.delete(measures).where(eq(measures.partId, part.id))
-    return
-  }
-  const parsedMeasure = parseInput(goalMeasureSchema, measure)
-  await db
-    .insert(measures)
-    .values({ partId: part.id, measure: parsedMeasure })
-    .onConflictDoUpdate({
-      target: measures.partId,
-      set: {
-        measure: parsedMeasure,
-        baseline: null,
-        latestValue: null,
-        latestBreakdownValue: null,
-        measuredAt: null,
-      },
-    })
+  const now = await findDecision(db, projectId, recordId)
+  throw now.status === 'superseded'
+    ? new InvalidRecordError(`"${recordId}" is superseded already`)
+    : toNotAcceptedError()
 }
 
 // What a measure run read for a Part, and when.
@@ -587,7 +802,7 @@ export async function setReading(
   recordId: string,
   reading: Reading,
 ): Promise<void> {
-  const part = await findPart(db, projectSlug, recordId)
+  const part = await getPart(db, projectSlug, recordId)
   const { measures } = schema
   const measured = await db
     .update(measures)

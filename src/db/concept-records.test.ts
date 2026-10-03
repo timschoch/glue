@@ -9,13 +9,12 @@ import {
   addDecision,
   discardInsight,
   keepInsight,
-  listConceptRecords,
-  ProductNotFoundError,
   setDecisionStatus,
   setProductRepository,
-  showConceptRecord,
   updateDecision,
 } from './concept-records.ts'
+import { listConceptRecords, showConceptRecord } from './legacy-records.ts'
+import { ProductNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
 import type { GithubClient, IssueInput } from '../github/client.ts'
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
@@ -56,8 +55,8 @@ beforeEach(async () => {
   await addConceptRecord(
     db,
     'glue',
-    'facts',
-    { title: 'p95 load time is 3s', source: 'https://example.com/f1' },
+    'guardrails',
+    { title: 'No query over 200ms', enforced_by: 'none yet' },
     '',
   )
   await addConceptRecord(
@@ -70,7 +69,7 @@ beforeEach(async () => {
       owner: 'tim',
       status: 'accepted',
       goal: 'G1',
-      evidence: ['I1', 'F1'],
+      evidence: ['I1', 'R1'],
     },
     'Cache reads at the edge.',
   )
@@ -90,7 +89,7 @@ describe('listConceptRecords', () => {
 
   it('lists every folder when none is given', async () => {
     const rows = await listConceptRecords(db, 'glue')
-    expect(rows.map((row) => row.id).sort()).toEqual(['D1', 'F1', 'G1', 'I1'])
+    expect(rows.map((row) => row.id).sort()).toEqual(['D1', 'G1', 'I1', 'R1'])
   })
 
   it('sorts by the number in the id, so D2 comes before D10', async () => {
@@ -138,7 +137,7 @@ describe('showConceptRecord', () => {
     expect(record.evidence).toEqual(
       expect.arrayContaining([
         { id: 'I1', title: 'Users churn on slow loads' },
-        { id: 'F1', title: 'p95 load time is 3s' },
+        { id: 'R1', title: 'No query over 200ms' },
       ]),
     )
   })
@@ -185,6 +184,23 @@ describe('setProductRepository', () => {
 })
 
 describe('addConceptRecord', () => {
+  it('refuses a Fact and names the types to add instead', async () => {
+    await expect(
+      addConceptRecord(
+        db,
+        'glue',
+        'facts',
+        { title: 'p95 load time is 3s', source: 'https://example.com/f1' },
+        '',
+      ),
+    ).rejects.toThrow(
+      'Fact is no longer a type (D26): add an Insight or a Guardrail.',
+    )
+
+    const rows = await listConceptRecords(db, 'glue')
+    expect(rows.map((row) => row.id).sort()).toEqual(['D1', 'G1', 'I1', 'R1'])
+  })
+
   it('defaults date to today (UTC) for an Insight without one', async () => {
     const id = await addConceptRecord(
       db,
@@ -223,10 +239,10 @@ describe('addConceptRecord', () => {
       db,
       'glue',
       'guardrails',
-      { title: 'No query over 200ms', enforced_by: 'none yet' },
+      { title: 'No page over 1 MB', enforced_by: 'none yet' },
       '',
     )
-    expect(id).toBe('R1')
+    expect(id).toBe('R2')
 
     const secondId = await addConceptRecord(
       db,
@@ -235,7 +251,7 @@ describe('addConceptRecord', () => {
       { title: 'No secret in logs', enforced_by: 'none yet' },
       '',
     )
-    expect(secondId).toBe('R2')
+    expect(secondId).toBe('R3')
   })
 
   it('rejects a missing required field and writes nothing', async () => {
@@ -250,7 +266,7 @@ describe('addConceptRecord', () => {
     ).rejects.toThrow(/"enforced_by" is required/)
 
     const rows = await listConceptRecords(db, 'glue', 'guardrails')
-    expect(rows).toHaveLength(0)
+    expect(rows).toHaveLength(1)
   })
 
   it('rejects a Decision whose goal does not exist and writes nothing', async () => {
@@ -297,7 +313,7 @@ describe('addConceptRecord', () => {
     ])
   })
 
-  it('keeps one link when a Decision cites the same Fact twice', async () => {
+  it('keeps one link when a Decision cites the same Guardrail twice', async () => {
     const id = await addConceptRecord(
       db,
       'glue',
@@ -308,14 +324,14 @@ describe('addConceptRecord', () => {
         owner: 'tim',
         status: 'accepted',
         goal: 'G1',
-        evidence: ['F1', 'F1'],
+        evidence: ['R1', 'R1'],
       },
       '',
     )
 
     const record = await showConceptRecord(db, 'glue', id)
     expect(record.evidence).toEqual([
-      { id: 'F1', title: 'p95 load time is 3s' },
+      { id: 'R1', title: 'No query over 200ms' },
     ])
   })
 
@@ -349,7 +365,7 @@ describe('addConceptRecord', () => {
         owner: 'tim',
         status: 'accepted',
         goal: 'G1',
-        evidence: ['I1', 'F1'],
+        evidence: ['I1', 'R1'],
       },
       '',
     )
@@ -590,7 +606,13 @@ describe('acceptDecision', () => {
   })
 
   it('refuses a Decision that is not proposed', async () => {
-    const id = await addConceptRecord(db, 'glue', 'decisions', proposal, '')
+    const id = await addConceptRecord(
+      db,
+      'glue',
+      'decisions',
+      { ...proposal, status: 'accepted' },
+      '',
+    )
     await setDecisionStatus(db, 'glue', 'D1', 'superseded', id)
 
     await expect(acceptDecision(db, github, 'glue', 'D1')).rejects.toThrow(
@@ -605,8 +627,9 @@ describe('acceptDecision', () => {
   // PGlite runs one statement at a time. This test proves the condition in
   // the statement, not that two statements can run at the same time.
   it('supersedes a Decision once when a second status change follows', async () => {
-    const first = await addConceptRecord(db, 'glue', 'decisions', proposal, '')
-    const second = await addConceptRecord(db, 'glue', 'decisions', proposal, '')
+    const accepted = { ...proposal, status: 'accepted' }
+    const first = await addConceptRecord(db, 'glue', 'decisions', accepted, '')
+    const second = await addConceptRecord(db, 'glue', 'decisions', accepted, '')
 
     const requests = await Promise.allSettled([
       setDecisionStatus(db, 'glue', 'D1', 'superseded', first),
@@ -737,11 +760,12 @@ describe('a Decision that supersedes another', () => {
     await addConceptRecord(logged, 'glue', 'decisions', successor, '')
 
     const writes = statements.filter((statement) =>
-      /\b(insert into|update) "decisions"/.test(statement),
+      /\b(insert into|update) "(parts|joints)"/.test(statement),
     )
     expect(writes).toHaveLength(1)
-    expect(writes[0]).toMatch(/insert into "decisions"/)
-    expect(writes[0]).toMatch(/update "decisions"/)
+    expect(writes[0]).toMatch(/insert into "parts"/)
+    expect(writes[0]).toMatch(/insert into "joints"/)
+    expect(writes[0]).toMatch(/update "parts"/)
   })
 
   it('writes nothing when the evidence does not exist', async () => {
@@ -753,7 +777,7 @@ describe('a Decision that supersedes another', () => {
         { ...successor, evidence: ['I9'] },
         '',
       ),
-    ).rejects.toThrow(/evidence "I9" not found/)
+    ).rejects.toThrow(/insight "I9" not found/)
 
     const rows = await listConceptRecords(db, 'glue', 'decisions')
     expect(rows).toEqual([
@@ -822,88 +846,13 @@ describe('the id of a new record', () => {
   // PGlite runs one statement at a time. This test proves that each
   // statement takes its own number, not that two can run at the same time.
   it('is different for two records that follow each other', async () => {
-    const fact = { title: 'The cache holds 1 GB', source: 'contract' }
+    const guardrail = { title: 'No page over 1 MB', enforced_by: 'none yet' }
 
     const ids = await Promise.all([
-      addConceptRecord(db, 'glue', 'facts', fact, ''),
-      addConceptRecord(db, 'glue', 'facts', fact, ''),
+      addConceptRecord(db, 'glue', 'guardrails', guardrail, ''),
+      addConceptRecord(db, 'glue', 'guardrails', guardrail, ''),
     ])
 
-    expect(ids.sort()).toEqual(['F2', 'F3'])
-  })
-
-  // Older code adds a record with the highest id plus 1 and does not move
-  // the counter.
-  it('goes on after an Insight that came in without the counter', async () => {
-    const [{ id: productId }] = await db.select().from(schema.projects)
-    const insight = {
-      productId,
-      title: 'Users ask for dark mode',
-      date: '2026-01-03',
-      source: 'support',
-    }
-    await db.insert(schema.insights).values([
-      { ...insight, recordId: 'I9' },
-      { ...insight, recordId: 'I19' },
-    ])
-
-    const fields = { title: insight.title, source: insight.source }
-    const ids = [
-      await addConceptRecord(db, 'glue', 'insights', fields, ''),
-      await addConceptRecord(db, 'glue', 'insights', fields, ''),
-    ]
-
-    expect(ids).toEqual(['I20', 'I21'])
-  })
-
-  it('goes on after a Decision that came in without the counter', async () => {
-    const [{ id: productId }] = await db.select().from(schema.projects)
-    const [{ id: goalId }] = await db.select().from(schema.goals)
-    const decision = {
-      productId,
-      goalId,
-      title: 'Cache the search page',
-      date: '2026-01-03',
-      owner: 'tim',
-      status: 'proposed' as const,
-    }
-    await db.insert(schema.decisions).values([
-      { ...decision, recordId: 'D9' },
-      { ...decision, recordId: 'D19' },
-    ])
-
-    const fields = {
-      title: decision.title,
-      owner: 'tim',
-      status: 'proposed',
-      goal: 'G1',
-      evidence: ['I1'],
-    }
-    const ids = [
-      await addConceptRecord(db, 'glue', 'decisions', fields, ''),
-      await addConceptRecord(db, 'glue', 'decisions', fields, ''),
-    ]
-
-    expect(ids).toEqual(['D20', 'D21'])
-  })
-
-  it('goes on after a record that came in before the first counter', async () => {
-    const [{ id: productId }] = await db.select().from(schema.projects)
-    await db.insert(schema.guardrails).values({
-      productId,
-      recordId: 'R4',
-      title: 'No query over 200ms',
-      enforcedBy: 'none yet',
-    })
-
-    const id = await addConceptRecord(
-      db,
-      'glue',
-      'guardrails',
-      { title: 'No page over 1 MB', enforced_by: 'none yet' },
-      '',
-    )
-
-    expect(id).toBe('R5')
+    expect(ids.sort()).toEqual(['R2', 'R3'])
   })
 })
