@@ -1,0 +1,127 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+@use '@carbon/react/scss/utilities/focus-outline' as *;
+
+// The height of a small Carbon button.
+$action-height: $spacing-07;
+
+// The action button lies on the card, so the card places it.
+.card {
+  position: relative;
+}
+
+// The click target is the surface of the card, on the layer below it.
+.target {
+  display: flex;
+  flex-direction: column;
+  padding: $spacing-05;
+  background-color: $layer;
+  color: $text-primary;
+  gap: $spacing-03;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $layer-hover;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
+}
+
+// The room of the action button, below the last line.
+.aboveAction {
+  padding-block-end: $spacing-05 + $action-height;
+}
+
+.action {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+}
+
+// Line 1: the sign and the type line are one group.
+.signs {
+  @include type-style('label-01');
+
+  display: flex;
+  align-items: center;
+  color: $text-secondary;
+  gap: $spacing-03;
+}
+
+.solid,
+.flagged,
+.not-ready,
+.wrong {
+  flex-shrink: 0;
+}
+
+.solid {
+  fill: $support-success;
+}
+
+.flagged {
+  fill: $support-warning;
+
+  // The dark mark inside the glyph keeps it readable on a light layer.
+  [data-icon-path='inner-path'] {
+    fill: $icon-primary;
+    opacity: 1;
+  }
+}
+
+.not-ready {
+  fill: $support-error;
+}
+
+.wrong {
+  fill: $icon-primary;
+}
+
+// Two lines at most.
+.title,
+.summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.title {
+  @include type-style('heading-compact-01');
+}
+
+.summary {
+  @include type-style('body-compact-01');
+}
+
+.emptySlots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+// An empty slot: the dashed border says missing.
+.emptySlot {
+  @include type-style('label-01');
+
+  border: 1px dashed $border-strong-01;
+  color: $text-secondary;
+  padding-inline: $spacing-03;
+}
+
+// The last line: the Work state at the start, the owner at the end.
+.state {
+  @include type-style('label-01');
+
+  display: flex;
+  color: $text-secondary;
+  gap: $spacing-05;
+}
+
+.owner {
+  margin-inline-start: auto;
+}
