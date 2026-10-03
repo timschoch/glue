@@ -1,0 +1,35 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The longest line of a field: the text width of the record.
+$text-width: $spacing-13 * 4;
+
+// Each field is a separate group.
+.form {
+  display: flex;
+  flex-direction: column;
+  color: $text-primary;
+  gap: $spacing-07;
+  max-inline-size: $text-width;
+}
+
+// The type line of the card: the Part type, and the record id in edit mode.
+.typeLine {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}
+
+// The search and its picks are one group.
+.picker,
+.picks {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.buttons {
+  display: flex;
+  gap: $spacing-03;
+}
