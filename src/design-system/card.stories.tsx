@@ -1,3 +1,4 @@
+import { PinFilled } from '@carbon/icons-react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
 import { Card } from './card.tsx'
@@ -105,6 +106,13 @@ export const WithAction: Story = {
 
 export const Minimal: Story = {
   args: { ...Decision.args, minimal: true },
+}
+
+export const MinimalWithAction: Story = {
+  args: {
+    ...Minimal.args,
+    action: { label: 'Unpin', icon: PinFilled, onClick: () => {} },
+  },
 }
 
 export const LongTitle: Story = {

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { PinFilled } from '@carbon/icons-react'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -73,6 +74,15 @@ function focusOutline(element: HTMLElement): string {
       .at(-1)
       ?.style.getPropertyValue('outline') ?? ''
   )
+}
+
+// The tooltip that names an icon button. Testing Library does not read the
+// name from a closed tooltip, a browser does.
+function tooltip(button: HTMLElement): string | undefined {
+  const id = button.getAttribute('aria-labelledby')
+  return screen
+    .getAllByRole('tooltip', { hidden: true })
+    .find((candidate) => candidate.id === id)?.textContent
 }
 
 // The texts of the card, in the order of the document.
@@ -249,7 +259,6 @@ describe('Card', () => {
         emptySlots={['metric']}
         workState="review"
         owner="Mara"
-        action={{ label: 'Pick up', onClick: () => {} }}
       />,
     )
 
@@ -262,5 +271,28 @@ describe('Card', () => {
       'Show the video of the creator',
     ])
     expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('shows an action with an icon as an icon button, on the minimal card too', async () => {
+    const onClick = vi.fn()
+    render(
+      <Card
+        {...DECISION}
+        minimal
+        action={{ label: 'Unpin', icon: PinFilled, onClick }}
+      />,
+    )
+
+    const card = screen.getByRole('link')
+    const button = screen.getByRole('button')
+
+    expect(tooltip(button)).toBe('Unpin')
+    expect(card.contains(button)).toBe(false)
+    expect(button.textContent).toBe('')
+    expect(button.querySelectorAll('svg')).toHaveLength(1)
+
+    await userEvent.click(button)
+
+    expect(onClick).toHaveBeenCalledOnce()
   })
 })
