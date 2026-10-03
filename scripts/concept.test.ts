@@ -149,9 +149,9 @@ describe('runConcept', () => {
   it('sets the social handle of a Product, and an empty handle removes it', async () => {
     const findHandle = async () => {
       const [row] = await db
-        .select({ handle: schema.products.socialHandle })
-        .from(schema.products)
-        .where(eq(schema.products.slug, 'flexibeck'))
+        .select({ handle: schema.projects.socialHandle })
+        .from(schema.projects)
+        .where(eq(schema.projects.slug, 'flexibeck'))
       return row.handle
     }
 

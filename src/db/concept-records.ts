@@ -49,22 +49,22 @@ function folderForId(id: string): ConceptFolder {
 
 async function findProductId(db: ConceptDb, productSlug: string) {
   const products = await db
-    .select({ id: schema.products.id })
-    .from(schema.products)
-    .where(eq(schema.products.slug, productSlug))
+    .select({ id: schema.projects.id })
+    .from(schema.projects)
+    .where(eq(schema.projects.slug, productSlug))
   if (products.length === 0) throw new ProductNotFoundError(productSlug)
   return products[0].id
 }
 
 export async function addProductId(db: ConceptDb, productSlug: string) {
   const [product] = await db
-    .insert(schema.products)
+    .insert(schema.projects)
     .values({ slug: productSlug, name: productSlug })
     .onConflictDoUpdate({
-      target: schema.products.slug,
+      target: schema.projects.slug,
       set: { slug: productSlug },
     })
-    .returning({ id: schema.products.id })
+    .returning({ id: schema.projects.id })
   return product.id
 }
 
@@ -81,10 +81,10 @@ export async function setProductRepository(
     )
   }
   const updated = await db
-    .update(schema.products)
+    .update(schema.projects)
     .set({ repository })
-    .where(eq(schema.products.slug, productSlug))
-    .returning({ id: schema.products.id })
+    .where(eq(schema.projects.slug, productSlug))
+    .returning({ id: schema.projects.id })
   if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 
@@ -608,10 +608,10 @@ export async function setAnalyticsProject(
   analyticsProject: string | null,
 ): Promise<void> {
   const updated = await db
-    .update(schema.products)
+    .update(schema.projects)
     .set({ analyticsProject })
-    .where(eq(schema.products.slug, productSlug))
-    .returning({ id: schema.products.id })
+    .where(eq(schema.projects.slug, productSlug))
+    .returning({ id: schema.projects.id })
   if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 
@@ -631,7 +631,7 @@ export async function addCommentInsight(
   validateFields('insights', { ...fields, status })
   const result = await db.execute(sql`
     with moved as (
-      update "products"
+      update "projects"
       set "comments_read_until" = ${read.until.toISOString()}::timestamptz
       where "id" = ${productId}::integer
         and "comments_read_until" is not distinct from
@@ -677,15 +677,15 @@ export async function setSocialHandle(
   productSlug: string,
   socialHandle: string | null,
 ): Promise<void> {
-  const { products } = schema
+  const { projects } = schema
   const updated = await db
-    .update(products)
+    .update(projects)
     .set({
       socialHandle,
-      commentsReadUntil: sql`case when ${products.socialHandle} is not distinct from ${socialHandle}::text then ${products.commentsReadUntil} end`,
+      commentsReadUntil: sql`case when ${projects.socialHandle} is not distinct from ${socialHandle}::text then ${projects.commentsReadUntil} end`,
     })
-    .where(eq(products.slug, productSlug))
-    .returning({ id: products.id })
+    .where(eq(projects.slug, productSlug))
+    .returning({ id: projects.id })
   if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 

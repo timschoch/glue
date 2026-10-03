@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 
 import type { ConceptDb } from './client.ts'
 import { addProductId } from './concept-records.ts'
-import { products, tokens } from './schema.ts'
+import { projects, tokens } from './schema.ts'
 
 const TOKEN_BYTES = 32
 
@@ -18,11 +18,11 @@ export async function createToken(
   productSlug: string,
   name: string,
 ): Promise<{ id: number; token: string }> {
-  const productId = await addProductId(db, productSlug)
+  const projectId = await addProductId(db, productSlug)
   const token = `glue_${randomBytes(TOKEN_BYTES).toString('base64url')}`
   const [row] = await db
     .insert(tokens)
-    .values({ productId, name, hash: hashToken(token) })
+    .values({ projectId, name, hash: hashToken(token) })
     .returning({ id: tokens.id })
   return { id: row.id, token }
 }
@@ -32,9 +32,9 @@ export async function findProductByToken(
   token: string,
 ): Promise<string | undefined> {
   const found = await db
-    .select({ slug: products.slug })
+    .select({ slug: projects.slug })
     .from(tokens)
-    .innerJoin(products, eq(tokens.productId, products.id))
+    .innerJoin(projects, eq(tokens.projectId, projects.id))
     .where(eq(tokens.hash, hashToken(token)))
   return found.at(0)?.slug
 }
@@ -43,12 +43,12 @@ export async function listTokens(db: ConceptDb) {
   return db
     .select({
       id: tokens.id,
-      product: products.slug,
+      product: projects.slug,
       name: tokens.name,
       createdAt: tokens.createdAt,
     })
     .from(tokens)
-    .innerJoin(products, eq(tokens.productId, products.id))
+    .innerJoin(projects, eq(tokens.projectId, projects.id))
     .orderBy(tokens.id)
 }
 

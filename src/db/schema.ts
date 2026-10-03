@@ -16,7 +16,7 @@ import {
 
 import type { GoalMeasure } from './goal-measure.ts'
 
-export const products = pgTable('products', {
+export const projects = pgTable('projects', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
   slug: text('slug').notNull().unique(),
   name: text('name').notNull(),
@@ -43,7 +43,7 @@ export const recordCounters = pgTable(
   {
     productId: integer('product_id')
       .notNull()
-      .references(() => products.id),
+      .references(() => projects.id),
     folder: text('folder').notNull(),
     lastNumber: integer('last_number').notNull(),
   },
@@ -54,9 +54,9 @@ export const recordCounters = pgTable(
 // Only the SHA-256 hash of the token is stored.
 export const tokens = pgTable('tokens', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-  productId: integer('product_id')
+  projectId: integer('project_id')
     .notNull()
-    .references(() => products.id),
+    .references(() => projects.id),
   name: text('name').notNull(),
   hash: text('hash').notNull().unique(),
   createdAt: timestamp('created_at', { withTimezone: true })
@@ -74,7 +74,7 @@ export const goals = pgTable(
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     productId: integer('product_id')
       .notNull()
-      .references(() => products.id),
+      .references(() => projects.id),
     recordId: text('record_id').notNull(),
     title: text('title').notNull(),
     metric: text('metric').notNull(),
@@ -105,7 +105,7 @@ export const insights = pgTable(
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     productId: integer('product_id')
       .notNull()
-      .references(() => products.id),
+      .references(() => projects.id),
     recordId: text('record_id').notNull(),
     title: text('title').notNull(),
     date: date('date').notNull(),
@@ -129,7 +129,7 @@ export const facts = pgTable(
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     productId: integer('product_id')
       .notNull()
-      .references(() => products.id),
+      .references(() => projects.id),
     recordId: text('record_id').notNull(),
     title: text('title').notNull(),
     source: text('source').notNull(),
@@ -144,7 +144,7 @@ export const guardrails = pgTable(
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     productId: integer('product_id')
       .notNull()
-      .references(() => products.id),
+      .references(() => projects.id),
     recordId: text('record_id').notNull(),
     title: text('title').notNull(),
     enforcedBy: text('enforced_by').notNull(),
@@ -162,7 +162,7 @@ export const decisions = pgTable(
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     productId: integer('product_id')
       .notNull()
-      .references(() => products.id),
+      .references(() => projects.id),
     recordId: text('record_id').notNull(),
     title: text('title').notNull(),
     date: date('date').notNull(),
