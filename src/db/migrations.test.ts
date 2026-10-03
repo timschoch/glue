@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFile, readdir } from 'node:fs/promises'
 
 import { PGlite } from '@electric-sql/pglite'
@@ -6,9 +7,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { addConceptRecord } from './concept-records.ts'
 import * as schema from './schema.ts'
+import { findProductByToken } from './tokens.ts'
 
 const countersMigration = '0005_record_counters.sql'
 const goalStatusMigration = '0006_goal_mean_status.sql'
+const projectsMigration = '0009_projects.sql'
 
 let client: PGlite
 
@@ -127,5 +130,98 @@ describe('the migration that adds the Goal status and the mean measure', () => {
         measure: ['errors'],
       },
     ])
+  })
+})
+
+describe('the migration that renames Product to Project', () => {
+  const token = 'glue_orchestrator'
+
+  beforeEach(async () => {
+    await runMigrationsBefore(projectsMigration)
+    await client.exec(`
+      create role glue_ci;
+      grant select on products, tokens to glue_ci;
+      insert into products (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
+    `)
+    await client.query(
+      'insert into tokens (product_id, name, hash) values (2, $1, $2)',
+      ['orchestrator', createHash('sha256').update(token).digest('hex')],
+    )
+    await runMigration(projectsMigration)
+  })
+
+  it('keeps each Product as a Project', async () => {
+    const projects = await client.query(
+      'select id, slug, name from projects order by id',
+    )
+    expect(projects.rows).toEqual([
+      { id: 1, slug: 'glue', name: 'Glue' },
+      { id: 2, slug: 'flexibeck', name: 'flexibeck' },
+    ])
+  })
+
+  it('still opens the Project of a token', async () => {
+    await runMigrationsAfter(projectsMigration)
+
+    const project = await findProductByToken(drizzle(client, { schema }), token)
+    expect(project).toBe('flexibeck')
+  })
+
+  describe('for the code from before the migration', () => {
+    it('still returns the Projects as products', async () => {
+      const products = await client.query(
+        'select id, slug, name from products order by id',
+      )
+      expect(products.rows).toEqual([
+        { id: 1, slug: 'glue', name: 'Glue' },
+        { id: 2, slug: 'flexibeck', name: 'flexibeck' },
+      ])
+    })
+
+    it('still adds and updates a Product through products', async () => {
+      const added = await client.query(`
+        insert into "products" ("id", "slug", "name")
+        values (default, 'bakeday', 'bakeday'), (default, 'glue', 'glue')
+        on conflict ("slug") do update set "slug" = excluded."slug"
+        returning "id"
+      `)
+      expect(added.rows).toEqual([{ id: 3 }, { id: 1 }])
+
+      await client.query(
+        `update "products" set "repository" = 'timschoch/glue' where "slug" = 'glue'`,
+      )
+      const projects = await client.query(
+        `select repository from projects where slug = 'glue'`,
+      )
+      expect(projects.rows).toEqual([{ repository: 'timschoch/glue' }])
+    })
+
+    it('still joins a token to its Product by product_id', async () => {
+      const found = await client.query(`
+        select "products"."slug" from "tokens"
+        inner join "products" on "tokens"."product_id" = "products"."id"
+      `)
+      expect(found.rows).toEqual([{ slug: 'flexibeck' }])
+    })
+
+    it('gives the glue_ci role the same rights on the old and the new names', async () => {
+      const rights = await client.query(`
+        select
+          has_table_privilege('glue_ci', 'projects', 'select') as projects,
+          has_table_privilege('glue_ci', 'products', 'select') as products,
+          has_table_privilege('glue_ci', 'products', 'insert') as products_insert,
+          has_column_privilege('glue_ci', 'tokens', 'project_id', 'select') as project_id,
+          has_column_privilege('glue_ci', 'tokens', 'product_id', 'select') as product_id
+      `)
+      expect(rights.rows).toEqual([
+        {
+          projects: true,
+          products: true,
+          products_insert: false,
+          project_id: true,
+          product_id: true,
+        },
+      ])
+    })
   })
 })

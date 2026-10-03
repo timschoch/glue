@@ -835,7 +835,7 @@ describe('the id of a new record', () => {
   // Older code adds a record with the highest id plus 1 and does not move
   // the counter.
   it('goes on after an Insight that came in without the counter', async () => {
-    const [{ id: productId }] = await db.select().from(schema.products)
+    const [{ id: productId }] = await db.select().from(schema.projects)
     const insight = {
       productId,
       title: 'Users ask for dark mode',
@@ -857,7 +857,7 @@ describe('the id of a new record', () => {
   })
 
   it('goes on after a Decision that came in without the counter', async () => {
-    const [{ id: productId }] = await db.select().from(schema.products)
+    const [{ id: productId }] = await db.select().from(schema.projects)
     const [{ id: goalId }] = await db.select().from(schema.goals)
     const decision = {
       productId,
@@ -888,7 +888,7 @@ describe('the id of a new record', () => {
   })
 
   it('goes on after a record that came in before the first counter', async () => {
-    const [{ id: productId }] = await db.select().from(schema.products)
+    const [{ id: productId }] = await db.select().from(schema.projects)
     await db.insert(schema.guardrails).values({
       productId,
       recordId: 'R4',
