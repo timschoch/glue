@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.7.0](https://github.com/timschoch/glue/compare/v1.6.1...v1.7.0) (2026-10-03)
+
+
+### Features
+
+* **api:** name the Project in the API paths and the CLI ([#153](https://github.com/timschoch/glue/issues/153)) ([e623915](https://github.com/timschoch/glue/commit/e623915f1a159f9c021181582be156656d46140d)), closes [#128](https://github.com/timschoch/glue/issues/128) [#116](https://github.com/timschoch/glue/issues/116)
+* **db:** add the tables of the Part model ([#152](https://github.com/timschoch/glue/issues/152)) ([17acb83](https://github.com/timschoch/glue/commit/17acb83faacacde8b66251678eaf71bd35c49bd2)), closes [#127](https://github.com/timschoch/glue/issues/127)
+* **db:** rename Product to Project in the database ([#144](https://github.com/timschoch/glue/issues/144)) ([28fce1c](https://github.com/timschoch/glue/commit/28fce1c90617131a9125441a51ee27edde902a7d)), closes [#125](https://github.com/timschoch/glue/issues/125)
+* **design-system:** add the Carbon theme and a Storybook with Foundations and Frame ([#145](https://github.com/timschoch/glue/issues/145)) ([3e75350](https://github.com/timschoch/glue/commit/3e753500a7093d098e6fcd99f2345e92ac87ee0b)), closes [#120](https://github.com/timschoch/glue/issues/120)
+
+
+### Bug Fixes
+
+* **deps:** update @tanstack/react-start to patch the XSS vulnerability ([#136](https://github.com/timschoch/glue/issues/136)) ([edd71f8](https://github.com/timschoch/glue/commit/edd71f8dace403e7845863885ce15c6e34019b7a)), closes [#119](https://github.com/timschoch/glue/issues/119)
+
 ## [1.6.1](https://github.com/timschoch/glue/compare/v1.6.0...v1.6.1) (2026-10-01)
 
 
