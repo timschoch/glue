@@ -1,0 +1,365 @@
+import { PGlite } from '@electric-sql/pglite'
+import { drizzle } from 'drizzle-orm/pglite'
+import { migrate } from 'drizzle-orm/pglite/migrator'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import {
+  findConcept,
+  findPart,
+  findProject,
+  listParts,
+  listProjects,
+} from './parts.ts'
+import * as schema from './schema.ts'
+
+let client: PGlite
+let db: ReturnType<typeof drizzle<typeof schema>>
+
+const measure = {
+  kind: 'funnel',
+  source: 'mock-analytics',
+  steps: ['signed-up', 'paid'],
+  target: 0.2,
+  window_days: 7,
+}
+
+// Project 1 is glue. Its root Concept 1 holds the Concept 2 (part-model, a
+// Brief), which holds the Concept 3 (read-model, no Kind).
+// Project 2 is flexibeck with the root Concept 4.
+//
+// Parts of glue, by row id: 1 G1 and 7 R1 in the root, 2 I1, 3 D1 and 4 D2
+// in part-model, 5 E1 and 6 F1 in read-model. D2 supersedes D1.
+// Part 8 is the G1 of flexibeck.
+//
+// Joints: 1 D1 needs G1 (a link), 2 D1 needs I1, 3 E1 and F1 need each
+// other, 4 F1 needs D1 (a link).
+beforeEach(async () => {
+  client = new PGlite()
+  db = drizzle(client, { schema })
+  await migrate(db, { migrationsFolder: './drizzle' })
+  await client.exec(`
+    insert into projects (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
+    insert into concepts (project_id, parent_id, slug, title, kind) values
+      (1, null, 'glue', 'Glue', null),
+      (1, 1, 'part-model', 'Part model', 'brief'),
+      (1, 2, 'read-model', 'Read model', null),
+      (2, null, 'flexibeck', 'flexibeck', null);
+    insert into parts (project_id, concept_id, type, record_id, title, body, status, metric, source) values
+      (1, 1, 'goal', 'G1', 'More users pay', 'Why the Goal exists.', 'open', 'signup to paid', 'okr');
+    insert into parts (project_id, concept_id, type, record_id, title, date, source, evidence_level) values
+      (1, 2, 'insight', 'I1', 'Bakers want step videos', '2026-10-01', 'interview', 'pattern');
+    insert into parts (project_id, concept_id, type, record_id, title, body, status, date, owner, issue_url) values
+      (1, 2, 'decision', 'D1', 'Show the video of the creator', 'One video per step.', 'superseded', '2026-10-02', 'Tim', 'https://github.com/timschoch/glue/issues/1'),
+      (1, 2, 'decision', 'D2', 'Show the video of the baker', '', 'proposed', '2026-10-03', 'Tim', null);
+    update parts set superseded_by_id = 4 where id = 3;
+    insert into parts (project_id, concept_id, type, record_id, title, owner) values
+      (1, 3, 'entity', 'E1', 'Technique', 'Tim'),
+      (1, 3, 'flow', 'F1', 'Read a Concept', null);
+    insert into parts (project_id, concept_id, type, record_id, title, enforced_by) values
+      (1, 1, 'guardrail', 'R1', 'No query over 200ms', 'none yet');
+    insert into parts (project_id, concept_id, type, record_id, title, status, metric, source) values
+      (2, 4, 'goal', 'G1', 'Bakers bake more', 'achieved', 'bakes per week', 'okr');
+    insert into joints (part_id, needed_part_id, two_way) values
+      (3, 1, false),
+      (3, 2, false),
+      (5, 6, true),
+      (6, 3, false);
+    insert into measures (part_id, measure, baseline, latest_value, measured_at) values
+      (1, '${JSON.stringify(measure)}', 0.1, 0.15, '2026-10-02T08:00:00Z');
+  `)
+})
+
+afterEach(async () => {
+  await client.close()
+})
+
+const goal = {
+  id: 'G1',
+  type: 'goal',
+  title: 'More users pay',
+  status: 'open',
+  concept: 'glue',
+}
+const insight = {
+  id: 'I1',
+  type: 'insight',
+  title: 'Bakers want step videos',
+  status: null,
+  concept: 'part-model',
+}
+const decision = {
+  id: 'D1',
+  type: 'decision',
+  title: 'Show the video of the creator',
+  status: 'superseded',
+  concept: 'part-model',
+}
+const replacement = {
+  id: 'D2',
+  type: 'decision',
+  title: 'Show the video of the baker',
+  status: 'proposed',
+  concept: 'part-model',
+}
+const guardrail = {
+  id: 'R1',
+  type: 'guardrail',
+  title: 'No query over 200ms',
+  status: null,
+  concept: 'glue',
+}
+const entity = {
+  id: 'E1',
+  type: 'entity',
+  title: 'Technique',
+  status: null,
+  concept: 'read-model',
+}
+const flow = {
+  id: 'F1',
+  type: 'flow',
+  title: 'Read a Concept',
+  status: null,
+  concept: 'read-model',
+}
+
+const readModel = {
+  slug: 'read-model',
+  title: 'Read model',
+  kind: null,
+  partCount: 2,
+  concepts: [],
+}
+const partModel = {
+  slug: 'part-model',
+  title: 'Part model',
+  kind: 'brief',
+  partCount: 3,
+  concepts: [readModel],
+}
+
+describe('listProjects', () => {
+  it('returns each Project, in the order of the slugs', async () => {
+    expect(await listProjects(db)).toEqual([
+      { slug: 'flexibeck', name: 'flexibeck' },
+      { slug: 'glue', name: 'Glue' },
+    ])
+  })
+})
+
+describe('findProject', () => {
+  it('returns the Project with the tree of its Concepts', async () => {
+    expect(await findProject(db, 'glue')).toEqual({
+      slug: 'glue',
+      name: 'Glue',
+      concept: {
+        slug: 'glue',
+        title: 'Glue',
+        kind: null,
+        partCount: 2,
+        concepts: [partModel],
+      },
+    })
+  })
+
+  it('returns nothing for an unknown Project', async () => {
+    expect(await findProject(db, 'bakeday')).toBeUndefined()
+  })
+})
+
+describe('findConcept', () => {
+  it('returns the Concept with its path, its child Concepts and its home Parts', async () => {
+    const concept = await findConcept(db, 'glue', 'part-model')
+
+    expect(concept).toMatchObject({
+      slug: 'part-model',
+      title: 'Part model',
+      kind: 'brief',
+      path: [{ slug: 'glue', title: 'Glue' }],
+      concepts: [readModel],
+      parts: [insight, decision, replacement],
+    })
+  })
+
+  it('returns the path from the root down to the parent', async () => {
+    const concept = await findConcept(db, 'glue', 'read-model')
+
+    expect(concept?.path).toEqual([
+      { slug: 'glue', title: 'Glue' },
+      { slug: 'part-model', title: 'Part model' },
+    ])
+  })
+
+  it('returns the Joints of its Parts, and marks a Joint to another Concept as a link', async () => {
+    const concept = await findConcept(db, 'glue', 'part-model')
+
+    expect(concept?.joints).toEqual([
+      { id: 1, part: 'D1', needs: 'G1', twoWay: false, link: true },
+      { id: 2, part: 'D1', needs: 'I1', twoWay: false, link: false },
+      { id: 4, part: 'F1', needs: 'D1', twoWay: false, link: true },
+    ])
+  })
+
+  it('returns the Parts of other Concepts that a link glues to it', async () => {
+    const concept = await findConcept(db, 'glue', 'part-model')
+
+    expect(concept?.linkedParts).toEqual([goal, flow])
+  })
+
+  it('fills a slot with a home Part or a linked Part of its type', async () => {
+    const concept = await findConcept(db, 'glue', 'part-model')
+
+    expect(concept?.slots).toEqual([
+      { type: 'insight', filled: true },
+      { type: 'goal', filled: true },
+      { type: 'decision', filled: true },
+      { type: 'metric', filled: false },
+      { type: 'flow', filled: true },
+      { type: 'entity', filled: false },
+      { type: 'guardrail', filled: false },
+    ])
+  })
+
+  it('returns a two-way Joint, and no slot for a Concept without a Kind', async () => {
+    expect(await findConcept(db, 'glue', 'read-model')).toMatchObject({
+      kind: null,
+      concepts: [],
+      parts: [entity, flow],
+      linkedParts: [decision],
+      joints: [
+        { id: 3, part: 'E1', needs: 'F1', twoWay: true, link: false },
+        { id: 4, part: 'F1', needs: 'D1', twoWay: false, link: true },
+      ],
+      slots: [],
+    })
+  })
+
+  it('returns the root Concept with an empty path', async () => {
+    expect(await findConcept(db, 'glue', 'glue')).toMatchObject({
+      path: [],
+      concepts: [partModel],
+      parts: [goal, guardrail],
+      linkedParts: [decision],
+    })
+  })
+
+  it('returns nothing for an unknown Concept, or a Concept of another Project', async () => {
+    expect(await findConcept(db, 'glue', 'videos')).toBeUndefined()
+    expect(await findConcept(db, 'glue', 'flexibeck')).toBeUndefined()
+    expect(await findConcept(db, 'bakeday', 'part-model')).toBeUndefined()
+  })
+})
+
+describe('listParts', () => {
+  it('returns the Parts of the Project, by type and then by number', async () => {
+    expect(await listParts(db, 'glue')).toEqual([
+      insight,
+      goal,
+      decision,
+      replacement,
+      guardrail,
+      entity,
+      flow,
+    ])
+  })
+
+  it('returns only the Parts of the given types', async () => {
+    expect(await listParts(db, 'glue', ['decision', 'goal'])).toEqual([
+      goal,
+      decision,
+      replacement,
+    ])
+  })
+
+  it('returns no Part for an unknown Project', async () => {
+    expect(await listParts(db, 'bakeday')).toEqual([])
+  })
+})
+
+describe('findPart', () => {
+  it('returns a Decision with its fields, what it needs and what needs it', async () => {
+    expect(await findPart(db, 'glue', 'D1')).toEqual({
+      ...decision,
+      body: 'One video per step.',
+      owner: 'Tim',
+      date: '2026-10-02',
+      source: null,
+      metric: null,
+      enforcedBy: null,
+      evidenceLevel: null,
+      issueUrl: 'https://github.com/timschoch/glue/issues/1',
+      measure: null,
+      supersededBy: replacement,
+      supersedes: [],
+      needs: [
+        { jointId: 1, twoWay: false, link: true, part: goal },
+        { jointId: 2, twoWay: false, link: false, part: insight },
+      ],
+      neededBy: [{ jointId: 4, twoWay: false, link: true, part: flow }],
+    })
+  })
+
+  it('returns the Parts that a Part supersedes', async () => {
+    expect(await findPart(db, 'glue', 'D2')).toMatchObject({
+      supersededBy: null,
+      supersedes: [decision],
+    })
+  })
+
+  it('returns a Goal with its measure and the last readings', async () => {
+    expect(await findPart(db, 'glue', 'G1')).toMatchObject({
+      ...goal,
+      body: 'Why the Goal exists.',
+      metric: 'signup to paid',
+      source: 'okr',
+      measure: {
+        measure,
+        baseline: 0.1,
+        latestValue: 0.15,
+        latestBreakdownValue: null,
+        measuredAt: '2026-10-02T08:00:00.000Z',
+      },
+      needs: [],
+      neededBy: [{ jointId: 1, twoWay: false, link: true, part: decision }],
+    })
+  })
+
+  it('returns the fields of an Insight and of a Guardrail', async () => {
+    expect(await findPart(db, 'glue', 'I1')).toMatchObject({
+      date: '2026-10-01',
+      source: 'interview',
+      evidenceLevel: 'pattern',
+    })
+    expect(await findPart(db, 'glue', 'R1')).toMatchObject({
+      enforcedBy: 'none yet',
+    })
+  })
+
+  it('shows a two-way Joint in needs on both sides', async () => {
+    expect(await findPart(db, 'glue', 'E1')).toMatchObject({
+      needs: [{ jointId: 3, twoWay: true, link: false, part: flow }],
+      neededBy: [],
+    })
+    expect(await findPart(db, 'glue', 'F1')).toMatchObject({
+      needs: [
+        { jointId: 3, twoWay: true, link: false, part: entity },
+        { jointId: 4, twoWay: false, link: true, part: decision },
+      ],
+      neededBy: [],
+    })
+  })
+
+  it('reads a record id inside its Project only', async () => {
+    expect(await findPart(db, 'flexibeck', 'G1')).toMatchObject({
+      title: 'Bakers bake more',
+      status: 'achieved',
+      concept: 'flexibeck',
+    })
+  })
+
+  it('returns nothing for an unknown Part or an unknown Project', async () => {
+    expect(await findPart(db, 'glue', 'D9')).toBeUndefined()
+    expect(await findPart(db, 'flexibeck', 'D1')).toBeUndefined()
+    expect(await findPart(db, 'bakeday', 'G1')).toBeUndefined()
+  })
+})

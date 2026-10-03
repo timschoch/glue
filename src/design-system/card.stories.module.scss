@@ -1,0 +1,13 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+
+// A card lies on the canvas, as wide as the pinned column.
+.canvas {
+  padding: $spacing-07;
+  background-color: $background;
+
+  > * {
+    inline-size: $spacing-13 * 2;
+    max-inline-size: 100%;
+  }
+}

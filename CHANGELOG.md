@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.7.0](https://github.com/timschoch/glue/compare/v1.6.1...v1.7.0) (2026-10-03)
+
+
+### Features
+
+* **api:** name the Project in the API paths and the CLI ([#153](https://github.com/timschoch/glue/issues/153)) ([e623915](https://github.com/timschoch/glue/commit/e623915f1a159f9c021181582be156656d46140d)), closes [#128](https://github.com/timschoch/glue/issues/128) [#116](https://github.com/timschoch/glue/issues/116)
+* **db:** add the read model of Parts ([#156](https://github.com/timschoch/glue/issues/156)) ([86691c0](https://github.com/timschoch/glue/commit/86691c0a7d0a7a14e5f81206280a7cc6f62cadf0))
+* **db:** add the tables of the Part model ([#152](https://github.com/timschoch/glue/issues/152)) ([17acb83](https://github.com/timschoch/glue/commit/17acb83faacacde8b66251678eaf71bd35c49bd2)), closes [#127](https://github.com/timschoch/glue/issues/127)
+* **db:** read the record shapes of today from Parts ([#157](https://github.com/timschoch/glue/issues/157)) ([d077e90](https://github.com/timschoch/glue/commit/d077e901deecb594d36f7605a187f4b2ec06b89f)), closes [#131](https://github.com/timschoch/glue/issues/131)
+* **db:** rename Product to Project in the database ([#144](https://github.com/timschoch/glue/issues/144)) ([28fce1c](https://github.com/timschoch/glue/commit/28fce1c90617131a9125441a51ee27edde902a7d)), closes [#125](https://github.com/timschoch/glue/issues/125)
+* **db:** write Parts, Joints and Concepts ([#158](https://github.com/timschoch/glue/issues/158)) ([ed1057a](https://github.com/timschoch/glue/commit/ed1057a545f2c4d54aa5cb025bdad91df68206eb)), closes [#129](https://github.com/timschoch/glue/issues/129)
+* **design-system:** add the Carbon theme and a Storybook with Foundations and Frame ([#145](https://github.com/timschoch/glue/issues/145)) ([3e75350](https://github.com/timschoch/glue/commit/3e753500a7093d098e6fcd99f2345e92ac87ee0b)), closes [#120](https://github.com/timschoch/glue/issues/120)
+* **design-system:** add the record card with one action button ([#159](https://github.com/timschoch/glue/issues/159)) ([e69ec93](https://github.com/timschoch/glue/commit/e69ec934d2982aca11ecae1d8655a1f367f4c0fd)), closes [#141](https://github.com/timschoch/glue/issues/141)
+* **design-system:** add the trail, Project switcher and pin stack ([#151](https://github.com/timschoch/glue/issues/151)) ([0e84df2](https://github.com/timschoch/glue/commit/0e84df257b6277cb8153e13365e167b757f46cbc))
+
+
+### Bug Fixes
+
+* **deps:** update @tanstack/react-start to patch the XSS vulnerability ([#136](https://github.com/timschoch/glue/issues/136)) ([edd71f8](https://github.com/timschoch/glue/commit/edd71f8dace403e7845863885ce15c6e34019b7a)), closes [#119](https://github.com/timschoch/glue/issues/119)
+
 ## [1.6.1](https://github.com/timschoch/glue/compare/v1.6.0...v1.6.1) (2026-10-01)
 
 
