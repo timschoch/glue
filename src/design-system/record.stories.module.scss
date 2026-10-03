@@ -1,0 +1,15 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+
+// A record lies on the canvas of the main window.
+.canvas {
+  padding: $spacing-07;
+  background-color: $background;
+  min-block-size: 100vh;
+}
+
+// A main window as wide as Carbon's sm breakpoint.
+.narrow {
+  inline-size: $spacing-13 * 2;
+  max-inline-size: 100%;
+}
