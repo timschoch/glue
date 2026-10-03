@@ -21,6 +21,9 @@ const BODY_WEIGHT = 'var(--cds-body-compact-01-font-weight, 400)'
 const FROM_LG = '(min-width: 66rem)'
 const BELOW_LG = '(max-width: 65.98rem)'
 
+// The width of Carbon's side nav.
+const PANEL_WIDTH = '16rem'
+
 const TOKEN = /^var\((--[\w-]+)/
 
 // The pinned records, newest first.
@@ -121,6 +124,24 @@ function hiddenAt(element: HTMLElement): Array<string> {
     .map((media) => media.conditionText)
 }
 
+// The start margin that the media rules give an element, by media condition.
+// jsdom does not apply media rules itself.
+function marginStartAt(element: HTMLElement): Record<string, string> {
+  return Object.fromEntries(
+    [...document.styleSheets]
+      .flatMap((sheet) => [...sheet.cssRules])
+      .filter((rule) => rule instanceof CSSMediaRule)
+      .flatMap((media) =>
+        [...media.cssRules]
+          .filter((rule) => rule instanceof CSSStyleRule)
+          .filter((rule) => element.matches(rule.selectorText))
+          .map((rule) => rule.style.getPropertyValue('margin-inline-start'))
+          .filter((margin) => margin !== '')
+          .map((margin) => [media.conditionText, margin]),
+      ),
+  )
+}
+
 // The outline an element gets with the focus. jsdom does not apply `:focus`
 // rules itself.
 function focusOutline(element: HTMLElement): string {
@@ -137,6 +158,14 @@ function focusOutline(element: HTMLElement): string {
       .at(-1)
       ?.style.getPropertyValue('outline') ?? ''
   )
+}
+
+// The overlay Carbon lays over the main window while the left panel is open.
+// It has no role and no name.
+function overlay(): Element {
+  const found = document.querySelector('[class*="side-nav__overlay"]')
+  if (!found) throw new Error('The left panel has no overlay')
+  return found
 }
 
 // The background colour of an element.
@@ -309,7 +338,7 @@ describe('Frame', () => {
     expect(current).toEqual(['Decide', 'Step videos'])
   })
 
-  it('holds only the breadcrumb of the Concept path in the header', () => {
+  it('holds the menu button, the breadcrumb of the Concept path and the left panel in the header', () => {
     renderFrame()
 
     const header = screen.getByRole('banner')
@@ -317,7 +346,12 @@ describe('Frame', () => {
       name: 'Breadcrumb',
     })
 
-    expect([...header.children]).toEqual([breadcrumb])
+    expect([...header.children]).toEqual([
+      within(header).getByRole('button', { name: 'Menu' }),
+      breadcrumb,
+      overlay(),
+      within(header).getByRole('navigation', { name: 'Main' }),
+    ])
     expect(
       within(breadcrumb)
         .getAllByRole('listitem')
@@ -339,5 +373,91 @@ describe('Frame', () => {
     await userEvent.click(screen.getByRole('option', { name: 'Flexibeck' }))
 
     expect(onProjectChange).toHaveBeenCalledWith('Flexibeck')
+  })
+
+  it('puts the menu button at the left of the header, below the lg breakpoint only', () => {
+    renderFrame()
+
+    const header = screen.getByRole('banner')
+    const menu = within(header).getByRole('button', { name: 'Menu' })
+
+    expect(header.firstElementChild).toBe(menu)
+    // Carbon hides the button in two rules of the same breakpoint.
+    expect(new Set(hiddenAt(menu))).toEqual(new Set([FROM_LG]))
+  })
+
+  it('gives the main window the full width below lg, and the room beside the left panel from lg', () => {
+    renderFrame()
+
+    const main = screen.getByRole('main')
+
+    expect(getComputedStyle(main).marginInlineStart).toBe('0')
+    expect(marginStartAt(main)).toEqual({ [FROM_LG]: PANEL_WIDTH })
+  })
+
+  it('shows the pinned card as a light card on the canvas in the stack too', () => {
+    renderFrame(PINNED)
+
+    const cards = within(screen.getByRole('main')).getAllByRole('link', {
+      name: /^Pinned/,
+      hidden: true,
+    })
+    const [stack] = cards.map((card) => card.parentElement?.parentElement)
+
+    expect(cards.map(layer)).toEqual([LAYER_01, LAYER_01])
+    expect(stack && layer(stack)).toBe(BACKGROUND)
+  })
+
+  it('keeps the left panel closed below lg and opens it from the menu button', async () => {
+    renderFrame()
+
+    const menu = screen.getByRole('button', { name: 'Menu' })
+    const panel = screen.getByRole('navigation', { name: 'Main' })
+
+    expect(menu.getAttribute('aria-expanded')).toBe('false')
+    expect(panel.hasAttribute('inert')).toBe(true)
+
+    await userEvent.click(menu)
+
+    expect(menu.getAttribute('aria-expanded')).toBe('true')
+    expect(panel.hasAttribute('inert')).toBe(false)
+  })
+
+  it('gives the focus back to the menu button when Escape closes the left panel', async () => {
+    renderFrame()
+
+    const menu = screen.getByRole('button', { name: 'Menu' })
+    await userEvent.click(menu)
+    screen.getByRole('link', { name: 'Design' }).focus()
+    await userEvent.keyboard('{Escape}')
+
+    expect(document.activeElement).toBe(menu)
+  })
+
+  it.each([
+    ['Escape', () => userEvent.keyboard('{Escape}')],
+    [
+      'Escape in the Project switcher',
+      () => {
+        screen.getByRole('combobox', { name: /Project/ }).focus()
+        return userEvent.keyboard('{Escape}')
+      },
+    ],
+    ['a click outside', () => userEvent.click(overlay())],
+    [
+      'a choice in the panel',
+      () => userEvent.click(screen.getByRole('link', { name: 'Design' })),
+    ],
+  ])('closes the open left panel on %s', async (_name, close) => {
+    renderFrame()
+
+    const menu = screen.getByRole('button', { name: 'Menu' })
+    await userEvent.click(menu)
+    await close()
+
+    expect(menu.getAttribute('aria-expanded')).toBe('false')
+    expect(
+      screen.getByRole('navigation', { name: 'Main' }).hasAttribute('inert'),
+    ).toBe(true)
   })
 })

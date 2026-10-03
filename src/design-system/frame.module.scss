@@ -4,6 +4,8 @@
 @use '@carbon/react/scss/type' as *;
 @use '@carbon/react/scss/utilities/focus-outline' as *;
 
+// The width of Carbon's side nav.
+$panel-width: $spacing-10 * 4;
 $pinned-width: $spacing-13 * 2;
 
 // From this width the main window has room beside the pinned column.
@@ -89,6 +91,11 @@ $pinned-breakpoint: 'lg';
 
 .content {
   background-color: $background;
+
+  // From this width the left panel is fixed beside the main window.
+  @include breakpoint('lg') {
+    margin-inline-start: $panel-width;
+  }
 }
 
 .besidePinned {
