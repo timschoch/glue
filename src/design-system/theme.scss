@@ -15,6 +15,7 @@
   $theme: themes.$g10
 );
 @use '@carbon/react';
+@use '@carbon/react/scss/type';
 
 // The tokens as custom properties, so a stylesheet compiled on its own reads
 // the same theme.
@@ -31,4 +32,16 @@
   --#{config.$prefix}-background-active: #{theme.$layer-active-01};
   --#{config.$prefix}-background-selected: #{theme.$layer-selected-01};
   --#{config.$prefix}-background-selected-hover: #{theme.$layer-selected-hover-01};
+  --#{config.$prefix}-border-subtle: #{theme.$border-subtle-01};
+}
+
+// Carbon makes the current item of a side nav menu bold. In Glue the bar and
+// the layer state carry current, so the item keeps the type of its siblings.
+.#{config.$prefix}--side-nav__menu
+  a.#{config.$prefix}--side-nav__link--current
+  > span,
+.#{config.$prefix}--side-nav__menu
+  a.#{config.$prefix}--side-nav__link[aria-current='page']
+  > span {
+  @include type.type-style('body-compact-01');
 }

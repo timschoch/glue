@@ -124,7 +124,7 @@ export const TypeScale: Story = {
       </Specimen>
       <Specimen token="$heading-compact-02">
         <span className={styles['heading-compact-02']}>
-          Record title in the detail panel
+          Record title in the main window
         </span>
       </Specimen>
       <Specimen token="$heading-compact-01">
