@@ -34,7 +34,7 @@
         {
           "name": "pr workflow",
           "run": "pnpm exec tsx scripts/check-pr-workflow.ts",
-          "why": "Issue link, Decision line that names an existing Decision in the Concept database (CONCEPT_DATABASE_URL), tests with source changes. Reads the PR body, so it runs in CI only; elsewhere it passes."
+          "why": "Issue link, Decision line that names an existing Decision, read over Glue's HTTP API (GLUE_API_TOKEN), tests with source changes. Reads the PR body, so it runs in CI only; elsewhere it passes."
         },
         { "name": "lint", "run": "pnpm run --if-present lint" },
         { "name": "unit", "run": "pnpm exec vitest run --passWithNoTests", "target": "vitest.config.ts" },
