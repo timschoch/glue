@@ -25,6 +25,7 @@ const published: Part = {
   evidenceLevel: null,
   issueUrl: null,
   measure: null,
+  measured: [],
   supersededBy: null,
   supersedes: [],
   needs: [],

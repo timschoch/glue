@@ -1,7 +1,7 @@
 import type { MouseEvent } from 'react'
 
 import { Card } from './card.tsx'
-import type { PartType, Trust, WorkState } from './card.tsx'
+import type { PartType, Reading, Trust, WorkState } from './card.tsx'
 import styles from './part-cards.module.scss'
 
 // What the card of a Part in the list shows.
@@ -12,6 +12,8 @@ export type PartCardsPart = {
   title: string
   trust: Trust
   workState: WorkState
+  // Only a Goal or a Metric has one.
+  reading?: Reading
   // The name of the home Concept.
   concept: string
   href: string
@@ -39,6 +41,7 @@ export function PartCards({ title, parts, onOpen }: PartCardsProps) {
                 recordId={part.id}
                 title={part.title}
                 trust={part.trust}
+                reading={part.reading}
                 workState={part.workState}
                 concept={part.concept}
                 href={part.href}

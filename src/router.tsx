@@ -14,6 +14,7 @@ import {
 import {
   fetchBuilds,
   fetchConcept,
+  fetchMeasured,
   fetchMine,
   fetchPart,
   fetchParts,
@@ -46,6 +47,7 @@ const server: Server = {
   fetchConcept: (concept) => fetchConcept({ data: concept }),
   fetchParts: (project) => fetchParts({ data: { project } }),
   fetchMine: (project) => fetchMine({ data: { project } }),
+  fetchMeasured: (project) => fetchMeasured({ data: { project } }),
   fetchPart: (part) => fetchPart({ data: part }),
   fetchSignals: (project) => fetchSignals({ data: { project } }),
   fetchBuilds: (project) => fetchBuilds({ data: { project } }),

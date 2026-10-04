@@ -61,6 +61,10 @@ export const fetchMine = createServerFn({ method: 'GET' })
   .validator(projectInputSchema)
   .handler(({ data }) => actions.listMine(data))
 
+export const fetchMeasured = createServerFn({ method: 'GET' })
+  .validator(projectInputSchema)
+  .handler(({ data }) => actions.listMeasured(data))
+
 export const submitAddConcept = createServerFn({ method: 'POST' })
   .validator(conceptAddInputSchema)
   .handler(({ data }) => actions.addConcept(data))

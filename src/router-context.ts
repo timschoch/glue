@@ -21,7 +21,13 @@ import type {
   SignalInsightAddInput,
   UnassignInput,
 } from './db/part-actions.ts'
-import type { Concept, Part, PartSummary, Project } from './db/parts.ts'
+import type {
+  Concept,
+  MeasuredPart,
+  Part,
+  PartSummary,
+  Project,
+} from './db/parts.ts'
 import type { ProjectSignals } from './db/signals.ts'
 import { UNKNOWN_CONCEPT } from './project/project-search.ts'
 
@@ -37,6 +43,9 @@ export type Server = {
   fetchParts: (project: string) => Promise<PartSummary[]>
   // The Parts of the Project that need the owner, the newest change first.
   fetchMine: (project: string) => Promise<PartSummary[]>
+  // The Metrics and the measured Goals of the Project, each with its newest
+  // reading.
+  fetchMeasured: (project: string) => Promise<MeasuredPart[]>
   fetchPart: (part: {
     project: string
     recordId: string
@@ -152,6 +161,8 @@ export function createRouterContext(
       keepSignInTarget(server.fetchParts(project), `/${project}`),
     fetchMine: (project) =>
       keepSignInTarget(server.fetchMine(project), `/${project}`),
+    fetchMeasured: (project) =>
+      keepSignInTarget(server.fetchMeasured(project), `/${project}`),
     fetchPeople: (project) =>
       keepSignInTarget(server.fetchPeople(project), `/${project}`),
     fetchConcept: (concept) =>

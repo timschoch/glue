@@ -114,6 +114,27 @@ export const projectConceptSchema = z
   })
   .meta({ id: 'ProjectConcept' }) satisfies z.ZodType<Concept>
 
+const partMeasureSchema = z
+  .object({
+    measure: goalMeasureSchema,
+    baseline: z.number().nullable(),
+    latestValue: z.number().nullable().meta({
+      description: 'The newest reading. null before the first measure run',
+    }),
+    latestBreakdownValue: z.string().nullable(),
+    measuredAt: z.iso.datetime().nullable().meta({
+      description: 'The time of the newest reading',
+    }),
+    target: z.number().nullable().meta({
+      description:
+        'The value to reach. null for a mean that has no baseline yet',
+    }),
+    onTarget: z.boolean().nullable().meta({
+      description: 'null when there is no reading or no target',
+    }),
+  })
+  .meta({ id: 'PartMeasure' })
+
 const jointEndSchema = z
   .object({
     jointId: z.number(),
@@ -140,15 +161,18 @@ export const partSchema = z
     enforcedBy: z.string().nullable(),
     evidenceLevel: z.enum(evidenceLevels).nullable(),
     issueUrl: z.string().nullable(),
-    measure: z
-      .object({
-        measure: goalMeasureSchema,
-        baseline: z.number().nullable(),
-        latestValue: z.number().nullable(),
-        latestBreakdownValue: z.string().nullable(),
-        measuredAt: z.iso.datetime().nullable(),
-      })
-      .nullable(),
+    measure: partMeasureSchema.nullable(),
+    measured: z
+      .array(
+        z.object({
+          ...partSummarySchema.shape,
+          measure: partMeasureSchema.nullable(),
+        }),
+      )
+      .meta({
+        description:
+          'The Metrics and the measured Goals at the other end of a Joint',
+      }),
     supersededBy: partSummarySchema.nullable(),
     supersedes: z.array(partSummarySchema),
     needs: z.array(jointEndSchema).meta({

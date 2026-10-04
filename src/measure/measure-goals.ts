@@ -1,11 +1,12 @@
-// The measure step of the cycle: read each Goal's measure from its metric
-// source and write a draft Insight. A funnel Goal gets one when it misses its
-// target or moved. A mean Goal gets one on each run, with its baseline.
+// The measure step of the cycle: read the measure of each Goal and of each
+// Metric from its metric source, store the reading and write a draft
+// Insight. A funnel gets one when it misses its target or moved. A mean gets
+// one on each run, with its baseline.
 import { z } from 'zod'
 
 import type { ConceptDb } from '../db/client.ts'
 import { addConceptRecord } from '../db/concept-records.ts'
-import { goalMeasureSchema } from '../db/goal-measure.ts'
+import { goalMeasureSchema, isOnTarget } from '../db/goal-measure.ts'
 import {
   findInsightIdBySource,
   listAcceptedDecisions,
@@ -72,24 +73,26 @@ type MeasuredGoal<TMeasure extends GoalMeasure = GoalMeasure> = {
   analyticsProject: string
   goalId: number
   goalRecordId: string
+  type: 'goal' | 'metric'
   baseline: number | null
   measure: TMeasure
 }
 
-// How far a mean Goal is, as a measure run stores it.
+const typeNames = { goal: 'Goal', metric: 'Metric' }
+
+// How far a Goal or a Metric is, as a measure run stores it. A funnel has no
+// baseline.
 type Progress = {
-  baseline: number
+  baseline: number | null
   latestValue: number
   latestBreakdownValue: string | null
 }
 
-// The Insight a measure run writes, and the progress a mean Goal stores.
-type MeasuredDraft = {
-  title: string
-  source: string
-  body: string
-  progress?: Progress
-}
+type InsightDraft = { title: string; source: string; body: string }
+
+// What a measure run read: the progress to store, and the Insight that the
+// reading calls for. A window that says nothing gives none of the two.
+type Measured = { progress?: Progress; draft?: InsightDraft }
 
 function formatDay(date: Date) {
   return date.toISOString().slice(0, 10)
@@ -261,21 +264,22 @@ async function listMeasuredGoals(
       skip(
         `the Product has no analytics project: pnpm concept project set ${row.productSlug} --analytics-project <key>`,
       )
-    } else {
-      measured.push({ ...row, analyticsProject, measure: parsed.data })
+    } else if (row.type === 'goal' || row.type === 'metric') {
+      const { type } = row
+      measured.push({ ...row, type, analyticsProject, measure: parsed.data })
     }
   }
   return { measured, skipped }
 }
 
-// The Insight the funnel Goal's last window calls for, or null when there is
-// none.
+// The conversion of the funnel's last window, and the Insight that it calls
+// for.
 async function measureFunnelGoal(
   db: ConceptDb,
   source: MetricSource,
   now: Date,
   measured: MeasuredGoal<FunnelMeasure>,
-): Promise<MeasuredDraft | null> {
+): Promise<Measured> {
   const { goalRecordId, measure } = measured
   const lastWindow = windowBefore(now, measure.window_days)
   const reference = formatQueryReference(
@@ -289,8 +293,14 @@ async function measureFunnelGoal(
       (window) => fetchWindowFunnel(source, measured, window),
     ),
   )
+  if (last.counts[0] < MINIMUM_USERS) return {}
+  const progress = {
+    baseline: null,
+    latestValue: conversion(last.counts),
+    latestBreakdownValue: null,
+  }
   const findings = listFindings(measure, last, before)
-  if (findings.length === 0) return null
+  if (findings.length === 0) return { progress }
 
   const { steps, window_days: days } = measure
   const title = [
@@ -298,12 +308,12 @@ async function measureFunnelGoal(
     ...findings,
   ].join(', ')
   const body = [
-    `Goal ${goalRecordId}, target ${percent.format(measure.target)} from ${steps[0]} to ${steps[steps.length - 1]}. Query: ${reference}`,
+    `${typeNames[measured.type]} ${goalRecordId}, target ${percent.format(measure.target)} from ${steps[0]} to ${steps[steps.length - 1]}. Query: ${reference}`,
     formatWindowSection(`Last ${days} days`, measure, last),
     formatWindowSection(`The ${days} days before`, measure, before),
     await formatAcceptedSection(db, measured),
   ].join('\n\n')
-  return { title, source: reference, body }
+  return { progress, draft: { title, source: reference, body } }
 }
 
 // The mean over all breakdown values.
@@ -392,14 +402,14 @@ function findComparedMeans(
   return latest && baseline !== null ? { baseline, latest } : null
 }
 
-// The Insight of the mean Goal's last window, or null when it has no mean to
-// compare.
+// The mean of the last window with its Insight. None of the two when it has
+// no mean to compare.
 async function measureMeanGoal(
   db: ConceptDb,
   source: MetricSource,
   now: Date,
   measured: MeasuredGoal<MeanMeasure>,
-): Promise<MeasuredDraft | null> {
+): Promise<Measured> {
   const { analyticsProject, goalRecordId, measure } = measured
   const { event, property, where, breakdown } = measure
   const window = windowBefore(now, measure.window_days)
@@ -425,19 +435,18 @@ async function measureMeanGoal(
     ...(breakdown && { breakdown }),
   })
   const compared = findComparedMeans(measure, results, measured.baseline)
-  if (!compared) return null
+  if (!compared) return {}
 
   const { baseline, latest } = compared
   const { mean, count } = latest
   const { target_change: targetChange, baseline_value: baselineValue } = measure
   const target = change.format(targetChange)
-  const isReached =
-    (mean - baseline) * Math.sign(targetChange) >= Math.abs(targetChange)
+  const isReached = isOnTarget(measure, baseline, mean)
   const baselineText = `the baseline ${decimal.format(baseline)}${formatBreakdownValue(measure, baselineValue)}`
   const title = `${goalRecordId} mean of ${property}: ${decimal.format(mean)}${formatBreakdownValue(measure, latest.breakdown)} from ${count} values, ${change.format(mean - baseline)} from ${baselineText}, target ${target} ${isReached ? 'reached' : 'not reached'}`
   const filter = where ? `, where ${where.property} is ${where.value}` : ''
   const body = [
-    `Goal ${goalRecordId}, target ${target} from ${baselineText}: the mean of ${property} in ${event} events${filter}. Query: ${reference}`,
+    `${typeNames[measured.type]} ${goalRecordId}, target ${target} from ${baselineText}: the mean of ${property} in ${event} events${filter}. Query: ${reference}`,
     formatWindowHeading(`Last ${measure.window_days} days`, window),
     formatMeanTable(breakdown, results, baseline),
     await formatAcceptedSection(db, measured),
@@ -447,7 +456,7 @@ async function measureMeanGoal(
     latestValue: mean,
     latestBreakdownValue: latest.breakdown,
   }
-  return { title, source: reference, body, progress }
+  return { progress, draft: { title, source: reference, body } }
 }
 
 function measureGoal(
@@ -476,7 +485,7 @@ type MeasureOptions = {
 async function addMeasuredInsight(
   { db, now, dryRun = false }: MeasureOptions,
   goal: MeasuredGoal,
-  draft: MeasuredDraft,
+  draft: InsightDraft,
 ): Promise<{ id: string | null; isDuplicate: boolean }> {
   const existingId = await findInsightIdBySource(
     db,
@@ -520,15 +529,14 @@ async function addGoalInsight(
   goal: MeasuredGoal,
 ): Promise<MeasuredInsight | SkippedGoal | null> {
   const { db, source, now, dryRun = false } = options
-  const measuredDraft = await measureGoal(db, source, now, goal)
-  if (!measuredDraft) return null
-  const { progress, ...draft } = measuredDraft
+  const { progress, draft } = await measureGoal(db, source, now, goal)
   if (!dryRun && progress) {
     await setReading(db, goal.productSlug, goal.goalRecordId, {
       ...progress,
       measuredAt: now,
     })
   }
+  if (!draft) return null
   const { id, isDuplicate } = await addMeasuredInsight(options, goal, draft)
   const names = { product: goal.productSlug, goal: goal.goalRecordId }
   return isDuplicate

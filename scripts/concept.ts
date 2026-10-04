@@ -234,6 +234,13 @@ function formatRow({
 function printTrust(part: Part) {
   console.log(`trust: ${part.trust}`)
   console.log(`work_state: ${part.workState}`)
+  if (part.measure) {
+    const { target, latestValue, onTarget, measuredAt } = part.measure
+    if (target !== null) console.log(`target: ${target}`)
+    if (latestValue !== null) console.log(`value: ${latestValue}`)
+    if (onTarget !== null) console.log(`on_target: ${onTarget}`)
+    if (measuredAt) console.log(`measured_at: ${measuredAt}`)
+  }
   for (const { cause, reason, createdAt } of part.flags) {
     const date = createdAt.slice(0, 10)
     console.log(`flag: ${cause.id} ${reason} ${date} ${cause.title}`)

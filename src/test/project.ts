@@ -218,6 +218,7 @@ function part(
     evidenceLevel: null,
     issueUrl: null,
     measure: null,
+    measured: [],
     supersededBy: null,
     supersedes: [],
     needs: toEnds(needs, 1),

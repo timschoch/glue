@@ -6,6 +6,7 @@ import {
   setProductRepository,
 } from '../src/db/concept-records.ts'
 import { showConceptRecord } from '../src/db/legacy-records.ts'
+import { setReading } from '../src/db/part-records.ts'
 import * as schema from '../src/db/schema.ts'
 import { createTestDatabase } from '../src/db/test-database.ts'
 import { createFakeGithub } from '../src/test/github.ts'
@@ -397,6 +398,43 @@ describe('runConcept', () => {
 
     const line = logged().find((shown) => shown.startsWith('measure: '))
     expect(JSON.parse(line?.slice('measure: '.length) ?? '')).toEqual(measure)
+  })
+
+  it('shows the newest reading of a Metric against its target', async () => {
+    const measure = {
+      kind: 'funnel',
+      source: 'mock-analytics',
+      steps: ['signed-up', 'paid'],
+      target: 0.25,
+      window_days: 7,
+    }
+    await run(
+      'add',
+      'metrics',
+      '--project',
+      'flexibeck',
+      '--title',
+      'Signup to paid',
+      '--measure',
+      JSON.stringify(measure),
+    )
+    await setReading(db, 'flexibeck', 'M1', {
+      baseline: null,
+      latestValue: 0.1,
+      latestBreakdownValue: null,
+      measuredAt: new Date('2026-10-04T00:00:00.000Z'),
+    })
+
+    await run('show', 'M1', '--project', 'flexibeck')
+
+    expect(logged()).toEqual(
+      expect.arrayContaining([
+        'target: 0.25',
+        'value: 0.1',
+        'on_target: false',
+        'measured_at: 2026-10-04T00:00:00.000Z',
+      ]),
+    )
   })
 
   it('refuses a flag that an Entity does not have', async () => {

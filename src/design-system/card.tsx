@@ -61,6 +61,16 @@ export const workStates = {
 
 export type WorkState = keyof typeof workStates
 
+// The newest value of a Goal or a Metric against its target, as texts. No
+// value: the reading is an empty slot. No sign without a target.
+export type Reading = { value?: string; target?: string; onTarget?: boolean }
+
+// On target or not, with the signs of Trust.
+const targetSigns = {
+  on: { ...signs.solid, word: 'On target' },
+  off: { ...signs.flagged, word: 'Off target' },
+}
+
 export type CardProps = {
   type: PartType
   recordId: string
@@ -69,6 +79,8 @@ export type CardProps = {
   // Only an Insight has one.
   evidenceLevel?: EvidenceLevel
   summary?: string
+  // Only a Goal or a Metric has one.
+  reading?: Reading
   // The Part types that the record needs and does not have.
   emptySlots?: ReadonlyArray<PartType>
   workState?: WorkState
@@ -97,6 +109,7 @@ export function Card({
   trust,
   evidenceLevel,
   summary,
+  reading,
   emptySlots = [],
   workState,
   owner,
@@ -109,6 +122,10 @@ export function Card({
 }: CardProps) {
   const { word, Glyph, className } = signs[trust]
   const room = action?.icon ? styles.besideAction : styles.aboveAction
+  const targetSign =
+    reading?.onTarget === undefined
+      ? undefined
+      : targetSigns[reading.onTarget ? 'on' : 'off']
 
   return (
     <div className={styles.card}>
@@ -138,6 +155,32 @@ export function Card({
                 {' '}
                 <p className={styles.summary}>{summary}</p>
               </>
+            )}
+            {reading && (
+              <span className={styles.reading}>
+                {targetSign && (
+                  <>
+                    {' '}
+                    <targetSign.Glyph
+                      aria-label={targetSign.word}
+                      className={targetSign.className}
+                    >
+                      <title>{targetSign.word}</title>
+                    </targetSign.Glyph>
+                  </>
+                )}{' '}
+                {reading.value === undefined ? (
+                  <span className={styles.emptySlot}>Reading</span>
+                ) : (
+                  <span className={styles.value}>{reading.value}</span>
+                )}
+                {reading.target !== undefined && (
+                  <>
+                    {' '}
+                    <span>Target {reading.target}</span>
+                  </>
+                )}
+              </span>
             )}
             {emptySlots.length > 0 && (
               <span className={styles.emptySlots}>

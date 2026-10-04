@@ -77,3 +77,25 @@ export const goalMeasureSchema = z
 export type FunnelMeasure = z.infer<typeof funnelMeasureSchema>
 export type MeanMeasure = z.infer<typeof meanMeasureSchema>
 export type GoalMeasure = z.infer<typeof goalMeasureSchema>
+
+// The value that a reading must reach. A mean wants a change from its
+// baseline, so it has no target before its first reading.
+export function toTarget(
+  measure: GoalMeasure,
+  baseline: number | null,
+): number | null {
+  if (measure.kind === 'funnel') return measure.target
+  return baseline === null ? null : baseline + measure.target_change
+}
+
+// A target below the baseline wants the value to go down.
+export function isOnTarget(
+  measure: GoalMeasure,
+  baseline: number | null,
+  value: number,
+): boolean {
+  if (measure.kind === 'funnel') return value >= measure.target
+  if (baseline === null) return false
+  const { target_change: targetChange } = measure
+  return (value - baseline) * Math.sign(targetChange) >= Math.abs(targetChange)
+}

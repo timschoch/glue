@@ -1,8 +1,9 @@
 import type { SQL } from 'drizzle-orm'
-import { and, count, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import type { ConceptDb } from './client.ts'
+import { isOnTarget, toTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import type { Kind } from './kinds.ts'
 import type {
@@ -51,6 +52,24 @@ export type PartSummary = {
   concept: string
   conceptTitle: string
 }
+
+// How Glue measures a Goal or a Metric, and its newest reading against its
+// target. No reading yet: no latest value and no time.
+export type PartMeasure = {
+  measure: GoalMeasure
+  baseline: number | null
+  latestValue: number | null
+  latestBreakdownValue: string | null
+  measuredAt: string | null
+  // The value that a reading must reach. A mean has one after its first
+  // reading.
+  target: number | null
+  // null: no reading yet.
+  onTarget: boolean | null
+}
+
+// A Goal or a Metric with its measure. null: Glue does not measure it.
+export type MeasuredPart = PartSummary & { measure: PartMeasure | null }
 
 // An open flag of a Part: the Part that caused it, and why.
 export type Flag = {
@@ -129,13 +148,9 @@ export type Part = PartSummary & {
   enforcedBy: string | null
   evidenceLevel: EvidenceLevel | null
   issueUrl: string | null
-  measure: {
-    measure: GoalMeasure
-    baseline: number | null
-    latestValue: number | null
-    latestBreakdownValue: string | null
-    measuredAt: string | null
-  } | null
+  measure: PartMeasure | null
+  // The Metrics and the measured Goals at the other end of its Joints.
+  measured: MeasuredPart[]
   supersededBy: PartSummary | null
   supersedes: PartSummary[]
   // A two-way Joint shows in `needs` on both sides.
@@ -184,7 +199,7 @@ const neededSummary = {
 
 // Parts sort by their type, then by the number of their record id: D2 comes
 // before D10.
-function sortParts(items: PartSummary[]): PartSummary[] {
+function sortParts<TPart extends PartSummary>(items: TPart[]): TPart[] {
   return partTypes.flatMap((type) =>
     sortById(items.filter((item) => item.type === type)),
   )
@@ -199,6 +214,58 @@ async function listSummaries(db: ConceptDb, matches: SQL | undefined) {
     .innerJoin(projects, eq(parts.projectId, projects.id))
     .where(matches)
   return sortParts(found)
+}
+
+function toPartMeasure(row: typeof measures.$inferSelect): PartMeasure {
+  const { measure, baseline, latestValue } = row
+  return {
+    measure,
+    baseline,
+    latestValue,
+    latestBreakdownValue: row.latestBreakdownValue,
+    measuredAt: row.measuredAt?.toISOString() ?? null,
+    target: toTarget(measure, baseline),
+    onTarget:
+      latestValue === null ? null : isOnTarget(measure, baseline, latestValue),
+  }
+}
+
+// The Metrics and the Goals with a measure that match, each with its
+// measure.
+async function listMeasuredParts(
+  db: ConceptDb,
+  matches: SQL | undefined,
+): Promise<MeasuredPart[]> {
+  const found = await db
+    .select({ part: summary, measure: measures })
+    .from(parts)
+    .innerJoin(concepts, eq(parts.conceptId, concepts.id))
+    .innerJoin(projects, eq(parts.projectId, projects.id))
+    .leftJoin(measures, eq(measures.partId, parts.id))
+    .where(
+      and(
+        matches,
+        or(
+          eq(parts.type, 'metric'),
+          and(eq(parts.type, 'goal'), isNotNull(measures.partId)),
+        ),
+      ),
+    )
+  return sortParts(
+    found.map(({ part, measure }) => ({
+      ...part,
+      measure: measure && toPartMeasure(measure),
+    })),
+  )
+}
+
+// What the section Use shows: the Metrics and the measured Goals of the
+// Project. An unknown Project has none.
+export function listMeasured(
+  db: ConceptDb,
+  projectSlug: string,
+): Promise<MeasuredPart[]> {
+  return listMeasuredParts(db, eq(projects.slug, projectSlug))
 }
 
 // The Joints that match, in the order of their ids, each with the Parts at
@@ -468,26 +535,41 @@ export async function findPart(
   if (!row) return undefined
   const { part, concept, measure } = row
 
-  const [supersededBy, waitsOn, partFlags, supersedes, jointRows, grownFrom] =
-    await Promise.all([
-      part.supersededById === null
-        ? []
-        : listSummaries(db, eq(parts.id, part.supersededById)),
-      part.awaitedPartId === null
-        ? []
-        : listSummaries(db, eq(parts.id, part.awaitedPartId)),
-      listFlags(db, part.id),
-      listSummaries(db, eq(parts.supersededById, part.id)),
-      listJoints(
-        db,
-        or(eq(joints.partId, part.id), eq(joints.neededPartId, part.id)),
-      ),
-      db
-        .select({ url: signals.url, title: signals.title })
-        .from(signals)
-        .where(eq(signals.partId, part.id))
-        .orderBy(signals.id),
-    ])
+  const [
+    supersededBy,
+    waitsOn,
+    partFlags,
+    supersedes,
+    jointRows,
+    grownFrom,
+    measured,
+  ] = await Promise.all([
+    part.supersededById === null
+      ? []
+      : listSummaries(db, eq(parts.id, part.supersededById)),
+    part.awaitedPartId === null
+      ? []
+      : listSummaries(db, eq(parts.id, part.awaitedPartId)),
+    listFlags(db, part.id),
+    listSummaries(db, eq(parts.supersededById, part.id)),
+    listJoints(
+      db,
+      or(eq(joints.partId, part.id), eq(joints.neededPartId, part.id)),
+    ),
+    db
+      .select({ url: signals.url, title: signals.title })
+      .from(signals)
+      .where(eq(signals.partId, part.id))
+      .orderBy(signals.id),
+    listMeasuredParts(
+      db,
+      sql`${parts.id} in (
+        select "needed_part_id" from "joints" where "part_id" = ${part.id}
+        union
+        select "part_id" from "joints" where "needed_part_id" = ${part.id}
+      )`,
+    ),
+  ])
 
   const needs: JointEnd[] = []
   const neededBy: JointEnd[] = []
@@ -520,13 +602,8 @@ export async function findPart(
     enforcedBy: part.enforcedBy,
     evidenceLevel: part.evidenceLevel,
     issueUrl: part.issueUrl,
-    measure: measure && {
-      measure: measure.measure,
-      baseline: measure.baseline,
-      latestValue: measure.latestValue,
-      latestBreakdownValue: measure.latestBreakdownValue,
-      measuredAt: measure.measuredAt?.toISOString() ?? null,
-    },
+    measure: measure && toPartMeasure(measure),
+    measured,
     supersededBy: supersededBy.at(0) ?? null,
     supersedes,
     needs,

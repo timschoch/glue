@@ -1,4 +1,5 @@
-import type { Part, PartSummary } from '../db/parts.ts'
+import type { Part, PartMeasure, PartSummary } from '../db/parts.ts'
+import type { Reading } from '../design-system/card.tsx'
 import type { RecordPart, RecordPartSummary } from '../design-system/record.tsx'
 
 // The length of the day in an ISO time: 2026-10-02.
@@ -25,10 +26,25 @@ export function toRecordSummaries(
   return parts.map((part) => toRecordSummary(part, href))
 }
 
-// The target of a measure. A mean wants a change from its baseline.
-function target({ measure, baseline }: NonNullable<Part['measure']>) {
-  if (measure.kind === 'funnel') return measure.target
-  return baseline === null ? null : baseline + measure.target_change
+const share = new Intl.NumberFormat('en', {
+  style: 'percent',
+  maximumFractionDigits: 1,
+})
+const decimal = new Intl.NumberFormat('en', { maximumFractionDigits: 2 })
+
+// The newest value of a Goal or a Metric against its target, as its card
+// shows it. A funnel is a share, a mean is a number.
+export function toReading(measure: PartMeasure | null): Reading {
+  if (!measure) return {}
+  const format = measure.measure.kind === 'funnel' ? share : decimal
+  const toText = (value: number | null) =>
+    value === null ? undefined : format.format(value)
+
+  return {
+    value: toText(measure.latestValue),
+    target: toText(measure.target),
+    onTarget: measure.onTarget ?? undefined,
+  }
 }
 
 // A Part as the record view shows it. `href` gives the address that opens a
@@ -40,11 +56,15 @@ export function toRecordPart(
   parts: ReadonlyArray<PartSummary> = [],
 ): RecordPart {
   const { measure } = part
+  // A Goal or a Metric at the other end of a Joint shows its reading.
+  const readings = new Map(
+    part.measured.map((end) => [end.id, toReading(end.measure)]),
+  )
   const toEnds = (ends: Part['needs']) =>
     ends.map(({ jointId, link, part: end }) => ({
       jointId,
       link,
-      part: toRecordSummary(end, href),
+      part: { ...toRecordSummary(end, href), reading: readings.get(end.id) },
     }))
   const findCause = (recordId: string) => {
     const found = parts.find(({ id }) => id === recordId)
@@ -65,7 +85,7 @@ export function toRecordPart(
     measure: measure && {
       baseline: measure.baseline,
       latestValue: measure.latestValue,
-      target: target(measure),
+      target: measure.target,
       measuredAt: measure.measuredAt?.slice(0, DAY_LENGTH) ?? null,
     },
     supersededBy: part.supersededBy && toRecordSummary(part.supersededBy, href),

@@ -4,7 +4,13 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { setProductRepository } from '../db/concept-records.ts'
-import { addJoint, addPart, addProject } from '../db/part-records.ts'
+import type { GoalMeasure } from '../db/goal-measure.ts'
+import {
+  addJoint,
+  addPart,
+  addProject,
+  setReading,
+} from '../db/part-records.ts'
 import * as schema from '../db/schema.ts'
 import { createToken } from '../db/tokens.ts'
 import type { GithubClient } from '../github/client.ts'
@@ -381,6 +387,7 @@ describe('GET a Part', () => {
       evidenceLevel: 'pattern',
       issueUrl: null,
       measure: null,
+      measured: [],
       supersededBy: null,
       supersedes: [],
       needs: [],
@@ -391,6 +398,54 @@ describe('GET a Part', () => {
       answers: ['not-ready', 'sink'],
       activity: [{ kind: 'published', at: expect.any(String) }],
     })
+  })
+
+  it('returns a Metric with its newest reading against its target', async () => {
+    const measure: GoalMeasure = {
+      kind: 'funnel',
+      source: 'mock-analytics',
+      steps: ['signed-up', 'paid'],
+      target: 0.25,
+      window_days: 7,
+    }
+    await addPart(db, 'flexibeck', {
+      type: 'metric',
+      title: 'Signup to paid',
+      measure,
+    })
+    await addPart(db, 'flexibeck', {
+      type: 'flow',
+      title: 'Checkout',
+      needs: ['M1'],
+    })
+    const measuredAt = '2026-10-04T00:00:00.000Z'
+    await setReading(db, 'flexibeck', 'M1', {
+      baseline: null,
+      latestValue: 0.1,
+      latestBreakdownValue: null,
+      measuredAt: new Date(measuredAt),
+    })
+    const reading = {
+      measure,
+      baseline: null,
+      latestValue: 0.1,
+      latestBreakdownValue: null,
+      measuredAt,
+      target: 0.25,
+      onTarget: false,
+    }
+
+    const metric = await call(handleGetPart, 'GET', {
+      params: { recordId: 'M1' },
+    })
+    const flow = await call(handleGetPart, 'GET', {
+      params: { recordId: 'F1' },
+    })
+
+    expect(metric.body.measure).toEqual(reading)
+    expect(flow.body.measured).toEqual([
+      expect.objectContaining({ id: 'M1', measure: reading }),
+    ])
   })
 
   it('returns a Guardrail with its source', async () => {

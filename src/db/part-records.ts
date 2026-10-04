@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { findMentions } from '../mention.ts'
 import type { ConceptDb } from './client.ts'
 import { getProjectId } from './concept.ts'
-import { goalMeasureSchema } from './goal-measure.ts'
+import { goalMeasureSchema, isOnTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import { kinds } from './kinds.ts'
 import type { Kind } from './kinds.ts'
@@ -1174,14 +1174,18 @@ export async function answerPart(
   )
 }
 
-// What a measure run read for a Part, and when.
+// What a measure run read for a Part, and when. A funnel has no baseline.
 export type Reading = {
-  baseline: number
+  baseline: number | null
   latestValue: number
   latestBreakdownValue: string | null
   measuredAt: Date
 }
 
+// Keeps the reading as one statement with what follows it. A reading that
+// misses its target flags the Parts that need the Part: the first reading,
+// and a reading after one that reached the target. So the readings that stay
+// off target flag once.
 export async function setReading(
   db: ConceptDb,
   projectSlug: string,
@@ -1190,11 +1194,32 @@ export async function setReading(
 ): Promise<void> {
   const part = await getPart(db, projectSlug, recordId)
   const { measures } = schema
-  const measured = await db
+  const found = await db
+    .select()
+    .from(measures)
+    .where(eq(measures.partId, part.id))
+  const last = found.at(0)
+  if (!last) throw new InvalidRecordError(`"${recordId}" has no measure`)
+
+  const wasOffTarget =
+    last.latestValue !== null &&
+    !isOnTarget(last.measure, last.baseline, last.latestValue)
+  const isOffTarget = !isOnTarget(
+    last.measure,
+    reading.baseline,
+    reading.latestValue,
+  )
+  const measured = db
     .update(measures)
     .set(reading)
     .where(eq(measures.partId, part.id))
     .returning({ partId: measures.partId })
-  if (measured.length === 0)
-    throw new InvalidRecordError(`"${recordId}" has no measure`)
+  await db.execute(sql`
+    with measured as ${measured},
+    read_part as (
+      select ${trustFields} from "parts"
+      where "id" in (select "part_id" from measured)
+    )${spreadTrust('read_part', sql`false`, isOffTarget && !wasOffTarget)}
+    select "part_id" from measured
+  `)
 }
