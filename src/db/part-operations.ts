@@ -6,6 +6,7 @@ import {
   addPart,
   answerPart,
   answerQuestion,
+  supersedeDecision,
   updatePart,
 } from './part-records.ts'
 import type {
@@ -24,6 +25,12 @@ import type { SignalInsight } from './signals.ts'
 // A Part after a write, with what became of its downstream issue. When
 // GitHub failed, the Part is saved and the issue is `failed`.
 export type ChangedPart = { part: Part; issue: DownstreamIssue }
+
+// The status that a Decision gets. `superseded` goes with the accepted
+// Decision that replaces it.
+export type DecisionStatusChange =
+  | { status: 'proposed' | 'accepted'; supersededBy?: undefined }
+  | { status: 'superseded'; supersededBy: string }
 
 // What a person or an agent does with a Part. The server functions, the
 // HTTP API and the CLI call these operations. One operation is the whole
@@ -71,6 +78,26 @@ export function createPartOperations({
         throw new InvalidRecordError(
           `"${recordId}" changed since you opened it`,
         )
+      return toChangedPart(project, recordId)
+    },
+
+    // Gives a Decision that exists its status: see supersedeDecision for
+    // `superseded`. No other status takes a successor.
+    async setDecisionStatus(
+      project: string,
+      recordId: string,
+      change: DecisionStatusChange,
+    ) {
+      if (
+        (change.status === 'superseded') !==
+        (change.supersededBy !== undefined)
+      )
+        throw new InvalidRecordError(
+          'the status "superseded" and "supersededBy" go together',
+        )
+      if (change.status === 'superseded')
+        await supersedeDecision(db, project, recordId, change.supersededBy)
+      else await updatePart(db, project, recordId, { status: change.status })
       return toChangedPart(project, recordId)
     },
 

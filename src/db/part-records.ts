@@ -275,22 +275,9 @@ export const newPartSchema = z.discriminatedUnion('type', [
   fieldSchemas.metric.extend({ type: z.literal('metric'), ...placeShape }),
 ])
 
-// Reads a new Part from the flags of the CLI.
-export function parseNewPart(input: unknown): NewPart {
-  return parseInput(newPartSchema, input)
-}
-
 // A change of a Part as a request sends it. updatePart reads it with the
 // schema of the type of the Part.
 export const partChangeSchema = z.union(Object.values(changeSchemas))
-
-// Reads the change of a Part of the type from a request.
-export function parsePartChange(
-  type: schema.PartType,
-  input: unknown,
-): PartChange {
-  return parseInput(changeSchemas[type], input)
-}
 
 // The Parts of the record ids that the Project has.
 function selectParts(db: ConceptDb, projectId: number, recordIds: string[]) {
@@ -1164,11 +1151,6 @@ export const partAnswerSchema = z.discriminatedUnion('answer', [
 
 export type PartAnswer = z.input<typeof partAnswerSchema>
 
-// Reads an answer from the arguments of the CLI.
-export function parsePartAnswer(input: unknown): PartAnswer {
-  return parseInput(partAnswerSchema, input)
-}
-
 // Answers a Part as its owner: one write that sets its Trust, its Work state
 // and its status as the answer says (D39, and the table in docs/concept.md),
 // closes its open flags, and tells the Parts that need it. `wait` keeps the
@@ -1282,11 +1264,6 @@ export const questionAnswerSchema = z.union([
 ])
 
 export type QuestionAnswer = z.input<typeof questionAnswerSchema>
-
-// Reads the answer to a question from the arguments of the CLI.
-export function parseQuestionAnswer(input: unknown): QuestionAnswer {
-  return parseInput(questionAnswerSchema, input)
-}
 
 // Answers the question of a proposed Decision (D27): one write that keeps
 // the chosen option or the answer in words on the Decision, with the person

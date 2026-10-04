@@ -18,8 +18,6 @@ import {
   addJoint,
   addPart,
   addProject,
-  parseNewPart,
-  parsePartChange,
   removeJoint,
   removePart,
   setIssueUrl,
@@ -759,8 +757,10 @@ describe('updatePart', () => {
         message: expect.stringContaining('issueUrl'),
       })
 
-      expect(() => parsePartChange('decision', { issueUrl })).toThrow(refused)
-      expect(() => parseNewPart({ ...decision, issueUrl })).toThrow(refused)
+      await expect(
+        // @ts-expect-error A new Decision has no issue.
+        addPart(db, 'glue', { ...decision, issueUrl }),
+      ).rejects.toThrow(refused)
       await expect(
         // @ts-expect-error A change has no issue.
         updatePart(db, 'glue', 'D1', { issueUrl }),

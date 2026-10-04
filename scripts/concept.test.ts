@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createPartOperations } from '../src/db/part-operations.ts'
 import { addPart, addProject, setReading } from '../src/db/part-records.ts'
 import { findPart } from '../src/db/parts.ts'
 import { setProductRepository } from '../src/db/projects.ts'
@@ -16,9 +17,19 @@ import {
   runConcept,
 } from './concept.ts'
 
+// The module keeps its code. The spy says if a command made its operations.
+vi.mock('../src/db/part-operations.ts', { spy: true })
+
 describe('runConcept', () => {
   const { client, db } = createTestDatabase(schema)
   let fake: ReturnType<typeof createFakeGithub>
+
+  // The one issue with the label user-feedback in the repository.
+  const signal = {
+    url: 'https://github.com/timschoch/flexibeck-next/issues/7',
+    title: 'The list is slow',
+    createdAt: '2026-10-02T08:00:00Z',
+  }
 
   const decisionFlags = [
     '--project',
@@ -42,7 +53,8 @@ describe('runConcept', () => {
   beforeEach(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    fake = createFakeGithub()
+    vi.mocked(createPartOperations).mockClear()
+    fake = createFakeGithub([signal])
     await addProject(db, 'flexibeck')
     await addPart(db, 'flexibeck', {
       type: 'goal',
@@ -67,19 +79,53 @@ describe('runConcept', () => {
     return part?.issueUrl ?? null
   }
 
-  it('opens no issue for a Decision that it adds as proposed', async () => {
-    await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
+  it.each([
+    [
+      'add',
+      'goals',
+      '--title',
+      'Sell more',
+      '--metric',
+      'MRR',
+      '--source',
+      'okr',
+    ],
+    ['add', 'flows', '--title', 'Push'],
+    ['set', 'G1', '--title', 'Ship safer'],
+    ['show', 'G1'],
+    ['signals', 'insight', signal.url, '--title', 'Long lists are slow'],
+  ])('%s %s goes through the Part operations', async (...args) => {
+    await run(...args, '--project', 'flexibeck')
 
-    expect(fake.issues).toEqual([])
+    expect(createPartOperations).toHaveBeenCalledOnce()
   })
 
-  it('opens the downstream issue when it sets a Decision to accepted', async () => {
+  it('adds the Insight that grows from a Signal, and prints its id', async () => {
+    await run(
+      'signals',
+      'insight',
+      signal.url,
+      '--title',
+      'Long lists are slow',
+      '--project',
+      'flexibeck',
+    )
+
+    expect(console.log).toHaveBeenCalledWith('I1')
+    expect(await findPart(db, 'flexibeck', 'I1')).toMatchObject({
+      title: 'Long lists are slow',
+      signals: [{ url: signal.url, title: signal.title }],
+    })
+  })
+
+  it('names the issue that a set of a Decision to accepted opened', async () => {
     await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
 
     await run('set', 'D1', '--project', 'flexibeck', '--status', 'accepted')
 
-    expect(fake.issues).toHaveLength(1)
-    expect(await showIssueUrl('D1')).not.toBeNull()
+    expect(console.error).toHaveBeenLastCalledWith(
+      'issue: https://github.com/timschoch/flexibeck-next/issues/1',
+    )
   })
 
   it('opens the downstream issue of a Decision that supersedes another one', async () => {
@@ -196,21 +242,6 @@ describe('runConcept', () => {
     expect(logged()).toContain('evidenceLevel: confirmed')
   })
 
-  it('refuses an Evidence level that is no level, and names the levels', async () => {
-    await expect(
-      run('add', 'insights', ...insightFlags, '--level', 'observed'),
-    ).rejects.toThrow(/"hunch".*"pattern".*"confirmed"/)
-  })
-
-  it('refuses an Insight status other than draft, and names draft', async () => {
-    await expect(
-      run('add', 'insights', ...insightFlags, '--status', 'confirmed'),
-    ).rejects.toThrow('"draft"')
-
-    await run('list', 'insights', '--project', 'flexibeck')
-    expect(logged()).toEqual([])
-  })
-
   it('adds a draft Insight', async () => {
     await run('add', 'insights', ...insightFlags, '--status', 'draft')
 
@@ -230,28 +261,6 @@ describe('runConcept', () => {
     const insight = await findPart(db, 'flexibeck', 'I1')
     expect(insight?.status).toBeNull()
   })
-
-  it('refuses to clear a field that the type needs', async () => {
-    await expect(
-      run('set', 'R1', '--project', 'flexibeck', '--title', ''),
-    ).rejects.toThrow('title')
-  })
-
-  it.each([
-    ['I1', '"draft"'],
-    ['G1', /"open".*"achieved"/],
-    ['D1', /proposed.*accepted/],
-  ])(
-    'refuses a status that %s does not have, and names the right ones',
-    async (id, statuses) => {
-      await run('add', 'insights', ...insightFlags)
-      await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
-
-      await expect(
-        run('set', id, '--project', 'flexibeck', '--status', 'confirmed'),
-      ).rejects.toThrow(statuses)
-    },
-  )
 
   it('shows the source of a Guardrail', async () => {
     await run(
@@ -292,12 +301,6 @@ describe('runConcept', () => {
       enforcedBy: 'the CI budget',
       body: 'D32 halved the budget.',
     })
-  })
-
-  it('refuses a flag that the type of the record does not have', async () => {
-    await expect(
-      run('set', 'R1', '--project', 'flexibeck', '--level', 'confirmed'),
-    ).rejects.toThrow('evidenceLevel')
   })
 
   it('adds a Decision that needs another Decision, and shows it', async () => {
@@ -428,21 +431,6 @@ describe('runConcept', () => {
         'measured_at: 2026-10-04T00:00:00.000Z',
       ]),
     )
-  })
-
-  it('refuses a flag that an Entity does not have', async () => {
-    await expect(
-      run(
-        'add',
-        'entities',
-        '--project',
-        'flexibeck',
-        '--title',
-        'Cart',
-        '--enforced-by',
-        'CI',
-      ),
-    ).rejects.toThrow('enforcedBy')
   })
 
   it('adds a Concept, and a Part with its home there', async () => {
@@ -614,14 +602,6 @@ describe('runConcept', () => {
       expect.stringMatching(/^activity: \S+ flag-opened R1 changed$/),
       expect.stringMatching(/^activity: \S+ published$/),
     ])
-  })
-
-  it('refuses an answer that the Work state does not take, and names the ones that it takes', async () => {
-    await expect(
-      run('answer', 'G1', 'fine', '--project', 'flexibeck'),
-    ).rejects.toThrow(
-      '"G1" is draft: it takes the answers supersede, not-ready, sink',
-    )
   })
 
   it('names the issue that the answer to a Decision opened', async () => {

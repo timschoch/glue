@@ -18,21 +18,20 @@ import {
   listMembers,
 } from '../src/db/members.ts'
 import { createPartOperations } from '../src/db/part-operations.ts'
+import type { DecisionStatusChange } from '../src/db/part-operations.ts'
 import {
   addConcept,
   addJoint,
-  addPart,
   addProject,
-  parseNewPart,
-  parsePartAnswer,
-  parsePartChange,
-  parseQuestionAnswer,
   removeJoint,
-  supersedeDecision,
-  updatePart,
+} from '../src/db/part-records.ts'
+import type {
+  NewPart,
+  PartAnswer,
+  PartChange,
+  QuestionAnswer,
 } from '../src/db/part-records.ts'
 import {
-  decisionStatuses,
   evidenceLevels,
   evidenceTypes,
   findPart,
@@ -53,7 +52,7 @@ import { createGithubClient } from '../src/github/client.ts'
 import type { GithubClient } from '../src/github/client.ts'
 import { createDownstreamIssue } from '../src/github/downstream-issue.ts'
 import type { DownstreamIssue } from '../src/github/downstream-issue.ts'
-import { addSignalInsight, listSignals } from '../src/db/signals.ts'
+import { listSignals } from '../src/db/signals.ts'
 import { partFields } from '../src/part-fields.ts'
 import type { PartField } from '../src/part-fields.ts'
 
@@ -190,12 +189,6 @@ function requireFlags(type: PartType, flags: Flags) {
     if (required && kind !== 'date' && isMissing(flags[key]))
       throw new Error(`"${key}" is required`)
   }
-  if (
-    type === 'decision' &&
-    flags.status === 'superseded' &&
-    isMissing(flags.superseded_by)
-  )
-    throw new Error('a superseded Decision needs "superseded_by"')
 }
 
 // The letter of a record id names its type. An id with the letter of
@@ -516,38 +509,6 @@ function formatHelp() {
   ].join('\n')
 }
 
-// `set` on a Decision: its status, and its successor when the status is
-// superseded.
-async function setDecisionStatus(
-  db: ConceptDb,
-  product: string,
-  id: string,
-  { status, superseded_by: supersededBy }: Flags,
-) {
-  const statuses: readonly unknown[] = decisionStatuses
-  if (!statuses.includes(status)) {
-    throw new Error(
-      `status "${String(status)}" must be one of ${decisionStatuses.join(', ')}`,
-    )
-  }
-  if (status !== 'superseded') {
-    if (supersededBy) {
-      throw new Error('"superseded_by" only applies to a superseded Decision')
-    }
-    await updatePart(db, product, id, parsePartChange('decision', { status }))
-    return
-  }
-  if (!supersededBy) {
-    throw new Error('a superseded Decision needs "superseded_by"')
-  }
-  await supersedeDecision(
-    db,
-    product,
-    id,
-    requireType(String(supersededBy), ['decision'], 'decision'),
-  )
-}
-
 // No command, or `--help` at any place, prints the commands. It needs no
 // database.
 export async function main(args: string[], databaseUrl: string | undefined) {
@@ -603,27 +564,20 @@ export async function runConcept(
       const { waits_on: waitsOn, words, by } = flags
       const operations = createPartOperations({ db, github: getGithub() })
       const options = flags.option as string[] | undefined
+      // The operation reads the answer with its schema.
       const { issue } = asksQuestion
-        ? await operations.answerQuestion(
-            product,
-            id,
-            parseQuestionAnswer({
-              ...(options
-                ? { option: Number(options[0]) }
-                : { text: flags.text }),
-              ...(by !== undefined && { by }),
-            }),
-          )
-        : await operations.answerPart(
-            product,
-            id,
-            parsePartAnswer({
-              answer,
-              ...(waitsOn !== undefined && { waitsOn }),
-              ...(words !== undefined && { words }),
-              ...(by !== undefined && { by }),
-            }),
-          )
+        ? await operations.answerQuestion(product, id, {
+            ...(options
+              ? { option: Number(options[0]) }
+              : { text: flags.text }),
+            ...(by !== undefined && { by }),
+          } as QuestionAnswer)
+        : await operations.answerPart(product, id, {
+            answer,
+            ...(waitsOn !== undefined && { waitsOn }),
+            ...(words !== undefined && { words }),
+            ...(by !== undefined && { by }),
+          } as PartAnswer)
       if (typeOfRecordId(id) === 'decision') {
         console.error(formatDownstreamIssue(product, id, issue))
       }
@@ -637,8 +591,8 @@ export async function runConcept(
       const isPlain = type !== undefined && PART_TYPES.includes(type)
       if (!isPlain) await getProjectId(db, product)
       if (!type) throw new Error(`"${id}" is not a Concept id`)
-      const part = await findPart(db, product, id)
-      if (!part) throw new Error(`"${id}" not found`)
+      const operations = createPartOperations({ db, github: getGithub() })
+      const part = await operations.getPart(product, id)
       if (isPlain) printPart(part)
       else printRecord(part)
       return
@@ -653,31 +607,27 @@ export async function runConcept(
       const body = (await readBody(flags)) ?? ''
       delete flags.project
       delete flags.body
-      if (isPartFolder(folder)) {
-        const part = parseNewPart({
-          ...toPartInput(flags),
-          type: PART_FOLDERS[folder],
-          body,
-        })
-        console.log(await addPart(db, product, part))
-        return
-      }
-      const type = CONCEPT_FOLDERS[folder]
-      requireFlags(type, flags)
-      if (type !== 'decision') {
+      const type = isPartFolder(folder)
+        ? PART_FOLDERS[folder]
+        : CONCEPT_FOLDERS[folder]
+      const isDecision = type === 'decision'
+      if (isConceptFolder(folder)) {
+        requireFlags(type, flags)
         // A Decision serves a Goal, so its Project exists already.
-        await addProject(db, product)
-        const part = parseNewPart({ ...toPartInput(flags), type, body })
-        console.log(await addPart(db, product, part))
-        return
+        if (!isDecision) await addProject(db, product)
       }
+      const fields = isDecision ? toDecisionInput(flags) : toPartInput(flags)
       const operations = createPartOperations({ db, github: getGithub() })
-      const { part, issue } = await operations.addPart(
-        product,
-        parseNewPart({ ...toDecisionInput(flags), type, body }),
-      )
+      // The operation reads the new Part with the schema of its type.
+      const { part, issue } = await operations.addPart(product, {
+        ...fields,
+        type,
+        body,
+      } as NewPart)
       console.log(part.id)
-      console.error(formatDownstreamIssue(product, part.id, issue))
+      if (isDecision) {
+        console.error(formatDownstreamIssue(product, part.id, issue))
+      }
       return
     }
     case 'set': {
@@ -686,6 +636,7 @@ export async function runConcept(
       const product = (flags.project as string | undefined) ?? 'glue'
       const type = typeOfRecordId(id)
       if (!type) throw new Error(`"${id}" is not a Concept id`)
+      const operations = createPartOperations({ db, github: getGithub() })
       if (type !== 'decision') {
         const { project: _project, ...fields } = flags
         // An empty value clears the field. The type says if it can be empty.
@@ -695,12 +646,16 @@ export async function runConcept(
             value === '' ? null : value,
           ]),
         )
-        const change = { ...cleared, body: await readBody(flags) }
-        await updatePart(db, product, id, parsePartChange(type, change))
+        // The operation reads the change with the schema of the type.
+        const change = { ...cleared, body: await readBody(flags) } as PartChange
+        await operations.updatePart(product, id, change)
         return
       }
-      await setDecisionStatus(db, product, id, flags)
-      const issue = await createDownstreamIssue(db, getGithub(), product, id)
+      // The operation holds the rule of the status and of the successor.
+      const { issue } = await operations.setDecisionStatus(product, id, {
+        status: flags.status,
+        supersededBy: flags.superseded_by || undefined,
+      } as DecisionStatusChange)
       console.error(formatDownstreamIssue(product, id, issue))
       return
     }
@@ -771,14 +726,14 @@ async function handleSignalsCommand(
   const project = (flags.project as string | undefined) ?? 'glue'
   if (args[0] === 'insight') {
     const firstFlag = args.findIndex((arg) => arg.startsWith('--'))
-    console.log(
-      await addSignalInsight(db, getGithub(), project, {
-        signals: args.slice(1, firstFlag === -1 ? undefined : firstFlag),
-        title: flags.title as string,
-        body: await readBody(flags),
-        concept: flags.concept as string | undefined,
-      }),
-    )
+    const operations = createPartOperations({ db, github: getGithub() })
+    const { part } = await operations.addSignalInsight(project, {
+      signals: args.slice(1, firstFlag === -1 ? undefined : firstFlag),
+      title: flags.title as string,
+      body: await readBody(flags),
+      concept: flags.concept as string | undefined,
+    })
+    console.log(part.id)
     return
   }
   const { signals, reason } = await listSignals(db, getGithub(), project)

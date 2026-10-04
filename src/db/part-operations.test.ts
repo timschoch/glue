@@ -171,6 +171,51 @@ describe('a write of a Part', () => {
     })
   })
 
+  it('refuses a new Insight with an Evidence level that is no level, and names the levels', async () => {
+    const refused = operations.addPart(project, {
+      type: 'insight',
+      title: 'Lists load in 3 seconds',
+      source: 'analytics',
+      // @ts-expect-error An Insight is never observed.
+      evidenceLevel: 'observed',
+    })
+
+    await expect(refused).rejects.toThrow(InvalidRecordError)
+    await expect(refused).rejects.toThrow(/"hunch".*"pattern".*"confirmed"/)
+  })
+
+  it('refuses a new Insight with a status other than draft, names draft and adds nothing', async () => {
+    const refused = operations.addPart(project, {
+      type: 'insight',
+      title: 'Lists load in 3 seconds',
+      source: 'analytics',
+      // @ts-expect-error A new Insight is a draft or has no status.
+      status: 'confirmed',
+    })
+
+    await expect(refused).rejects.toThrow('"draft"')
+    await expect(operations.getPart(project, 'I2')).rejects.toThrow(
+      PartNotFoundError,
+    )
+  })
+
+  it.each([
+    ['I1', '"draft"'],
+    ['G1', /"open".*"achieved"/],
+  ])(
+    'refuses a status that %s does not have, and names the right ones',
+    async (id, statuses) => {
+      const refused = operations.updatePart(
+        project,
+        id,
+        // @ts-expect-error No Part is ever confirmed.
+        { status: 'confirmed' },
+      )
+
+      await expect(refused).rejects.toThrow(statuses)
+    },
+  )
+
   it('adds the Insight that grows from a Signal and gives it back', async () => {
     const added = await operations.addSignalInsight(project, {
       signals: [signal.url],
@@ -183,6 +228,107 @@ describe('a write of a Part', () => {
       signals: [{ url: signal.url, title: signal.title }],
     })
     expect(added.issue).toEqual({ kind: 'not-found' })
+  })
+})
+
+describe('the status of a Decision that exists', () => {
+  beforeEach(async () => {
+    await operations.addPart(project, { ...decision, status: 'proposed' })
+    await operations.addPart(project, { ...decision, status: 'accepted' })
+  })
+
+  it('accepts the Decision and opens its issue', async () => {
+    const changed = await operations.setDecisionStatus(project, 'D1', {
+      status: 'accepted',
+    })
+
+    expect(changed.part).toMatchObject({ id: 'D1', status: 'accepted' })
+    expect(changed.issue).toEqual({
+      kind: 'created',
+      url: 'https://github.com/timschoch/flexibeck-next/issues/2',
+    })
+  })
+
+  it('supersedes the Decision with its accepted successor', async () => {
+    const changed = await operations.setDecisionStatus(project, 'D1', {
+      status: 'superseded',
+      supersededBy: 'D2',
+    })
+
+    expect(changed.part).toMatchObject({
+      id: 'D1',
+      status: 'superseded',
+      supersededBy: { id: 'D2' },
+      trust: 'wrong',
+      workState: 'sunk',
+    })
+    expect(changed.issue).toEqual({ kind: 'not-accepted' })
+  })
+
+  it('refuses the status superseded without a successor, and keeps the Decision', async () => {
+    const refused = operations.setDecisionStatus(
+      project,
+      'D1',
+      // @ts-expect-error A superseded Decision names its successor.
+      { status: 'superseded' },
+    )
+
+    await expect(refused).rejects.toThrow(
+      new InvalidRecordError(
+        'the status "superseded" and "supersededBy" go together',
+      ),
+    )
+    expect(await operations.getPart(project, 'D1')).toMatchObject({
+      status: 'proposed',
+      supersededBy: null,
+    })
+  })
+
+  it('refuses a successor for another status, and keeps the Decision', async () => {
+    const refused = operations.setDecisionStatus(
+      project,
+      'D1',
+      // @ts-expect-error Only a superseded Decision has a successor.
+      { status: 'accepted', supersededBy: 'D2' },
+    )
+
+    await expect(refused).rejects.toThrow(
+      new InvalidRecordError(
+        'the status "superseded" and "supersededBy" go together',
+      ),
+    )
+    expect(await operations.getPart(project, 'D1')).toMatchObject({
+      status: 'proposed',
+      supersededBy: null,
+    })
+  })
+
+  it('refuses a status that a Decision does not have, and names the ones that it has', async () => {
+    const refused = operations.setDecisionStatus(project, 'D1', {
+      // @ts-expect-error A Decision is never confirmed.
+      status: 'confirmed',
+    })
+
+    await expect(refused).rejects.toThrow(InvalidRecordError)
+    await expect(refused).rejects.toThrow(/"proposed"\|"accepted"/)
+  })
+
+  it('refuses a successor that is not a Decision', async () => {
+    await expect(
+      operations.setDecisionStatus(project, 'D1', {
+        status: 'superseded',
+        supersededBy: 'G1',
+      }),
+    ).rejects.toThrow(new InvalidRecordError('"G1" is not a Decision'))
+  })
+
+  it('refuses a Decision that does not exist with a not-found error', async () => {
+    await expect(
+      operations.setDecisionStatus(project, 'D9', {
+        status: 'superseded',
+        supersededBy: 'D2',
+      }),
+    ).rejects.toThrow(PartNotFoundError)
   })
 })
 
