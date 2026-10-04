@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createFakeGithub, failingGithub } from '../test/github.ts'
-import { setProductRepository } from './concept-records.ts'
+import { setProductRepository } from './projects.ts'
 import { createPartOperations } from './part-operations.ts'
 import { addPart, addProject } from './part-records.ts'
 import { findPart } from './parts.ts'

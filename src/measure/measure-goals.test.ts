@@ -1,18 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  addConceptRecord,
-  setAnalyticsProject,
-  updateGoal,
-} from '../db/concept-records.ts'
-import { findConcept, findRecord } from '../db/legacy-records.ts'
 import type {
   FunnelMeasure,
   GoalMeasure,
   MeanMeasure,
 } from '../db/goal-measure.ts'
-import { addPart } from '../db/part-records.ts'
-import { findPart } from '../db/parts.ts'
+import { addPart, addProject, updatePart } from '../db/part-records.ts'
+import { findPart, listParts } from '../db/parts.ts'
+import { setAnalyticsProject } from '../db/projects.ts'
 import * as schema from '../db/schema.ts'
 import { createTestDatabase } from '../db/test-database.ts'
 import { measureGoals } from './measure-goals.ts'
@@ -43,19 +38,21 @@ async function addGoal(
   product = 'flexibeck',
   analyticsProject: string | null = 'phc_demo',
 ) {
-  await addConceptRecord(
-    db,
-    product,
-    'goals',
-    {
-      title: 'More users pay',
-      metric: 'signup to paid',
-      source: 'okr',
-      measure: goalMeasure,
-    },
-    '',
-  )
+  await addProject(db, product)
+  await addPart(db, product, {
+    type: 'goal',
+    title: 'More users pay',
+    metric: 'signup to paid',
+    source: 'okr',
+    measure: goalMeasure,
+  })
   await setAnalyticsProject(db, product, analyticsProject)
+}
+
+// The status of the Goal G1 with its readings.
+async function readGoal() {
+  const goal = await findPart(db, 'flexibeck', 'G1')
+  return { status: goal?.status, ...goal?.measure }
 }
 
 function funnel(counts: number[], breakdown: string | null = null) {
@@ -152,18 +149,16 @@ describe('measureGoals', () => {
       },
     ])
     expect(written).toHaveLength(1)
-    const insight = await findRecord(db, 'flexibeck', 'I1')
+    const insight = await findPart(db, 'flexibeck', 'I1')
     expect(insight).toMatchObject({
-      kind: 'insight',
+      type: 'insight',
       title: 'G1 signed-up → paid: 10%, below the target of 25%',
       date: '2026-09-30',
       status: 'draft',
       source:
         'mock-analytics://phc_demo/funnel?goal=G1&steps=signed-up,activated,paid&from=2026-09-23&to=2026-09-30',
     })
-    expect(insight?.kind === 'insight' && insight.body).toContain(
-      '| paid | 10 | 20% |',
-    )
+    expect(insight?.body).toContain('| paid | 10 | 20% |')
   })
 
   it('writes a draft Insight when the conversion moved by 20% or more', async () => {
@@ -286,8 +281,8 @@ describe('measureGoals', () => {
         },
       ],
     })
-    const concept = await findConcept(db, 'flexibeck')
-    expect(concept?.insights.map((insight) => insight.id)).toEqual(['I1'])
+    const insights = await listParts(db, 'flexibeck', ['insight'])
+    expect(insights.map((insight) => insight.id)).toEqual(['I1'])
   })
 
   it('writes one Insight when two runs overlap', async () => {
@@ -297,14 +292,15 @@ describe('measureGoals', () => {
     const runs = await Promise.all([runMeasure(source), runMeasure(source)])
 
     expect(runs.flat()).toHaveLength(1)
-    const concept = await findConcept(db, 'flexibeck')
-    expect(concept?.insights.map((insight) => insight.id)).toEqual(['I1'])
+    const insights = await listParts(db, 'flexibeck', ['insight'])
+    expect(insights.map((insight) => insight.id)).toEqual(['I1'])
   })
 
   it('keeps a measure source unique per Product, other sources may repeat', async () => {
     const addInsight = (source: string) =>
-      addConceptRecord(db, 'flexibeck', 'insights', { title: 'x', source }, '')
+      addPart(db, 'flexibeck', { type: 'insight', title: 'x', source })
     const measureSource = 'mock-analytics://phc_demo/funnel?goal=G1'
+    await addProject(db, 'flexibeck')
 
     await addInsight('Owner feedback')
     await addInsight('Owner feedback')
@@ -360,8 +356,7 @@ describe('measureGoals', () => {
       goal: 'G1',
       id: null,
     })
-    const concept = await findConcept(db, 'flexibeck')
-    expect(concept?.insights).toEqual([])
+    expect(await listParts(db, 'flexibeck', ['insight'])).toEqual([])
   })
 
   it('measures only the Product it is given', async () => {
@@ -402,28 +397,26 @@ describe('measureGoals', () => {
 
   it('lists the Decisions accepted for the Goal', async () => {
     await addGoal(measure)
-    await addConceptRecord(
-      db,
-      'flexibeck',
-      'guardrails',
-      { title: 'Onboarding takes one screen', enforced_by: 'review' },
-      '',
-    )
-    const decision = { owner: 'Owner', goal: 'G1', evidence: ['R1'] }
-    await addConceptRecord(
-      db,
-      'flexibeck',
-      'decisions',
-      { ...decision, title: 'Shorter onboarding', status: 'accepted' },
-      '',
-    )
-    await addConceptRecord(
-      db,
-      'flexibeck',
-      'decisions',
-      { ...decision, title: 'Free trial', status: 'proposed' },
-      '',
-    )
+    await addPart(db, 'flexibeck', {
+      type: 'guardrail',
+      title: 'Onboarding takes one screen',
+      enforcedBy: 'review',
+    })
+    const decision = {
+      type: 'decision' as const,
+      owner: 'Owner',
+      needs: ['G1', 'R1'],
+    }
+    await addPart(db, 'flexibeck', {
+      ...decision,
+      title: 'Shorter onboarding',
+      status: 'accepted',
+    })
+    await addPart(db, 'flexibeck', {
+      ...decision,
+      title: 'Free trial',
+      status: 'proposed',
+    })
     const { source } = createFakeSource({
       current: [funnel([100, 50, 10])],
       previous: [funnel([100, 50, 10])],
@@ -457,7 +450,7 @@ describe('measureGoals with a mean measure', () => {
         to: new Date('2026-09-30T00:00:00Z'),
       },
     ])
-    expect(await findRecord(db, 'flexibeck', written.id ?? '')).toMatchObject({
+    expect(await findPart(db, 'flexibeck', written.id ?? '')).toMatchObject({
       title:
         'G1 mean of $survey_response: 4 from 12 values, 0 from the baseline 4, target +1 not reached',
       status: 'draft',
@@ -467,11 +460,13 @@ describe('measureGoals with a mean measure', () => {
     expect(written.body).toContain(
       '| Values | Mean | Change from the baseline |\n| --- | --- | --- |\n| 12 | 4 | 0 |',
     )
-    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+    expect(await findPart(db, 'flexibeck', 'G1')).toMatchObject({
       status: 'open',
-      baseline: 4,
-      latestValue: 4,
-      measuredAt: NOW.toISOString(),
+      measure: {
+        baseline: 4,
+        latestValue: 4,
+        measuredAt: NOW.toISOString(),
+      },
     })
   })
 
@@ -489,10 +484,12 @@ describe('measureGoals with a mean measure', () => {
     expect(insights[0].title).toBe(
       'G1 mean of $survey_response: 5.25 from 20 values, +1.25 from the baseline 4, target +1 reached',
     )
-    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
-      baseline: 4,
-      latestValue: 5.25,
-      measuredAt: nextWeek.toISOString(),
+    expect(await findPart(db, 'flexibeck', 'G1')).toMatchObject({
+      measure: {
+        baseline: 4,
+        latestValue: 5.25,
+        measuredAt: nextWeek.toISOString(),
+      },
     })
   })
 
@@ -524,19 +521,16 @@ describe('measureGoals with a mean measure', () => {
     )
     await runMeasure(source)
 
-    await updateGoal(db, 'flexibeck', 'G1', {
+    await updatePart(db, 'flexibeck', 'G1', {
       measure: { ...meanMeasure, property: 'rating' },
     })
-    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
-      baseline: null,
-      latestValue: null,
-      measuredAt: null,
+    expect(await findPart(db, 'flexibeck', 'G1')).toMatchObject({
+      measure: { baseline: null, latestValue: null, measuredAt: null },
     })
     await measureGoals({ db, source, now: new Date('2026-10-07T10:00:00Z') })
 
-    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
-      baseline: 2,
-      latestValue: 2,
+    expect(await findPart(db, 'flexibeck', 'G1')).toMatchObject({
+      measure: { baseline: 2, latestValue: 2 },
     })
   })
 
@@ -545,7 +539,7 @@ describe('measureGoals with a mean measure', () => {
     const answer = [{ breakdown: null, count: 12, mean: 4 }]
     const { source } = createFakeMeanSource(answer, answer)
     await runMeasure(source)
-    await updateGoal(db, 'flexibeck', 'G1', { measure: meanMeasure })
+    await updatePart(db, 'flexibeck', 'G1', { measure: meanMeasure })
 
     const second = await measureGoals({ db, source, now: NOW })
 
@@ -559,7 +553,7 @@ describe('measureGoals with a mean measure', () => {
         },
       ],
     })
-    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+    expect(await readGoal()).toMatchObject({
       baseline: 4,
       latestValue: 4,
       measuredAt: NOW.toISOString(),
@@ -572,9 +566,9 @@ describe('measureGoals with a mean measure', () => {
       createFakeMeanSource([{ breakdown: null, count: 12, mean: 4 }]).source,
     )
 
-    await updateGoal(db, 'flexibeck', 'G1', { status: 'achieved' })
+    await updatePart(db, 'flexibeck', 'G1', { status: 'achieved' })
 
-    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+    expect(await readGoal()).toMatchObject({
       status: 'achieved',
       baseline: 4,
       latestValue: 4,
@@ -583,7 +577,7 @@ describe('measureGoals with a mean measure', () => {
 
   it('measures no achieved Goal', async () => {
     await addGoal(meanMeasure)
-    await updateGoal(db, 'flexibeck', 'G1', { status: 'achieved' })
+    await updatePart(db, 'flexibeck', 'G1', { status: 'achieved' })
     const { source, queries } = createFakeMeanSource([
       { breakdown: null, count: 12, mean: 4 },
     ])
@@ -656,7 +650,7 @@ describe('measureGoals with a mean measure', () => {
           '| eadfd12 | 37 | 4.76 | 0 |',
         ].join('\n'),
       )
-      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      expect(await readGoal()).toMatchObject({
         baseline: 4.76,
         latestValue: 5.85,
         latestBreakdownValue: '184c42a',
@@ -690,7 +684,7 @@ describe('measureGoals with a mean measure', () => {
       expect(insights[0].title).toBe(
         'G1 mean of $survey_response: 6 for app_version 9f00aa1 from 20 values, +1.24 from the baseline 4.76 for app_version eadfd12, target +1 reached',
       )
-      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      expect(await readGoal()).toMatchObject({
         baseline: 4.76,
         latestValue: 6,
         latestBreakdownValue: '9f00aa1',
@@ -702,7 +696,7 @@ describe('measureGoals with a mean measure', () => {
       const { source } = createFakeMeanSource(firstRun, firstRun)
       await runMeasure(source)
 
-      await updateGoal(db, 'flexibeck', 'G1', { measure: versionMeasure })
+      await updatePart(db, 'flexibeck', 'G1', { measure: versionMeasure })
       const second = await measureGoals({ db, source, now: NOW })
 
       expect(second.skipped).toEqual([])
@@ -712,7 +706,7 @@ describe('measureGoals with a mean measure', () => {
       expect(second.insights[0].source).toContain(
         '&breakdown=app_version&baseline_value=eadfd12',
       )
-      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      expect(await readGoal()).toMatchObject({
         baseline: 4.76,
         latestValue: 5.85,
         latestBreakdownValue: '184c42a',
@@ -746,7 +740,7 @@ describe('measureGoals with a mean measure', () => {
       expect(insights[0].title).toBe(
         'G1 mean of $survey_response: 5.9 for app_version 184c42a from 30 values, +1.14 from the baseline 4.76 for app_version eadfd12, target +1 reached',
       )
-      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      expect(await readGoal()).toMatchObject({
         baseline: 4.76,
         latestValue: 5.9,
       })
@@ -768,7 +762,7 @@ describe('measureGoals with a mean measure', () => {
       const [insight] = await runMeasure(source)
 
       expect(insight.title).toMatch(/: 5\.85 for app_version 184c42a from 40/)
-      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      expect(await readGoal()).toMatchObject({
         baseline: 4.76,
         latestValue: 5.85,
         latestBreakdownValue: '184c42a',
@@ -783,7 +777,7 @@ describe('measureGoals with a mean measure', () => {
       ])
 
       expect(await runMeasure(source)).toEqual([])
-      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      expect(await readGoal()).toMatchObject({
         baseline: null,
         latestValue: null,
       })
@@ -794,7 +788,7 @@ describe('measureGoals with a mean measure', () => {
       const { source } = createFakeMeanSource([firstRun[0]])
 
       expect(await runMeasure(source)).toEqual([])
-      expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+      expect(await readGoal()).toMatchObject({
         baseline: null,
         latestValue: null,
         latestBreakdownValue: null,
@@ -839,7 +833,7 @@ describe('measureGoals with a mean measure', () => {
     ])
 
     expect(await runMeasure(source)).toEqual([])
-    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+    expect(await readGoal()).toMatchObject({
       baseline: null,
       latestValue: null,
     })
@@ -854,7 +848,7 @@ describe('measureGoals with a mean measure', () => {
     const [insight] = await runMeasure(source, { dryRun: true })
 
     expect(insight.id).toBeNull()
-    expect(await findRecord(db, 'flexibeck', 'G1')).toMatchObject({
+    expect(await readGoal()).toMatchObject({
       baseline: null,
       latestValue: null,
     })

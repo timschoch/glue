@@ -1,19 +1,10 @@
-// The server handlers of the Concept HTTP API routes in src/routes/api/.
-// `/api/v1/projects/{project}` and the deprecated `/api/v1/products/{product}`
-// share them, so both paths answer the same.
+// The server handlers of the HTTP API routes in src/routes/api/.
 import { createDb } from '../db/client.ts'
 import { createGithubClient } from '../github/client.ts'
 import { createMetricSource } from '../measure/metric-source.server.ts'
 import { getSetting } from '../settings.server.ts'
-import {
-  handleAddRecord,
-  handleGetConcept,
-  handleGetRecord,
-  handleListRecords,
-  handleMeasureProject,
-  handleUpdateRecord,
-} from './concept-api.ts'
-import type { ApiRequest } from './concept-api.ts'
+import type { ApiRequest } from './api-request.ts'
+import { handleMeasureProject } from './measure-api.ts'
 import { handleGetContract, handleSignContract } from './contract-api.ts'
 import {
   handleAddConcept,
@@ -40,7 +31,6 @@ import { handleAddSignalInsight, handleListSignals } from './signal-api.ts'
 import { handleListBuilds } from './build-api.ts'
 
 type PathParams = {
-  folder?: string
   recordId?: string
   concept?: string
   jointId?: string
@@ -137,25 +127,8 @@ export const assignmentsHandlers = {
   DELETE: (route: RouteRequest) => handleUnassign(toApiRequest(route)),
 }
 
-export const conceptHandlers = {
-  GET: (route: RouteRequest) => handleGetConcept(toApiRequest(route)),
-}
-
-export const folderHandlers = {
-  GET: (route: RouteRequest) => handleListRecords(toApiRequest(route)),
-  POST: (route: RouteRequest) =>
-    handleAddRecord({ ...toApiRequest(route), github: createGithubClient() }),
-}
-
-export const recordHandlers = {
-  GET: (route: RouteRequest) => handleGetRecord(toApiRequest(route)),
-  PATCH: (route: RouteRequest) =>
-    handleUpdateRecord({
-      ...toApiRequest(route),
-      github: createGithubClient(),
-    }),
-}
-
+// The deprecated `/api/v1/products/{product}/measure` shares this handler,
+// so both paths answer the same.
 export const measureHandlers = {
   POST: (route: RouteRequest) =>
     handleMeasureProject({

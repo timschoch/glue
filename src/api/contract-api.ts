@@ -7,8 +7,8 @@ import { findContract, signContract } from '../db/contracts.ts'
 import type { Contract, FrozenPart } from '../db/contracts.ts'
 import { newConceptSchema } from '../db/part-records.ts'
 import { evidenceLevels, partTypes } from '../db/parts.ts'
-import { ApiError, handleApiRequest, parseJson } from './concept-api.ts'
-import type { ApiRequest } from './concept-api.ts'
+import { ApiError, handleApiRequest, parseJson } from './api-request.ts'
+import type { ApiRequest } from './api-request.ts'
 
 const frozenPartSchema = z
   .object({

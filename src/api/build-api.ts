@@ -1,12 +1,12 @@
 // The HTTP API of the builds of a Project (D28). The server route in
-// src/routes/api/ reaches this handler through concept-routes.ts. The schema
+// src/routes/api/ reaches this handler through part-routes.ts. The schema
 // here documents the answer in openapi.ts.
 import { z } from 'zod'
 
 import { listBuilds } from '../db/builds.ts'
 import type { ProjectBuilds } from '../db/builds.ts'
-import { handleApiRequest } from './concept-api.ts'
-import type { ChangeRequest } from './concept-api.ts'
+import { handleApiRequest } from './api-request.ts'
+import type { ChangeRequest } from './api-request.ts'
 import { partSummarySchema } from './part-api.ts'
 
 export const projectBuildsSchema = z

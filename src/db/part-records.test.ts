@@ -360,6 +360,12 @@ describe('addPart', () => {
     expect(await showPart('D1')).toMatchObject({ date: '2026-10-03' })
   })
 
+  it('keeps the date that an Insight comes with', async () => {
+    await addPart(db, 'glue', insight)
+
+    expect(await showPart('I1')).toMatchObject({ date: '2026-01-01' })
+  })
+
   it('glues the Part to the Parts it needs, in their order', async () => {
     await addPart(db, 'glue', goal)
     await addPart(db, 'glue', insight)
@@ -382,6 +388,17 @@ describe('addPart', () => {
     expect(await addPart(db, 'glue', goal)).toBe('G2')
     expect(await addPart(db, 'glue', guardrail)).toBe('R1')
     expect(await addPart(db, 'flexibeck', goal)).toBe('G1')
+  })
+
+  // PGlite runs one statement at a time. This test proves that each
+  // statement takes its own number, not that two can run at the same time.
+  it('gives two Parts that follow each other their own ids', async () => {
+    const ids = await Promise.all([
+      addPart(db, 'glue', guardrail),
+      addPart(db, 'glue', guardrail),
+    ])
+
+    expect(ids.sort()).toEqual(['R1', 'R2'])
   })
 
   it('never uses the number of a deleted Part again', async () => {
@@ -507,6 +524,58 @@ describe('addPart', () => {
       status: 'accepted',
       supersededById: null,
     })
+  })
+
+  // The Neon HTTP driver has no transaction.
+  it('supersedes a Decision and adds its successor as one statement', async () => {
+    await addPart(db, 'glue', goal)
+    await addPart(db, 'glue', insight)
+    await addPart(db, 'glue', decision)
+    const statements: string[] = []
+    const logged = drizzle(client, {
+      schema,
+      logger: { logQuery: (query) => statements.push(query) },
+    })
+
+    await addPart(logged, 'glue', { ...decision, supersedes: 'D1' })
+
+    const writes = statements.filter((statement) =>
+      /\b(insert into|update) "(parts|joints)"/.test(statement),
+    )
+    expect(writes).toHaveLength(1)
+    expect(writes[0]).toMatch(/insert into "parts"/)
+    expect(writes[0]).toMatch(/insert into "joints"/)
+    expect(writes[0]).toMatch(/update "parts"/)
+  })
+
+  it('supersedes nothing when the new Decision needs a Part that does not exist', async () => {
+    await addPart(db, 'glue', goal)
+    await addPart(db, 'glue', insight)
+    await addPart(db, 'glue', decision)
+
+    await expect(
+      addPart(db, 'glue', {
+        ...decision,
+        needs: ['G1', 'I9'],
+        supersedes: 'D1',
+      }),
+    ).rejects.toThrow(new InvalidRecordError('insight "I9" not found'))
+
+    expect(await showPart('D1')).toMatchObject({
+      status: 'accepted',
+      supersededById: null,
+    })
+    expect(await db.select().from(schema.parts)).toHaveLength(3)
+  })
+
+  it('refuses to supersede a Decision that the Project does not have', async () => {
+    await addPart(db, 'glue', goal)
+    await addPart(db, 'glue', insight)
+
+    await expect(
+      addPart(db, 'glue', { ...decision, supersedes: 'D9' }),
+    ).rejects.toThrow(new InvalidRecordError('decision "D9" not found'))
+    expect(await addPart(db, 'glue', decision)).toBe('D1')
   })
 
   it('refuses to supersede a Decision that is superseded already, and uses no number', async () => {

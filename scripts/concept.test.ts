@@ -1,12 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  addConceptRecord,
-  setProductRepository,
-} from '../src/db/concept-records.ts'
-import { showConceptRecord } from '../src/db/legacy-records.ts'
-import { setReading } from '../src/db/part-records.ts'
+import { addPart, addProject, setReading } from '../src/db/part-records.ts'
+import { findPart } from '../src/db/parts.ts'
+import { setProductRepository } from '../src/db/projects.ts'
 import * as schema from '../src/db/schema.ts'
 import { createTestDatabase } from '../src/db/test-database.ts'
 import { partFields } from '../src/part-fields.ts'
@@ -46,20 +43,18 @@ describe('runConcept', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
     fake = createFakeGithub()
-    await addConceptRecord(
-      db,
-      'flexibeck',
-      'goals',
-      { title: 'Ship faster', metric: 'lead time', source: 'okr' },
-      '',
-    )
-    await addConceptRecord(
-      db,
-      'flexibeck',
-      'guardrails',
-      { title: 'CI takes ten minutes at most', enforced_by: 'verify ci' },
-      '',
-    )
+    await addProject(db, 'flexibeck')
+    await addPart(db, 'flexibeck', {
+      type: 'goal',
+      title: 'Ship faster',
+      metric: 'lead time',
+      source: 'okr',
+    })
+    await addPart(db, 'flexibeck', {
+      type: 'guardrail',
+      title: 'CI takes ten minutes at most',
+      enforcedBy: 'verify ci',
+    })
     await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck-next')
   })
 
@@ -68,8 +63,8 @@ describe('runConcept', () => {
   })
 
   async function showIssueUrl(id: string) {
-    const record = await showConceptRecord(db, 'flexibeck', id)
-    return record.fields.issue ?? null
+    const part = await findPart(db, 'flexibeck', id)
+    return part?.issueUrl ?? null
   }
 
   it('opens no issue for a Decision that it adds as proposed', async () => {
@@ -102,16 +97,14 @@ describe('runConcept', () => {
 
     expect(fake.issues).toHaveLength(2)
     expect(await showIssueUrl('D2')).not.toBeNull()
-    expect((await showConceptRecord(db, 'flexibeck', 'D1')).supersededBy).toBe(
-      'D2',
-    )
+    expect((await findPart(db, 'flexibeck', 'D1'))?.supersededBy?.id).toBe('D2')
   })
 
   it('closes a Goal as achieved', async () => {
     await run('set', 'G1', '--project', 'flexibeck', '--status', 'achieved')
 
-    const goal = await showConceptRecord(db, 'flexibeck', 'G1')
-    expect(goal.fields.status).toBe('achieved')
+    const goal = await findPart(db, 'flexibeck', 'G1')
+    expect(goal?.status).toBe('achieved')
   })
 
   it('shows the measure of a Goal as JSON', async () => {
@@ -167,7 +160,7 @@ describe('runConcept', () => {
     ).rejects.toThrow('"product" is gone: use "pnpm concept project set"')
   })
 
-  it('refuses to add a Fact and names the types to add instead', async () => {
+  it('refuses to add a Fact: a Fact is no type', async () => {
     await expect(
       run(
         'add',
@@ -179,9 +172,7 @@ describe('runConcept', () => {
         '--source',
         'verify ci',
       ),
-    ).rejects.toThrow(
-      'Fact is no longer a type (D26): add an Insight or a Guardrail.',
-    )
+    ).rejects.toThrow('"facts" is not a Concept type')
   })
 
   function logged(): string[] {
@@ -236,8 +227,8 @@ describe('runConcept', () => {
 
     await run('set', 'I1', '--project', 'flexibeck', '--status', '')
 
-    const insight = await showConceptRecord(db, 'flexibeck', 'I1')
-    expect(insight.fields.status).toBeNull()
+    const insight = await findPart(db, 'flexibeck', 'I1')
+    expect(insight?.status).toBeNull()
   })
 
   it('refuses to clear a field that the type needs', async () => {
@@ -295,12 +286,12 @@ describe('runConcept', () => {
       'D32 halved the budget.',
     )
 
-    const guardrail = await showConceptRecord(db, 'flexibeck', 'R1')
-    expect(guardrail.fields).toMatchObject({
+    const guardrail = await findPart(db, 'flexibeck', 'R1')
+    expect(guardrail).toMatchObject({
       title: 'CI takes five minutes at most',
       enforcedBy: 'the CI budget',
+      body: 'D32 halved the budget.',
     })
-    expect(guardrail.body).toBe('D32 halved the budget.')
   })
 
   it('refuses a flag that the type of the record does not have', async () => {
@@ -664,8 +655,8 @@ describe('runConcept', () => {
       'flexibeck',
     )
 
-    const record = await showConceptRecord(db, 'flexibeck', 'D1')
-    expect(record.body).toMatch(/^Ada, \d{4}-\d{2}-\d{2}: Too slow$/)
+    const record = await findPart(db, 'flexibeck', 'D1')
+    expect(record?.body).toMatch(/^Ada, \d{4}-\d{2}-\d{2}: Too slow$/)
   })
 
   describe('a Decision with options', () => {

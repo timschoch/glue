@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Session } from '../authentication/session.ts'
 import type { GithubClient } from '../github/client.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
-import { setProductRepository } from './concept-records.ts'
+import { setProductRepository } from './projects.ts'
 import {
   answerInputSchema,
   createPartActions,
