@@ -36,7 +36,23 @@ const PARTS: Array<PartFormPart> = [
     trust: 'not-ready',
     href: '#I9',
   },
+  {
+    id: 'R4',
+    type: 'guardrail',
+    title: 'Only the videos of the creator',
+    trust: 'solid',
+    href: '#R4',
+  },
 ]
+
+// The values of a Decision that the form can save.
+const DECISION = {
+  title: 'Show the video of the creator',
+  owner: 'Mara',
+  date: '2026-10-03',
+  goal: 'G2',
+  evidence: ['I7', 'I9'],
+}
 
 // Carbon's text area watches its size, which jsdom can not do.
 vi.stubGlobal(
@@ -97,6 +113,20 @@ function alerts(): Array<string> {
     .filter((text) => text !== '')
 }
 
+// An icon button. Its name is its Carbon tooltip, which Testing Library does
+// not read while the tooltip is closed.
+function iconButton(name: string): HTMLElement {
+  const found = screen
+    .getAllByRole('button')
+    .find(
+      (button) =>
+        document.getElementById(button.getAttribute('aria-labelledby') ?? '')
+          ?.textContent === name,
+    )
+  if (!found) throw new Error(`The form has no button ${name}`)
+  return found
+}
+
 // Types into a picker and picks the option that holds the text.
 async function pick(name: string, search: string, option: string) {
   await userEvent.type(picker(name), search)
@@ -116,6 +146,16 @@ describe('PartForm', () => {
     renderForm({ type })
 
     expect(labels()).toEqual(names)
+  })
+
+  it('has no field for the Joints of a Decision that exists', () => {
+    renderForm({
+      recordId: 'D12',
+      values: { title: 'Loop', owner: 'Mara', date: '2026-10-03' },
+    })
+
+    expect(labels()).toEqual(['Title', 'Body', 'Owner', 'Date'])
+    expect(saveButton().disabled).toBe(false)
   })
 
   it('names the Part type as text, not as a field', () => {
@@ -233,7 +273,7 @@ describe('PartForm', () => {
     )
   })
 
-  it('saves a Decision when the title, the owner, the date and the Goal have a value', async () => {
+  it('saves a Decision when the title, the owner and the date have a value, and the Goal and the evidence a pick', async () => {
     const { onSave } = renderForm()
 
     await userEvent.type(field('Title'), 'Show the video of the creator')
@@ -243,6 +283,9 @@ describe('PartForm', () => {
     expect(saveButton().disabled).toBe(true)
 
     await pick('Goal', 'easy', 'G2 First bake feels easy')
+
+    expect(saveButton().disabled).toBe(true)
+
     await pick('Evidence', 'I7', 'I7 Bakers want step videos')
     await userEvent.click(saveButton())
 
@@ -269,7 +312,33 @@ describe('PartForm', () => {
     expect(onSave).not.toHaveBeenCalled()
   })
 
-  it('offers the Goals to the Goal picker and the Insights to the evidence picker', async () => {
+  it('shows the words of the action in the place of the save button while it saves, and saves no second time', async () => {
+    const { onSave, onCancel } = renderForm({
+      type: 'entity',
+      values: { title: 'Technique' },
+      pending: true,
+    })
+
+    expect(screen.getByText('Saving')).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+    expect(document.querySelector('[class*="skeleton"]')).toBeNull()
+
+    await userEvent.type(field('Title'), '{Enter}')
+
+    expect(onSave).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onCancel).toHaveBeenCalledOnce()
+  })
+
+  it('shows no words of an action while it does not save', () => {
+    renderForm()
+
+    expect(screen.queryByText('Saving')).toBeNull()
+  })
+
+  it('offers the Goals to the Goal picker, and the Insights and the Guardrails to the evidence picker', async () => {
     renderForm()
 
     await userEvent.click(picker('Goal'))
@@ -282,7 +351,11 @@ describe('PartForm', () => {
 
     expect(
       screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['I7 Bakers want step videos', 'I9 Videos are too long'])
+    ).toEqual([
+      'I7 Bakers want step videos',
+      'I9 Videos are too long',
+      'R4 Only the videos of the creator',
+    ])
   })
 
   it.each([
@@ -316,20 +389,11 @@ describe('PartForm', () => {
 
     expect(
       screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['I9 Videos are too long'])
+    ).toEqual(['I9 Videos are too long', 'R4 Only the videos of the creator'])
   })
 
-  it('removes a pick with its one control', async () => {
-    const { onSave } = renderForm({
-      recordId: 'D12',
-      values: {
-        title: 'Show the video of the creator',
-        owner: 'Mara',
-        date: '2026-10-03',
-        goal: 'G2',
-        evidence: ['I7', 'I9'],
-      },
-    })
+  it('removes a pick with the one icon button of its card, named with the record id', async () => {
+    const { onSave } = renderForm({ values: DECISION })
 
     expect(picks('Goal')).toEqual(['First bake feels easy'])
     expect(picks('Evidence')).toEqual([
@@ -341,9 +405,12 @@ describe('PartForm', () => {
       screen.getByRole('list', { name: 'Evidence' }),
     ).getAllByRole('listitem')
 
-    expect(within(first).getAllByRole('button')).toHaveLength(1)
+    expect(within(first).getAllByRole('button')).toEqual([
+      iconButton('Remove I7'),
+    ])
+    expect(iconButton('Remove I7').querySelectorAll('svg')).toHaveLength(1)
 
-    await userEvent.click(within(first).getByRole('button', { name: 'Remove' }))
+    await userEvent.click(iconButton('Remove I7'))
 
     expect(picks('Evidence')).toEqual(['Videos are too long'])
 
@@ -356,7 +423,7 @@ describe('PartForm', () => {
     renderForm()
 
     await pick('Evidence', 'I7', 'I7 Bakers want step videos')
-    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await userEvent.click(iconButton('Remove I7'))
     await pick('Evidence', 'I7', 'I7 Bakers want step videos')
 
     expect(picks('Evidence')).toEqual(['Bakers want step videos'])
@@ -371,15 +438,23 @@ describe('PartForm', () => {
   })
 
   it('does not save a Decision after its Goal is removed', async () => {
-    renderForm({
-      values: { title: 'Loop', owner: 'Mara', date: '2026-10-03', goal: 'G2' },
-    })
+    renderForm({ values: DECISION })
 
     expect(saveButton().disabled).toBe(false)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await userEvent.click(iconButton('Remove G2'))
 
     expect(picks('Goal')).toEqual([])
+    expect(saveButton().disabled).toBe(true)
+  })
+
+  it('does not save a Decision after its last evidence is removed', async () => {
+    renderForm({ values: { ...DECISION, evidence: ['I7'] } })
+
+    expect(saveButton().disabled).toBe(false)
+
+    await userEvent.click(iconButton('Remove I7'))
+
     expect(saveButton().disabled).toBe(true)
   })
 

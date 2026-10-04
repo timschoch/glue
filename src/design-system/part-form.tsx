@@ -1,7 +1,8 @@
+import { Subtract } from '@carbon/icons-react'
 import {
   Button,
-  ComboBox,
   Form,
+  InlineLoading,
   InlineNotification,
   Select,
   SelectItem,
@@ -13,7 +14,11 @@ import type { FormEvent, MouseEvent } from 'react'
 
 import { Card, evidenceLevels, partTypes } from './card.tsx'
 import styles from './part-form.module.scss'
-import type { EvidenceLevel, PartType, Trust } from './card.tsx'
+import { PartSearch } from './part-search.tsx'
+import type { EvidenceLevel, PartType } from './card.tsx'
+import type { PartFormPart } from './part-search.tsx'
+
+export type { PartFormPart }
 
 // The Evidence levels of an Insight. A Signal is not an Insight yet.
 const insightLevels = [
@@ -21,16 +26,6 @@ const insightLevels = [
   'pattern',
   'confirmed',
 ] as const satisfies ReadonlyArray<EvidenceLevel>
-
-// A Part that a picker offers, with what its minimal card shows.
-export type PartFormPart = {
-  // The record id, for example G2.
-  id: string
-  type: PartType
-  title: string
-  trust: Trust
-  href: string
-}
 
 export type PartFormValues = {
   title: string
@@ -87,11 +82,18 @@ const typeFields: Record<PartType, ReadonlyArray<Field>> = {
   metric: [],
 }
 
-// A field that a Part can be saved without. Each other field holds a text.
-const optionalFields = new Set<Field>(['body', 'evidenceLevel', 'evidence'])
+// The Joints of a Decision. A Part that exists changes them on its record.
+const jointFields = new Set<Field>(['goal', 'evidence'])
 
-const hasText = (value: PartFormValues[Field]) =>
-  typeof value === 'string' && value.trim() !== ''
+// The Part types that a Decision takes as evidence.
+const evidenceTypes = new Set<PartType>(['insight', 'guardrail'])
+
+// A field that a Part can be saved without. Each other field holds a text
+// or a pick.
+const optionalFields = new Set<Field>(['body', 'evidenceLevel'])
+
+const hasValue = (value: PartFormValues[Field]) =>
+  typeof value === 'string' ? value.trim() !== '' : Boolean(value?.length)
 
 // The format of a field, as its placeholder.
 const placeholders: Partial<Record<Field, string>> = { date: 'yyyy-mm-dd' }
@@ -100,18 +102,6 @@ type OpenHandler = (
   recordId: string,
   event: MouseEvent<HTMLAnchorElement>,
 ) => void
-
-// The field holds the search only. The picks are the cards below it.
-const searchText = () => ''
-
-function PartOption({ id, title }: PartFormPart) {
-  return `${id} ${title}`
-}
-
-function matchesSearch({ id, title }: PartFormPart, search: string) {
-  const words = search.trim().toLowerCase()
-  return id.toLowerCase().includes(words) || title.toLowerCase().includes(words)
-}
 
 // The needed Parts of one field: a search over the given Parts, and each
 // pick as a minimal card with the one control that removes it.
@@ -141,22 +131,12 @@ function PartPicker({
 
   return (
     <div className={styles.picker}>
-      <ComboBox
+      <PartSearch
         id={id}
-        titleText={label}
-        items={parts.filter((part) => !picks.includes(part.id))}
-        itemToString={searchText}
-        itemToElement={PartOption}
-        shouldFilterItem={({ item, inputValue }) =>
-          matchesSearch(item, inputValue ?? '')
-        }
-        // No pick stays in the field, so the same Part can be picked again.
-        downshiftProps={{ selectedItem: null }}
-        onChange={({ selectedItem }) => {
-          if (selectedItem) onPick(selectedItem.id)
-        }}
-        invalid={invalidText !== undefined}
+        label={label}
+        parts={parts.filter((part) => !picks.includes(part.id))}
         invalidText={invalidText}
+        onPick={onPick}
       />
       {pickedParts.length > 0 && (
         <ul aria-label={label} className={styles.picks}>
@@ -170,7 +150,11 @@ function PartPicker({
                 trust={part.trust}
                 href={part.href}
                 onOpen={onOpen && ((event) => onOpen(part.id, event))}
-                action={{ label: 'Remove', onClick: () => onRemove(part.id) }}
+                action={{
+                  label: `Remove ${part.id}`,
+                  icon: Subtract,
+                  onClick: () => onRemove(part.id),
+                }}
               />
             </li>
           ))}
@@ -180,10 +164,39 @@ function PartPicker({
   )
 }
 
+// The last row of a form: the one primary button that saves, and the ghost
+// button that cancels. While the form saves, the words of the action stand
+// in the place of the primary button.
+export function SaveButtons({
+  canSave,
+  pending = false,
+  onCancel,
+}: {
+  canSave: boolean
+  pending?: boolean
+  onCancel: () => void
+}) {
+  return (
+    <div className={styles.buttons}>
+      {pending ? (
+        <InlineLoading description="Saving" className={styles.pending} />
+      ) : (
+        <Button type="submit" disabled={!canSave}>
+          Save
+        </Button>
+      )}
+      <Button kind="ghost" onClick={onCancel}>
+        Cancel
+      </Button>
+    </div>
+  )
+}
+
 export type PartFormProps = {
   // The caller gives the Part type. It is not a field.
   type: PartType
-  // The record id of the Part that the form edits. None: the form adds a Part.
+  // The record id of the Part that the form edits. None: the form adds a
+  // Part. A Part that exists has no field for its Joints.
   recordId?: string
   // The values that the form starts with.
   values?: Partial<PartFormValues>
@@ -192,6 +205,8 @@ export type PartFormProps = {
   // The reason of each field with a wrong value.
   errors?: Partial<Record<Field, string>>
   serverError?: string
+  // The form saves: it takes no second save.
+  pending?: boolean
   onSave: (values: PartFormValues) => void
   onCancel: () => void
   // Opens the record of a picked Part.
@@ -207,15 +222,22 @@ export function PartForm({
   parts = [],
   errors = {},
   serverError,
+  pending = false,
   onSave,
   onCancel,
   onOpen,
 }: PartFormProps) {
   const formId = useId()
   const [values, setValues] = useState({ ...EMPTY, ...startValues })
-  const fields: ReadonlyArray<Field> = ['title', 'body', ...typeFields[type]]
+  const fields: ReadonlyArray<Field> = [
+    'title',
+    'body',
+    ...typeFields[type].filter(
+      (field) => recordId === undefined || !jointFields.has(field),
+    ),
+  ]
   const canSave = fields.every(
-    (field) => optionalFields.has(field) || hasText(values[field]),
+    (field) => optionalFields.has(field) || hasValue(values[field]),
   )
 
   const change = (changed: Partial<PartFormValues>) =>
@@ -223,7 +245,7 @@ export function PartForm({
 
   const save = (event: FormEvent) => {
     event.preventDefault()
-    if (canSave) onSave(values)
+    if (canSave && !pending) onSave(values)
   }
 
   const control = (field: Field) => {
@@ -287,7 +309,7 @@ export function PartForm({
             key={field}
             id={shared.id}
             label={labels[field]}
-            parts={parts.filter((part) => part.type === 'insight')}
+            parts={parts.filter((part) => evidenceTypes.has(part.type))}
             picks={values.evidence}
             invalidText={errors[field]}
             onPick={(pick) =>
@@ -339,14 +361,7 @@ export function PartForm({
           title={serverError}
         />
       )}
-      <div className={styles.buttons}>
-        <Button type="submit" disabled={!canSave}>
-          Save
-        </Button>
-        <Button kind="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
+      <SaveButtons canSave={canSave} pending={pending} onCancel={onCancel} />
     </Form>
   )
 }

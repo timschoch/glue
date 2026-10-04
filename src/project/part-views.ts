@@ -1,27 +1,8 @@
 import type { Part, PartSummary } from '../db/parts.ts'
-import type { Trust, WorkState } from '../design-system/card.tsx'
-import type { ConceptViewPart } from '../design-system/concept-view.tsx'
 import type { RecordPart, RecordPartSummary } from '../design-system/record.tsx'
 
 // The length of the day in an ISO time: 2026-10-02.
 const DAY_LENGTH = 10
-
-// The Part model has no Trust and no Work state yet. Until it has, both come
-// from the status: a Part that waits for its sign-off is not ready, a
-// superseded Decision is discontinued.
-export function trustOf(status: string | null): Trust {
-  if (status === 'superseded') return 'wrong'
-  return status === 'proposed' || status === 'draft' ? 'not-ready' : 'solid'
-}
-
-function workStateOf(status: string | null): WorkState {
-  if (status === 'draft') return 'draft'
-  return status === 'proposed' ? 'review' : 'published'
-}
-
-export function toConceptViewPart(part: PartSummary): ConceptViewPart {
-  return { ...part, trust: trustOf(part.status) }
-}
 
 type PartHref = (part: PartSummary) => string
 
@@ -31,7 +12,7 @@ function toRecordSummary(part: PartSummary, href: PartHref): RecordPartSummary {
     type: part.type,
     title: part.title,
     concept: part.conceptTitle,
-    trust: trustOf(part.status),
+    trust: part.trust,
     href: href(part),
   }
 }
@@ -63,7 +44,7 @@ export function toRecordPart(part: Part, href: PartHref): RecordPart {
 
   return {
     ...toRecordSummary(part, href),
-    workState: workStateOf(part.status),
+    workState: part.workState,
     body: part.body,
     owner: part.owner,
     date: part.date,

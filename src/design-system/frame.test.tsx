@@ -22,6 +22,9 @@ const BODY_WEIGHT = 'var(--cds-body-compact-01-font-weight, 400)'
 const FROM_LG = '(min-width: 66rem)'
 const BELOW_LG = '(max-width: 65.98rem)'
 
+// Below Carbon's md breakpoint the header has room for one Concept.
+const BELOW_MD = '(max-width: 41.98rem)'
+
 // The width of Carbon's side nav.
 const PANEL_WIDTH = '16rem'
 
@@ -161,9 +164,12 @@ function hiddenAt(element: HTMLElement): Array<string> {
     .map((media) => media.conditionText)
 }
 
-// The start margin that the media rules give an element, by media condition.
-// jsdom does not apply media rules itself.
-function marginStartAt(element: HTMLElement): Record<string, string> {
+// The value that the media rules give a property of an element, by media
+// condition. jsdom does not apply media rules itself.
+function styleAt(
+  element: HTMLElement,
+  property: string,
+): Record<string, string> {
   return Object.fromEntries(
     [...document.styleSheets]
       .flatMap((sheet) => [...sheet.cssRules])
@@ -172,9 +178,9 @@ function marginStartAt(element: HTMLElement): Record<string, string> {
         [...media.cssRules]
           .filter((rule) => rule instanceof CSSStyleRule)
           .filter((rule) => element.matches(rule.selectorText))
-          .map((rule) => rule.style.getPropertyValue('margin-inline-start'))
-          .filter((margin) => margin !== '')
-          .map((margin) => [media.conditionText, margin]),
+          .map((rule) => rule.style.getPropertyValue(property))
+          .filter((value) => value !== '')
+          .map((value) => [media.conditionText, value]),
       ),
   )
 }
@@ -271,6 +277,40 @@ describe('Frame', () => {
     ).toEqual(['Show each technique'])
     expect(trail.querySelectorAll('svg')).toHaveLength(1)
     expect(trail.querySelector('[class*="breadcrumb"]')).toBeNull()
+  })
+
+  it('shows no trail for one record: the record has its title already', () => {
+    renderFrame([], undefined, undefined, {
+      trail: [{ name: 'Videos are too long', href: '/bakeday/step-videos/I7' }],
+    })
+
+    expect(screen.queryByRole('navigation', { name: 'Trail' })).toBeNull()
+  })
+
+  it('keeps the count of pins in the row of a trail with one record', () => {
+    renderFrame(PINNED, undefined, undefined, {
+      trail: [{ name: 'Videos are too long', href: '/bakeday/step-videos/I7' }],
+    })
+
+    const main = within(screen.getByRole('main'))
+
+    expect(main.queryByRole('navigation', { name: 'Trail' })).toBeNull()
+    expect(main.getByRole('button', { name: '2 pinned' })).toBeDefined()
+  })
+
+  it('shows the last Concept of the breadcrumb alone below md, on one line with an ellipsis', () => {
+    renderFrame()
+
+    const [first, last] = within(
+      screen.getByRole('navigation', { name: 'Breadcrumb' }),
+    ).getAllByRole('listitem')
+
+    expect(hiddenAt(first)).toEqual([BELOW_MD])
+    expect(hiddenAt(last)).toEqual([])
+    const link = within(last).getByRole('link')
+
+    expect(styleAt(link, 'text-overflow')).toEqual({ [BELOW_MD]: 'ellipsis' })
+    expect(styleAt(link, 'white-space')).toEqual({ [BELOW_MD]: 'nowrap' })
   })
 
   it('has no right column while no record is pinned', () => {
@@ -451,6 +491,89 @@ describe('Frame', () => {
     expect(onProjectChange).toHaveBeenCalledWith('Flexibeck')
   })
 
+  it('has no button to add a Project and none to sign out without their callbacks', () => {
+    renderFrame()
+
+    const panel = within(screen.getByRole('navigation', { name: 'Main' }))
+
+    expect(panel.queryByRole('button', { name: 'Add Project' })).toBeNull()
+    expect(panel.queryByRole('button', { name: 'Sign out' })).toBeNull()
+    expect(panel.getAllByRole('separator', { hidden: true })).toHaveLength(1)
+  })
+
+  it('adds a Project with the one ghost button below the Project switcher, and closes the left panel', async () => {
+    const onAddProject = vi.fn()
+    renderFrame([], undefined, undefined, { onAddProject })
+
+    const menu = screen.getByRole('button', { name: 'Menu' })
+    const panel = screen.getByRole('navigation', { name: 'Main' })
+    const switcher = within(panel).getByRole('combobox', { name: /Project/ })
+    await userEvent.click(menu)
+    const add = within(panel).getByRole('button', { name: 'Add Project' })
+
+    // The first controls of the panel: the switcher, then the button.
+    expect([...panel.querySelectorAll('a, button')].slice(0, 2)).toEqual([
+      switcher,
+      add,
+    ])
+    expect(add.className).toContain('btn--ghost')
+    expect(add.className).toContain('btn--sm')
+    expect(add.querySelectorAll('svg')).toHaveLength(1)
+
+    await userEvent.click(add)
+
+    expect(onAddProject).toHaveBeenCalledOnce()
+    expect(menu.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('signs out with the one ghost button at the end of the left panel, after a divider', async () => {
+    const onSignOut = vi.fn()
+    renderFrame([], undefined, undefined, { onSignOut })
+
+    const panel = screen.getByRole('navigation', { name: 'Main' })
+    await userEvent.click(screen.getByRole('button', { name: 'Menu' }))
+    // The one button of this name is in the panel, not in the header row.
+    const signOut = screen.getByRole('button', { name: 'Sign out' })
+
+    expect([...panel.querySelectorAll('a, button')].at(-1)).toBe(signOut)
+    expect(signOut.className).toContain('btn--ghost')
+    expect(signOut.closest('li')?.previousElementSibling?.className).toContain(
+      'side-nav__divider',
+    )
+
+    await userEvent.click(signOut)
+
+    expect(onSignOut).toHaveBeenCalledOnce()
+  })
+
+  it.each(['Add Project', 'Sign out'])(
+    'reaches the button %s with the keyboard in the open left panel',
+    async (name) => {
+      const onPress = vi.fn()
+      renderFrame([], undefined, undefined, {
+        onAddProject: onPress,
+        onSignOut: onPress,
+      })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Menu' }))
+      const button = screen.getByRole('button', { name })
+
+      // Tab goes through the breadcrumb and the panel, in document order.
+      while (document.activeElement !== button) {
+        const before = document.activeElement
+        await userEvent.tab()
+        if (document.activeElement === before) break
+        if (document.activeElement === document.body) break
+      }
+
+      expect(document.activeElement).toBe(button)
+
+      await userEvent.keyboard('{Enter}')
+
+      expect(onPress).toHaveBeenCalledOnce()
+    },
+  )
+
   it('puts the menu button at the left of the header, below the lg breakpoint only', () => {
     renderFrame()
 
@@ -468,7 +591,9 @@ describe('Frame', () => {
     const main = screen.getByRole('main')
 
     expect(getComputedStyle(main).marginInlineStart).toBe('0')
-    expect(marginStartAt(main)).toEqual({ [FROM_LG]: PANEL_WIDTH })
+    expect(styleAt(main, 'margin-inline-start')).toEqual({
+      [FROM_LG]: PANEL_WIDTH,
+    })
   })
 
   it('shows the pinned card as a light card on the canvas in the stack too', () => {
@@ -670,6 +795,6 @@ describe('PlainFrame', () => {
 
     expect(main.textContent).toBe('Content')
     expect(layer(main)).toBe(BACKGROUND)
-    expect(marginStartAt(main)).toEqual({})
+    expect(styleAt(main, 'margin-inline-start')).toEqual({})
   })
 })

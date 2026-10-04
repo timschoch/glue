@@ -4,12 +4,13 @@ import {
   createRootRouteWithContext,
 } from '@tanstack/react-router'
 
+import carbonCss from '../design-system/theme.scss?url'
 import type { RouterContext } from '../router-context.ts'
 
-// The document alone. A UI kit comes with the routes that use it: Carbon
-// with `_signed-in`, Mantine with `_mantine`.
+// The document, with the stylesheet of the UI kit: each screen is on Carbon.
 export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
+    links: [{ rel: 'stylesheet', href: carbonCss }],
     meta: [
       {
         charSet: 'utf-8',
@@ -28,8 +29,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    // Mantine writes its colour scheme on this element before React starts.
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <head>
         <HeadContent />
       </head>

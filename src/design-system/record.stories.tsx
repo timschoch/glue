@@ -179,7 +179,7 @@ export const Guardrail: Story = {
       enforcedBy: 'A test of the video player',
       neededBy: [{ jointId: 6, link: false, part: flow }],
     },
-    action: { label: 'Ask for review', onClick: () => {} },
+    actions: [{ label: 'Ask for review', onClick: () => {} }],
   },
 }
 
@@ -209,7 +209,7 @@ export const Flow: Story = {
         { jointId: 7, link: false, part: entity },
       ],
     },
-    action: { label: 'It is fine', onClick: () => {} },
+    actions: [{ label: 'It is fine', onClick: () => {} }],
   },
 }
 
@@ -287,8 +287,64 @@ export const LongBody: Story = {
   },
 }
 
+// A record that can be changed: edit, actions, and Joints to add and remove.
+export const Writable: Story = {
+  args: {
+    ...Decision.args,
+    actions: [
+      { label: 'Sign off', onClick: () => {} },
+      { label: 'Ask for review', onClick: () => {} },
+      {
+        label: 'Remove',
+        onClick: () => {},
+        confirm: { title: 'Remove D12?', label: 'Remove D12' },
+      },
+    ],
+    onEdit: () => {},
+    jointParts: [insight, goal, decision, guardrail, entity, flow, metric],
+    onAddJoint: () => {},
+    onRemoveJoint: () => {},
+  },
+}
+
+// The Part needs nothing yet: the group Needs holds the search alone.
+export const WritableNoJoint: Story = {
+  args: {
+    ...NoJoint.args,
+    onEdit: () => {},
+    jointParts: Writable.args.jointParts,
+    onAddJoint: () => {},
+    onRemoveJoint: () => {},
+  },
+}
+
+export const ActionRuns: Story = {
+  args: { ...Writable.args, pending: 'Signing off' },
+}
+
+export const ActionFailed: Story = {
+  args: { ...Writable.args, error: 'Not signed off: the Goal G2 is sunk' },
+}
+
+// The dialog of an action that cannot be undone.
+export const ConfirmRemove: Story = {
+  args: {
+    ...Decision.args,
+    actions: [
+      {
+        label: 'Remove',
+        onClick: () => {},
+        confirm: { title: 'Remove D12?', label: 'Remove D12' },
+      },
+    ],
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole('button', { name: 'Remove' }))
+  },
+}
+
 export const NarrowWindow: Story = {
-  args: Decision.args,
+  args: Writable.args,
   decorators: [
     (Story) => (
       <div className={styles.narrow}>

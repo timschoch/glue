@@ -12,10 +12,44 @@ $pinned-breakpoint: 'lg';
 
 .breadcrumb {
   padding-inline: $spacing-05;
+
+  // A narrow header has room for one Concept: the open one, on one line.
+  @include breakpoint-down('md') {
+    flex: 1;
+    min-inline-size: 0;
+
+    ol {
+      display: flex;
+    }
+
+    li:not(:last-child) {
+      display: none;
+    }
+
+    li:last-child {
+      min-inline-size: 0;
+    }
+
+    li:last-child a {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
 }
 
+// The Project switcher and the button that adds a Project are one group.
 .switcher {
+  display: flex;
+  flex-direction: column;
   padding: $spacing-05 $spacing-05 0;
+  gap: $spacing-03;
+}
+
+// The button takes the room of its words, at the start edge.
+.addProject {
+  align-self: flex-start;
 }
 
 // The trail row: the trail at the start, the count of pins at the end.

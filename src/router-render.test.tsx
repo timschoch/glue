@@ -14,11 +14,12 @@ import {
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { Session } from './authentication/session.ts'
+import type { Part } from './db/parts.ts'
 import { createRouterContext } from './router-context.ts'
 import type { Server } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
 import {
-  decision,
   findConcept,
   findPart,
   findProject,
@@ -34,34 +35,36 @@ const session = {
   user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' },
 }
 
-const productConcept = {
-  product: { slug: 'glue', name: 'Glue' },
-  goals: [
-    {
-      id: 'G1',
-      title: 'Agents build from the Concept',
-      metric: 'Tickets',
-      status: 'open' as const,
-      latestValue: null,
-    },
-  ],
-  decisions: [],
-  guardrails: [
-    { id: 'R1', title: 'No query over 200ms', enforcedBy: 'verify ci' },
-  ],
-  insights: [],
-  facts: [],
-}
-
 const D4 = 'The Concept lives in the database'
 const I3 = 'Agents read files'
 const R1 = 'No query over 200ms'
 
-// The pages of Glue with a signed-in person, and a server that saves the
-// new Decision as D4.
-async function renderPage(path: string) {
+const saved = (id: string) => ({
+  id,
+  concept: 'part-model',
+  issueMissing: false,
+})
+
+// A record of Glue with other values, as the server gives it.
+function changedPart(recordId: string, changed: Partial<Part>) {
+  return (input: { project: string; recordId: string }) => {
+    const part = findPart(input)
+    return Promise.resolve(
+      part && input.recordId === recordId ? { ...part, ...changed } : part,
+    )
+  }
+}
+
+// A server for a person who is not signed in.
+const signedOut = () => ({
+  fetchSession: vi.fn(() => Promise.resolve(undefined)),
+})
+
+// The pages of Glue with a signed-in person, and a server that saves each
+// write.
+async function renderPage(path: string, changed: Partial<Server> = {}) {
   const server: Server = {
-    fetchSession: vi.fn(() => Promise.resolve(session)),
+    fetchSession: vi.fn(() => Promise.resolve<Session | undefined>(session)),
     fetchProjects: vi.fn(() => Promise.resolve(projects)),
     fetchProject: vi.fn((project) => Promise.resolve(findProject(project))),
     fetchConcept: vi.fn((input) => Promise.resolve(findConcept(input))),
@@ -69,14 +72,17 @@ async function renderPage(path: string) {
       Promise.resolve(project === 'glue' ? parts : []),
     ),
     fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
-    fetchProductConcept: vi.fn(() => Promise.resolve(productConcept)),
-    fetchRecord: vi.fn(() => Promise.resolve(decision)),
-    proposeDecision: vi.fn(() =>
-      Promise.resolve({ id: 'D4', issueMissing: false }),
-    ),
+    addProject: vi.fn(({ slug }) => Promise.resolve({ slug })),
+    addConcept: vi.fn(({ concept }) => Promise.resolve({ slug: concept.slug })),
+    addPart: vi.fn(() => Promise.resolve(saved('D4'))),
+    updatePart: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),
+    answerPart: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),
+    addJoint: vi.fn(() => Promise.resolve({ id: 20 })),
+    removeJoint: vi.fn(() => Promise.resolve(undefined)),
     signIn: vi.fn(() => Promise.resolve(undefined)),
     signUp: vi.fn(() => Promise.resolve(undefined)),
     signOut: vi.fn(() => Promise.resolve()),
+    ...changed,
   }
   const router = createRouter({
     routeTree,
@@ -84,7 +90,10 @@ async function renderPage(path: string) {
     context: createRouterContext(server),
   })
   await router.load()
-  render(<RouterProvider router={router} />)
+  // The root route renders the document, as in the browser. In a container
+  // below the body, React does not find the root of an event from a menu
+  // that Carbon puts into the body.
+  render(<RouterProvider router={router} />, { container: document })
 
   // The path and the search of the address, when the screen shows them.
   async function expectAddress(pathname: string, search: object = {}) {
@@ -95,7 +104,24 @@ async function renderPage(path: string) {
     })
   }
 
-  return { expectAddress }
+  return { expectAddress, server }
+}
+
+function button(name: string | RegExp): HTMLElement {
+  return within(screen.getByRole('main')).getByRole('button', { name })
+}
+
+// The texts of the error notifications on the screen, each after the name
+// of its icon. Carbon has empty alerts in its text fields.
+function alerts(): Array<string> {
+  return screen
+    .queryAllByRole('alert')
+    .map((alert) => alert.textContent.replace(/^error icon/, ''))
+    .filter((text) => text !== '')
+}
+
+function field(name: string): HTMLElement {
+  return screen.getByRole('textbox', { name })
 }
 
 function pageTitle(): string | null {
@@ -150,19 +176,17 @@ describe('the start of a Project', () => {
     expect(panel.queryByRole('link', { current: 'page' })).toBeNull()
   })
 
-  it('has no trail, no pinned column and no button that writes', async () => {
+  it('has no trail and no pinned column, and a button in the empty slot', async () => {
     await renderPage('/glue/part-model')
-
-    const main = within(screen.getByRole('main'))
 
     expect(screen.queryByRole('navigation', { name: 'Trail' })).toBeNull()
     expect(screen.queryByRole('complementary', { name: 'Pinned' })).toBeNull()
-    expect(main.queryByRole('button')).toBeNull()
     expect(
       within(screen.getByRole('region', { name: 'Metrics' })).getByRole(
-        'listitem',
-      ).textContent,
-    ).toBe('Metric')
+        'button',
+        { name: 'Add Metric' },
+      ),
+    ).toBeDefined()
   })
 
   it('opens a Concept with a click on its tile', async () => {
@@ -246,7 +270,17 @@ describe('a section', () => {
         .getAllByRole('heading', { level: 2 })
         .map((heading) => heading.textContent)
 
-    expect(groups()).toEqual(['Insights', 'Goals', 'Decisions', 'Metrics'])
+    const all = [
+      'Insights',
+      'Goals',
+      'Decisions',
+      'Guardrails',
+      'Entities',
+      'Flows',
+      'Metrics',
+    ]
+
+    expect(groups()).toEqual(all)
 
     await userEvent.click(section('Understand'))
 
@@ -257,7 +291,7 @@ describe('a section', () => {
     await userEvent.click(section('Understand'))
 
     await expectAddress('/glue/part-model')
-    expect(groups()).toEqual(['Insights', 'Goals', 'Decisions', 'Metrics'])
+    expect(groups()).toEqual(all)
   })
 
   it('goes from a record to its Concept, keeps the pins and ends the trail', async () => {
@@ -275,7 +309,7 @@ describe('a section', () => {
 })
 
 describe('a record', () => {
-  it('opens in the main window with a click on its card, as the start of a trail', async () => {
+  it('opens in the main window with a click on its card, and shows no trail of one record', async () => {
     const { expectAddress } = await renderPage(
       '/glue/part-model?section=Decide',
     )
@@ -284,7 +318,7 @@ describe('a record', () => {
 
     await expectAddress('/glue/part-model/D4', { section: 'Decide' })
     expect(pageTitle()).toBe(D4)
-    expect(items('Trail')).toEqual([D4])
+    expect(screen.queryByRole('navigation', { name: 'Trail' })).toBeNull()
   })
 
   it('adds the record of a Joint to the trail, and goes back with a click on the trail', async () => {
@@ -305,7 +339,7 @@ describe('a record', () => {
     )
 
     await expectAddress('/glue/part-model/D4')
-    expect(items('Trail')).toEqual([D4])
+    expect(screen.queryByRole('navigation', { name: 'Trail' })).toBeNull()
   })
 
   it('opens the record of a record id in its text', async () => {
@@ -402,39 +436,467 @@ describe('a record', () => {
   })
 })
 
-describe('the Decision form after the save', () => {
-  it('shows the record of the new Decision', async () => {
-    const { expectAddress } = await renderPage(
-      '/glue/decisions/new?evidence=R1',
-    )
-    await userEvent.type(
-      await screen.findByRole('textbox', { name: 'Title' }),
-      D4,
-    )
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: 'Goal' }),
-      'G1',
-    )
+describe('a new Part', () => {
+  it('opens the Part form from the button of an empty slot, and shows the record after the save', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model')
 
+    await userEvent.click(button('Add Metric'))
+    await expectAddress('/glue/part-model', { add: 'metric' })
+    expect(pageTitle()).toBe('Metric')
+    await userEvent.type(field('Title'), 'Time to the first Decision')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/part-model/D4')
+    expect(server.addPart).toHaveBeenCalledWith({
+      project: 'glue',
+      part: {
+        type: 'metric',
+        concept: 'part-model',
+        title: 'Time to the first Decision',
+        body: '',
+      },
+    })
+  })
+
+  it('opens the Part form from the control of a type group', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model')
+
+    await userEvent.click(button('Add Insight'))
+
+    await expectAddress('/glue/part-model', { add: 'insight' })
+    expect(pageTitle()).toBe('Insight')
+  })
+
+  it('shows a wrong value at its field and does not save', async () => {
+    const { server } = await renderPage('/glue/part-model?add=insight')
+    await userEvent.type(field('Title'), I3)
+    await userEvent.type(field('Source'), 'Interview')
+    await userEvent.clear(field('Date'))
+    await userEvent.type(field('Date'), '3 May')
+
+    await userEvent.click(button('Save'))
+
+    expect(field('Date').getAttribute('aria-invalid')).toBe('true')
+    expect(screen.getByText(/^Enter a date, such as /)).toBeDefined()
+    expect(server.addPart).not.toHaveBeenCalled()
+  })
+
+  it('shows what the server refused as one notification, and keeps the form', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model?add=metric', {
+      addPart: vi.fn(() => Promise.resolve({ message: 'No Concept "x"' })),
+    })
+    await userEvent.type(field('Title'), 'Time')
+
+    await userEvent.click(button('Save'))
+
+    await waitFor(() => expect(alerts()).toEqual(['No Concept "x"']))
+    await expectAddress('/glue/part-model', { add: 'metric' })
+  })
+
+  it('closes the form with Cancel', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model?add=metric')
+
+    await userEvent.click(button('Cancel'))
+
+    await expectAddress('/glue/part-model')
+    expect(pageTitle()).toBe('Part model')
+  })
+})
+
+describe('the edit of a Part', () => {
+  it('opens the Part form with the values, and saves against the values that the person saw', async () => {
+    const { expectAddress, server } = await renderPage('/glue/read-model/R1')
+
+    await userEvent.click(button('Edit'))
+    await expectAddress('/glue/read-model/R1', { edit: true })
+    expect(pageTitle()).toBe('Guardrail R1')
+    expect(field('Title')).toHaveProperty('value', R1)
+    await userEvent.type(field('Enforced by'), 'verify ci')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/read-model/R1')
+    expect(server.updatePart).toHaveBeenCalledWith({
+      project: 'glue',
+      recordId: 'R1',
+      change: expect.objectContaining({ title: R1, enforcedBy: 'verify ci' }),
+      expected: expect.objectContaining({ title: R1, enforcedBy: null }),
+    })
+  })
+
+  it('tells the person that a second person changed the Part', async () => {
+    const changed = '"R1" changed since you opened it'
+    await renderPage('/glue/read-model/R1?edit=true', {
+      updatePart: vi.fn(() => Promise.resolve({ message: changed })),
+    })
+    await userEvent.type(field('Enforced by'), 'verify ci')
+
+    await userEvent.click(button('Save'))
+
+    await waitFor(() => expect(alerts()).toEqual([changed]))
+    expect(field('Enforced by')).toHaveProperty('value', 'verify ci')
+  })
+})
+
+// Clicks an action of the record. The first action is a button, each other
+// action is in the menu.
+async function act(label: string) {
+  const main = within(screen.getByRole('main'))
+  if (!main.queryByRole('button', { name: label })) {
     await userEvent.click(
-      screen.getByRole('button', { name: 'Propose the Decision' }),
+      main.getByRole('button', { name: 'Additional actions' }),
+    )
+    // jsdom has no layout, so the open menu of Carbon stays hidden.
+    const item = screen
+      .getAllByRole('menuitem', { hidden: true })
+      .find(({ textContent }) => textContent === label)
+    if (!item) throw new Error(`No action ${label}`)
+    await userEvent.click(item)
+    return
+  }
+  await userEvent.click(main.getByRole('button', { name: label }))
+}
+
+async function chooseInDialog(title: string, label: string) {
+  const dialog = within(await screen.findByRole('dialog', { name: title }))
+  await userEvent.click(dialog.getByRole('button', { name: label }))
+}
+
+describe('the actions of a Decision', () => {
+  const proposed = {
+    fetchPart: vi.fn(changedPart('D4', { status: 'proposed' })),
+  }
+  const seen = {
+    project: 'glue',
+    recordId: 'D4',
+    expected: { status: 'proposed' },
+  }
+  const sink = { project: 'glue', recordId: 'D4', answer: { answer: 'sink' } }
+
+  it('accepts a proposed Decision', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', proposed)
+
+    await act('Accept')
+
+    await waitFor(() =>
+      expect(server.updatePart).toHaveBeenCalledWith({
+        ...seen,
+        change: { status: 'accepted' },
+      }),
+    )
+  })
+
+  it('rejects a proposed Decision after the person confirms: the answer is sink and the record stays', async () => {
+    const { expectAddress, server } = await renderPage(
+      '/glue/part-model/D4',
+      proposed,
     )
 
+    await act('Reject')
+    expect(server.answerPart).not.toHaveBeenCalled()
+    await chooseInDialog('Reject Decision D4', 'Reject it')
+
+    await waitFor(() => expect(server.answerPart).toHaveBeenCalledWith(sink))
     await expectAddress('/glue/part-model/D4')
     expect(pageTitle()).toBe(D4)
   })
 
-  it('shows the record of the Decision that supersedes', async () => {
-    const { expectAddress } = await renderPage(
-      '/glue/decisions/new?supersedes=D4',
+  it('tells the person why the Decision did not sink', async () => {
+    const changed = '"D4" changed at the same time: read it and answer again'
+    await renderPage('/glue/part-model/D4', {
+      ...proposed,
+      answerPart: vi.fn(() => Promise.resolve({ message: changed })),
+    })
+
+    await act('Reject')
+    await chooseInDialog('Reject Decision D4', 'Reject it')
+
+    await waitFor(() => expect(alerts()).toEqual([changed]))
+  })
+
+  it('shows the Trust and the Work state of a sunk Decision', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchPart: vi.fn(
+        changedPart('D4', {
+          status: 'superseded',
+          trust: 'wrong',
+          workState: 'sunk',
+        }),
+      ),
+    })
+
+    const main = within(screen.getByRole('main'))
+
+    expect(main.getByText('Wrong')).toBeDefined()
+    expect(main.getByText('Sunk')).toBeDefined()
+  })
+
+  it('tells the person that a second person changed the Decision', async () => {
+    const changed = '"D4" changed since you opened it'
+    await renderPage('/glue/part-model/D4', {
+      ...proposed,
+      updatePart: vi.fn(() => Promise.resolve({ message: changed })),
+    })
+
+    await act('Accept')
+
+    await waitFor(() => expect(alerts()).toEqual([changed]))
+  })
+
+  it('opens the Part form for the Decision that supersedes', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model/D4')
+
+    await act('Supersede')
+    await expectAddress('/glue/part-model/D4', { add: 'decision' })
+    expect(pageTitle()).toBe('Decision')
+    await userEvent.type(field('Title'), 'The Concept lives in files')
+    await userEvent.click(button('Save'))
+
+    await waitFor(() =>
+      expect(server.addPart).toHaveBeenCalledWith({
+        project: 'glue',
+        part: expect.objectContaining({
+          type: 'decision',
+          concept: 'part-model',
+          status: 'accepted',
+          supersedes: 'D4',
+          owner: 'Ada',
+          needs: ['G1', 'I3'],
+        }),
+      }),
     )
+  })
+
+  it('has no action on a superseded Decision', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchPart: vi.fn(changedPart('D4', { status: 'superseded' })),
+    })
+
+    const main = within(screen.getByRole('main'))
+
+    expect(main.queryByRole('button', { name: 'Supersede' })).toBeNull()
+    expect(main.queryByRole('button', { name: 'Accept' })).toBeNull()
+  })
+})
+
+describe('the actions of an Insight in draft', () => {
+  const draft = { fetchPart: vi.fn(changedPart('I3', { status: 'draft' })) }
+  const seen = {
+    project: 'glue',
+    recordId: 'I3',
+    expected: { status: 'draft' },
+  }
+
+  it('keeps the Insight', async () => {
+    const { server } = await renderPage('/glue/part-model/I3', draft)
+
+    await act('Keep')
+
+    await waitFor(() =>
+      expect(server.updatePart).toHaveBeenCalledWith({
+        ...seen,
+        change: { status: null },
+      }),
+    )
+  })
+
+  it('discards the Insight after the person confirms: the answer is sink and the record stays', async () => {
+    const { expectAddress, server } = await renderPage(
+      '/glue/part-model/I3',
+      draft,
+    )
+
+    await act('Discard')
+    await chooseInDialog('Discard Insight I3', 'Discard it')
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledWith({
+        project: 'glue',
+        recordId: 'I3',
+        answer: { answer: 'sink' },
+      }),
+    )
+    await expectAddress('/glue/part-model/I3')
+    expect(pageTitle()).toBe(I3)
+  })
+
+  it('has no action on an Insight that is not in draft', async () => {
+    await renderPage('/glue/part-model/I3')
+
+    expect(
+      within(screen.getByRole('main')).queryByRole('button', { name: 'Keep' }),
+    ).toBeNull()
+  })
+})
+
+describe('the Joints of a record', () => {
+  it('adds a Joint to a Part that the search finds by its record id', async () => {
+    const { server } = await renderPage('/glue/read-model/R1')
+    const needs = within(screen.getByRole('region', { name: 'Needs' }))
+
     await userEvent.type(
-      await screen.findByRole('textbox', { name: 'Title' }),
-      ' now',
+      needs.getByRole('combobox', { name: 'Add Joint' }),
+      'g1',
+    )
+    await userEvent.click(await screen.findByRole('option', { name: /G1/ }))
+
+    await waitFor(() =>
+      expect(server.addJoint).toHaveBeenCalledWith({
+        project: 'glue',
+        joint: { part: 'R1', needs: 'G1' },
+      }),
+    )
+  })
+
+  it('removes a Joint', async () => {
+    const { server } = await renderPage('/glue/part-model/D4')
+
+    await userEvent.click(button('Remove I3'))
+
+    await waitFor(() =>
+      expect(server.removeJoint).toHaveBeenCalledWith({
+        project: 'glue',
+        jointId: 2,
+      }),
+    )
+  })
+})
+
+describe('a new Concept and a new Project', () => {
+  it('adds a Concept below the Concept of the view, and opens it', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model')
+
+    await userEvent.click(button('Add Concept'))
+    await expectAddress('/glue/part-model', { add: 'concept' })
+    await userEvent.type(field('Title'), 'Write model')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/write-model')
+    expect(server.addConcept).toHaveBeenCalledWith({
+      project: 'glue',
+      concept: {
+        slug: 'write-model',
+        title: 'Write model',
+        parent: 'part-model',
+      },
+    })
+  })
+
+  it('adds a Project from the Project switcher, and opens it', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model')
+
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
+        'button',
+        { name: 'Add Project' },
+      ),
+    )
+    await expectAddress('/glue', { add: 'project' })
+    expect(field('Name').getAttribute('placeholder')).toBeNull()
+    await userEvent.type(field('Name'), 'My Project')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/my-project')
+    expect(server.addProject).toHaveBeenCalledWith({
+      slug: 'my-project',
+      name: 'My Project',
+    })
+  })
+
+  it.each([
+    ['Project', '/glue?add=project', 'Name', 'Enter a name with a letter.'],
+    [
+      'Concept',
+      '/glue/part-model?add=concept',
+      'Title',
+      'Enter a title with a letter.',
+    ],
+  ])(
+    'shows the name of a %s without a letter as wrong at its field, and does not save',
+    async (_added, path, label, reason) => {
+      const { server } = await renderPage(path)
+      expect(field(label).getAttribute('placeholder')).toBeNull()
+      await userEvent.type(field(label), '!?')
+
+      await userEvent.click(button('Save'))
+
+      expect(screen.getByText(reason)).toBeDefined()
+      expect(server.addProject).not.toHaveBeenCalled()
+      expect(server.addConcept).not.toHaveBeenCalled()
+    },
+  )
+})
+
+describe('the session', () => {
+  it('signs the person out from the frame, and shows sign-in', async () => {
+    const { expectAddress, server } = await renderPage('/glue')
+    vi.mocked(server.fetchSession).mockResolvedValue(undefined)
+
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
+        'button',
+        { name: 'Sign out' },
+      ),
     )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Supersede D4' }))
+    await expectAddress('/sign-in')
+    expect(server.signOut).toHaveBeenCalledOnce()
+    expect(pageTitle()).toBe('Sign in to Glue')
+  })
 
-    await expectAddress('/glue/part-model/D4')
+  it('signs a person in with the email and the password', async () => {
+    const { server } = await renderPage('/sign-in', signedOut())
+
+    await userEvent.type(field('Email'), 'ada@example.com')
+    await userEvent.type(screen.getByLabelText('Password'), 'correct horse')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() =>
+      expect(server.signIn).toHaveBeenCalledWith({
+        email: 'ada@example.com',
+        password: 'correct horse',
+      }),
+    )
+  })
+
+  it('shows a wrong email at its field and does not sign in', async () => {
+    const { server } = await renderPage('/sign-in', signedOut())
+    await userEvent.type(field('Email'), 'ada')
+    await userEvent.type(screen.getByLabelText('Password'), 'correct horse')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(field('Email').getAttribute('aria-invalid')).toBe('true')
+    expect(server.signIn).not.toHaveBeenCalled()
+  })
+
+  it('shows what the server refused as one notification', async () => {
+    const refused = 'The email or the password is wrong.'
+    await renderPage('/sign-in', {
+      ...signedOut(),
+      signIn: vi.fn(() => Promise.resolve({ message: refused })),
+    })
+    await userEvent.type(field('Email'), 'ada@example.com')
+    await userEvent.type(screen.getByLabelText('Password'), 'correct horse')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => expect(alerts()).toEqual([refused]))
+  })
+
+  it('makes an account with the name, the email and the password', async () => {
+    const { server } = await renderPage('/sign-up', signedOut())
+
+    await userEvent.type(field('Name'), 'Ada')
+    await userEvent.type(field('Email'), 'ada@example.com')
+    await userEvent.type(screen.getByLabelText('Password'), 'correct horse')
+    await userEvent.click(screen.getByRole('button', { name: 'Make account' }))
+
+    await waitFor(() =>
+      expect(server.signUp).toHaveBeenCalledWith({
+        name: 'Ada',
+        email: 'ada@example.com',
+        password: 'correct horse',
+      }),
+    )
   })
 })

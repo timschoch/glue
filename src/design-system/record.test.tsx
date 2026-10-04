@@ -58,6 +58,15 @@ const DECISION: RecordPart = {
   neededBy: [],
 }
 
+// Carbon's dialog watches its size, which jsdom can not do.
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe() {}
+    disconnect() {}
+  },
+)
+
 afterEach(cleanup)
 
 function renderRecord(
@@ -88,6 +97,30 @@ function pinToggle(pressed: boolean): HTMLElement {
   const name = pin.getAttribute('aria-labelledby') ?? ''
   expect(document.getElementById(name)?.textContent).toBe('Pin')
   return pin
+}
+
+// A control with an icon alone, found by its Carbon tooltip.
+function iconButtons(name: string): Array<HTMLElement> {
+  return screen.getAllByRole('button').filter((button) => {
+    const label = button.getAttribute('aria-labelledby') ?? ''
+    return document.getElementById(label)?.textContent === name
+  })
+}
+
+function iconButton(name: string): HTMLElement {
+  const [button, ...others] = iconButtons(name)
+  expect(others).toEqual([])
+  expect(button).toBeDefined()
+  return button
+}
+
+// The items of the open menu. jsdom has no layout, so Carbon never gets to
+// the place of the menu and keeps it out of the accessibility tree.
+const menuItems = () => screen.getAllByRole('menuitem', { hidden: true })
+
+const JOINTS = {
+  needs: [{ jointId: 1, link: false, part: INSIGHT }],
+  neededBy: [{ jointId: 3, link: false, part: FLOW }],
 }
 
 // The texts of an element, in the order of the document. The name of the pin
@@ -450,11 +483,259 @@ describe('Record', () => {
 
   it('holds the one button of the Work state', async () => {
     const onClick = vi.fn()
-    renderRecord({}, { action: { label: 'Sign off', onClick } })
+    renderRecord({}, { actions: [{ label: 'Sign off', onClick }] })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Sign off' }))
+    const button = screen.getByRole('button', { name: 'Sign off' })
+
+    expect(button.className).toContain('btn--primary')
+    // The pin and the button: one action has no menu.
+    expect(screen.getAllByRole('button')).toHaveLength(2)
+
+    await userEvent.click(button)
 
     expect(onClick).toHaveBeenCalledOnce()
+  })
+
+  it('holds the other actions in the menu of the button', async () => {
+    const onSignOff = vi.fn()
+    const onSink = vi.fn()
+    const onRemove = vi.fn()
+    renderRecord(
+      {},
+      {
+        actions: [
+          { label: 'Sign off', onClick: onSignOff },
+          { label: 'Sink', onClick: onSink },
+          { label: 'Remove', onClick: onRemove },
+        ],
+      },
+    )
+
+    expect(screen.queryByRole('menuitem')).toBeNull()
+
+    // The pin, the button and the control that opens its menu.
+    const [, button, menu] = screen.getAllByRole('button')
+
+    expect(button.textContent).toBe('Sign off')
+
+    await userEvent.click(menu)
+
+    expect(menuItems().map((item) => item.textContent)).toEqual([
+      'Sink',
+      'Remove',
+    ])
+
+    await userEvent.click(menuItems()[0])
+
+    expect(onSink).toHaveBeenCalledOnce()
+
+    await userEvent.click(button)
+
+    expect(onSignOff).toHaveBeenCalledOnce()
+    expect(onRemove).not.toHaveBeenCalled()
+  })
+
+  it('asks before an action that cannot be undone, and runs it on the button of the dialog', async () => {
+    const onClick = vi.fn()
+    renderRecord(
+      {},
+      {
+        actions: [
+          {
+            label: 'Remove',
+            onClick,
+            confirm: { title: 'Remove D12?', label: 'Remove D12' },
+          },
+        ],
+      },
+    )
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+
+    const dialog = within(screen.getByRole('dialog', { name: 'Remove D12?' }))
+
+    expect(onClick).not.toHaveBeenCalled()
+    expect(
+      dialog.getByRole('button', { name: 'Remove D12' }).className,
+    ).toContain('btn--danger')
+
+    await userEvent.click(dialog.getByRole('button', { name: 'Remove D12' }))
+
+    expect(onClick).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('closes the dialog on Cancel and leaves the action', async () => {
+    const onClick = vi.fn()
+    renderRecord(
+      {},
+      {
+        actions: [
+          { label: 'Sign off', onClick: () => {} },
+          {
+            label: 'Remove',
+            onClick,
+            confirm: { title: 'Remove D12?', label: 'Remove D12' },
+          },
+        ],
+      },
+    )
+
+    await userEvent.click(screen.getAllByRole('button')[2])
+    await userEvent.click(menuItems()[0])
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Cancel',
+      }),
+    )
+
+    expect(onClick).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('shows the words of the running action in place of the button', () => {
+    renderRecord(
+      {},
+      {
+        actions: [{ label: 'Sign off', onClick: () => {} }],
+        pending: 'Signing off',
+      },
+    )
+
+    expect(screen.getByText('Signing off')).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Sign off' })).toBeNull()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+
+  it('shows the reason of a failed action in one alert below the button', () => {
+    renderRecord(
+      {},
+      {
+        actions: [{ label: 'Sign off', onClick: () => {} }],
+        error: 'Not signed off: the Goal G2 is sunk',
+      },
+    )
+
+    const alert = screen.getByRole('alert')
+    const button = screen.getByRole('button', { name: 'Sign off' })
+
+    expect(
+      within(alert).getByText('Not signed off: the Goal G2 is sunk'),
+    ).toBeDefined()
+    expect(alert.className).toContain('--error')
+    expect(alert.className).toContain('--low-contrast')
+    expect(within(alert).queryByRole('button')).toBeNull()
+    expect(
+      button.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('has no alert without a reason', () => {
+    renderRecord({}, { actions: [{ label: 'Sign off', onClick: () => {} }] })
+
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('edits with the icon button beside the pin', async () => {
+    const onEdit = vi.fn()
+    renderRecord({}, { onEdit })
+
+    const edit = iconButton('Edit')
+
+    expect(edit.className).toContain('btn--ghost')
+    expect(within(inRecord('header')).getAllByRole('button')).toEqual([
+      edit,
+      pinToggle(false),
+    ])
+
+    await userEvent.click(edit)
+
+    expect(onEdit).toHaveBeenCalledOnce()
+  })
+
+  it('has no control to edit without its callback', () => {
+    renderRecord()
+
+    expect(iconButtons('Edit')).toEqual([])
+  })
+
+  it('adds a Joint with a search in the group Needs, after its cards', async () => {
+    const onAddJoint = vi.fn()
+    renderRecord(JOINTS, {
+      jointParts: [DECISION, INSIGHT, GOAL, FLOW],
+      onAddJoint,
+    })
+
+    const needs = screen.getByRole('region', { name: 'Needs' })
+    const search = within(needs).getByRole('combobox', { name: 'Add Joint' })
+
+    expect(
+      within(needs).getByRole('list').compareDocumentPosition(search) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+
+    await userEvent.click(search)
+
+    // Not the Part itself, and not a Part that a Joint holds already.
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual(['G2 First bake feels easy'])
+
+    await userEvent.click(screen.getByRole('option'))
+
+    expect(onAddJoint).toHaveBeenCalledExactlyOnceWith('G2')
+  })
+
+  it('shows the group Needs with the search alone when the Part needs nothing', () => {
+    renderRecord({}, { jointParts: [GOAL], onAddJoint: () => {} })
+
+    const needs = within(screen.getByRole('region', { name: 'Needs' }))
+
+    expect(needs.getByRole('combobox', { name: 'Add Joint' })).toBeDefined()
+    expect(needs.queryByRole('list')).toBeNull()
+    expect(screen.getAllByRole('region')).toHaveLength(1)
+  })
+
+  it('has no search without its callback', () => {
+    renderRecord(JOINTS, { jointParts: [GOAL] })
+
+    expect(screen.queryByRole('combobox')).toBeNull()
+  })
+
+  it('removes a Joint with the icon action on its card, in both groups', async () => {
+    const onRemoveJoint = vi.fn()
+    renderRecord(JOINTS, { onRemoveJoint })
+
+    await userEvent.click(iconButton('Remove I7'))
+    await userEvent.click(iconButton('Remove F5'))
+
+    expect(onRemoveJoint.mock.calls).toEqual([[1], [3]])
+    expect(
+      screen
+        .getByRole('region', { name: 'Needs' })
+        .contains(iconButton('Remove I7')),
+    ).toBe(true)
+    expect(iconButton('Remove I7').querySelectorAll('svg')).toHaveLength(1)
+  })
+
+  it('has no icon action on a card that is no Joint, and none without the callback', () => {
+    renderRecord(
+      {
+        supersededBy: { ...GOAL, id: 'D14', type: 'decision', title: 'Newer' },
+        supersedes: [{ ...GOAL, id: 'D3', type: 'decision', title: 'Older' }],
+      },
+      { onRemoveJoint: () => {} },
+    )
+
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+
+    cleanup()
+    renderRecord(JOINTS)
+
+    expect(screen.getAllByRole('button')).toHaveLength(1)
   })
 
   it('has no button but the pin when no action is given', () => {

@@ -1,4 +1,3 @@
-import type { Decision } from '../db/concept.ts'
 import type {
   Concept,
   ConceptNode,
@@ -184,20 +183,4 @@ export function findPart({
   return project === 'glue'
     ? records.find((record) => record.id === recordId)
     : undefined
-}
-
-// D4 in the model before the Part model: the Decision form reads it.
-export const decision: Decision = {
-  kind: 'decision',
-  id: 'D4',
-  title: 'The Concept lives in the database',
-  date: '2026-01-15',
-  owner: 'Ada',
-  status: 'accepted',
-  body: '',
-  goal: { id: 'G1', title: 'Agents build from the Concept' },
-  evidence: [{ id: 'R1', title: 'No query over 200ms' }],
-  supersededBy: null,
-  supersedes: [],
-  issueUrl: null,
 }

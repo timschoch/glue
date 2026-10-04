@@ -1,8 +1,13 @@
-import { Pin, PinFilled } from '@carbon/icons-react'
+import { Edit, Pin, PinFilled, Subtract } from '@carbon/icons-react'
 import {
   Button,
+  ComboButton,
   IconButton,
+  InlineLoading,
+  InlineNotification,
   Link,
+  MenuItem,
+  Modal,
   Popover,
   PopoverContent,
 } from '@carbon/react'
@@ -15,8 +20,15 @@ import type { MarkdownNode } from '../mention.ts'
 
 import { replaceMentions } from '../mention.ts'
 import { Card, evidenceLevels, partTypes, signs, workStates } from './card.tsx'
+import { PartSearch } from './part-search.tsx'
 import styles from './record.module.scss'
-import type { EvidenceLevel, PartType, Trust, WorkState } from './card.tsx'
+import type {
+  CardProps,
+  EvidenceLevel,
+  PartType,
+  Trust,
+  WorkState,
+} from './card.tsx'
 
 // The number at the end of an issue address.
 const ISSUE_NUMBER = /\d+$/
@@ -95,11 +107,13 @@ function PartCard({
   link = false,
   minimal = false,
   onOpen,
+  action,
 }: {
   part: RecordPartSummary
   link?: boolean
   minimal?: boolean
   onOpen?: OpenHandler
+  action?: CardProps['action']
 }) {
   return (
     <Card
@@ -113,6 +127,7 @@ function PartCard({
       href={part.href}
       tabIndex={minimal ? -1 : undefined}
       onOpen={onOpen && ((event) => onOpen(part.id, event))}
+      action={action}
     />
   )
 }
@@ -229,42 +244,70 @@ function Body({
   )
 }
 
-// One group of cards with its title. A group with no item is left out.
+// One group of cards with its title, and the search that adds to it. A group
+// with no item and no search is left out. Only a Joint can be removed.
 function Group({
   title,
   ends,
   onOpen,
+  onRemoveJoint,
+  children,
 }: {
   title: string
-  ends: ReadonlyArray<
-    { key: string | number } & Omit<RecordJointEnd, 'jointId'>
-  >
+  ends: ReadonlyArray<{
+    part: RecordPartSummary
+    jointId?: number
+    link?: boolean
+  }>
   onOpen?: OpenHandler
+  onRemoveJoint?: (jointId: number) => void
+  children?: ReactNode
 }) {
   const titleId = useId()
-  if (ends.length === 0) return null
+  if (ends.length === 0 && !children) return null
 
   return (
     <section aria-labelledby={titleId} className={styles.group}>
       <h2 id={titleId} className={styles.groupTitle}>
         {title}
       </h2>
-      <ul className={styles.cards}>
-        {ends.map(({ key, link, part }) => (
-          <li key={key}>
-            <PartCard part={part} link={link} onOpen={onOpen} />
-          </li>
-        ))}
-      </ul>
+      {ends.length > 0 && (
+        <ul className={styles.cards}>
+          {ends.map(({ part, jointId, link }) => (
+            <li key={jointId ?? part.id}>
+              <PartCard
+                part={part}
+                link={link}
+                onOpen={onOpen}
+                action={
+                  onRemoveJoint && jointId !== undefined
+                    ? {
+                        label: `Remove ${part.id}`,
+                        icon: Subtract,
+                        onClick: () => onRemoveJoint(jointId),
+                      }
+                    : undefined
+                }
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+      {children}
     </section>
   )
 }
 
-const jointEnds = (ends: ReadonlyArray<RecordJointEnd>) =>
-  ends.map(({ jointId, ...end }) => ({ key: jointId, ...end }))
-
 const partEnds = (parts: ReadonlyArray<RecordPartSummary>) =>
-  parts.map((part) => ({ key: part.id, link: false, part }))
+  parts.map((part) => ({ part }))
+
+// One action on the record. An action that cannot be undone names the dialog
+// that asks first: its title and the words of its button.
+export type RecordAction = {
+  label: string
+  onClick: () => void
+  confirm?: { title: string; label: string }
+}
 
 export type RecordProps = {
   part: RecordPart
@@ -274,8 +317,18 @@ export type RecordProps = {
   onPinChange: (pinned: boolean) => void
   // Opens the record of a card or of a record id in the body.
   onOpen?: OpenHandler
-  // The one button of the Work state.
-  action?: { label: string; onClick: () => void }
+  // The first action is the button. The others are in its menu.
+  actions?: ReadonlyArray<RecordAction>
+  // The words of the action that runs. They take the place of the button.
+  pending?: string
+  // Why the last action failed.
+  error?: string
+  onEdit?: () => void
+  // The Parts that a new Joint can go to.
+  jointParts?: ReadonlyArray<RecordPartSummary>
+  // Adds a Joint from this Part to the Part of the record id.
+  onAddJoint?: (recordId: string) => void
+  onRemoveJoint?: (jointId: number) => void
 }
 
 // One Part in the main window: the head, the body, the type fields that have
@@ -286,9 +339,27 @@ export function Record({
   pinned,
   onPinChange,
   onOpen,
-  action,
+  actions = [],
+  pending,
+  error,
+  onEdit,
+  jointParts = [],
+  onAddJoint,
+  onRemoveJoint,
 }: RecordProps) {
   const titleId = useId()
+  const searchId = useId()
+  // The action that waits for the answer of its dialog.
+  const [confirming, setConfirming] = useState<RecordAction>()
+  const run = (action: RecordAction) =>
+    action.confirm ? setConfirming(action) : action.onClick()
+  const action = actions.at(0)
+  const otherActions = actions.slice(1)
+  // A Part has one Joint to another Part at most, and none to itself.
+  const joined = new Set([
+    part.id,
+    ...[...part.needs, ...part.neededBy].map((end) => end.part.id),
+  ])
   const { word, Glyph, className } = signs[part.trust]
   const { measure, issueUrl } = part
   const issueNumber = issueUrl && ISSUE_NUMBER.exec(issueUrl)?.[0]
@@ -323,17 +394,29 @@ export function Record({
           <span>{word}</span>
           <span>{partTypes[part.type]}</span>
           <span>{part.id}</span>
-          <IconButton
-            kind="ghost"
-            size="sm"
-            align="bottom-end"
-            label="Pin"
-            aria-pressed={pinned}
-            wrapperClasses={styles.pin}
-            onClick={() => onPinChange(!pinned)}
-          >
-            {pinned ? <PinFilled /> : <Pin />}
-          </IconButton>
+          <div className={styles.controls}>
+            {onEdit && (
+              <IconButton
+                kind="ghost"
+                size="sm"
+                align="bottom-end"
+                label="Edit"
+                onClick={onEdit}
+              >
+                <Edit />
+              </IconButton>
+            )}
+            <IconButton
+              kind="ghost"
+              size="sm"
+              align="bottom-end"
+              label="Pin"
+              aria-pressed={pinned}
+              onClick={() => onPinChange(!pinned)}
+            >
+              {pinned ? <PinFilled /> : <Pin />}
+            </IconButton>
+          </div>
         </div>
         <h1 id={titleId} className={styles.title}>
           {part.title}
@@ -346,10 +429,50 @@ export function Record({
           </div>
         )}
       </header>
-      {action && (
-        <Button className={styles.action} onClick={action.onClick}>
-          {action.label}
-        </Button>
+      {(action || pending !== undefined || error !== undefined) && (
+        <div className={styles.action}>
+          {pending !== undefined ? (
+            <InlineLoading description={pending} />
+          ) : action && otherActions.length > 0 ? (
+            <ComboButton label={action.label} onClick={() => run(action)}>
+              {otherActions.map((other) => (
+                <MenuItem
+                  key={other.label}
+                  label={other.label}
+                  onClick={() => run(other)}
+                />
+              ))}
+            </ComboButton>
+          ) : (
+            action && (
+              <Button onClick={() => run(action)}>{action.label}</Button>
+            )
+          )}
+          {error !== undefined && (
+            <InlineNotification
+              kind="error"
+              role="alert"
+              lowContrast
+              hideCloseButton
+              title={error}
+            />
+          )}
+        </div>
+      )}
+      {confirming?.confirm && (
+        <Modal
+          open
+          danger
+          size="xs"
+          modalHeading={confirming.confirm.title}
+          primaryButtonText={confirming.confirm.label}
+          secondaryButtonText="Cancel"
+          onRequestSubmit={() => {
+            setConfirming(undefined)
+            confirming.onClick()
+          }}
+          onRequestClose={() => setConfirming(undefined)}
+        />
       )}
       {part.body.trim() !== '' && (
         <Body body={part.body} parts={bodyParts} onOpen={onOpen} />
@@ -364,11 +487,28 @@ export function Record({
           ))}
         </dl>
       )}
-      <Group title="Needs" ends={jointEnds(part.needs)} onOpen={onOpen} />
+      <Group
+        title="Needs"
+        ends={part.needs}
+        onOpen={onOpen}
+        onRemoveJoint={onRemoveJoint}
+      >
+        {onAddJoint && (
+          <div className={styles.search}>
+            <PartSearch
+              id={searchId}
+              label="Add Joint"
+              parts={jointParts.filter(({ id }) => !joined.has(id))}
+              onPick={onAddJoint}
+            />
+          </div>
+        )}
+      </Group>
       <Group
         title="Needed by"
-        ends={jointEnds(part.neededBy)}
+        ends={part.neededBy}
         onOpen={onOpen}
+        onRemoveJoint={onRemoveJoint}
       />
       <Group
         title="Superseded by"

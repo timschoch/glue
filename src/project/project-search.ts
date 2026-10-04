@@ -1,5 +1,6 @@
 import type { PartType } from '../db/parts.ts'
 import { isRecordId } from '../db/record-id.ts'
+import { partTypes } from '../design-system/card.tsx'
 import type { Section } from '../design-system/frame.tsx'
 
 // What the address of a Project screen keeps beside its path, so a reload
@@ -11,6 +12,23 @@ export type ProjectSearch = {
   pins?: Array<string>
   // The records opened on the way to the open record, oldest first.
   trail?: Array<string>
+  // The form in the main window in place of the Concept or the record: a
+  // new Part of the type, a new Concept or a new Project.
+  add?: Added
+  // The form with the values of the open record.
+  edit?: true
+}
+
+const nameForms = ['concept', 'project'] as const
+
+export type Added = PartType | (typeof nameForms)[number]
+
+export function isPartType(value: unknown): value is PartType {
+  return typeof value === 'string' && Object.hasOwn(partTypes, value)
+}
+
+function isAdded(value: unknown): value is Added {
+  return isPartType(value) || nameForms.some((form) => form === value)
 }
 
 // The Concept in the address of a record whose home Concept is not known,
@@ -56,6 +74,8 @@ export function parseProjectSearch(
     section: isSection(search.section) ? search.section : undefined,
     pins: parseRecordIds(search.pins),
     trail: parseRecordIds(search.trail),
+    add: isAdded(search.add) ? search.add : undefined,
+    edit: search.edit === true ? true : undefined,
   }
 }
 

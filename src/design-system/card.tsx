@@ -56,6 +56,7 @@ export const workStates = {
   draft: 'Draft',
   review: 'Review',
   published: 'Published',
+  sunk: 'Sunk',
 } as const
 
 export type WorkState = keyof typeof workStates

@@ -32,7 +32,9 @@ $text-width: $card-width * 2;
   gap: $spacing-03;
 }
 
-.pin {
+// The controls of the record: the edit button and the pin.
+.controls {
+  display: flex;
   margin-inline-start: auto;
 }
 
@@ -52,8 +54,12 @@ $text-width: $card-width * 2;
   gap: $spacing-03 $spacing-05;
 }
 
+// The place of the button, with the reason of a failed action below it.
 .action {
-  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-03;
 }
 
 // The body is one group of text.
@@ -154,6 +160,11 @@ $text-width: $card-width * 2;
   display: flex;
   flex-direction: column;
   gap: $spacing-03;
+}
+
+// The search of a group is as wide as one card.
+.search {
+  max-inline-size: $card-width;
 }
 
 .groupTitle {

@@ -1,4 +1,4 @@
-import { ArrowRight, PinFilled } from '@carbon/icons-react'
+import { Add, ArrowRight, PinFilled } from '@carbon/icons-react'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -53,6 +53,10 @@ export type FrameProps = {
   project: string
   projects: ReadonlyArray<string>
   onProjectChange: (project: string) => void
+  // With the callback the switcher holds one button that adds a Project.
+  onAddProject?: () => void
+  // With the callback the left panel ends with one button that signs out.
+  onSignOut?: () => void
   // No section while the main window shows every Part type.
   section?: Section
   sectionHref: (section: Section) => string
@@ -60,6 +64,7 @@ export type FrameProps = {
   // The open Concept and the Concepts around it, outermost first.
   conceptPath: ReadonlyArray<FrameLink>
   // The records opened on the way to the open record, the open record last.
+  // It shows from two records on.
   trail?: ReadonlyArray<FrameLink>
   // The pinned records, newest first.
   pinned?: ReadonlyArray<FramePin>
@@ -79,14 +84,17 @@ function current(isCurrent: boolean) {
 }
 
 // The frame of every screen: the header with the breadcrumb, the left panel
-// with the Project switcher, the sections and the Concepts, the main window
-// with the trail, and the right column while a record is pinned. A window
-// too narrow for the column shows the count of pins in the trail row, and
-// keeps the left panel closed until the menu button of the header opens it.
+// with the Project switcher, the sections, the Concepts and the sign-out,
+// the main window with the trail, and the right column while a record is
+// pinned. A window too narrow for the column shows the count of pins in the
+// trail row, and keeps the left panel closed until the menu button of the
+// header opens it.
 export function Frame({
   project,
   projects,
   onProjectChange,
+  onAddProject,
+  onSignOut,
   section,
   sectionHref,
   concepts,
@@ -103,6 +111,8 @@ export function Frame({
   const [panelOpen, setPanelOpen] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const isPinned = pinned.length > 0
+  // One record is no trail: the record shows its title itself.
+  const hasTrail = trail.length > 1
   const link = (href: string) => ({
     href,
     onClick: (event: MouseEvent<HTMLAnchorElement>) => onOpen?.(href, event),
@@ -186,6 +196,20 @@ export function Frame({
                   setPanelOpen(false)
                 }}
               />
+              {onAddProject && (
+                <Button
+                  kind="ghost"
+                  size="sm"
+                  renderIcon={Add}
+                  className={styles.addProject}
+                  onClick={() => {
+                    onAddProject()
+                    setPanelOpen(false)
+                  }}
+                >
+                  Add Project
+                </Button>
+              )}
             </Layer>
             <SideNavItems>
               {sections.map((name) => (
@@ -226,6 +250,14 @@ export function Frame({
                   </SideNavLink>
                 ),
               )}
+              {onSignOut && <SideNavDivider />}
+              {onSignOut && (
+                <li>
+                  <Button kind="ghost" size="sm" onClick={onSignOut}>
+                    Sign out
+                  </Button>
+                </li>
+              )}
             </SideNavItems>
           </SideNav>
         </Header>
@@ -235,22 +267,24 @@ export function Frame({
           isPinned ? `${styles.content} ${styles.besidePinned}` : styles.content
         }
       >
-        {(trail.length > 0 || isPinned) && (
+        {(hasTrail || isPinned) && (
           <div className={styles.trail}>
-            <nav aria-label="Trail">
-              <ol className={styles.records}>
-                {trail.map(({ name, href }, index) => (
-                  <li key={href} className={styles.record}>
-                    {index > 0 && <ArrowRight className={styles.glyph} />}
-                    {index === trail.length - 1 ? (
-                      <span aria-current="page">{name}</span>
-                    ) : (
-                      <Link {...link(href)}>{name}</Link>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            </nav>
+            {hasTrail && (
+              <nav aria-label="Trail">
+                <ol className={styles.records}>
+                  {trail.map(({ name, href }, index) => (
+                    <li key={href} className={styles.record}>
+                      {index > 0 && <ArrowRight className={styles.glyph} />}
+                      {index === trail.length - 1 ? (
+                        <span aria-current="page">{name}</span>
+                      ) : (
+                        <Link {...link(href)}>{name}</Link>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            )}
             {isPinned && (
               <Popover
                 open={stackOpen}

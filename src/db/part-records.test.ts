@@ -140,6 +140,19 @@ describe('addProject', () => {
     ])
   })
 
+  it('gives the Project and its root Concept the name of the Project', async () => {
+    await addProject(db, 'bake-day', 'Bake day')
+
+    expect(
+      await db
+        .select({ slug: schema.projects.slug, name: schema.projects.name })
+        .from(schema.projects),
+    ).toEqual([{ slug: 'bake-day', name: 'Bake day' }])
+    expect(await listConcepts()).toMatchObject([
+      { slug: 'bake-day', title: 'Bake day' },
+    ])
+  })
+
   it('gives back the row id of the Project, new or not', async () => {
     expect(await addProject(db, 'glue')).toBe(1)
     expect(await addProject(db, 'flexibeck')).toBe(2)
@@ -622,14 +635,14 @@ describe('updatePart', () => {
 
   it('changes the title, the body, the owner and the rule check of a Guardrail', async () => {
     await updatePart(db, 'glue', 'R1', {
-      title: 'UI is Carbon, not Mantine',
+      title: 'UI is Carbon',
       body: 'D32 moved the UI kit.',
       owner: 'tim',
       enforcedBy: 'interface-review',
     })
 
     expect(await showPart('R1')).toMatchObject({
-      title: 'UI is Carbon, not Mantine',
+      title: 'UI is Carbon',
       body: 'D32 moved the UI kit.',
       owner: 'tim',
       enforcedBy: 'interface-review',
@@ -1264,7 +1277,7 @@ describe('the Joints of the mentions in a body', () => {
   it('keeps the Joints of the mentions when a change has no body', async () => {
     await updatePart(db, 'glue', 'R1', { body: 'It serves #G1.' })
 
-    await updatePart(db, 'glue', 'R1', { title: 'UI is Carbon, not Mantine' })
+    await updatePart(db, 'glue', 'R1', { title: 'UI is Carbon' })
 
     expect(await listJointsFrom(3)).toHaveLength(1)
   })

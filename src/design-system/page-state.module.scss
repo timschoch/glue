@@ -2,6 +2,9 @@
 @use '@carbon/react/scss/theme' as *;
 @use '@carbon/react/scss/type' as *;
 
+// The width of a card: the width of the pinned column.
+$card-width: $spacing-13 * 2;
+
 // The title and its link are one group, at the start edge.
 .state {
   display: flex;
@@ -15,4 +18,28 @@
 
   color: $text-primary;
   overflow-wrap: anywhere;
+}
+
+// The title and the cards are separate groups, as in the Concept view.
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-07;
+}
+
+.skeletonTitle {
+  max-inline-size: $card-width;
+}
+
+// The grid of the Concept view.
+.skeletonCards {
+  display: grid;
+  gap: $spacing-03;
+  grid-template-columns: repeat(auto-fill, minmax(min($card-width, 100%), 1fr));
+}
+
+// A card with its three lines.
+.skeletonCard {
+  block-size: $spacing-12;
+  inline-size: 100%;
 }
