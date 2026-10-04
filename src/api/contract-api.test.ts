@@ -118,12 +118,17 @@ describe('POST the Contract of a Concept', () => {
   })
 
   it('answers 404 for a Concept that the Project does not have', async () => {
-    const { status } = await call(handleSignContract, 'POST', {
+    const response = await call(handleSignContract, 'POST', {
       concept: 'nope',
       body: { signedBy: 'Ada' },
     })
 
-    expect(status).toBe(404)
+    expect(response).toEqual({
+      status: 404,
+      body: {
+        error: { code: 'not-found', message: 'concept "nope" not found' },
+      },
+    })
   })
 
   it('answers 401 without a token and writes nothing', async () => {

@@ -5,27 +5,24 @@
 import { z } from 'zod'
 
 import { goalMeasureSchema } from '../db/goal-measure.ts'
+import { createPartOperations } from '../db/part-operations.ts'
+import type { ChangedPart } from '../db/part-operations.ts'
 import {
   addConcept,
   addJoint,
-  addPart,
-  answerPart,
-  answerQuestion,
   newConceptSchema,
   newJointSchema,
   newPartSchema,
-  parsePartChange,
   partAnswerSchema,
   partChangeSchema,
   questionAnswerSchema,
   removeJoint,
-  updatePart,
 } from '../db/part-records.ts'
+import type { PartChange } from '../db/part-records.ts'
 import {
   answers,
   evidenceLevels,
   findConcept,
-  findPart,
   findProject,
   flagReasons,
   listMine,
@@ -35,7 +32,6 @@ import {
   workStates,
 } from '../db/parts.ts'
 import type { Concept, Part, PartSummary, Project } from '../db/parts.ts'
-import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import { ApiError, handleApiRequest, parseJson } from './concept-api.ts'
 import type { ApiRequest, ChangeRequest } from './concept-api.ts'
 
@@ -280,26 +276,15 @@ function toNotFound(name: string, id: string | undefined) {
   return new ApiError('not-found', `${name} "${id}" not found`)
 }
 
-async function getPart({ db, params }: ApiRequest) {
-  const { project, recordId = '' } = params
-  const part = await findPart(db, project, recordId)
-  if (!part) throw toNotFound('part', recordId)
-  return part
-}
-
-// The Part after a write, with what became of its downstream issue.
-async function findChangedPart(
-  { db, github, params }: ChangeRequest,
-  recordId: string,
+// The answer to a write of a Part: the Part, and why its issue is missing.
+export function toChangedPartResponse(
+  { part, issue }: ChangedPart,
+  status = 200,
 ) {
-  const issue = await createDownstreamIssue(
-    db,
-    github,
-    params.project,
-    recordId,
+  return Response.json(
+    issue.kind === 'failed' ? { ...part, issueError: issue.message } : part,
+    { status },
   )
-  const part = await findPart(db, params.project, recordId)
-  return issue.kind === 'failed' ? { ...part, issueError: issue.message } : part
 }
 
 export function handleGetProject(input: ApiRequest) {
@@ -344,50 +329,57 @@ export function handleListParts(input: ApiRequest) {
   })
 }
 
-export function handleGetPart(input: ApiRequest) {
-  return handleApiRequest(input, async () =>
-    Response.json(await getPart(input)),
-  )
+export function handleGetPart(input: ChangeRequest) {
+  return handleApiRequest(input, async () => {
+    const { project, recordId = '' } = input.params
+    const part = await createPartOperations(input).getPart(project, recordId)
+    return Response.json(part)
+  })
 }
 
 export function handleAddPart(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
-    const { db, request, params } = input
-    const part = newPartSchema.parse(await parseJson(request))
-    const recordId = await addPart(db, params.project, part)
-    return Response.json(await findChangedPart(input, recordId), {
-      status: 201,
-    })
+    const part = newPartSchema.parse(await parseJson(input.request))
+    const added = await createPartOperations(input).addPart(
+      input.params.project,
+      part,
+    )
+    return toChangedPartResponse(added, 201)
   })
 }
 
 export function handleUpdatePart(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
-    const { db, request, params } = input
-    const part = await getPart(input)
-    const change = parsePartChange(part.type, await parseJson(request))
-    await updatePart(db, params.project, part.id, change)
-    return Response.json(await findChangedPart(input, part.id))
+    const { project, recordId = '' } = input.params
+    // The operation reads the change with the schema of the type of the Part.
+    const change = (await parseJson(input.request)) as PartChange
+    return toChangedPartResponse(
+      await createPartOperations(input).updatePart(project, recordId, change),
+    )
   })
 }
 
 export function handleAnswerPart(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
-    const { db, request, params } = input
-    const part = await getPart(input)
-    const answer = partAnswerSchema.parse(await parseJson(request))
-    await answerPart(db, params.project, part.id, answer)
-    return Response.json(await findChangedPart(input, part.id))
+    const { project, recordId = '' } = input.params
+    const answer = partAnswerSchema.parse(await parseJson(input.request))
+    return toChangedPartResponse(
+      await createPartOperations(input).answerPart(project, recordId, answer),
+    )
   })
 }
 
 export function handleAnswerQuestion(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
-    const { db, request, params } = input
-    const part = await getPart(input)
-    const answer = questionAnswerSchema.parse(await parseJson(request))
-    await answerQuestion(db, params.project, part.id, answer)
-    return Response.json(await findChangedPart(input, part.id))
+    const { project, recordId = '' } = input.params
+    const answer = questionAnswerSchema.parse(await parseJson(input.request))
+    return toChangedPartResponse(
+      await createPartOperations(input).answerQuestion(
+        project,
+        recordId,
+        answer,
+      ),
+    )
   })
 }
 

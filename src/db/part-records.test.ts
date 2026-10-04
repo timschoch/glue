@@ -27,7 +27,11 @@ import {
   supersedeDecision,
   updatePart,
 } from './part-records.ts'
-import { InvalidRecordError, ProductNotFoundError } from './record-errors.ts'
+import {
+  InvalidRecordError,
+  PartNotFoundError,
+  ProductNotFoundError,
+} from './record-errors.ts'
 import * as schema from './schema.ts'
 
 let client: PGlite
@@ -722,7 +726,7 @@ describe('updatePart', () => {
   it('refuses a Part that the Project does not have', async () => {
     await expect(
       updatePart(db, 'glue', 'R7', { title: 'UI is Carbon' }),
-    ).rejects.toThrow(new InvalidRecordError('guardrail "R7" not found'))
+    ).rejects.toThrow(new PartNotFoundError('R7'))
     await expect(
       updatePart(db, 'flexibeck', 'R1', { title: 'UI is Carbon' }),
     ).rejects.toThrow(ProductNotFoundError)
@@ -847,7 +851,7 @@ describe('removePart', () => {
 
   it('refuses a Part that the Project does not have', async () => {
     await expect(removePart(db, 'glue', 'I7')).rejects.toThrow(
-      new InvalidRecordError('insight "I7" not found'),
+      new PartNotFoundError('I7'),
     )
   })
 })
@@ -1109,7 +1113,7 @@ describe('supersedeDecision', () => {
 
   it('refuses a Decision that the Project does not have', async () => {
     await expect(supersedeDecision(db, 'glue', 'D7', 'D2')).rejects.toThrow(
-      new InvalidRecordError('decision "D7" not found'),
+      new PartNotFoundError('D7'),
     )
     await expect(supersedeDecision(db, 'glue', 'D1', 'D7')).rejects.toThrow(
       new InvalidRecordError('decision "D7" not found'),
@@ -1210,7 +1214,7 @@ describe('setReading', () => {
 
   it('refuses a Part that the Project does not have', async () => {
     await expect(setReading(db, 'glue', 'G7', reading)).rejects.toThrow(
-      new InvalidRecordError('goal "G7" not found'),
+      new PartNotFoundError('G7'),
     )
   })
 })

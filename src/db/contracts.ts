@@ -5,7 +5,7 @@ import type { ConceptDb } from './client.ts'
 import { kinds } from './kinds.ts'
 import type { Kind } from './kinds.ts'
 import type { PartSummary } from './parts.ts'
-import { InvalidRecordError } from './record-errors.ts'
+import { ConceptNotFoundError, InvalidRecordError } from './record-errors.ts'
 import { sortById } from './record-id.ts'
 import * as schema from './schema.ts'
 import type { FrozenPart, PartType } from './schema.ts'
@@ -285,8 +285,7 @@ export async function signContract(
   signedBy: string,
 ): Promise<number> {
   const concept = await findConceptRow(db, projectSlug, conceptSlug)
-  if (!concept)
-    throw new InvalidRecordError(`concept "${conceptSlug}" not found`)
+  if (!concept) throw new ConceptNotFoundError(conceptSlug)
   const result = await db.execute(sql`
     with recursive ${selectLiveParts(concept.id)},
     signed as (

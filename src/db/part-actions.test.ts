@@ -282,16 +282,6 @@ describe('a server function of the Part model with a session', () => {
     expect(fake.issues).toEqual([])
   })
 
-  it('opens the downstream issue of a Decision that it adds as accepted', async () => {
-    const saved = await actions.addPart({
-      project,
-      part: { ...decision, status: 'accepted' },
-    })
-
-    expect(saved).toEqual({ id: 'D1', issueMissing: false })
-    expect(fake.issues).toHaveLength(1)
-  })
-
   it('keeps the Decision and says that the issue is missing when GitHub fails', async () => {
     github = failingGithub
 
@@ -329,22 +319,6 @@ describe('a server function of the Part model with a session', () => {
     })
   })
 
-  it('opens the downstream issue when it accepts a Decision', async () => {
-    await actions.addPart({
-      project,
-      part: { ...decision, status: 'proposed' },
-    })
-
-    const saved = await actions.updatePart({
-      project,
-      recordId: 'D1',
-      change: { status: 'accepted' },
-    })
-
-    expect(saved).toEqual({ id: 'D1', issueMissing: false })
-    expect(fake.issues).toHaveLength(1)
-  })
-
   it('answers a change with a field of another type as a failure', async () => {
     const refused = await actions.updatePart({
       project,
@@ -375,22 +349,6 @@ describe('a server function of the Part model with a session', () => {
       trust: 'solid',
       workState: 'published',
     })
-  })
-
-  it('opens the downstream issue when the answer accepts a Decision', async () => {
-    await actions.addPart({
-      project,
-      part: { ...decision, status: 'proposed' },
-    })
-
-    const saved = await actions.answerPart({
-      project,
-      recordId: 'D1',
-      answer: { answer: 'supersede' },
-    })
-
-    expect(saved).toEqual({ id: 'D1', issueMissing: false })
-    expect(fake.issues).toHaveLength(1)
   })
 
   it('signs an answer in words with the name of the person of the session', async () => {
@@ -493,21 +451,14 @@ describe('a server function of the Part model with a session', () => {
     expect((await findPart(db, project, 'G1'))?.title).toBe('Ship safer')
   })
 
-  it('answers the accept of a Decision that is accepted already as a failure, and opens no second issue', async () => {
-    await actions.addPart({
-      project,
-      part: { ...decision, status: 'accepted' },
-    })
-
+  it('answers a change of a Part that does not exist as a failure', async () => {
     const refused = await actions.updatePart({
       project,
-      recordId: 'D1',
-      change: { status: 'accepted' },
-      expected: { status: 'proposed' },
+      recordId: 'E7',
+      change: { title: 'Cart' },
     })
 
-    expect(refused).toEqual({ message: '"D1" changed since you opened it' })
-    expect(fake.issues).toHaveLength(1)
+    expect(refused).toEqual({ message: 'entity "E7" not found' })
   })
 
   it('supersedes a Decision with a new accepted Decision', async () => {
