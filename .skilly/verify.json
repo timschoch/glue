@@ -16,9 +16,9 @@
         { "name": "typecheck", "run": "pnpm run --if-present typecheck" },
         {
           "name": "unit (changed)",
-          "run": "pnpm exec vitest run --changed origin/main --passWithNoTests",
+          "run": "test -n \"$CI\" || pnpm exec vitest run --changed origin/main --passWithNoTests",
           "target": "vitest.config.ts",
-          "why": "Only the tests the diff reaches, so the push stays inside the budget. The full suite runs in CI."
+          "why": "Only the tests the diff reaches, so the push stays inside the budget. The full suite runs in CI, so CI skips this step: the ci stage inherits it and would run these tests two times (timschoch/skilly#154)."
         },
         {
           "name": "workflow guards",
