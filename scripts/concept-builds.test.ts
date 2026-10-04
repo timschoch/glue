@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { setProductRepository } from '../src/db/concept-records.ts'
+import { setProductRepository } from '../src/db/projects.ts'
 import { addPart, addProject, answerPart } from '../src/db/part-records.ts'
 import * as schema from '../src/db/schema.ts'
 import { createFakeGithub, failingGithub } from '../src/test/github.ts'

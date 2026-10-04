@@ -1,10 +1,10 @@
 // An accepted Decision flows downstream: Glue opens one GitHub issue for it
 // in the repository of its Product, so the builders of the Product build it.
 import type { ConceptDb } from '../db/client.ts'
-import { findProduct } from '../db/concept.ts'
-import type { Decision, RecordReference } from '../db/concept.ts'
-import { findRecord } from '../db/legacy-records.ts'
 import { setIssueUrl } from '../db/part-records.ts'
+import { evidenceTypes, findPart } from '../db/parts.ts'
+import type { Part, PartSummary, PartType } from '../db/parts.ts'
+import { findProduct } from '../db/projects.ts'
 import { typeOfRecordId } from '../db/record-id.ts'
 import type { GithubClient, IssueInput } from './client.ts'
 
@@ -16,7 +16,9 @@ export type DownstreamIssue =
 
 const READY_LABEL = 'ready-for-agent'
 
-function formatReferences(heading: string, references: RecordReference[]) {
+const EVIDENCE_TYPES: readonly PartType[] = evidenceTypes
+
+function formatReferences(heading: string, references: PartSummary[]) {
   if (references.length === 0) return []
   return [
     `${heading}:`,
@@ -24,11 +26,15 @@ function formatReferences(heading: string, references: RecordReference[]) {
   ]
 }
 
-function toIssue(decision: Decision): IssueInput {
+function toIssue(decision: Part, goal: PartSummary): IssueInput {
+  const needed = decision.needs.map((end) => end.part)
   const sections = [
     [decision.body],
-    [`Goal: ${decision.goal.id} ${decision.goal.title}`],
-    formatReferences('Evidence', decision.evidence),
+    [`Goal: ${goal.id} ${goal.title}`],
+    formatReferences(
+      'Evidence',
+      needed.filter((part) => EVIDENCE_TYPES.includes(part.type)),
+    ),
     formatReferences('Supersedes', decision.supersedes),
     [`Decision: ${decision.id}`],
   ].filter((lines) => lines.some(Boolean))
@@ -50,8 +56,9 @@ export async function createDownstreamIssue(
   decisionId: string,
 ): Promise<DownstreamIssue> {
   if (typeOfRecordId(decisionId) !== 'decision') return { kind: 'not-found' }
-  const decision = await findRecord(db, productSlug, decisionId)
-  if (decision?.kind !== 'decision') return { kind: 'not-found' }
+  const decision = await findPart(db, productSlug, decisionId)
+  const goal = decision?.needs.find((end) => end.part.type === 'goal')?.part
+  if (!decision || !goal) return { kind: 'not-found' }
   if (decision.issueUrl) return { kind: 'existing', url: decision.issueUrl }
   if (decision.status !== 'accepted') return { kind: 'not-accepted' }
   const product = await findProduct(db, productSlug)
@@ -60,7 +67,7 @@ export async function createDownstreamIssue(
 
   let url: string
   try {
-    url = await github.createIssue(repository, toIssue(decision))
+    url = await github.createIssue(repository, toIssue(decision, goal))
   } catch (error) {
     return {
       kind: 'failed',

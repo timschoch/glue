@@ -22,14 +22,10 @@ import { Route as ApiV1OpenapiDotjsonRouteImport } from './routes/api/v1.openapi
 import { Route as SignedInProjectConceptIndexRouteImport } from './routes/_signed-in.$project.$concept.index'
 import { Route as SignedInProjectConceptRecordIdRouteImport } from './routes/_signed-in.$project.$concept.$recordId'
 import { Route as SignedInProjectConceptContractVersionRouteImport } from './routes/_signed-in.$project.$concept.contract.$version'
-import { Route as ApiV1ProductsProductFolderRouteImport } from './routes/api/v1.products.$product.$folder'
-import { Route as ApiV1ProductsProductConceptRouteImport } from './routes/api/v1.products.$product.concept'
 import { Route as ApiV1ProductsProductMeasureRouteImport } from './routes/api/v1.products.$product.measure'
 import { Route as ApiV1ProjectsProjectIndexRouteImport } from './routes/api/v1.projects.$project.index'
-import { Route as ApiV1ProjectsProjectFolderRouteImport } from './routes/api/v1.projects.$project.$folder'
 import { Route as ApiV1ProjectsProjectAssignmentsRouteImport } from './routes/api/v1.projects.$project.assignments'
 import { Route as ApiV1ProjectsProjectBuildsRouteImport } from './routes/api/v1.projects.$project.builds'
-import { Route as ApiV1ProjectsProjectConceptRouteImport } from './routes/api/v1.projects.$project.concept'
 import { Route as ApiV1ProjectsProjectConceptsRouteImport } from './routes/api/v1.projects.$project.concepts'
 import { Route as ApiV1ProjectsProjectJointsRouteImport } from './routes/api/v1.projects.$project.joints'
 import { Route as ApiV1ProjectsProjectMeasureRouteImport } from './routes/api/v1.projects.$project.measure'
@@ -37,8 +33,6 @@ import { Route as ApiV1ProjectsProjectMembersRouteImport } from './routes/api/v1
 import { Route as ApiV1ProjectsProjectMineRouteImport } from './routes/api/v1.projects.$project.mine'
 import { Route as ApiV1ProjectsProjectPartsRouteImport } from './routes/api/v1.projects.$project.parts'
 import { Route as ApiV1ProjectsProjectSignalsRouteImport } from './routes/api/v1.projects.$project.signals'
-import { Route as ApiV1ProductsProductFolderRecordIdRouteImport } from './routes/api/v1.products.$product.$folder.$recordId'
-import { Route as ApiV1ProjectsProjectFolderRecordIdRouteImport } from './routes/api/v1.projects.$project.$folder.$recordId'
 import { Route as ApiV1ProjectsProjectConceptsConceptRouteImport } from './routes/api/v1.projects.$project.concepts.$concept'
 import { Route as ApiV1ProjectsProjectJointsJointIdRouteImport } from './routes/api/v1.projects.$project.joints.$jointId'
 import { Route as ApiV1ProjectsProjectPartsRecordIdRouteImport } from './routes/api/v1.projects.$project.parts.$recordId'
@@ -114,18 +108,6 @@ const SignedInProjectConceptContractVersionRoute =
     path: '/$concept/contract/$version',
     getParentRoute: () => SignedInProjectRoute,
   } as any)
-const ApiV1ProductsProductFolderRoute =
-  ApiV1ProductsProductFolderRouteImport.update({
-    id: '/api/v1/products/$product/$folder',
-    path: '/api/v1/products/$product/$folder',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiV1ProductsProductConceptRoute =
-  ApiV1ProductsProductConceptRouteImport.update({
-    id: '/api/v1/products/$product/concept',
-    path: '/api/v1/products/$product/concept',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiV1ProductsProductMeasureRoute =
   ApiV1ProductsProductMeasureRouteImport.update({
     id: '/api/v1/products/$product/measure',
@@ -138,12 +120,6 @@ const ApiV1ProjectsProjectIndexRoute =
     path: '/api/v1/projects/$project/',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiV1ProjectsProjectFolderRoute =
-  ApiV1ProjectsProjectFolderRouteImport.update({
-    id: '/api/v1/projects/$project/$folder',
-    path: '/api/v1/projects/$project/$folder',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiV1ProjectsProjectAssignmentsRoute =
   ApiV1ProjectsProjectAssignmentsRouteImport.update({
     id: '/api/v1/projects/$project/assignments',
@@ -154,12 +130,6 @@ const ApiV1ProjectsProjectBuildsRoute =
   ApiV1ProjectsProjectBuildsRouteImport.update({
     id: '/api/v1/projects/$project/builds',
     path: '/api/v1/projects/$project/builds',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiV1ProjectsProjectConceptRoute =
-  ApiV1ProjectsProjectConceptRouteImport.update({
-    id: '/api/v1/projects/$project/concept',
-    path: '/api/v1/projects/$project/concept',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiV1ProjectsProjectConceptsRoute =
@@ -203,18 +173,6 @@ const ApiV1ProjectsProjectSignalsRoute =
     id: '/api/v1/projects/$project/signals',
     path: '/api/v1/projects/$project/signals',
     getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiV1ProductsProductFolderRecordIdRoute =
-  ApiV1ProductsProductFolderRecordIdRouteImport.update({
-    id: '/$recordId',
-    path: '/$recordId',
-    getParentRoute: () => ApiV1ProductsProductFolderRoute,
-  } as any)
-const ApiV1ProjectsProjectFolderRecordIdRoute =
-  ApiV1ProjectsProjectFolderRecordIdRouteImport.update({
-    id: '/$recordId',
-    path: '/$recordId',
-    getParentRoute: () => ApiV1ProjectsProjectFolderRoute,
   } as any)
 const ApiV1ProjectsProjectConceptsConceptRoute =
   ApiV1ProjectsProjectConceptsConceptRouteImport.update({
@@ -272,13 +230,9 @@ export interface FileRoutesByFullPath {
   '/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
   '/$project/$concept/': typeof SignedInProjectConceptIndexRoute
   '/$project/$concept/contract/$version': typeof SignedInProjectConceptContractVersionRoute
-  '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
-  '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
-  '/api/v1/projects/$project/$folder': typeof ApiV1ProjectsProjectFolderRouteWithChildren
   '/api/v1/projects/$project/assignments': typeof ApiV1ProjectsProjectAssignmentsRoute
   '/api/v1/projects/$project/builds': typeof ApiV1ProjectsProjectBuildsRoute
-  '/api/v1/projects/$project/concept': typeof ApiV1ProjectsProjectConceptRoute
   '/api/v1/projects/$project/concepts': typeof ApiV1ProjectsProjectConceptsRouteWithChildren
   '/api/v1/projects/$project/joints': typeof ApiV1ProjectsProjectJointsRouteWithChildren
   '/api/v1/projects/$project/measure': typeof ApiV1ProjectsProjectMeasureRoute
@@ -287,8 +241,6 @@ export interface FileRoutesByFullPath {
   '/api/v1/projects/$project/parts': typeof ApiV1ProjectsProjectPartsRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   '/api/v1/projects/$project/': typeof ApiV1ProjectsProjectIndexRoute
-  '/api/v1/products/$product/$folder/$recordId': typeof ApiV1ProductsProductFolderRecordIdRoute
-  '/api/v1/projects/$project/$folder/$recordId': typeof ApiV1ProjectsProjectFolderRecordIdRoute
   '/api/v1/projects/$project/concepts/$concept': typeof ApiV1ProjectsProjectConceptsConceptRouteWithChildren
   '/api/v1/projects/$project/joints/$jointId': typeof ApiV1ProjectsProjectJointsJointIdRoute
   '/api/v1/projects/$project/parts/$recordId': typeof ApiV1ProjectsProjectPartsRecordIdRouteWithChildren
@@ -309,13 +261,9 @@ export interface FileRoutesByTo {
   '/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
   '/$project/$concept': typeof SignedInProjectConceptIndexRoute
   '/$project/$concept/contract/$version': typeof SignedInProjectConceptContractVersionRoute
-  '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
-  '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
-  '/api/v1/projects/$project/$folder': typeof ApiV1ProjectsProjectFolderRouteWithChildren
   '/api/v1/projects/$project/assignments': typeof ApiV1ProjectsProjectAssignmentsRoute
   '/api/v1/projects/$project/builds': typeof ApiV1ProjectsProjectBuildsRoute
-  '/api/v1/projects/$project/concept': typeof ApiV1ProjectsProjectConceptRoute
   '/api/v1/projects/$project/concepts': typeof ApiV1ProjectsProjectConceptsRouteWithChildren
   '/api/v1/projects/$project/joints': typeof ApiV1ProjectsProjectJointsRouteWithChildren
   '/api/v1/projects/$project/measure': typeof ApiV1ProjectsProjectMeasureRoute
@@ -324,8 +272,6 @@ export interface FileRoutesByTo {
   '/api/v1/projects/$project/parts': typeof ApiV1ProjectsProjectPartsRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   '/api/v1/projects/$project': typeof ApiV1ProjectsProjectIndexRoute
-  '/api/v1/products/$product/$folder/$recordId': typeof ApiV1ProductsProductFolderRecordIdRoute
-  '/api/v1/projects/$project/$folder/$recordId': typeof ApiV1ProjectsProjectFolderRecordIdRoute
   '/api/v1/projects/$project/concepts/$concept': typeof ApiV1ProjectsProjectConceptsConceptRouteWithChildren
   '/api/v1/projects/$project/joints/$jointId': typeof ApiV1ProjectsProjectJointsJointIdRoute
   '/api/v1/projects/$project/parts/$recordId': typeof ApiV1ProjectsProjectPartsRecordIdRouteWithChildren
@@ -349,13 +295,9 @@ export interface FileRoutesById {
   '/_signed-in/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
   '/_signed-in/$project/$concept/': typeof SignedInProjectConceptIndexRoute
   '/_signed-in/$project/$concept/contract/$version': typeof SignedInProjectConceptContractVersionRoute
-  '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
-  '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
-  '/api/v1/projects/$project/$folder': typeof ApiV1ProjectsProjectFolderRouteWithChildren
   '/api/v1/projects/$project/assignments': typeof ApiV1ProjectsProjectAssignmentsRoute
   '/api/v1/projects/$project/builds': typeof ApiV1ProjectsProjectBuildsRoute
-  '/api/v1/projects/$project/concept': typeof ApiV1ProjectsProjectConceptRoute
   '/api/v1/projects/$project/concepts': typeof ApiV1ProjectsProjectConceptsRouteWithChildren
   '/api/v1/projects/$project/joints': typeof ApiV1ProjectsProjectJointsRouteWithChildren
   '/api/v1/projects/$project/measure': typeof ApiV1ProjectsProjectMeasureRoute
@@ -364,8 +306,6 @@ export interface FileRoutesById {
   '/api/v1/projects/$project/parts': typeof ApiV1ProjectsProjectPartsRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   '/api/v1/projects/$project/': typeof ApiV1ProjectsProjectIndexRoute
-  '/api/v1/products/$product/$folder/$recordId': typeof ApiV1ProductsProductFolderRecordIdRoute
-  '/api/v1/projects/$project/$folder/$recordId': typeof ApiV1ProjectsProjectFolderRecordIdRoute
   '/api/v1/projects/$project/concepts/$concept': typeof ApiV1ProjectsProjectConceptsConceptRouteWithChildren
   '/api/v1/projects/$project/joints/$jointId': typeof ApiV1ProjectsProjectJointsJointIdRoute
   '/api/v1/projects/$project/parts/$recordId': typeof ApiV1ProjectsProjectPartsRecordIdRouteWithChildren
@@ -389,13 +329,9 @@ export interface FileRouteTypes {
     | '/$project/$concept/$recordId'
     | '/$project/$concept/'
     | '/$project/$concept/contract/$version'
-    | '/api/v1/products/$product/$folder'
-    | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
-    | '/api/v1/projects/$project/$folder'
     | '/api/v1/projects/$project/assignments'
     | '/api/v1/projects/$project/builds'
-    | '/api/v1/projects/$project/concept'
     | '/api/v1/projects/$project/concepts'
     | '/api/v1/projects/$project/joints'
     | '/api/v1/projects/$project/measure'
@@ -404,8 +340,6 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/parts'
     | '/api/v1/projects/$project/signals'
     | '/api/v1/projects/$project/'
-    | '/api/v1/products/$product/$folder/$recordId'
-    | '/api/v1/projects/$project/$folder/$recordId'
     | '/api/v1/projects/$project/concepts/$concept'
     | '/api/v1/projects/$project/joints/$jointId'
     | '/api/v1/projects/$project/parts/$recordId'
@@ -426,13 +360,9 @@ export interface FileRouteTypes {
     | '/$project/$concept/$recordId'
     | '/$project/$concept'
     | '/$project/$concept/contract/$version'
-    | '/api/v1/products/$product/$folder'
-    | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
-    | '/api/v1/projects/$project/$folder'
     | '/api/v1/projects/$project/assignments'
     | '/api/v1/projects/$project/builds'
-    | '/api/v1/projects/$project/concept'
     | '/api/v1/projects/$project/concepts'
     | '/api/v1/projects/$project/joints'
     | '/api/v1/projects/$project/measure'
@@ -441,8 +371,6 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/parts'
     | '/api/v1/projects/$project/signals'
     | '/api/v1/projects/$project'
-    | '/api/v1/products/$product/$folder/$recordId'
-    | '/api/v1/projects/$project/$folder/$recordId'
     | '/api/v1/projects/$project/concepts/$concept'
     | '/api/v1/projects/$project/joints/$jointId'
     | '/api/v1/projects/$project/parts/$recordId'
@@ -465,13 +393,9 @@ export interface FileRouteTypes {
     | '/_signed-in/$project/$concept/$recordId'
     | '/_signed-in/$project/$concept/'
     | '/_signed-in/$project/$concept/contract/$version'
-    | '/api/v1/products/$product/$folder'
-    | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
-    | '/api/v1/projects/$project/$folder'
     | '/api/v1/projects/$project/assignments'
     | '/api/v1/projects/$project/builds'
-    | '/api/v1/projects/$project/concept'
     | '/api/v1/projects/$project/concepts'
     | '/api/v1/projects/$project/joints'
     | '/api/v1/projects/$project/measure'
@@ -480,8 +404,6 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/parts'
     | '/api/v1/projects/$project/signals'
     | '/api/v1/projects/$project/'
-    | '/api/v1/products/$product/$folder/$recordId'
-    | '/api/v1/projects/$project/$folder/$recordId'
     | '/api/v1/projects/$project/concepts/$concept'
     | '/api/v1/projects/$project/joints/$jointId'
     | '/api/v1/projects/$project/parts/$recordId'
@@ -498,13 +420,9 @@ export interface RootRouteChildren {
   ApiCronMeasureRoute: typeof ApiCronMeasureRoute
   ApiMailInboundRoute: typeof ApiMailInboundRoute
   ApiV1OpenapiDotjsonRoute: typeof ApiV1OpenapiDotjsonRoute
-  ApiV1ProductsProductFolderRoute: typeof ApiV1ProductsProductFolderRouteWithChildren
-  ApiV1ProductsProductConceptRoute: typeof ApiV1ProductsProductConceptRoute
   ApiV1ProductsProductMeasureRoute: typeof ApiV1ProductsProductMeasureRoute
-  ApiV1ProjectsProjectFolderRoute: typeof ApiV1ProjectsProjectFolderRouteWithChildren
   ApiV1ProjectsProjectAssignmentsRoute: typeof ApiV1ProjectsProjectAssignmentsRoute
   ApiV1ProjectsProjectBuildsRoute: typeof ApiV1ProjectsProjectBuildsRoute
-  ApiV1ProjectsProjectConceptRoute: typeof ApiV1ProjectsProjectConceptRoute
   ApiV1ProjectsProjectConceptsRoute: typeof ApiV1ProjectsProjectConceptsRouteWithChildren
   ApiV1ProjectsProjectJointsRoute: typeof ApiV1ProjectsProjectJointsRouteWithChildren
   ApiV1ProjectsProjectMeasureRoute: typeof ApiV1ProjectsProjectMeasureRoute
@@ -608,20 +526,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInProjectConceptContractVersionRouteImport
       parentRoute: typeof SignedInProjectRoute
     }
-    '/api/v1/products/$product/$folder': {
-      id: '/api/v1/products/$product/$folder'
-      path: '/api/v1/products/$product/$folder'
-      fullPath: '/api/v1/products/$product/$folder'
-      preLoaderRoute: typeof ApiV1ProductsProductFolderRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/products/$product/concept': {
-      id: '/api/v1/products/$product/concept'
-      path: '/api/v1/products/$product/concept'
-      fullPath: '/api/v1/products/$product/concept'
-      preLoaderRoute: typeof ApiV1ProductsProductConceptRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/v1/products/$product/measure': {
       id: '/api/v1/products/$product/measure'
       path: '/api/v1/products/$product/measure'
@@ -636,13 +540,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1ProjectsProjectIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/v1/projects/$project/$folder': {
-      id: '/api/v1/projects/$project/$folder'
-      path: '/api/v1/projects/$project/$folder'
-      fullPath: '/api/v1/projects/$project/$folder'
-      preLoaderRoute: typeof ApiV1ProjectsProjectFolderRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/v1/projects/$project/assignments': {
       id: '/api/v1/projects/$project/assignments'
       path: '/api/v1/projects/$project/assignments'
@@ -655,13 +552,6 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/projects/$project/builds'
       fullPath: '/api/v1/projects/$project/builds'
       preLoaderRoute: typeof ApiV1ProjectsProjectBuildsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/projects/$project/concept': {
-      id: '/api/v1/projects/$project/concept'
-      path: '/api/v1/projects/$project/concept'
-      fullPath: '/api/v1/projects/$project/concept'
-      preLoaderRoute: typeof ApiV1ProjectsProjectConceptRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/projects/$project/concepts': {
@@ -712,20 +602,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/v1/projects/$project/signals'
       preLoaderRoute: typeof ApiV1ProjectsProjectSignalsRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/api/v1/products/$product/$folder/$recordId': {
-      id: '/api/v1/products/$product/$folder/$recordId'
-      path: '/$recordId'
-      fullPath: '/api/v1/products/$product/$folder/$recordId'
-      preLoaderRoute: typeof ApiV1ProductsProductFolderRecordIdRouteImport
-      parentRoute: typeof ApiV1ProductsProductFolderRoute
-    }
-    '/api/v1/projects/$project/$folder/$recordId': {
-      id: '/api/v1/projects/$project/$folder/$recordId'
-      path: '/$recordId'
-      fullPath: '/api/v1/projects/$project/$folder/$recordId'
-      preLoaderRoute: typeof ApiV1ProjectsProjectFolderRecordIdRouteImport
-      parentRoute: typeof ApiV1ProjectsProjectFolderRoute
     }
     '/api/v1/projects/$project/concepts/$concept': {
       id: '/api/v1/projects/$project/concepts/$concept'
@@ -813,36 +689,6 @@ const SignedInRouteChildren: SignedInRouteChildren = {
 const SignedInRouteWithChildren = SignedInRoute._addFileChildren(
   SignedInRouteChildren,
 )
-
-interface ApiV1ProductsProductFolderRouteChildren {
-  ApiV1ProductsProductFolderRecordIdRoute: typeof ApiV1ProductsProductFolderRecordIdRoute
-}
-
-const ApiV1ProductsProductFolderRouteChildren: ApiV1ProductsProductFolderRouteChildren =
-  {
-    ApiV1ProductsProductFolderRecordIdRoute:
-      ApiV1ProductsProductFolderRecordIdRoute,
-  }
-
-const ApiV1ProductsProductFolderRouteWithChildren =
-  ApiV1ProductsProductFolderRoute._addFileChildren(
-    ApiV1ProductsProductFolderRouteChildren,
-  )
-
-interface ApiV1ProjectsProjectFolderRouteChildren {
-  ApiV1ProjectsProjectFolderRecordIdRoute: typeof ApiV1ProjectsProjectFolderRecordIdRoute
-}
-
-const ApiV1ProjectsProjectFolderRouteChildren: ApiV1ProjectsProjectFolderRouteChildren =
-  {
-    ApiV1ProjectsProjectFolderRecordIdRoute:
-      ApiV1ProjectsProjectFolderRecordIdRoute,
-  }
-
-const ApiV1ProjectsProjectFolderRouteWithChildren =
-  ApiV1ProjectsProjectFolderRoute._addFileChildren(
-    ApiV1ProjectsProjectFolderRouteChildren,
-  )
 
 interface ApiV1ProjectsProjectConceptsConceptRouteChildren {
   ApiV1ProjectsProjectConceptsConceptContractRoute: typeof ApiV1ProjectsProjectConceptsConceptContractRoute
@@ -944,13 +790,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronMeasureRoute: ApiCronMeasureRoute,
   ApiMailInboundRoute: ApiMailInboundRoute,
   ApiV1OpenapiDotjsonRoute: ApiV1OpenapiDotjsonRoute,
-  ApiV1ProductsProductFolderRoute: ApiV1ProductsProductFolderRouteWithChildren,
-  ApiV1ProductsProductConceptRoute: ApiV1ProductsProductConceptRoute,
   ApiV1ProductsProductMeasureRoute: ApiV1ProductsProductMeasureRoute,
-  ApiV1ProjectsProjectFolderRoute: ApiV1ProjectsProjectFolderRouteWithChildren,
   ApiV1ProjectsProjectAssignmentsRoute: ApiV1ProjectsProjectAssignmentsRoute,
   ApiV1ProjectsProjectBuildsRoute: ApiV1ProjectsProjectBuildsRoute,
-  ApiV1ProjectsProjectConceptRoute: ApiV1ProjectsProjectConceptRoute,
   ApiV1ProjectsProjectConceptsRoute:
     ApiV1ProjectsProjectConceptsRouteWithChildren,
   ApiV1ProjectsProjectJointsRoute: ApiV1ProjectsProjectJointsRouteWithChildren,
@@ -965,12 +807,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

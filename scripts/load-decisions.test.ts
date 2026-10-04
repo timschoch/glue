@@ -3,17 +3,18 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { describe, expect, it, vi } from 'vitest'
 
-import { handleGetRecord, handleListRecords } from '../src/api/concept-api.ts'
+import { handleGetPart, handleListParts } from '../src/api/part-api.ts'
 import { addPart, addProject } from '../src/db/part-records.ts'
 import type { NewPart } from '../src/db/part-records.ts'
 import * as schema from '../src/db/schema.ts'
 import { createToken } from '../src/db/tokens.ts'
+import { createFakeGithub } from '../src/test/github.ts'
 import { loadDecisions } from './load-decisions.ts'
 import { problems } from './check-pr-workflow.mjs'
 
 const TOKEN = 'glue_read_token'
-const DECISIONS_URL =
-  'https://glue-glue-glue.vercel.app/api/v1/projects/glue/decisions'
+const PARTS_URL = 'https://glue-glue-glue.vercel.app/api/v1/projects/glue/parts'
+const DECISIONS_URL = `${PARTS_URL}?type=decision`
 
 // The Glue API as the gate sees it: one JSON answer per URL. A URL without
 // an answer is a 404, as in the real API.
@@ -54,14 +55,21 @@ describe('loadDecisions', () => {
     await addPart(db, 'glue', { ...decision, supersedes: 'D1' })
     await addPart(db, 'glue', { ...decision, status: 'proposed' })
     const { token } = await createToken(db, 'glue', 'ci')
-    // The API of the deployment, with the handlers that its routes call.
+    // The API of the deployment, with the handlers that its Part routes
+    // call. Any other path is a 404, as in the deployment.
+    const { github } = createFakeGithub()
     const fetchApi = vi.fn<typeof fetch>(async (url, options) => {
-      const [, recordId] = new URL(String(url)).pathname.split('/decisions/')
-      const handle = recordId ? handleGetRecord : handleListRecords
+      const path = new URL(String(url)).pathname
+      const root = '/api/v1/projects/glue/parts'
+      if (!path.startsWith(root))
+        return Response.json({ error: { code: 'not-found' } }, { status: 404 })
+      const recordId = path.slice(root.length + 1)
+      const handle = recordId ? handleGetPart : handleListParts
       return handle({
         db,
+        github,
         request: new Request(String(url), { headers: options?.headers }),
-        params: { project: 'glue', folder: 'decisions', recordId },
+        params: { project: 'glue', recordId },
       })
     })
 
@@ -102,7 +110,7 @@ describe('loadDecisions', () => {
         { id: 'D1', status: 'superseded' },
         { id: 'D2', status: 'accepted' },
       ],
-      [`${DECISIONS_URL}/D1`]: {
+      [`${PARTS_URL}/D1`]: {
         id: 'D1',
         status: 'superseded',
         supersededBy: { id: 'D2', title: 'Cache every page' },
@@ -137,7 +145,7 @@ describe('loadDecisions', () => {
 
   it('reads from the API that GLUE_API_URL names', async () => {
     const fetchApi = fakeFetch({
-      'http://localhost:3000/api/v1/projects/glue/decisions': [
+      'http://localhost:3000/api/v1/projects/glue/parts?type=decision': [
         { id: 'D7', status: 'proposed' },
       ],
     })

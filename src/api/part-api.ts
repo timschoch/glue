@@ -1,6 +1,6 @@
 // The HTTP API of the Part model: a Project, its Concepts, their Parts and
 // the Joints between them. The server routes in src/routes/api/ reach these
-// handlers through concept-routes.ts. The schemas here document the answers
+// handlers through part-routes.ts. The schemas here document the answers
 // in openapi.ts.
 import { z } from 'zod'
 
@@ -32,8 +32,8 @@ import {
   workStates,
 } from '../db/parts.ts'
 import type { Concept, Part, PartSummary, Project } from '../db/parts.ts'
-import { ApiError, handleApiRequest, parseJson } from './concept-api.ts'
-import type { ApiRequest, ChangeRequest } from './concept-api.ts'
+import { ApiError, handleApiRequest, parseJson } from './api-request.ts'
+import type { ApiRequest, ChangeRequest } from './api-request.ts'
 
 const partType = z.enum(partTypes)
 const kind = newConceptSchema.shape.kind.unwrap().nullable()

@@ -5,7 +5,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
-import { findProduct } from './concept.ts'
+import { findProduct } from './projects.ts'
 import { addInsightOfSignals } from './part-records.ts'
 import { InvalidRecordError, ProductNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'

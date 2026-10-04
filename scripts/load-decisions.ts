@@ -6,7 +6,7 @@ import { z } from 'zod'
 import type { Decision } from './check-pr-workflow.mjs'
 
 const DEFAULT_API_URL = 'https://glue-glue-glue.vercel.app'
-const DECISIONS_PATH = '/api/v1/projects/glue/decisions'
+const PARTS_PATH = '/api/v1/projects/glue/parts'
 
 const decisionSummariesSchema = z.array(
   z.object({
@@ -14,7 +14,7 @@ const decisionSummariesSchema = z.array(
     status: z.enum(['proposed', 'accepted', 'superseded']),
   }),
 )
-// The list leaves out the links of a Decision. Only the record has them.
+// The list leaves out the links of a Decision. Only the Part has them.
 const decisionSchema = z.object({
   supersededBy: z.object({ id: z.string() }).nullable(),
 })
@@ -48,12 +48,14 @@ export async function loadDecisions(
     return response.json()
   }
 
-  const summaries = decisionSummariesSchema.parse(await read(DECISIONS_PATH))
+  const summaries = decisionSummariesSchema.parse(
+    await read(`${PARTS_PATH}?type=decision`),
+  )
   const entries = await Promise.all(
     summaries.map(async ({ id, status }) => {
       if (status !== 'superseded') return [id, { status }] as const
       const { supersededBy } = decisionSchema.parse(
-        await read(`${DECISIONS_PATH}/${id}`),
+        await read(`${PARTS_PATH}/${id}`),
       )
       return [id, { status, superseded_by: supersededBy?.id }] as const
     }),

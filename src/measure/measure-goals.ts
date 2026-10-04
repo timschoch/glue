@@ -5,14 +5,13 @@
 import { z } from 'zod'
 
 import type { ConceptDb } from '../db/client.ts'
-import { addConceptRecord } from '../db/concept-records.ts'
 import { goalMeasureSchema, isOnTarget } from '../db/goal-measure.ts'
 import {
   findInsightIdBySource,
   listAcceptedDecisions,
   listGoalsWithMeasure,
-} from '../db/legacy-records.ts'
-import { setReading } from '../db/part-records.ts'
+} from '../db/measure-reads.ts'
+import { addPart, setReading } from '../db/part-records.ts'
 import type {
   FunnelMeasure,
   GoalMeasure,
@@ -494,20 +493,13 @@ async function addMeasuredInsight(
   )
   if (existingId) return { id: existingId, isDuplicate: true }
   if (dryRun) return { id: null, isDuplicate: false }
-  const fields = {
-    title: draft.title,
-    source: draft.source,
-    date: formatDay(now),
-    status: 'draft',
-  }
   try {
-    const id = await addConceptRecord(
-      db,
-      goal.productSlug,
-      'insights',
-      fields,
-      draft.body,
-    )
+    const id = await addPart(db, goal.productSlug, {
+      type: 'insight',
+      ...draft,
+      date: formatDay(now),
+      status: 'draft',
+    })
     return { id, isDuplicate: false }
   } catch (error) {
     const writtenId = await findInsightIdBySource(

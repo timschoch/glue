@@ -11,8 +11,8 @@ import { fileURLToPath } from 'node:url'
 
 import { createDb } from '../src/db/client.ts'
 import type { ConceptDb } from '../src/db/client.ts'
-import { addConceptRecord } from '../src/db/concept-records.ts'
-import { listInsightSources } from '../src/db/legacy-records.ts'
+import { listInsightSources } from '../src/db/measure-reads.ts'
+import { addPart, addProject } from '../src/db/part-records.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PRODUCT_SLUG = 'glue'
@@ -72,8 +72,9 @@ export async function addInsights(
   drafts: DraftInsight[],
 ): Promise<string[]> {
   const ids: string[] = []
-  for (const { body, ...fields } of drafts) {
-    ids.push(await addConceptRecord(db, productSlug, 'insights', fields, body))
+  for (const draft of drafts) {
+    await addProject(db, productSlug)
+    ids.push(await addPart(db, productSlug, { type: 'insight', ...draft }))
   }
   return ids
 }

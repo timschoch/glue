@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { discardInsight } from '../src/db/concept-records.ts'
+import { removePart } from '../src/db/part-records.ts'
 import * as schema from '../src/db/schema.ts'
 import { createTestDatabase } from '../src/db/test-database.ts'
 import {
@@ -119,7 +119,7 @@ describe('database Insight rows', () => {
       body: 'Body.',
     }))
     const [discarded] = await addInsights(db, 'glue', toInsights([first], []))
-    await discardInsight(db, 'glue', discarded)
+    await removePart(db, 'glue', discarded)
 
     const ids = await addInsights(db, 'glue', toInsights([second], []))
 

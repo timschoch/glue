@@ -4,7 +4,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { listBuilds } from './builds.ts'
-import { setProductRepository } from './concept-records.ts'
+import { setProductRepository } from './projects.ts'
 import { signContract } from './contracts.ts'
 import {
   addConcept,

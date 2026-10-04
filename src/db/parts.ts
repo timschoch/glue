@@ -25,13 +25,16 @@ import * as schema from './schema.ts'
 
 // The words of the Part model, for the code outside src/db.
 export {
+  decisionStatuses,
   evidenceLevels,
+  evidenceTypes,
   flagReasons,
   partTypes,
   trusts,
   workStates,
 } from './schema.ts'
 export type {
+  DecisionStatus,
   EvidenceLevel,
   FlagReason,
   PartType,

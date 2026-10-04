@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import {
-  addConceptRecord,
-  setDecisionStatus,
-  setProductRepository,
-} from '../db/concept-records.ts'
-import { findRecord } from '../db/legacy-records.ts'
+import { addPart, addProject, supersedeDecision } from '../db/part-records.ts'
+import { findPart } from '../db/parts.ts'
+import { setProductRepository } from '../db/projects.ts'
 import * as schema from '../db/schema.ts'
 import { createTestDatabase } from '../db/test-database.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
@@ -14,43 +11,34 @@ import { createDownstreamIssue } from './downstream-issue.ts'
 const { db } = createTestDatabase(schema)
 
 async function addDecision(status: schema.DecisionStatus) {
-  return addConceptRecord(
-    db,
-    'flexibeck',
-    'decisions',
-    {
-      title: 'Cache every page',
-      owner: 'Orchestrator',
-      status,
-      goal: 'G1',
-      evidence: ['I1', 'R1'],
-    },
-    'Cache all reads at the edge.',
-  )
+  return addPart(db, 'flexibeck', {
+    type: 'decision',
+    title: 'Cache every page',
+    owner: 'Orchestrator',
+    status,
+    needs: ['G1', 'I1', 'R1'],
+    body: 'Cache all reads at the edge.',
+  })
 }
 
 beforeEach(async () => {
-  await addConceptRecord(
-    db,
-    'flexibeck',
-    'goals',
-    { title: 'Ship faster', metric: 'lead time', source: 'okr' },
-    '',
-  )
-  await addConceptRecord(
-    db,
-    'flexibeck',
-    'insights',
-    { title: 'Users churn on slow loads', source: 'interviews' },
-    '',
-  )
-  await addConceptRecord(
-    db,
-    'flexibeck',
-    'guardrails',
-    { title: 'No query over 200ms', enforced_by: 'monitoring' },
-    '',
-  )
+  await addProject(db, 'flexibeck')
+  await addPart(db, 'flexibeck', {
+    type: 'goal',
+    title: 'Ship faster',
+    metric: 'lead time',
+    source: 'okr',
+  })
+  await addPart(db, 'flexibeck', {
+    type: 'insight',
+    title: 'Users churn on slow loads',
+    source: 'interviews',
+  })
+  await addPart(db, 'flexibeck', {
+    type: 'guardrail',
+    title: 'No query over 200ms',
+    enforcedBy: 'monitoring',
+  })
   await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck-next')
 })
 
@@ -59,7 +47,7 @@ describe('createDownstreamIssue', () => {
     const { github, issues } = createFakeGithub()
     await addDecision('proposed')
     const decision = await addDecision('accepted')
-    await setDecisionStatus(db, 'flexibeck', 'D1', 'superseded', decision)
+    await supersedeDecision(db, 'flexibeck', 'D1', decision)
 
     const result = await createDownstreamIssue(
       db,
@@ -95,7 +83,7 @@ describe('createDownstreamIssue', () => {
         },
       },
     ])
-    const record = await findRecord(db, 'flexibeck', decision)
+    const record = await findPart(db, 'flexibeck', decision)
     expect(record).toMatchObject({
       issueUrl: 'https://github.com/timschoch/flexibeck-next/issues/1',
     })
@@ -154,33 +142,25 @@ describe('createDownstreamIssue', () => {
 
   it('opens nothing for a Product without a repository', async () => {
     const { github, issues } = createFakeGithub()
-    await addConceptRecord(
-      db,
-      'glue',
-      'goals',
-      { title: 'Ship faster', metric: 'lead time', source: 'okr' },
-      '',
-    )
-    await addConceptRecord(
-      db,
-      'glue',
-      'insights',
-      { title: 'Glue keeps the why', source: 'readme' },
-      '',
-    )
-    const decision = await addConceptRecord(
-      db,
-      'glue',
-      'decisions',
-      {
-        title: 'Keep the why',
-        owner: 'Orchestrator',
-        status: 'accepted',
-        goal: 'G1',
-        evidence: ['I1'],
-      },
-      '',
-    )
+    await addProject(db, 'glue')
+    await addPart(db, 'glue', {
+      type: 'goal',
+      title: 'Ship faster',
+      metric: 'lead time',
+      source: 'okr',
+    })
+    await addPart(db, 'glue', {
+      type: 'insight',
+      title: 'Glue keeps the why',
+      source: 'readme',
+    })
+    const decision = await addPart(db, 'glue', {
+      type: 'decision',
+      title: 'Keep the why',
+      owner: 'Orchestrator',
+      status: 'accepted',
+      needs: ['G1', 'I1'],
+    })
 
     const result = await createDownstreamIssue(db, github, 'glue', decision)
 
@@ -202,7 +182,7 @@ describe('createDownstreamIssue', () => {
       kind: 'failed',
       message: 'GitHub answered 503',
     })
-    const record = await findRecord(db, 'flexibeck', decision)
+    const record = await findPart(db, 'flexibeck', decision)
     expect(record).toMatchObject({ status: 'accepted', issueUrl: null })
   })
 
