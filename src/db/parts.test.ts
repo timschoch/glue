@@ -1,7 +1,4 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   findConcept,
@@ -11,9 +8,9 @@ import {
   listProjects,
 } from './parts.ts'
 import * as schema from './schema.ts'
+import { createTestDatabase } from './test-database.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
+const { client, db } = createTestDatabase(schema)
 
 const measure = {
   kind: 'funnel',
@@ -34,9 +31,6 @@ const measure = {
 // Joints: 1 D1 needs G1 (a link), 2 D1 needs I1, 3 E1 and F1 need each
 // other, 4 F1 needs D1 (a link).
 beforeEach(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
   await client.exec(`
     insert into projects (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
     insert into concepts (project_id, parent_id, slug, title, kind) values
@@ -67,10 +61,6 @@ beforeEach(async () => {
     insert into measures (part_id, measure, baseline, latest_value, measured_at) values
       (1, '${JSON.stringify(measure)}', 0.1, 0.15, '2026-10-02T08:00:00Z');
   `)
-})
-
-afterEach(async () => {
-  await client.close()
 })
 
 // The rows of the test have no Trust and no Work state of their own.

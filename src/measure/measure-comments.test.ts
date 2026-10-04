@@ -1,11 +1,9 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { addConceptRecord, setSocialHandle } from '../db/concept-records.ts'
 import { findConcept, findRecord } from '../db/legacy-records.ts'
 import * as schema from '../db/schema.ts'
+import { createTestDatabase } from '../db/test-database.ts'
 import { measureComments } from './measure-comments.ts'
 import type { SentimentClassifier } from './sentiment.ts'
 import type {
@@ -14,23 +12,12 @@ import type {
   SocialComment,
 } from './social-channel.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
+const { db } = createTestDatabase(schema)
 
 const NOW = new Date('2026-09-30T10:00:00Z')
 
 // Glue reads the comments up to 10 seconds before now.
 const UNTIL = new Date('2026-09-30T09:59:50Z')
-
-beforeEach(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
-})
-
-afterEach(async () => {
-  await client.close()
-})
 
 async function addProduct(product: string, handle: string | null) {
   await addConceptRecord(

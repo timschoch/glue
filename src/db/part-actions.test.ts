@@ -1,8 +1,5 @@
-import { PGlite } from '@electric-sql/pglite'
 import { isRedirect } from '@tanstack/react-router'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { Session } from '../authentication/session.ts'
 import type { GithubClient } from '../github/client.ts'
@@ -19,9 +16,9 @@ import {
 import { addJoint, addPart, addProject } from './part-records.ts'
 import { findPart, findProject, listParts } from './parts.ts'
 import * as schema from './schema.ts'
+import { createTestDatabase } from './test-database.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
+const { db } = createTestDatabase(schema)
 
 // The session and the GitHub of the request in the test.
 let session: Session | undefined
@@ -47,9 +44,6 @@ beforeEach(async () => {
   session = undefined
   fake = createFakeGithub([signal])
   github = fake.github
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
   await addProject(db, project)
   await setProductRepository(db, project, 'timschoch/flexibeck-next')
   await addPart(db, project, {
@@ -63,10 +57,6 @@ beforeEach(async () => {
     title: 'The build failed on a type error',
     source: 'verify ci',
   })
-})
-
-afterEach(async () => {
-  await client.close()
 })
 
 function signIn() {

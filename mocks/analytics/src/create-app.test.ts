@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { gzipSync } from 'node:zlib'
 import { PostHog } from 'posthog-node'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { createApp } from './create-app.ts'
 import * as schema from './schema.ts'
@@ -12,18 +12,25 @@ const readKey = 'test-read-key'
 const project = 'phc_demo'
 
 let client: PGlite
+let database: ReturnType<typeof drizzle<typeof schema>>
 let app: ReturnType<typeof createApp>
 
-beforeEach(async () => {
+beforeAll(async () => {
   client = new PGlite()
-  const database = drizzle(client, { schema })
+  database = drizzle(client, { schema })
   await migrate(database, {
     migrationsFolder: new URL('../drizzle', import.meta.url).pathname,
   })
+})
+
+// Each test starts with an empty table and with row ids from 1. That is
+// faster than a new database for each test.
+beforeEach(async () => {
+  await client.exec('truncate events restart identity')
   app = createApp({ database, readKey })
 })
 
-afterEach(async () => {
+afterAll(async () => {
   await client.close()
 })
 
