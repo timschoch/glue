@@ -79,6 +79,15 @@ describe('GET /api/v1/openapi.json', () => {
     expect(JSON.stringify(schemas.PartInput)).toContain('"entity"')
   })
 
+  it('describes the issue of a Decision in the answer, and in no request', async () => {
+    const document = await handleGetOpenApi().json()
+    const { schemas } = document.components
+
+    expect(schemas.Part.properties.issueUrl).toBeDefined()
+    expect(JSON.stringify(schemas.PartInput)).not.toContain('issueUrl')
+    expect(JSON.stringify(schemas.PartUpdate)).not.toContain('issueUrl')
+  })
+
   it('describes the Evidence level of an Insight and the source of a Guardrail', async () => {
     const { schemas } = (await handleGetOpenApi().json()).components
 

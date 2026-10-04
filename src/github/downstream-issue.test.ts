@@ -145,6 +145,23 @@ describe('createDownstreamIssue', () => {
     expect(issues).toEqual([])
   })
 
+  it.each(['G1', 'I1', 'D9'])(
+    'opens nothing for %s, which is no Decision of the Product',
+    async (recordId) => {
+      const { github, issues } = createFakeGithub()
+
+      const result = await createDownstreamIssue(
+        db,
+        github,
+        'flexibeck',
+        recordId,
+      )
+
+      expect(result).toEqual({ kind: 'not-found' })
+      expect(issues).toEqual([])
+    },
+  )
+
   it('opens nothing for a Product without a repository', async () => {
     const { github, issues } = createFakeGithub()
     await addConceptRecord(

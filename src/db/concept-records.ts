@@ -199,20 +199,6 @@ export async function addConceptRecord(
 // downstream issue.
 export type DecisionChange = { id: string; issue: DownstreamIssue }
 
-// Every write that can leave a Decision accepted ends here, so the CLI, the
-// HTTP API and the app all open the downstream issue.
-async function openDownstream(
-  db: ConceptDb,
-  github: GithubClient,
-  productSlug: string,
-  id: string,
-): Promise<DecisionChange> {
-  return {
-    id,
-    issue: await createDownstreamIssue(db, github, productSlug, id),
-  }
-}
-
 export async function addDecision(
   db: ConceptDb,
   github: GithubClient,
@@ -221,7 +207,8 @@ export async function addDecision(
   body: string,
 ): Promise<DecisionChange> {
   const id = await addConceptRecord(db, productSlug, 'decisions', fields, body)
-  return openDownstream(db, github, productSlug, id)
+  const issue = await createDownstreamIssue(db, github, productSlug, id)
+  return { id, issue }
 }
 
 export async function updateDecision(
@@ -233,7 +220,8 @@ export async function updateDecision(
   supersededByRecordId?: string,
 ): Promise<DecisionChange> {
   await setDecisionStatus(db, productSlug, id, status, supersededByRecordId)
-  return openDownstream(db, github, productSlug, id)
+  const issue = await createDownstreamIssue(db, github, productSlug, id)
+  return { id, issue }
 }
 
 // null removes it: the Product's Goals are not measured.
@@ -349,7 +337,8 @@ export async function acceptDecision(
   )
   if (!accepted) throw new InvalidRecordError(`"${id}" is not proposed`)
 
-  return openDownstream(db, github, productSlug, id)
+  const issue = await createDownstreamIssue(db, github, productSlug, id)
+  return { id, issue }
 }
 
 function toNotDraftError(id: string) {

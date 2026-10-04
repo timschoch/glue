@@ -304,6 +304,74 @@ describe('a server function of the Part model with a session', () => {
       message: 'joint 7 not found',
     })
   })
+
+  it('answers a Joint of another Project as a failure, and the Joint stays', async () => {
+    await addProject(db, 'glue')
+    await addPart(db, 'glue', { type: 'entity', title: 'Technique' })
+    await addPart(db, 'glue', { type: 'flow', title: 'Bake' })
+    const id = await addJoint(db, 'glue', { part: 'F1', needs: 'E1' })
+
+    expect(await actions.removeJoint({ project, jointId: id })).toEqual({
+      message: `joint ${id} not found`,
+    })
+    expect(await db.select().from(schema.joints)).toHaveLength(1)
+  })
+
+  it('answers a Joint and a need with a Part that only another Project has as a failure', async () => {
+    await addProject(db, 'glue')
+    await addPart(db, 'glue', { type: 'entity', title: 'Technique' })
+    const refused = { message: 'entity "E1" not found' }
+
+    expect(
+      await actions.addJoint({ project, joint: { part: 'I1', needs: 'E1' } }),
+    ).toEqual(refused)
+    expect(
+      await actions.addPart({
+        project,
+        part: { type: 'flow', title: 'Push', needs: ['E1'] },
+      }),
+    ).toEqual(refused)
+    expect(await db.select().from(schema.joints)).toEqual([])
+  })
+
+  it('answers a two-way Joint that gives a Decision a second Goal as a failure', async () => {
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'proposed' },
+    })
+    await addPart(db, project, {
+      type: 'goal',
+      title: 'Spend less',
+      metric: 'cost',
+      source: 'okr',
+    })
+
+    expect(
+      await actions.addJoint({
+        project,
+        joint: { part: 'G2', needs: 'D1', twoWay: true },
+      }),
+    ).toEqual({ message: '"D1" has a Goal already' })
+  })
+
+  it('answers the issue of a Decision in a change as a failure, and opens no second issue', async () => {
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'accepted' },
+    })
+
+    const refused = await actions.updatePart({
+      project,
+      recordId: 'D1',
+      // @ts-expect-error A change has no issue.
+      change: { issueUrl: null },
+    })
+
+    expect(refused).toMatchObject({
+      message: expect.stringContaining('issueUrl'),
+    })
+    expect(fake.issues).toHaveLength(1)
+  })
 })
 
 describe('the input of a server function of the Part model', () => {
@@ -337,9 +405,30 @@ describe('the input of a server function of the Part model', () => {
     expect(changed.success).toBe(false)
   })
 
-  it('takes the id of a Joint as a whole number', () => {
-    const removed = jointRemoveInputSchema.safeParse({ project, jointId: 1.5 })
+  it.each([null, 'https://github.com/timschoch/flexibeck-next/issues/7'])(
+    'refuses the issue %s of a Decision',
+    (issueUrl) => {
+      const added = partAddInputSchema.safeParse({
+        project,
+        part: { ...decision, status: 'accepted', issueUrl },
+      })
+      const changed = partUpdateInputSchema.safeParse({
+        project,
+        recordId: 'D1',
+        change: { issueUrl },
+      })
 
-    expect(removed.success).toBe(false)
-  })
+      expect(added.success).toBe(false)
+      expect(changed.success).toBe(false)
+    },
+  )
+
+  it.each([1.5, '1', 'one', null])(
+    'refuses %s as the id of a Joint',
+    (jointId) => {
+      const removed = jointRemoveInputSchema.safeParse({ project, jointId })
+
+      expect(removed.success).toBe(false)
+    },
+  )
 })

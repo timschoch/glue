@@ -610,6 +610,15 @@ describe('parseFlags', () => {
     expect(() => parseFlags(['--titel', 'x'])).toThrow(/unknown flag "--titel"/)
   })
 
+  it.each(['issue', 'issueUrl', 'issue-url'])(
+    'rejects the flag --%s: Glue sets the issue of a Decision',
+    (flag) => {
+      expect(() => parseFlags([`--${flag}`, 'x'])).toThrow(
+        `unknown flag "--${flag}"`,
+      )
+    },
+  )
+
   it('rejects a flag with no value', () => {
     expect(() => parseFlags(['--evidence'])).toThrow(
       /"--evidence" needs a value/,

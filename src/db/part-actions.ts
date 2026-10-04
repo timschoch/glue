@@ -19,7 +19,6 @@ import {
   listParts,
   listProjects,
 } from './parts.ts'
-import { typeOfRecordId } from './record-id.ts'
 import * as schema from './schema.ts'
 import { createSessionGuard, toFailure } from './session-actions.ts'
 import type { ActionRequest } from './session-actions.ts'
@@ -81,14 +80,9 @@ export function createPartActions(request: ActionRequest) {
   const { getDb, getGithub } = request
   const withSession = createSessionGuard(request)
 
-  // Every write that can leave a Decision accepted opens its downstream
-  // issue.
   async function toSavedPart(project: string, id: string): Promise<SavedPart> {
-    const issue =
-      typeOfRecordId(id) === 'decision'
-        ? await createDownstreamIssue(getDb(), getGithub(), project, id)
-        : undefined
-    return { id, issueMissing: issue?.kind === 'failed' }
+    const issue = await createDownstreamIssue(getDb(), getGithub(), project, id)
+    return { id, issueMissing: issue.kind === 'failed' }
   }
 
   return {

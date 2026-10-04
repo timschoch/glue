@@ -18,8 +18,11 @@ import {
   addJoint,
   addPart,
   addProject,
+  parseNewPart,
+  parsePartChange,
   removeJoint,
   removePart,
+  setIssueUrl,
   setReading,
   supersedeDecision,
   updatePart,
@@ -650,17 +653,27 @@ describe('updatePart', () => {
     })
   })
 
-  it('accepts a proposed Decision and sets its issue', async () => {
-    await updatePart(db, 'glue', 'D1', {
-      status: 'accepted',
-      issueUrl: 'https://github.com/timschoch/glue/issues/129',
-    })
+  it('accepts a proposed Decision', async () => {
+    await updatePart(db, 'glue', 'D1', { status: 'accepted' })
 
-    expect(await showPart('D1')).toMatchObject({
-      status: 'accepted',
-      issueUrl: 'https://github.com/timschoch/glue/issues/129',
-    })
+    expect(await showPart('D1')).toMatchObject({ status: 'accepted' })
   })
+
+  it.each([null, 'https://github.com/timschoch/glue/issues/129'])(
+    'refuses the issue %s of a Decision in a request',
+    async (issueUrl) => {
+      const refused = expect.objectContaining({
+        message: expect.stringContaining('issueUrl'),
+      })
+
+      expect(() => parsePartChange('decision', { issueUrl })).toThrow(refused)
+      expect(() => parseNewPart({ ...decision, issueUrl })).toThrow(refused)
+      await expect(
+        // @ts-expect-error A change has no issue.
+        updatePart(db, 'glue', 'D1', { issueUrl }),
+      ).rejects.toThrow(refused)
+    },
+  )
 
   it('removes the successor of a superseded Decision that gets another status', async () => {
     await addPart(db, 'glue', { ...decision, supersedes: 'D1' })
@@ -708,13 +721,23 @@ describe('updatePart', () => {
   })
 
   it('sets the issue of a Decision only when it has none', async () => {
-    const first = { issueUrl: 'https://github.com/timschoch/glue/issues/1' }
-    const second = { issueUrl: 'https://github.com/timschoch/glue/issues/2' }
-    const none = { issueUrl: null }
+    const first = 'https://github.com/timschoch/glue/issues/1'
+    const second = 'https://github.com/timschoch/glue/issues/2'
 
-    expect(await updatePart(db, 'glue', 'D1', first, none)).toBe(true)
-    expect(await updatePart(db, 'glue', 'D1', second, none)).toBe(false)
-    expect(await showPart('D1')).toMatchObject(first)
+    expect(await setIssueUrl(db, 'glue', 'D1', first)).toBe(true)
+    expect(await setIssueUrl(db, 'glue', 'D1', second)).toBe(false)
+    expect(await showPart('D1')).toMatchObject({ issueUrl: first })
+  })
+
+  it('sets no issue for a Part that is no Decision', async () => {
+    await expect(
+      setIssueUrl(
+        db,
+        'glue',
+        'I1',
+        'https://github.com/timschoch/glue/issues/1',
+      ),
+    ).rejects.toThrow(new InvalidRecordError('"I1" is not a Decision'))
   })
 
   it('sets the measure and the status of a Goal as one change', async () => {
@@ -881,10 +904,13 @@ describe('addJoint', () => {
       new InvalidRecordError('"D1" and "I1" have a Joint already'),
     )
     await expect(
-      addJoint(db, 'glue', { part: 'G1', needs: 'D1', twoWay: true }),
+      addJoint(db, 'glue', { part: 'I1', needs: 'D1', twoWay: true }),
     ).rejects.toThrow(
-      new InvalidRecordError('"G1" and "D1" have a Joint already'),
+      new InvalidRecordError('"I1" and "D1" have a Joint already'),
     )
+    await expect(
+      addJoint(db, 'glue', { part: 'G1', needs: 'D1', twoWay: true }),
+    ).rejects.toThrow(new InvalidRecordError('"D1" has a Goal already'))
     expect(await listJoints()).toHaveLength(2)
   })
 
@@ -896,6 +922,33 @@ describe('addJoint', () => {
     ).rejects.toThrow(new InvalidRecordError('"D1" has a Goal already'))
     expect(await listJoints()).toHaveLength(2)
     expect(await addJoint(db, 'glue', { part: 'R1', needs: 'G2' })).toBe(3)
+  })
+
+  it('refuses a second Goal for a Decision through a two-way Joint', async () => {
+    await addPart(db, 'glue', goal)
+
+    await expect(
+      addJoint(db, 'glue', { part: 'G2', needs: 'D1', twoWay: true }),
+    ).rejects.toThrow(new InvalidRecordError('"D1" has a Goal already'))
+    expect(await listJoints()).toHaveLength(2)
+  })
+
+  it('refuses a Goal for a Decision that has its Goal through a two-way Joint', async () => {
+    await addPart(db, 'glue', goal)
+    await client.exec(`
+      delete from joints where id = 1;
+      insert into joints (part_id, needed_part_id, two_way) values (1, 4, true);
+    `)
+
+    await expect(
+      addJoint(db, 'glue', { part: 'D1', needs: 'G2' }),
+    ).rejects.toThrow(new InvalidRecordError('"D1" has a Goal already'))
+  })
+
+  it('glues a Goal that needs a Decision, one-way', async () => {
+    await addPart(db, 'glue', goal)
+
+    expect(await addJoint(db, 'glue', { part: 'G2', needs: 'D1' })).toBe(3)
   })
 })
 

@@ -26,7 +26,6 @@ import {
   partTypes,
 } from '../db/parts.ts'
 import type { Concept, Part, PartSummary, Project } from '../db/parts.ts'
-import { typeOfRecordId } from '../db/record-id.ts'
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import { ApiError, handleApiRequest, parseJson } from './concept-api.ts'
 import type { ApiRequest, ChangeRequest } from './concept-api.ts'
@@ -176,20 +175,19 @@ async function getPart({ db, params }: ApiRequest) {
   return part
 }
 
-// The Part after a write. Every write that can leave a Decision accepted
-// opens its downstream issue, as the folders of the API do.
+// The Part after a write, with what became of its downstream issue.
 async function findChangedPart(
   { db, github, params }: ChangeRequest,
   recordId: string,
 ) {
-  const issue =
-    typeOfRecordId(recordId) === 'decision'
-      ? await createDownstreamIssue(db, github, params.project, recordId)
-      : undefined
+  const issue = await createDownstreamIssue(
+    db,
+    github,
+    params.project,
+    recordId,
+  )
   const part = await findPart(db, params.project, recordId)
-  return issue?.kind === 'failed'
-    ? { ...part, issueError: issue.message }
-    : part
+  return issue.kind === 'failed' ? { ...part, issueError: issue.message } : part
 }
 
 export function handleGetProject(input: ApiRequest) {

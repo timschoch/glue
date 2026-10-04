@@ -4,7 +4,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { setProductRepository } from '../db/concept-records.ts'
-import { addPart, addProject } from '../db/part-records.ts'
+import { addJoint, addPart, addProject } from '../db/part-records.ts'
 import * as schema from '../db/schema.ts'
 import { createToken } from '../db/tokens.ts'
 import type { GithubClient } from '../github/client.ts'
@@ -471,6 +471,35 @@ describe('POST a Part', () => {
     expect(response.body.error.message).toBe('decision "D9" not found')
   })
 
+  it('answers 400 for a needed Part that only another Project has', async () => {
+    await addPart(db, 'glue', { type: 'entity', title: 'Technique' })
+
+    const response = await call(handleAddPart, 'POST', {
+      body: { ...decision, needs: ['G1', 'I1', 'E1'] },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('entity "E1" not found')
+    expect(await db.select().from(schema.joints)).toEqual([])
+  })
+
+  it.each([null, 'https://github.com/timschoch/flexibeck-next/issues/7'])(
+    'answers 400 for a Decision with the issue %s, and adds nothing',
+    async (issueUrl) => {
+      const response = await call(handleAddPart, 'POST', {
+        body: { ...decision, status: 'accepted', issueUrl },
+      })
+      const decisions = await call(handleListParts, 'GET', {
+        query: '?type=decision',
+      })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.message).toContain('issueUrl')
+      expect(decisions.body).toEqual([])
+      expect(fake.issues).toEqual([])
+    },
+  )
+
   it('adds a Decision that needs any Part, in the order of the request', async () => {
     await call(handleAddPart, 'POST', { body: decision })
 
@@ -586,6 +615,28 @@ describe('PATCH a Part', () => {
     expect(response.body.status).toBe('accepted')
     expect(fake.issues).toHaveLength(1)
   })
+
+  it.each([null, 'https://github.com/timschoch/flexibeck-next/issues/7'])(
+    'answers 400 for the issue %s, and the Decision keeps its one issue',
+    async (issueUrl) => {
+      const added = await call(handleAddPart, 'POST', {
+        body: { ...decision, status: 'accepted' },
+      })
+
+      const response = await call(handleUpdatePart, 'PATCH', {
+        params: { recordId: 'D1' },
+        body: { issueUrl },
+      })
+      const part = await call(handleGetPart, 'GET', {
+        params: { recordId: 'D1' },
+      })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.message).toContain('issueUrl')
+      expect(part.body.issueUrl).toBe(added.body.issueUrl)
+      expect(fake.issues).toHaveLength(1)
+    },
+  )
 })
 
 describe('Joints', () => {
@@ -647,7 +698,55 @@ describe('Joints', () => {
     expect(part.body.needs).toEqual([])
   })
 
-  it.each(['7', 'one'])(
+  it('answers 400 for a two-way Joint that gives a Decision a second Goal', async () => {
+    await call(handleAddPart, 'POST', { body: decision })
+    await addPart(db, 'flexibeck', {
+      type: 'goal',
+      title: 'Spend less',
+      metric: 'cost',
+      source: 'okr',
+    })
+
+    const response = await call(handleAddJoint, 'POST', {
+      body: { part: 'G2', needs: 'D1', twoWay: true },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('"D1" has a Goal already')
+    expect(await db.select().from(schema.joints)).toHaveLength(2)
+  })
+
+  it.each([
+    { part: 'R1', needs: 'E1' },
+    { part: 'E1', needs: 'R1' },
+  ])(
+    'answers 400 for the Joint $part needs $needs with a Part that only another Project has',
+    async (joint) => {
+      await addPart(db, 'glue', { type: 'entity', title: 'Technique' })
+
+      const response = await call(handleAddJoint, 'POST', { body: joint })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.message).toBe('entity "E1" not found')
+      expect(await db.select().from(schema.joints)).toEqual([])
+    },
+  )
+
+  it('answers 404 for a Joint of another Project, and the Joint stays', async () => {
+    await addPart(db, 'glue', { type: 'entity', title: 'Technique' })
+    await addPart(db, 'glue', { type: 'flow', title: 'Bake' })
+    const id = await addJoint(db, 'glue', { part: 'F1', needs: 'E1' })
+
+    const response = await call(handleRemoveJoint, 'DELETE', {
+      params: { jointId: String(id) },
+    })
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.message).toBe(`joint ${id} not found`)
+    expect(await db.select().from(schema.joints)).toHaveLength(1)
+  })
+
+  it.each(['7', 'one', '1.5', '1e0', '-1', ''])(
     'answers 404 for the Joint %s that does not exist',
     async (jointId) => {
       const response = await call(handleRemoveJoint, 'DELETE', {
