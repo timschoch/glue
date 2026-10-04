@@ -1,31 +1,15 @@
 import type { ExpectedPart, NewPart, PartChange } from '../db/part-records.ts'
 import type { Part, PartType } from '../db/parts.ts'
 import type { PartFormValues } from '../design-system/part-form.tsx'
+import { listFormFields } from '../part-fields.ts'
+import { todayUtc } from '../today-utc.ts'
 
 // What goes between the Part form and the writes of the Part model.
 
 // The fields of a Part that the form changes: the columns of the Part.
 type Field = Exclude<keyof PartFormValues, 'goal' | 'evidence'>
 
-// The fields that only one Part type has, after the title and the body.
-const typeFields = {
-  insight: ['source', 'date', 'evidenceLevel'],
-  goal: ['metric', 'source'],
-  decision: ['owner', 'date'],
-  guardrail: ['enforcedBy'],
-  entity: [],
-  flow: [],
-  metric: [],
-} as const satisfies Record<PartType, ReadonlyArray<Field>>
-
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
-
-// The length of the day in an ISO time: 2026-10-02.
-const DAY_LENGTH = 10
-
-export function todayUtc(): string {
-  return new Date().toISOString().slice(0, DAY_LENGTH)
-}
 
 // The fields of the Part type, from the values of the form or from the Part.
 function pickFields<TSource extends Record<Field, unknown>>(
@@ -36,9 +20,9 @@ function pickFields<TSource extends Record<Field, unknown>>(
   const pick = <TField extends Field>(field: TField) => {
     picked[field] = source[field]
   }
-  pick('title')
-  pick('body')
-  typeFields[type].forEach(pick)
+  for (const field of listFormFields(type)) {
+    if (field.kind !== 'joint') pick(field.name)
+  }
   return picked
 }
 
@@ -48,7 +32,7 @@ export function findProblems(
   type: PartType,
   values: PartFormValues,
 ): Partial<Record<keyof PartFormValues, string>> {
-  const dated = type === 'insight' || type === 'decision'
+  const dated = listFormFields(type).some(({ kind }) => kind === 'date')
   return dated && !ISO_DATE.test(values.date.trim())
     ? { date: `Enter a date, such as ${todayUtc()}.` }
     : {}

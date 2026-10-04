@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { findMentions } from '../mention.ts'
+import { todayUtc } from '../today-utc.ts'
 import type { ConceptDb } from './client.ts'
 import { getProjectId } from './concept.ts'
 import { goalMeasureSchema, isOnTarget } from './goal-measure.ts'
@@ -393,10 +394,6 @@ const supersededFields = sql`
 
 // The fields of a Part that spreadTrust reads after a write.
 const trustFields = sql`"id", "title", "body", "trust", "work_state"`
-
-export function todayUtc() {
-  return new Date().toISOString().slice(0, 10)
-}
 
 const addedPartSchema = z.object({
   rows: z.array(z.object({ record_id: z.string() })),

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { GithubClient } from '../github/client.ts'
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import type { DownstreamIssue } from '../github/downstream-issue.ts'
+import { todayUtc } from '../today-utc.ts'
 import { CONCEPT_FIELDS } from './concept-fields.ts'
 import type { ConceptDb } from './client.ts'
 import { goalMeasureSchema } from './goal-measure.ts'
@@ -13,7 +14,6 @@ import {
   addProject,
   removePart,
   supersedeDecision,
-  todayUtc,
   updatePart,
 } from './part-records.ts'
 import { findPart } from './parts.ts'

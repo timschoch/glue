@@ -60,6 +60,8 @@ import type { GithubClient } from '../src/github/client.ts'
 import { createDownstreamIssue } from '../src/github/downstream-issue.ts'
 import type { DownstreamIssue } from '../src/github/downstream-issue.ts'
 import { addSignalInsight, listSignals } from '../src/db/signals.ts'
+import { partFields } from '../src/part-fields.ts'
+import type { PartField } from '../src/part-fields.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
   'analytics-project': 'analytics_project',
@@ -320,20 +322,26 @@ function printPart(part: Part) {
   if (part.body) console.log(`\n${part.body}`)
 }
 
-const FIELD_TO_FLAG = Object.fromEntries(
-  Object.entries(FLAG_TO_FIELD).map(([flag, field]) => [field, flag]),
-)
+// The flags that `add` needs for the Part type. The title comes first, and
+// the date comes before the other fields.
+function formatNeededFlags(type: PartType) {
+  const fields: ReadonlyArray<PartField> = partFields[type]
+  const [title, ...rest] = fields.filter(({ required }) => required)
+  const isDate = ({ kind }: PartField) => kind === 'date'
+  return [
+    title,
+    ...rest.filter(isDate),
+    ...rest.filter((field) => !isDate(field)),
+  ]
+    .map(({ name, flag = name }) => `--${flag}`)
+    .join(' ')
+}
 
 function formatHelp() {
   // Fact is no longer a type (D26), so `add` does not take it.
-  const types = Object.entries(CONCEPT_FIELDS)
-    .filter(([, { type }]) => type !== null)
-    .map(([folder, { required }]) => {
-      const flags = required
-        .filter((field) => field !== 'id')
-        .map((field) => `--${FIELD_TO_FLAG[field] ?? field}`)
-      return `  ${folder}: ${flags.join(' ')}`
-    })
+  const types = Object.entries(CONCEPT_FIELDS).flatMap(([folder, { type }]) =>
+    type === null ? [] : [`  ${folder}: ${formatNeededFlags(type)}`],
+  )
   return [
     'pnpm concept list [<type>]',
     'pnpm concept show <id>',
@@ -366,7 +374,7 @@ function formatHelp() {
     '',
     'Types, and the flags that add needs:',
     ...types,
-    `  ${Object.keys(PART_FOLDERS).join(', ')}: --title`,
+    `  ${Object.keys(PART_FOLDERS).join(', ')}: ${formatNeededFlags(PART_TYPES[0])}`,
     '  goals and metrics also take --measure <json>, decisions --supersedes <id>',
     '  decisions also take --option <text>, once per option, and --pick <number>: the option that the author would take',
     `  insights also take --level ${evidenceLevels.join('|')} and --status draft`,
