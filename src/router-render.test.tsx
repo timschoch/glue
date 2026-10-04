@@ -14,7 +14,6 @@ import {
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Session } from './authentication/session.ts'
 import type {
   MeasuredPart,
   Part,
@@ -22,26 +21,14 @@ import type {
   PartSummary,
 } from './db/parts.ts'
 import { createRouterContext } from './router-context.ts'
-import type { Server } from './router-context.ts'
+import type { Server } from './router-server.ts'
 import { routeTree } from './routeTree.gen'
-import {
-  findConcept,
-  findContract,
-  findContractState,
-  findPart,
-  findProject,
-  parts,
-  people,
-  projects,
-} from './test/project.ts'
+import { findPart, parts, people } from './test/project.ts'
 import './test/render.tsx'
+import { createMemoryServer } from './test/server.ts'
 
 // jsdom has no layout, Carbon's dropdown scrolls to the highlighted item.
 Element.prototype.scrollIntoView = () => {}
-
-const session = {
-  user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' },
-}
 
 // The Signals of Glue: one grew into I3, one grew into nothing yet.
 const signals = [
@@ -63,12 +50,6 @@ const D4 = 'The Concept lives in the database'
 const I3 = 'Agents read files'
 const R1 = 'No query over 200ms'
 
-const saved = (id: string) => ({
-  id,
-  concept: 'part-model',
-  issueMissing: false,
-})
-
 // A record of Glue with other values, as the server gives it.
 function changedPart(recordId: string, changed: Partial<Part>) {
   return (input: { project: string; recordId: string }) => {
@@ -87,43 +68,10 @@ const signedOut = () => ({
 // The pages of Glue with a signed-in person, and a server that saves each
 // write.
 async function renderPage(path: string, changed: Partial<Server> = {}) {
-  const server: Server = {
-    fetchSession: vi.fn(() => Promise.resolve<Session | undefined>(session)),
-    fetchProjects: vi.fn(() => Promise.resolve(projects)),
-    fetchProject: vi.fn((project) => Promise.resolve(findProject(project))),
-    fetchConcept: vi.fn((input) => Promise.resolve(findConcept(input))),
-    fetchParts: vi.fn((project) =>
-      Promise.resolve(project === 'glue' ? parts : []),
-    ),
-    fetchMine: vi.fn(() => Promise.resolve<PartSummary[]>([])),
-    fetchMeasured: vi.fn(() => Promise.resolve<MeasuredPart[]>([])),
-    fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
+  const server = createMemoryServer({
     fetchSignals: vi.fn(() => Promise.resolve({ signals, reason: null })),
-    fetchBuilds: vi.fn(() => Promise.resolve({ builds: [], reason: null })),
-    addSignalInsight: vi.fn(() => Promise.resolve(saved('I3'))),
-    fetchContractState: vi.fn((input) =>
-      Promise.resolve(findContractState(input)),
-    ),
-    fetchContract: vi.fn((input) => Promise.resolve(findContract(input))),
-    signContract: vi.fn(() => Promise.resolve({ version: 2 })),
-    addProject: vi.fn(({ slug }) => Promise.resolve({ slug })),
-    addConcept: vi.fn(({ concept }) => Promise.resolve({ slug: concept.slug })),
-    addPart: vi.fn(() => Promise.resolve(saved('D4'))),
-    updatePart: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),
-    answerPart: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),
-    answerQuestion: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),
-    addJoint: vi.fn(() => Promise.resolve({ id: 20 })),
-    removeJoint: vi.fn(() => Promise.resolve(undefined)),
-    fetchPeople: vi.fn(() => Promise.resolve(people)),
-    addMember: vi.fn(() => Promise.resolve(people.members[1])),
-    setLoopSteps: vi.fn(() => Promise.resolve(undefined)),
-    assign: vi.fn(() => Promise.resolve(undefined)),
-    unassign: vi.fn(() => Promise.resolve(undefined)),
-    signIn: vi.fn(() => Promise.resolve(undefined)),
-    signUp: vi.fn(() => Promise.resolve(undefined)),
-    signOut: vi.fn(() => Promise.resolve()),
     ...changed,
-  }
+  })
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: [path] }),

@@ -1,95 +1,9 @@
 import { isRedirect, redirect } from '@tanstack/react-router'
 
-import type { SignIn, SignUp } from './authentication/credentials.ts'
 import { parseRedirect } from './authentication/redirect.ts'
-import type { Failure, Session } from './authentication/session.ts'
-import type { ProjectBuilds } from './db/builds.ts'
-import type { Contract, ContractState } from './db/contracts.ts'
-import type { Member, People } from './db/members.ts'
-import type {
-  AnswerInput,
-  AssignInput,
-  ConceptAddInput,
-  JointAddInput,
-  JointRemoveInput,
-  LoopStepsInput,
-  MemberAddInput,
-  PartAddInput,
-  PartUpdateInput,
-  ProjectAddInput,
-  QuestionAnswerInput,
-  SavedPart,
-  SignalInsightAddInput,
-  UnassignInput,
-} from './db/part-actions.ts'
-import type {
-  Concept,
-  MeasuredPart,
-  Part,
-  PartSummary,
-  Project,
-} from './db/parts.ts'
-import type { ProjectSignals } from './db/signals.ts'
+import type { Session } from './authentication/session.ts'
 import { UNKNOWN_CONCEPT } from './project/project-search.ts'
-
-// What the routes need from the server. A test gives the router its own.
-export type Server = {
-  fetchSession: () => Promise<Session | undefined>
-  fetchProjects: () => Promise<Pick<Project, 'slug' | 'name'>[]>
-  fetchProject: (project: string) => Promise<Project | undefined>
-  fetchConcept: (concept: {
-    project: string
-    concept: string
-  }) => Promise<Concept | undefined>
-  fetchParts: (project: string) => Promise<PartSummary[]>
-  // The Parts of the Project that need the owner, the newest change first.
-  fetchMine: (project: string) => Promise<PartSummary[]>
-  // The Metrics and the measured Goals of the Project, each with its newest
-  // reading.
-  fetchMeasured: (project: string) => Promise<MeasuredPart[]>
-  fetchPart: (part: {
-    project: string
-    recordId: string
-  }) => Promise<Part | undefined>
-  fetchSignals: (project: string) => Promise<ProjectSignals>
-  fetchBuilds: (project: string) => Promise<ProjectBuilds>
-  fetchPeople: (project: string) => Promise<People>
-  // The writes. A Failure is an answer for the person: the write did not
-  // happen and the message says why.
-  addProject: (project: ProjectAddInput) => Promise<{ slug: string } | Failure>
-  addConcept: (concept: ConceptAddInput) => Promise<{ slug: string } | Failure>
-  addPart: (part: PartAddInput) => Promise<SavedPart | Failure>
-  updatePart: (part: PartUpdateInput) => Promise<SavedPart | Failure>
-  answerPart: (answer: AnswerInput) => Promise<SavedPart | Failure>
-  answerQuestion: (answer: QuestionAnswerInput) => Promise<SavedPart | Failure>
-  addJoint: (joint: JointAddInput) => Promise<{ id: number } | Failure>
-  removeJoint: (joint: JointRemoveInput) => Promise<Failure | undefined>
-  addSignalInsight: (
-    insight: SignalInsightAddInput,
-  ) => Promise<SavedPart | Failure>
-  fetchContractState: (concept: {
-    project: string
-    concept: string
-  }) => Promise<ContractState | undefined>
-  // Without a version: the newest Contract Version.
-  fetchContract: (contract: {
-    project: string
-    concept: string
-    version?: number
-  }) => Promise<Contract | undefined>
-  // The person of the session signs.
-  signContract: (concept: {
-    project: string
-    concept: string
-  }) => Promise<{ version: number } | Failure>
-  addMember: (member: MemberAddInput) => Promise<Member | Failure>
-  setLoopSteps: (loopSteps: LoopStepsInput) => Promise<Failure | undefined>
-  assign: (assignment: AssignInput) => Promise<Failure | undefined>
-  unassign: (assignment: UnassignInput) => Promise<Failure | undefined>
-  signIn: (credentials: SignIn) => Promise<Failure | undefined>
-  signUp: (account: SignUp) => Promise<Failure | undefined>
-  signOut: () => Promise<void>
-}
+import type { Server } from './router-server.ts'
 
 // The session that a router read before. One per router: on the server a
 // router serves one request, so a session never reaches another person.

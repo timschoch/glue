@@ -8,67 +8,19 @@ import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createRouterContext } from './router-context.ts'
-import type { Server } from './router-context.ts'
+import type { Server } from './router-server.ts'
 import { routeTree } from './routeTree.gen'
-import {
-  builds,
-  findConcept,
-  findContract,
-  findContractState,
-  findPart,
-  findProject,
-  parts,
-  people,
-  projects,
-} from './test/project.ts'
+import { builds } from './test/project.ts'
 import './test/render.tsx'
-
-const session = {
-  user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' },
-}
-
-const saved = { id: 'D4', issueMissing: false }
+import { createMemoryServer } from './test/server.ts'
 
 // The pages of Glue with a signed-in person. GitHub has two builds: one
 // names the Decision D4, one names an old Contract Version of the Part model.
 async function renderPage(path: string, overrides: Partial<Server> = {}) {
-  const server: Server = {
-    fetchSession: vi.fn(() => Promise.resolve(session)),
-    fetchProjects: vi.fn(() => Promise.resolve(projects)),
-    fetchProject: vi.fn((project) => Promise.resolve(findProject(project))),
-    fetchConcept: vi.fn((input) => Promise.resolve(findConcept(input))),
-    fetchParts: vi.fn((project) =>
-      Promise.resolve(project === 'glue' ? parts : []),
-    ),
-    fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
-    fetchMine: vi.fn(() => Promise.resolve([])),
-    fetchMeasured: vi.fn(() => Promise.resolve([])),
-    fetchSignals: vi.fn(() => Promise.resolve({ signals: [], reason: null })),
+  const server = createMemoryServer({
     fetchBuilds: vi.fn(() => Promise.resolve({ builds, reason: null })),
-    addSignalInsight: vi.fn(() => Promise.resolve(saved)),
-    fetchContractState: vi.fn((input) =>
-      Promise.resolve(findContractState(input)),
-    ),
-    fetchContract: vi.fn((input) => Promise.resolve(findContract(input))),
-    signContract: vi.fn(() => Promise.resolve({ version: 2 })),
-    addProject: vi.fn(({ slug }) => Promise.resolve({ slug })),
-    addConcept: vi.fn(({ concept }) => Promise.resolve({ slug: concept.slug })),
-    addPart: vi.fn(() => Promise.resolve(saved)),
-    updatePart: vi.fn(() => Promise.resolve(saved)),
-    answerPart: vi.fn(() => Promise.resolve(saved)),
-    answerQuestion: vi.fn(() => Promise.resolve(saved)),
-    addJoint: vi.fn(() => Promise.resolve({ id: 20 })),
-    removeJoint: vi.fn(() => Promise.resolve(undefined)),
-    fetchPeople: vi.fn(() => Promise.resolve(people)),
-    addMember: vi.fn(() => Promise.resolve(people.members[0])),
-    setLoopSteps: vi.fn(() => Promise.resolve(undefined)),
-    assign: vi.fn(() => Promise.resolve(undefined)),
-    unassign: vi.fn(() => Promise.resolve(undefined)),
-    signIn: vi.fn(() => Promise.resolve(undefined)),
-    signUp: vi.fn(() => Promise.resolve(undefined)),
-    signOut: vi.fn(() => Promise.resolve()),
     ...overrides,
-  }
+  })
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: [path] }),
