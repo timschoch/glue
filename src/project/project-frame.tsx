@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 
 import type { ConceptNode, PartSummary, Project } from '../db/parts.ts'
 import { Frame } from '../design-system/frame.tsx'
-import { trustOf } from './part-views.ts'
 import { changePin } from './project-search.ts'
 import { useProjectLinks } from './use-project-links.ts'
 
@@ -89,7 +88,7 @@ export function ProjectFrame({
         type: part.type,
         recordId: part.id,
         title: part.title,
-        trust: trustOf(part.status),
+        trust: part.trust,
         href: recordHref(part),
       }))}
       onUnpin={(pin) => void changeSearch(changePin(search, pin, false))}

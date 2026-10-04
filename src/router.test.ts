@@ -37,7 +37,9 @@ function context(overrides: Partial<Server> = {}): Server {
     updatePart: vi.fn(({ recordId }) =>
       Promise.resolve({ id: recordId, issueMissing: false }),
     ),
-    removePart: vi.fn(() => Promise.resolve(undefined)),
+    answerPart: vi.fn(({ recordId }) =>
+      Promise.resolve({ id: recordId, issueMissing: false }),
+    ),
     addJoint: vi.fn(() => Promise.resolve({ id: 1 })),
     removeJoint: vi.fn(() => Promise.resolve(undefined)),
     signIn: vi.fn(() => Promise.resolve(undefined)),

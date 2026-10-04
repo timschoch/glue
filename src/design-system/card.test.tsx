@@ -182,6 +182,12 @@ describe('Card', () => {
     ])
   })
 
+  it('shows the Work state of a sunk Part', () => {
+    render(<Card {...DECISION} trust="wrong" workState="sunk" />)
+
+    expect(texts(screen.getByRole('link')).slice(3)).toEqual(['Sunk'])
+  })
+
   it('shows the name of the home Concept as the last line', () => {
     render(
       <Card

@@ -14,11 +14,9 @@ import {
   partAnswerSchema,
   partChangeSchema,
   removeJoint,
-  removePart,
   updatePart,
 } from './part-records.ts'
 import { InvalidRecordError } from './record-errors.ts'
-import { sortById } from './record-id.ts'
 import {
   findConcept,
   findPart,
@@ -62,10 +60,6 @@ export const partUpdateInputSchema = partReadInputSchema.extend({
   expected: expectedPartSchema.optional(),
 })
 
-export const partRemoveInputSchema = partReadInputSchema.extend({
-  expected: expectedPartSchema.optional(),
-})
-
 export const projectAddInputSchema = z.object({
   slug: newConceptSchema.shape.slug,
   name: newConceptSchema.shape.title,
@@ -90,7 +84,6 @@ type PartReadInput = z.infer<typeof partReadInputSchema>
 export type ConceptAddInput = z.infer<typeof conceptAddInputSchema>
 export type PartAddInput = z.infer<typeof partAddInputSchema>
 export type PartUpdateInput = z.infer<typeof partUpdateInputSchema>
-export type PartRemoveInput = z.infer<typeof partRemoveInputSchema>
 export type ProjectAddInput = z.infer<typeof projectAddInputSchema>
 export type AnswerInput = z.infer<typeof answerInputSchema>
 export type JointAddInput = z.infer<typeof jointAddInputSchema>
@@ -164,25 +157,6 @@ export function createPartActions(request: ActionRequest) {
 
     listMine: withSession((db, { project }: ProjectInput) =>
       listMine(db, project),
-    ),
-
-    // A Part that another Part needs stays.
-    removePart: withSession(
-      (db, { project, recordId, expected }: PartRemoveInput) =>
-        removePart(db, project, recordId, expected)
-          .then(async (removed) => {
-            if (removed) return undefined
-            const part = await findPart(db, project, recordId)
-            const needing = sortById(
-              part?.neededBy.map((end) => end.part) ?? [],
-            )
-            throw needing.length === 0
-              ? toChangedError(recordId)
-              : new InvalidRecordError(
-                  `"${recordId}" is needed by ${needing.map(({ id }) => id).join(', ')}`,
-                )
-          })
-          .catch(toFailure),
     ),
 
     addProject: withSession(async (db, { slug, name }: ProjectAddInput) => {

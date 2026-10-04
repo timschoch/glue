@@ -99,7 +99,6 @@ const requests = {
       answer: { answer: 'sink' },
     }),
   listMine: () => actions.listMine({ project }),
-  removePart: () => actions.removePart({ project, recordId: 'I1' }),
   addJoint: () =>
     actions.addJoint({ project, joint: { part: 'I1', needs: 'G1' } }),
   removeJoint: () => actions.removeJoint({ project, jointId: 1 }),
@@ -458,7 +457,7 @@ describe('a server function of the Part model with a session', () => {
     expect((await findPart(db, project, 'I2'))?.status).toBeNull()
   })
 
-  it('removes a Part that is in the expected state', async () => {
+  it('discards an Insight in draft: the answer sink keeps the record', async () => {
     await addPart(db, project, {
       type: 'insight',
       title: 'Bakers ask for videos',
@@ -466,56 +465,40 @@ describe('a server function of the Part model with a session', () => {
       status: 'draft',
     })
 
-    const removed = await actions.removePart({
+    const saved = await actions.answerPart({
       project,
       recordId: 'I2',
-      expected: { status: 'draft' },
+      answer: { answer: 'sink' },
     })
 
-    expect(removed).toBeUndefined()
-    expect(await findPart(db, project, 'I2')).toBeUndefined()
-  })
-
-  it('answers the removal of a Part that a second person changed as a failure, and the Part stays', async () => {
-    const refused = await actions.removePart({
-      project,
-      recordId: 'I1',
-      expected: { status: 'draft' },
+    expect(saved).toEqual({ id: 'I2', issueMissing: false })
+    expect(await findPart(db, project, 'I2')).toMatchObject({
+      trust: 'wrong',
+      workState: 'sunk',
     })
-
-    expect(refused).toEqual({ message: '"I1" changed since you opened it' })
-    expect(await findPart(db, project, 'I1')).toBeDefined()
   })
 
-  it('answers the removal of a Part that another Part needs as a failure, and the Part stays', async () => {
+  it('rejects a proposed Decision: the answer sink keeps the Decision and its Joints', async () => {
     await actions.addPart({
       project,
       part: { ...decision, status: 'proposed' },
     })
 
-    const refused = await actions.removePart({ project, recordId: 'I1' })
-
-    expect(refused).toEqual({ message: '"I1" is needed by D1' })
-    expect(await findPart(db, project, 'I1')).toBeDefined()
-  })
-
-  it('rejects a proposed Decision: the Decision goes away with its Joints', async () => {
-    await actions.addPart({
-      project,
-      part: { ...decision, status: 'proposed' },
-    })
-
-    const removed = await actions.removePart({
+    const saved = await actions.answerPart({
       project,
       recordId: 'D1',
-      expected: { status: 'proposed' },
+      answer: { answer: 'sink' },
     })
+    const sunk = await findPart(db, project, 'D1')
 
-    expect(removed).toBeUndefined()
-    expect(await readProject()).toMatchObject({
-      parts: ['I1', 'G1'],
-      goal: ['Ship faster', 0],
+    expect(saved).toEqual({ id: 'D1', issueMissing: false })
+    expect(sunk).toMatchObject({
+      status: 'superseded',
+      trust: 'wrong',
+      workState: 'sunk',
     })
+    expect(sunk?.needs.map(({ part }) => part.id)).toEqual(['G1', 'I1'])
+    expect(fake.issues).toHaveLength(0)
   })
 
   it('adds a Project with its root Concept', async () => {

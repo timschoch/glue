@@ -4,11 +4,11 @@ import type { SignIn, SignUp } from './authentication/credentials.ts'
 import { parseRedirect } from './authentication/redirect.ts'
 import type { Failure, Session } from './authentication/session.ts'
 import type {
+  AnswerInput,
   ConceptAddInput,
   JointAddInput,
   JointRemoveInput,
   PartAddInput,
-  PartRemoveInput,
   PartUpdateInput,
   ProjectAddInput,
   SavedPart,
@@ -36,7 +36,7 @@ export type Server = {
   addConcept: (concept: ConceptAddInput) => Promise<{ slug: string } | Failure>
   addPart: (part: PartAddInput) => Promise<SavedPart | Failure>
   updatePart: (part: PartUpdateInput) => Promise<SavedPart | Failure>
-  removePart: (part: PartRemoveInput) => Promise<Failure | undefined>
+  answerPart: (answer: AnswerInput) => Promise<SavedPart | Failure>
   addJoint: (joint: JointAddInput) => Promise<{ id: number } | Failure>
   removeJoint: (joint: JointRemoveInput) => Promise<Failure | undefined>
   signIn: (credentials: SignIn) => Promise<Failure | undefined>

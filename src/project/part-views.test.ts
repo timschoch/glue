@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Part, PartSummary } from '../db/parts.ts'
-import { toConceptViewPart, toRecordPart, trustOf } from './part-views.ts'
+import { toRecordPart } from './part-views.ts'
 
 const goal: PartSummary = {
   id: 'G1',
@@ -56,26 +56,6 @@ const decision: Part = {
 
 const href = ({ id }: PartSummary) => `/glue/${id}`
 
-describe('the Trust of a Part', () => {
-  it.each([
-    ['accepted', 'solid'],
-    ['open', 'solid'],
-    ['achieved', 'solid'],
-    [null, 'solid'],
-    ['proposed', 'not-ready'],
-    ['draft', 'not-ready'],
-    ['superseded', 'wrong'],
-  ] as const)('reads the status %s as %s', (status, trust) => {
-    expect(trustOf(status)).toBe(trust)
-  })
-})
-
-describe('a Part on a card of the Concept view', () => {
-  it('gets its Trust', () => {
-    expect(toConceptViewPart(goal)).toEqual({ ...goal, trust: 'solid' })
-  })
-})
-
 describe('a Part in the record view', () => {
   it('names the home Concept, with the address and the Trust of each card', () => {
     const record = toRecordPart(decision, href)
@@ -117,12 +97,26 @@ describe('a Part in the record view', () => {
     ])
   })
 
-  it.each([
-    ['draft', 'draft'],
-    ['proposed', 'review'],
-    ['superseded', 'published'],
-  ] as const)('reads the status %s as the Work state %s', (status, state) => {
-    expect(toRecordPart({ ...decision, status }, href).workState).toBe(state)
+  it('has the Trust and the Work state of the Part, not a guess from the status', () => {
+    const record = toRecordPart(
+      {
+        ...decision,
+        trust: 'wrong',
+        workState: 'sunk',
+        needs: [
+          {
+            jointId: 1,
+            twoWay: false,
+            link: true,
+            part: { ...goal, trust: 'flagged' },
+          },
+        ],
+      },
+      href,
+    )
+
+    expect(record).toMatchObject({ trust: 'wrong', workState: 'sunk' })
+    expect(record.needs[0].part.trust).toBe('flagged')
   })
 
   it('shows the Decision that supersedes it and the ones it supersedes', () => {

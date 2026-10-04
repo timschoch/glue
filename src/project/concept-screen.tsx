@@ -4,7 +4,6 @@ import type { Concept } from '../db/parts.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
-import { toConceptViewPart } from './part-views.ts'
 import { isPartType, lensTypes } from './project-search.ts'
 import { useProjectLinks } from './use-project-links.ts'
 
@@ -25,11 +24,7 @@ export function ConceptScreen({ concept }: { concept: Concept }) {
 
   return (
     <ConceptView
-      concept={{
-        ...concept,
-        parts: concept.parts.map(toConceptViewPart),
-        linkedParts: concept.linkedParts.map(toConceptViewPart),
-      }}
+      concept={concept}
       types={lensTypes(search.section)}
       partHref={recordHref}
       conceptHref={({ slug }) => conceptHref(slug)}

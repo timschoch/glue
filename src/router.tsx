@@ -16,8 +16,8 @@ import {
   submitAddJoint,
   submitAddPart,
   submitAddProject,
+  submitAnswer,
   submitRemoveJoint,
-  submitRemovePart,
   submitUpdatePart,
 } from './db/parts.functions.ts'
 import { createRouterContext } from './router-context.ts'
@@ -36,7 +36,7 @@ const server: Server = {
   addConcept: (concept) => submitAddConcept({ data: concept }),
   addPart: (part) => submitAddPart({ data: part }),
   updatePart: (part) => submitUpdatePart({ data: part }),
-  removePart: (part) => submitRemovePart({ data: part }),
+  answerPart: (answer) => submitAnswer({ data: answer }),
   addJoint: (joint) => submitAddJoint({ data: joint }),
   removeJoint: (joint) => submitRemoveJoint({ data: joint }),
   signIn: (credentials) => submitSignIn({ data: credentials }),

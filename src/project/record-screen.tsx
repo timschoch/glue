@@ -1,4 +1,4 @@
-import { getRouteApi, useRouter } from '@tanstack/react-router'
+import { getRouteApi } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 import type { MouseEvent } from 'react'
 
@@ -24,11 +24,9 @@ export function RecordScreen({
   part: Part
   parts: ReadonlyArray<PartSummary>
 }) {
-  const router = useRouter()
-  const { updatePart, removePart, addJoint, removeJoint } =
+  const { updatePart, answerPart, addJoint, removeJoint } =
     projectRoute.useRouteContext()
-  const { project, search, conceptHref, recordHref, open, changeSearch } =
-    useProjectLinks()
+  const { project, search, recordHref, open, changeSearch } = useProjectLinks()
   const { pending, failure, write } = useWrite()
   const bodyParts = useMemo(
     () => toRecordSummaries(parts, recordHref),
@@ -56,22 +54,20 @@ export function RecordScreen({
     return <PartFormScreen type="decision" superseded={part} parts={parts} />
   }
 
-  // Each write names the status that the person sees. When a second person
-  // changed it, the write does not happen.
+  // A write of the status names the status that the person sees. When a
+  // second person changed it, the write does not happen.
   const seen = { project, recordId: part.id, expected: { status: part.status } }
   const name = `${partTypes[part.type]} ${part.id}`
-  // A removed Part has no record: its home Concept opens.
-  const leave = () =>
-    router.navigate({ href: conceptHref(part.concept) }).then(() => {})
   const change = (status: 'accepted' | null) => () =>
     updatePart({ ...seen, change: { status } })
-  const remove = () => removePart(seen)
+  // A sunk Part keeps its record.
+  const sink = () =>
+    answerPart({ project, recordId: part.id, answer: { answer: 'sink' } })
 
   const supersede: RecordAction = {
     label: 'Supersede',
     onClick: () => void changeSearch({ ...search, add: 'decision' }),
   }
-  // A Decision has no status for a rejected one, so Reject removes it.
   const actions: ReadonlyArray<RecordAction> =
     part.type === 'decision' && part.status === 'proposed'
       ? [
@@ -82,7 +78,7 @@ export function RecordScreen({
           {
             label: 'Reject',
             confirm: { title: `Reject ${name}`, label: 'Reject it' },
-            onClick: () => void write('Rejecting', remove, leave),
+            onClick: () => void write('Rejecting', sink),
           },
           supersede,
         ]
@@ -97,7 +93,7 @@ export function RecordScreen({
               {
                 label: 'Discard',
                 confirm: { title: `Discard ${name}`, label: 'Discard it' },
-                onClick: () => void write('Discarding', remove, leave),
+                onClick: () => void write('Discarding', sink),
               },
             ]
           : []
