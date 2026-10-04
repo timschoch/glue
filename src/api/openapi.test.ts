@@ -38,6 +38,8 @@ describe('GET /api/v1/openapi.json', () => {
             'post /parts',
             'get /parts/{recordId}',
             'patch /parts/{recordId}',
+            'post /parts/{recordId}/answers',
+            'get /mine',
             'post /joints',
             'delete /joints/{jointId}',
           ].map((route) => route.replace(' ', ' /api/v1/projects/{project}')),
@@ -77,6 +79,54 @@ describe('GET /api/v1/openapi.json', () => {
       enum: ['hunch', 'pattern', 'confirmed'],
     })
     expect(JSON.stringify(schemas.PartInput)).toContain('"entity"')
+  })
+
+  it('describes Trust, the Work state, the flags and the answers', async () => {
+    const document = await handleGetOpenApi().json()
+    const { schemas } = document.components
+    const root = '/api/v1/projects/{project}'
+    const answers = document.paths[`${root}/parts/{recordId}/answers`].post
+    const mine = document.paths[`${root}/mine`].get
+
+    expect(schemas.PartSummary.properties.trust.enum).toEqual([
+      'solid',
+      'flagged',
+      'not-ready',
+      'wrong',
+    ])
+    expect(schemas.PartSummary.properties.workState.enum).toEqual([
+      'to-check',
+      'waiting',
+      'draft',
+      'review',
+      'published',
+      'sunk',
+    ])
+    expect(schemas.Part.required).toEqual(
+      expect.arrayContaining(['flags', 'waitsOn']),
+    )
+    expect(answers.operationId).toBe('answerPart')
+    expect(answers.requestBody.content['application/json'].schema).toEqual({
+      $ref: '#/components/schemas/AnswerInput',
+    })
+    for (const answer of [
+      'fine',
+      'wait',
+      'need-time',
+      'not-ready',
+      'supersede',
+      'sink',
+    ]) {
+      expect(JSON.stringify(schemas.AnswerInput)).toContain(`"${answer}"`)
+    }
+    expect(answers.responses[200].content['application/json'].schema).toEqual({
+      $ref: '#/components/schemas/ChangedPart',
+    })
+    expect(mine.operationId).toBe('listMine')
+    expect(mine.responses[200].content['application/json'].schema).toEqual({
+      type: 'array',
+      items: { $ref: '#/components/schemas/PartSummary' },
+    })
   })
 
   it('describes the issue of a Decision in the answer, and in no request', async () => {

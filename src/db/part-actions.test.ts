@@ -9,6 +9,7 @@ import type { GithubClient } from '../github/client.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
 import { setProductRepository } from './concept-records.ts'
 import {
+  answerInputSchema,
   createPartActions,
   jointRemoveInputSchema,
   partAddInputSchema,
@@ -91,6 +92,13 @@ const requests = {
       recordId: 'G1',
       change: { title: 'Ship slower' },
     }),
+  answerPart: () =>
+    actions.answerPart({
+      project,
+      recordId: 'G1',
+      answer: { answer: 'sink' },
+    }),
+  listMine: () => actions.listMine({ project }),
   addJoint: () =>
     actions.addJoint({ project, joint: { part: 'I1', needs: 'G1' } }),
   removeJoint: () => actions.removeJoint({ project, jointId: 1 }),
@@ -102,7 +110,7 @@ async function readProject() {
   return {
     concepts: found?.concept.concepts.map(({ slug }) => slug),
     parts: (await listParts(db, project)).map(({ id }) => id),
-    goal: [goal?.title, goal?.neededBy.length],
+    goal: [goal?.title, goal?.neededBy.length, goal?.workState],
   }
 }
 
@@ -119,7 +127,7 @@ describe('a server function of the Part model without a session', () => {
       expect(await readProject()).toEqual({
         concepts: [],
         parts: ['I1', 'G1'],
-        goal: ['Ship faster', 0],
+        goal: ['Ship faster', 0, 'draft'],
       })
     },
   )
@@ -288,6 +296,54 @@ describe('a server function of the Part model with a session', () => {
     })
   })
 
+  it('lists what needs the owner', async () => {
+    const mine = await actions.listMine({ project })
+
+    expect(mine).toMatchObject([{ id: 'G1', workState: 'draft' }])
+  })
+
+  it('answers a Part', async () => {
+    const saved = await actions.answerPart({
+      project,
+      recordId: 'G1',
+      answer: { answer: 'supersede' },
+    })
+
+    expect(saved).toEqual({ id: 'G1', issueMissing: false })
+    expect(await findPart(db, project, 'G1')).toMatchObject({
+      trust: 'solid',
+      workState: 'published',
+    })
+  })
+
+  it('opens the downstream issue when the answer accepts a Decision', async () => {
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'proposed' },
+    })
+
+    const saved = await actions.answerPart({
+      project,
+      recordId: 'D1',
+      answer: { answer: 'supersede' },
+    })
+
+    expect(saved).toEqual({ id: 'D1', issueMissing: false })
+    expect(fake.issues).toHaveLength(1)
+  })
+
+  it('answers an answer that the Work state does not take as a failure', async () => {
+    const refused = await actions.answerPart({
+      project,
+      recordId: 'I1',
+      answer: { answer: 'fine' },
+    })
+
+    expect(refused).toEqual({
+      message: '"I1" is published: it takes the answers not-ready, sink',
+    })
+  })
+
   it('glues two Parts with a Joint, then removes the Joint', async () => {
     const added = await requests.addJoint()
     const glued = await findPart(db, project, 'I1')
@@ -375,6 +431,22 @@ describe('a server function of the Part model with a session', () => {
 })
 
 describe('the input of a server function of the Part model', () => {
+  it('refuses an answer that is not one of the six, and "wait" without a Part', () => {
+    const unknown = answerInputSchema.safeParse({
+      project,
+      recordId: 'I1',
+      answer: { answer: 'ok' },
+    })
+    const alone = answerInputSchema.safeParse({
+      project,
+      recordId: 'I1',
+      answer: { answer: 'wait' },
+    })
+
+    expect(unknown.success).toBe(false)
+    expect(alone.success).toBe(false)
+  })
+
   it('takes only the Part types', () => {
     const listed = partListInputSchema.safeParse({ project, types: ['fact'] })
 

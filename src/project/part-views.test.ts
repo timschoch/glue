@@ -8,6 +8,8 @@ const goal: PartSummary = {
   type: 'goal',
   title: 'More users pay',
   status: 'open',
+  trust: 'solid',
+  workState: 'published',
   concept: 'glue',
   conceptTitle: 'Glue',
 }
@@ -17,6 +19,8 @@ const insight: PartSummary = {
   type: 'insight',
   title: 'Bakers want step videos',
   status: null,
+  trust: 'solid',
+  workState: 'published',
   concept: 'part-model',
   conceptTitle: 'Part model',
 }
@@ -26,6 +30,8 @@ const decision: Part = {
   type: 'decision',
   title: 'Show the video of the creator',
   status: 'accepted',
+  trust: 'solid',
+  workState: 'published',
   concept: 'part-model',
   conceptTitle: 'Part model',
   body: 'From #I1.',
@@ -44,6 +50,8 @@ const decision: Part = {
     { jointId: 2, twoWay: false, link: false, part: insight },
   ],
   neededBy: [],
+  flags: [],
+  waitsOn: null,
 }
 
 const href = ({ id }: PartSummary) => `/glue/${id}`

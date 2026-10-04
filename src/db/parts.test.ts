@@ -73,7 +73,11 @@ afterEach(async () => {
   await client.close()
 })
 
+// The rows of the test have no Trust and no Work state of their own.
+const state = { trust: 'not-ready', workState: 'draft' }
+
 const goal = {
+  ...state,
   id: 'G1',
   type: 'goal',
   title: 'More users pay',
@@ -82,6 +86,7 @@ const goal = {
   conceptTitle: 'Glue',
 }
 const insight = {
+  ...state,
   id: 'I1',
   type: 'insight',
   title: 'Bakers want step videos',
@@ -90,6 +95,7 @@ const insight = {
   conceptTitle: 'Part model',
 }
 const decision = {
+  ...state,
   id: 'D1',
   type: 'decision',
   title: 'Show the video of the creator',
@@ -98,6 +104,7 @@ const decision = {
   conceptTitle: 'Part model',
 }
 const replacement = {
+  ...state,
   id: 'D2',
   type: 'decision',
   title: 'Show the video of the baker',
@@ -106,6 +113,7 @@ const replacement = {
   conceptTitle: 'Part model',
 }
 const guardrail = {
+  ...state,
   id: 'R1',
   type: 'guardrail',
   title: 'No query over 200ms',
@@ -114,6 +122,7 @@ const guardrail = {
   conceptTitle: 'Glue',
 }
 const entity = {
+  ...state,
   id: 'E1',
   type: 'entity',
   title: 'Technique',
@@ -122,6 +131,7 @@ const entity = {
   conceptTitle: 'Read model',
 }
 const flow = {
+  ...state,
   id: 'F1',
   type: 'flow',
   title: 'Read a Concept',
@@ -309,6 +319,8 @@ describe('findPart', () => {
         { jointId: 2, twoWay: false, link: false, part: insight },
       ],
       neededBy: [{ jointId: 4, twoWay: false, link: true, part: flow }],
+      flags: [],
+      waitsOn: null,
     })
   })
 

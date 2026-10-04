@@ -9,6 +9,7 @@ import { createGithubClient } from '../github/client.ts'
 import { getSetting } from '../settings.server.ts'
 import { createDb } from './client.ts'
 import {
+  answerInputSchema,
   conceptAddInputSchema,
   conceptReadInputSchema,
   createPartActions,
@@ -50,6 +51,10 @@ export const fetchPart = createServerFn({ method: 'GET' })
   .validator(partReadInputSchema)
   .handler(({ data }) => actions.findPart(data))
 
+export const fetchMine = createServerFn({ method: 'GET' })
+  .validator(projectInputSchema)
+  .handler(({ data }) => actions.listMine(data))
+
 export const submitAddConcept = createServerFn({ method: 'POST' })
   .validator(conceptAddInputSchema)
   .handler(({ data }) => actions.addConcept(data))
@@ -61,6 +66,10 @@ export const submitAddPart = createServerFn({ method: 'POST' })
 export const submitUpdatePart = createServerFn({ method: 'POST' })
   .validator(partUpdateInputSchema)
   .handler(({ data }) => actions.updatePart(data))
+
+export const submitAnswer = createServerFn({ method: 'POST' })
+  .validator(answerInputSchema)
+  .handler(({ data }) => actions.answerPart(data))
 
 export const submitAddJoint = createServerFn({ method: 'POST' })
   .validator(jointAddInputSchema)

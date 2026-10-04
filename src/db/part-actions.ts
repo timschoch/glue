@@ -5,9 +5,11 @@ import {
   addConcept,
   addJoint,
   addPart,
+  answerPart,
   newConceptSchema,
   newJointSchema,
   newPartSchema,
+  partAnswerSchema,
   partChangeSchema,
   removeJoint,
   updatePart,
@@ -16,6 +18,7 @@ import {
   findConcept,
   findPart,
   findProject,
+  listMine,
   listParts,
   listProjects,
 } from './parts.ts'
@@ -51,6 +54,10 @@ export const partUpdateInputSchema = partReadInputSchema.extend({
   change: partChangeSchema,
 })
 
+export const answerInputSchema = partReadInputSchema.extend({
+  answer: partAnswerSchema,
+})
+
 export const jointAddInputSchema = projectInputSchema.extend({
   joint: newJointSchema,
 })
@@ -66,6 +73,7 @@ type PartReadInput = z.infer<typeof partReadInputSchema>
 type ConceptAddInput = z.infer<typeof conceptAddInputSchema>
 type PartAddInput = z.infer<typeof partAddInputSchema>
 type PartUpdateInput = z.infer<typeof partUpdateInputSchema>
+type AnswerInput = z.infer<typeof answerInputSchema>
 type JointAddInput = z.infer<typeof jointAddInputSchema>
 type JointRemoveInput = z.infer<typeof jointRemoveInputSchema>
 
@@ -119,6 +127,16 @@ export function createPartActions(request: ActionRequest) {
         updatePart(db, project, recordId, change)
           .then(() => toSavedPart(project, recordId))
           .catch(toFailure),
+    ),
+
+    answerPart: withSession((db, { project, recordId, answer }: AnswerInput) =>
+      answerPart(db, project, recordId, answer)
+        .then(() => toSavedPart(project, recordId))
+        .catch(toFailure),
+    ),
+
+    listMine: withSession((db, { project }: ProjectInput) =>
+      listMine(db, project),
     ),
 
     addJoint: withSession((db, { project, joint }: JointAddInput) =>

@@ -10,6 +10,14 @@ import type { GoalMeasure } from './goal-measure.ts'
 import { kinds } from './kinds.ts'
 import type { Kind } from './kinds.ts'
 import {
+  allowedAnswers,
+  answerRules,
+  answers,
+  NEW_PART_STATE,
+  spreadTrust,
+  stateOfStatus,
+} from './part-trust.ts'
+import {
   InvalidRecordError,
   isUniqueViolation,
   JointNotFoundError,
@@ -286,6 +294,7 @@ async function findParts(
       recordId: parts.recordId,
       type: parts.type,
       status: parts.status,
+      workState: parts.workState,
     })
     .from(parts)
     .where(
@@ -341,6 +350,18 @@ function selectMentionedParts(
   `
 }
 
+// What a superseded Decision gets: it is sunk and wrong, and it waits on
+// nothing.
+const supersededFields = sql`
+  "status" = 'superseded',
+  "trust" = 'wrong',
+  "work_state" = 'sunk',
+  "awaited_part_id" = null,
+  "changed_at" = now()`
+
+// The fields of a Part that spreadTrust reads after a write.
+const trustFields = sql`"id", "title", "body", "trust", "work_state"`
+
 export function todayUtc() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -376,6 +397,7 @@ async function addPartRow(
   const { projectId, conceptId, type, fields, neededPartIds = [] } = row
   const { mentionedRecordIds = [], supersedesId, supersededById } = row
   const status = fields.status ?? (type === 'goal' ? 'open' : null)
+  const { trust, workState } = stateOfStatus(type, status) ?? NEW_PART_STATE
   const isDated = type === 'decision' || type === 'insight'
 
   // The statement locks the Decision that it supersedes and adds nothing
@@ -434,7 +456,7 @@ async function addPartRow(
       insert into "parts" (
         "project_id", "concept_id", "type", "record_id", "title", "body",
         "owner", "status", "date", "source", "metric", "enforced_by",
-        "evidence_level", "superseded_by_id"
+        "evidence_level", "superseded_by_id", "trust", "work_state"
       )
       select
         ${projectId}::integer,
@@ -450,7 +472,9 @@ async function addPartRow(
         ${fields.metric ?? null}::text,
         ${fields.enforcedBy ?? null}::text,
         ${fields.evidenceLevel ?? null}::text,
-        ${supersededById ?? null}::integer
+        ${supersededById ?? null}::integer,
+        ${trust}::text,
+        ${workState}::text
       from counter
       returning "id", "record_id"
     )
@@ -480,10 +504,11 @@ async function addPartRow(
         ? sql``
         : sql`, superseded as (
             update "parts"
-            set "status" = 'superseded',
+            set ${supersededFields},
               "superseded_by_id" = (select "id" from added_part)
             where "id" in (select "id" from gate)
-          )`
+            returning ${trustFields}
+          )${spreadTrust('superseded')}`
     }
     select "record_id" from added_part
   `
@@ -625,10 +650,12 @@ function isExpected(partId: number, expected: ExpectedPart) {
 
 // Sets the fields that the change names, and the measure with them as one
 // statement. A superseded Decision that gets another status has no successor
-// any more. A new body glues the Part to each Part that it names, and
-// removes the Joint of a mention that is gone (D37). A Joint that a person
-// added stays, and so does the last evidence of a Decision. false: the Part
-// was not in the expected state, and nothing changed.
+// any more. A new status moves the Trust and the Work state with it, and
+// the change travels to the Parts that need this one: see spreadTrust. A new
+// body glues the Part to each Part that it names, and removes the Joint of a
+// mention that is gone (D37). A Joint that a person added stays, and so does
+// the last evidence of a Decision. false: the Part was not in the expected
+// state, and nothing changed.
 export async function updatePart(
   db: ConceptDb,
   projectSlug: string,
@@ -649,6 +676,19 @@ export async function updatePart(
 
   const { parts } = schema
   const matches = isExpected(part.id, expected)
+  const moved =
+    columns.status === undefined
+      ? undefined
+      : stateOfStatus(part.type, columns.status)
+  // The same status again moves nothing: a flagged Part stays flagged.
+  const hasNewStatus = sql`${parts.status} is distinct from ${columns.status ?? null}::text`
+  const changedFields = {
+    id: parts.id,
+    title: parts.title,
+    body: parts.body,
+    trust: parts.trust,
+    workState: parts.workState,
+  }
   const changed = hasColumns
     ? db
         .update(parts)
@@ -656,10 +696,16 @@ export async function updatePart(
           ...columns,
           ...(part.type === 'decision' &&
             columns.status !== undefined && { supersededById: null }),
+          ...(moved && {
+            trust: sql`case when ${hasNewStatus} then ${moved.trust}::text else ${parts.trust} end`,
+            workState: sql`case when ${hasNewStatus} then ${moved.workState}::text else ${parts.workState} end`,
+            awaitedPartId: sql`case when ${hasNewStatus} then null else ${parts.awaitedPartId} end`,
+          }),
+          changedAt: sql`now()`,
         })
         .where(matches)
-        .returning({ id: parts.id })
-    : db.select({ id: parts.id }).from(parts).where(matches)
+        .returning(changedFields)
+    : db.select(changedFields).from(parts).where(matches)
   const changedMeasure =
     nextMeasure === null
       ? sql`, removed_measure as (
@@ -715,6 +761,7 @@ export async function updatePart(
     )`
   const result = await db.execute(sql`
     with changed as ${changed}
+    ${hasColumns ? spreadTrust('changed') : sql``}
     ${nextMeasure === undefined ? sql`` : changedMeasure}
     ${columns.body === undefined ? sql`` : changedJoints}
     select "id" from changed
@@ -743,8 +790,9 @@ export async function setIssueUrl(
 }
 
 // Removes the Part, with the Joints to the Parts that it needs. A Part that
-// another Part needs stays. false: a Part needs it, or it was not in the
-// expected state, and nothing changed.
+// another Part needs stays. A Part that waits on it is back in to-check.
+// false: a Part needs it, or it was not in the expected state, and nothing
+// changed.
 export async function removePart(
   db: ConceptDb,
   projectSlug: string,
@@ -753,7 +801,7 @@ export async function removePart(
 ): Promise<boolean> {
   const part = await getPart(db, projectSlug, recordId)
   const { parts } = schema
-  const removed = await db
+  const removed = db
     .delete(parts)
     .where(
       and(
@@ -764,7 +812,18 @@ export async function removePart(
       ),
     )
     .returning({ id: parts.id })
-  return removed.length > 0
+  const result = await db.execute(sql`
+    with removed as ${removed},
+    woken as (
+      update "parts" set
+        "work_state" = 'to-check',
+        "awaited_part_id" = null,
+        "changed_at" = now()
+      where "awaited_part_id" in (select "id" from removed)
+    )
+    select "id" from removed
+  `)
+  return idRowsSchema.parse(result).rows.length > 0
 }
 
 export const newJointSchema = z.strictObject({
@@ -934,17 +993,20 @@ export async function supersedeDecision(
       where "id" in (${decision.id}::integer, ${successor.id}::integer)
       order by "id"
       for update
-    )
-    update "parts"
-    set "status" = 'superseded', "superseded_by_id" = ${successor.id}::integer
-    where "id" = ${decision.id}::integer
-      and (
-        select "status" from locked where "id" = ${decision.id}::integer
-      ) <> 'superseded'
-      and (
-        select "status" from locked where "id" = ${successor.id}::integer
-      ) = 'accepted'
-    returning "id"
+    ),
+    superseded as (
+      update "parts"
+      set ${supersededFields}, "superseded_by_id" = ${successor.id}::integer
+      where "id" = ${decision.id}::integer
+        and (
+          select "status" from locked where "id" = ${decision.id}::integer
+        ) <> 'superseded'
+        and (
+          select "status" from locked where "id" = ${successor.id}::integer
+        ) = 'accepted'
+      returning ${trustFields}
+    )${spreadTrust('superseded')}
+    select "id" from superseded
   `)
   if (idRowsSchema.parse(result).rows.length > 0) return
 
@@ -952,6 +1014,84 @@ export async function supersedeDecision(
   throw now.status === 'superseded'
     ? new InvalidRecordError(`"${recordId}" is superseded already`)
     : toNotAcceptedError()
+}
+
+// An answer of the owner to a Part, as a request sends it. `wait` names the
+// Part that it waits on.
+export const partAnswerSchema = z.discriminatedUnion('answer', [
+  z.strictObject({ answer: z.enum(answers).exclude(['wait']) }),
+  z.strictObject({
+    answer: z.literal('wait'),
+    waitsOn: z
+      .string()
+      .meta({ description: 'The record id of the awaited Part' }),
+  }),
+])
+
+export type PartAnswer = z.input<typeof partAnswerSchema>
+
+// Reads an answer from the arguments of the CLI.
+export function parsePartAnswer(input: unknown): PartAnswer {
+  return parseInput(partAnswerSchema, input)
+}
+
+// Answers a Part as its owner: one write that sets its Trust, its Work state
+// and its status as the answer says (D39, and the table in docs/concept.md),
+// closes its open flags, and tells the Parts that need it. `wait` keeps the
+// flags. The Work state of the Part must take the answer. The statement
+// asks for the Work state that was read, so of two answers at the same time
+// only the first one writes.
+export async function answerPart(
+  db: ConceptDb,
+  projectSlug: string,
+  recordId: string,
+  input: PartAnswer,
+): Promise<void> {
+  const given = parseInput(partAnswerSchema, input)
+  const projectId = await getProjectId(db, projectSlug)
+  const [part] = await findParts(db, projectId, [recordId])
+  const allowed = allowedAnswers(part.workState)
+  if (!allowed.includes(given.answer))
+    throw new InvalidRecordError(
+      allowed.length === 0
+        ? `"${recordId}" is ${part.workState}: it takes no answer`
+        : `"${recordId}" is ${part.workState}: it takes the answers ${allowed.join(', ')}`,
+    )
+
+  let awaitedPartId: number | null = null
+  if (given.answer === 'wait') {
+    if (given.waitsOn === recordId)
+      throw new InvalidRecordError('a Part cannot wait on itself')
+    const [awaited] = await findParts(db, projectId, [given.waitsOn])
+    if (awaited.workState === 'sunk')
+      throw new InvalidRecordError(`"${given.waitsOn}" is sunk`)
+    awaitedPartId = awaited.id
+  }
+
+  const rule = answerRules[given.answer]
+  const statuses: Partial<Record<schema.PartType, string | null>> = {
+    decision: rule.decisionStatus,
+    insight: rule.insightStatus,
+  }
+  const status = statuses[part.type]
+  const result = await db.execute(sql`
+    with answered as (
+      update "parts" set
+        "trust" = ${rule.trust === undefined ? sql`"trust"` : sql`${rule.trust}::text`},
+        "work_state" = ${rule.workState}::text,
+        "awaited_part_id" = ${awaitedPartId}::integer,
+        ${status === undefined ? sql`` : sql`"status" = ${status}::text,`}
+        "changed_at" = now()
+      where "id" = ${part.id}::integer
+        and "work_state" = ${part.workState}::text
+      returning ${trustFields}
+    )${spreadTrust('answered', sql`${rule.closesFlags}::boolean`)}
+    select "id" from answered
+  `)
+  if (idRowsSchema.parse(result).rows.length === 0)
+    throw new InvalidRecordError(
+      `"${recordId}" changed at the same time: read it and answer again`,
+    )
 }
 
 // What a measure run read for a Part, and when.

@@ -18,6 +18,7 @@ const goalStatusMigration = '0006_goal_mean_status.sql'
 const projectsMigration = '0009_projects.sql'
 const partTablesMigration = '0010_part_tables.sql'
 const cutoverMigration = '0011_part_model_cutover.sql'
+const trustMigration = '0013_trust_and_work_state.sql'
 
 let client: PGlite
 
@@ -544,6 +545,7 @@ describe('the migration that copies the records into the Part model', () => {
   })
 
   it('keeps each record id, and gives each Fact the next id of its new type in Fact number order', async () => {
+    await runMigrationsAfter(cutoverMigration)
     const db = drizzle(client, { schema })
 
     const glue = await listParts(db, 'glue')
@@ -570,6 +572,7 @@ describe('the migration that copies the records into the Part model', () => {
   })
 
   it('turns a Fact into a Confirmed Insight with its source and body', async () => {
+    await runMigrationsAfter(cutoverMigration)
     const db = drizzle(client, { schema })
 
     expect(await findPart(db, 'glue', 'I7')).toMatchObject({
@@ -588,6 +591,7 @@ describe('the migration that copies the records into the Part model', () => {
   })
 
   it('turns a Fact of the list of D35 into a Guardrail or a Hunch', async () => {
+    await runMigrationsAfter(cutoverMigration)
     const db = drizzle(client, { schema })
 
     expect(await findPart(db, 'glue', 'R2')).toMatchObject({
@@ -613,6 +617,7 @@ describe('the migration that copies the records into the Part model', () => {
   })
 
   it('glues each Decision to its Goal and to its evidence in the old order', async () => {
+    await runMigrationsAfter(cutoverMigration)
     const db = drizzle(client, { schema })
 
     const decision = await findPart(db, 'glue', 'D2')
@@ -688,6 +693,7 @@ describe('the migration that copies the records into the Part model', () => {
   })
 
   it('rewrites each old Fact id in a body to the new id in its Project', async () => {
+    await runMigrationsAfter(cutoverMigration)
     const db = drizzle(client, { schema })
 
     expect((await findPart(db, 'glue', 'D2'))?.body).toBe(
@@ -832,5 +838,61 @@ describe('the migration that copies the records into the Part model', () => {
     } finally {
       await other.close()
     }
+  })
+})
+
+describe('the migration that adds Trust and the Work state', () => {
+  beforeEach(async () => {
+    await runMigrationsBefore(trustMigration)
+    await client.exec(`
+      insert into projects (slug, name) values ('glue', 'Glue');
+      insert into concepts (project_id, slug, title) values (1, 'glue', 'Glue');
+      insert into parts (project_id, concept_id, type, record_id, title, status, metric, source) values
+        (1, 1, 'goal', 'G1', 'More users pay', 'open', 'signup to paid', 'okr');
+      insert into parts (project_id, concept_id, type, record_id, title, status, date, source) values
+        (1, 1, 'insight', 'I1', 'Bakers want step videos', null, '2026-10-01', 'interview'),
+        (1, 1, 'insight', 'I2', 'Bakers skip the text', 'draft', '2026-10-01', 'measure');
+      insert into parts (project_id, concept_id, type, record_id, title, status, date, owner) values
+        (1, 1, 'decision', 'D1', 'Show a video', 'superseded', '2026-10-02', 'Tim'),
+        (1, 1, 'decision', 'D2', 'Show the video of the baker', 'accepted', '2026-10-03', 'Tim'),
+        (1, 1, 'decision', 'D3', 'Show two videos', 'proposed', '2026-10-03', 'Tim');
+      insert into parts (project_id, concept_id, type, record_id, title) values
+        (1, 1, 'entity', 'E1', 'Technique');
+    `)
+  })
+
+  function listStates() {
+    return client.query(
+      'select record_id, trust, work_state from parts order by id',
+    )
+  }
+
+  it('reads the Trust and the Work state of each Part from its status', async () => {
+    await runMigration(trustMigration)
+
+    expect((await listStates()).rows).toEqual([
+      { record_id: 'G1', trust: 'solid', work_state: 'published' },
+      { record_id: 'I1', trust: 'solid', work_state: 'published' },
+      { record_id: 'I2', trust: 'not-ready', work_state: 'draft' },
+      { record_id: 'D1', trust: 'wrong', work_state: 'sunk' },
+      { record_id: 'D2', trust: 'solid', work_state: 'published' },
+      { record_id: 'D3', trust: 'not-ready', work_state: 'review' },
+      { record_id: 'E1', trust: 'solid', work_state: 'published' },
+    ])
+  })
+
+  it('takes a Part from the code from before the migration', async () => {
+    await runMigration(trustMigration)
+
+    await client.exec(`
+      insert into parts (project_id, concept_id, type, record_id, title) values
+        (1, 1, 'flow', 'F1', 'Watch a technique');
+    `)
+
+    expect((await listStates()).rows.at(-1)).toEqual({
+      record_id: 'F1',
+      trust: 'not-ready',
+      work_state: 'draft',
+    })
   })
 })
