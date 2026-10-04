@@ -1,0 +1,71 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// A map that is wider than the window scrolls in its own box.
+.map {
+  overflow-x: auto;
+}
+
+// The plan has the size of the layout. The lines and the nodes lie on it.
+.plan {
+  position: relative;
+}
+
+.lines {
+  position: absolute;
+  block-size: 100%;
+  inline-size: 100%;
+  inset: 0;
+}
+
+// One style for every Joint. The stroke does not grow with the drawing, so
+// its width of 1 is one pixel.
+.line {
+  fill: none;
+  stroke: $border-strong-01;
+  vector-effect: non-scaling-stroke;
+}
+
+// A node has the size of the layout, and its content fills it.
+.node {
+  position: absolute;
+  display: grid;
+}
+
+// An empty slot: the dashed border says missing. It holds its one button, at
+// the start edge.
+.emptySlot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 1px dashed $border-strong-01;
+}
+
+// The type of an empty slot that has no button: it takes the room of the button.
+.slotType {
+  @include type-style('label-01');
+
+  padding: $spacing-03 $spacing-05;
+  color: $text-secondary;
+}
+
+// A Concept inside: a surface with its name.
+.surface {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.conceptTitle {
+  @include type-style('heading-compact-01');
+
+  color: $text-primary;
+  overflow-wrap: anywhere;
+}
+
+.label {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}

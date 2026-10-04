@@ -43,6 +43,11 @@ describe('the search parameters of a Project', () => {
     expect(parseProjectSearch(search)).toEqual(search)
   })
 
+  it('reads the map view from the address, and drops another view', () => {
+    expect(parseProjectSearch({ view: 'map' })).toEqual({ view: 'map' })
+    expect(parseProjectSearch({ view: 'list' })).toEqual({})
+  })
+
   it.each([[{ add: 'record' }], [{ add: true }], [{ edit: 'yes' }]])(
     'drops %o, which names no form',
     (search) => {
