@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/timschoch/glue/compare/v1.11.0...v1.11.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* **security:** clear the two code findings of the nightly scan ([#242](https://github.com/timschoch/glue/issues/242)) ([9a065d7](https://github.com/timschoch/glue/commit/9a065d7d5d945e2241d87abb408ae24145b519e4))
+
 ## [1.11.0](https://github.com/timschoch/glue/compare/v1.10.0...v1.11.0) (2026-10-04)
 
 
