@@ -59,8 +59,8 @@ export type FrameProps = {
   onSignOut?: () => void
   // No section while the main window shows every Part type.
   section?: Section
-  // The count of the Parts to check, beside Mine. Zero does not show.
-  toCheckCount?: number
+  // The count of the Parts that Mine lists, beside it. Zero does not show.
+  mineCount?: number
   sectionHref: (section: Section) => string
   concepts: ReadonlyArray<FrameConcept>
   // The open Concept and the Concepts around it, outermost first.
@@ -98,7 +98,7 @@ export function Frame({
   onAddProject,
   onSignOut,
   section,
-  toCheckCount = 0,
+  mineCount = 0,
   sectionHref,
   concepts,
   conceptPath,
@@ -221,8 +221,8 @@ export function Frame({
                   {...link(sectionHref(name))}
                   {...current(name === section)}
                 >
-                  {name === 'Mine' && toCheckCount > 0
-                    ? `${name} ${toCheckCount}`
+                  {name === 'Mine' && mineCount > 0
+                    ? `${name} ${mineCount}`
                     : name}
                 </SideNavLink>
               ))}

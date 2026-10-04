@@ -11,6 +11,7 @@ import { useEffect, useId } from 'react'
 import type { FormEvent, MouseEvent } from 'react'
 
 import styles from './credentials-form.module.scss'
+import { useHydrated } from './use-hydrated.ts'
 
 export type CredentialsValues = {
   name: string
@@ -69,6 +70,7 @@ export function CredentialsForm({
   onOpen,
 }: CredentialsFormProps) {
   const formId = useId()
+  const hydrated = useHydrated()
 
   // New problems: the focus goes to the first wrong field of the form.
   useEffect(() => {
@@ -117,8 +119,10 @@ export function CredentialsForm({
         {title}
       </h1>
       {/* The caller checks the values, so the browser does not. When the
-          page is not hydrated, the browser sends the form itself: `post`
-          keeps the password out of the address. */}
+          page is not hydrated, the browser would send the form itself and
+          load the page again with empty fields. So the button waits for the
+          page, and the fields keep what was typed. If a browser sends the
+          form all the same, `post` keeps the password out of the address. */}
       <Form
         method="post"
         noValidate
@@ -155,7 +159,7 @@ export function CredentialsForm({
         {pending ? (
           <InlineLoading description={pendingAction} />
         ) : (
-          <Button type="submit" className={styles.submit}>
+          <Button type="submit" disabled={!hydrated} className={styles.submit}>
             {action}
           </Button>
         )}
