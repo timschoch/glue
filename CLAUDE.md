@@ -63,7 +63,7 @@ Build the smallest Glue that runs the whole [loop](docs/concept.md#1-the-loop), 
 - Glue builds Glue. Use what the Glue app, its HTTP API and `pnpm concept` have. What is hard to use becomes an issue labelled `user-feedback`. Glue reads these issues as Signals.
 - Dogfood:
   - No ticket without the Decision it implements.
-  - No Decision without a Goal and evidence (Insight or Fact).
+  - No Decision without a Goal and evidence (Insight or Guardrail).
   - Findings go back as Insights: verify failures, review findings, research, analytics, Owner feedback.
 - How Guardrails get enforced (CI, MCP, exports) is product work. Record it as Decisions in Glue.
 - Circle report to the Owner at the end of each circle: shipped, Insights, Decisions proposed, overrides used, next circle.
@@ -99,6 +99,16 @@ The Orchestrator merges a PR only when all of these hold. [guard-workflow.mjs](.
 
 A deliberate skip of a blocked shell command: `GLUE_OVERRIDE="<reason>"` in the command. It is logged to `.temp/overrides.jsonl` and goes into the ring report.
 
+### Proof before change
+
+- No optimisation without a baseline from real runs and a proven gain.
+  - Bad: "I made the CI jobs parallel. It should be faster."
+  - Good: "Baseline 645 s, mean of 14 runs. After the change 157 s, run 37217060242."
+- A skill that the Owner names runs as written: its steps and its output. No own analysis or report in its place.
+  - Bad: an own list of findings in chat in place of the HTML report of `improve-codebase-architecture`.
+  - Good: the sub-agent walk, the HTML report and the question of the skill.
+- A ticket that deletes an HTTP path names each repo to search for callers: `timschoch/glue`, `timschoch/flexibeck-next`.
+
 ### Second product
 
 - Paused in the run of [issue 103](https://github.com/timschoch/glue/issues/103).
@@ -110,7 +120,7 @@ A deliberate skip of a blocked shell command: `GLUE_OVERRIDE="<reason>"` in the 
 
 - Domain language: [GLOSSARY.md](GLOSSARY.md)
 - The target model: [docs/concept.md](docs/concept.md)
-- Glue's own Concept: Goals, Decisions, Insights, Facts, Guardrails in the Neon database. Read it before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. Another Project: `--project <slug>`. Record types: [src/db/concept-fields.ts](src/db/concept-fields.ts). Every ticket and PR names its Decision id.
+- Glue's own Concept: Goals, Decisions, Insights, Guardrails, Entities, Flows, Metrics in the Neon database. Read it before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. Another Project: `--project <slug>`. Part types and their fields: [src/part-fields.ts](src/part-fields.ts). Every ticket and PR names its Decision id.
 - Measure step: `pnpm collect-insights` turns failed checks, blocked reviews and overrides into draft Insights.
 - Decisions about the repo's tooling that serve no Goal: [docs/adr/](docs/adr/)
 
