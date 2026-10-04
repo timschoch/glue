@@ -9,6 +9,8 @@ import { showConceptRecord } from '../src/db/legacy-records.ts'
 import { setReading } from '../src/db/part-records.ts'
 import * as schema from '../src/db/schema.ts'
 import { createTestDatabase } from '../src/db/test-database.ts'
+import { partFields } from '../src/part-fields.ts'
+import type { PartField } from '../src/part-fields.ts'
 import { createFakeGithub } from '../src/test/github.ts'
 import {
   formatDownstreamIssue,
@@ -800,6 +802,8 @@ describe('main', () => {
     expect(help).toContain(
       'decisions: --title --date --owner --status --goal --evidence',
     )
+    expect(help).toContain('goals: --title --metric --source')
+    expect(help).toContain('insights: --title --date --source')
     expect(help).toContain('guardrails: --title --enforced-by')
     expect(help).not.toContain('facts:')
     expect(help).toContain('entities, flows, metrics: --title')
@@ -818,6 +822,24 @@ describe('main', () => {
 })
 
 describe('parseFlags', () => {
+  it.each(Object.entries(partFields))(
+    'knows a flag for each field of the type %s',
+    (_, fields: ReadonlyArray<PartField>) => {
+      const unknown = fields
+        .map(({ name, flag = name }) => `--${flag}`)
+        .filter((flag) => {
+          try {
+            parseFlags([flag, '{}'])
+            return false
+          } catch (error) {
+            return String(error).includes('unknown flag')
+          }
+        })
+
+      expect(unknown).toEqual([])
+    },
+  )
+
   it('parses a flag into its field', () => {
     expect(parseFlags(['--title', 'Ship faster'])).toEqual({
       title: 'Ship faster',

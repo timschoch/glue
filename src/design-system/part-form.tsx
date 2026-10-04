@@ -11,6 +11,8 @@ import {
 import { useId, useState } from 'react'
 import type { FormEvent, MouseEvent } from 'react'
 
+import { listFormFields } from '../part-fields.ts'
+import type { FormField } from '../part-fields.ts'
 import { Card, evidenceLevels, partTypes } from './card.tsx'
 import { PartFormBody } from './part-form-body.tsx'
 import styles from './part-form.module.scss'
@@ -58,46 +60,15 @@ const EMPTY: PartFormValues = {
   evidence: [],
 }
 
-const labels: Record<Field, string> = {
-  title: 'Title',
-  body: 'Body',
-  metric: 'Metric',
-  source: 'Source',
-  owner: 'Owner',
-  date: 'Date',
-  evidenceLevel: 'Evidence level',
-  enforcedBy: 'Enforced by',
-  goal: 'Goal',
-  evidence: 'Evidence',
-}
-
-// The fields that only one Part type has, after the title and the body.
-const typeFields: Record<PartType, ReadonlyArray<Field>> = {
-  insight: ['source', 'date', 'evidenceLevel'],
-  goal: ['metric', 'source'],
-  decision: ['owner', 'date', 'goal', 'evidence'],
-  guardrail: ['enforcedBy'],
-  entity: [],
-  flow: [],
-  metric: [],
-}
-
-// The Joints of a Decision. A Part that exists changes them on its record.
-const jointFields = new Set<Field>(['goal', 'evidence'])
-
 // The Part types that the evidence of a Decision offers. The server wants
 // one Insight or Guardrail among them.
 const evidenceTypes = new Set<PartType>(['insight', 'guardrail', 'decision'])
 
-// A field that a Part can be saved without. Each other field holds a text
-// or a pick.
-const optionalFields = new Set<Field>(['body', 'evidenceLevel'])
-
 const hasValue = (value: PartFormValues[Field]) =>
   typeof value === 'string' ? value.trim() !== '' : Boolean(value?.length)
 
-// The format of a field, as its placeholder.
-const placeholders: Partial<Record<Field, string>> = { date: 'yyyy-mm-dd' }
+// The format of a date, as the placeholder of its field.
+const DATE_FORMAT = 'yyyy-mm-dd'
 
 type OpenHandler = (
   recordId: string,
@@ -237,15 +208,12 @@ export function PartForm({
 }: PartFormProps) {
   const formId = useId()
   const [values, setValues] = useState({ ...EMPTY, ...startValues })
-  const fields: ReadonlyArray<Field> = [
-    'title',
-    'body',
-    ...typeFields[type].filter(
-      (field) => recordId === undefined || !jointFields.has(field),
-    ),
-  ]
+  // A Part that exists changes its Joints on its record.
+  const fields = listFormFields(type).filter(
+    ({ kind }) => recordId === undefined || kind !== 'joint',
+  )
   const canSave = fields.every(
-    (field) => optionalFields.has(field) || hasValue(values[field]),
+    ({ name, required }) => !required || hasValue(values[name]),
   )
 
   const change = (changed: Partial<PartFormValues>) =>
@@ -256,7 +224,7 @@ export function PartForm({
     if (canSave && !pending) onSave(values)
   }
 
-  const control = (field: Field) => {
+  const control = ({ name: field, kind, label }: FormField) => {
     const shared = {
       id: `${formId}-${field}`,
       invalid: errors[field] !== undefined,
@@ -268,7 +236,7 @@ export function PartForm({
           <PartFormBody
             key={field}
             id={shared.id}
-            label={labels[field]}
+            label={label}
             value={values[field]}
             parts={parts.filter((part) => part.id !== recordId)}
             invalidText={errors[field]}
@@ -280,7 +248,7 @@ export function PartForm({
           <Select
             {...shared}
             key={field}
-            labelText={labels[field]}
+            labelText={label}
             value={values[field] ?? ''}
             onChange={({ target }) =>
               change({
@@ -304,7 +272,7 @@ export function PartForm({
           <PartPicker
             key={field}
             id={shared.id}
-            label={labels[field]}
+            label={label}
             parts={parts.filter((part) => part.type === 'goal')}
             picks={values.goal === null ? [] : [values.goal]}
             single
@@ -319,7 +287,7 @@ export function PartForm({
           <PartPicker
             key={field}
             id={shared.id}
-            label={labels[field]}
+            label={label}
             parts={parts.filter((part) => evidenceTypes.has(part.type))}
             picks={values.evidence}
             invalidText={errors[field]}
@@ -343,8 +311,8 @@ export function PartForm({
           <TextInput
             {...shared}
             key={field}
-            labelText={labels[field]}
-            placeholder={placeholders[field]}
+            labelText={label}
+            placeholder={kind === 'date' ? DATE_FORMAT : undefined}
             // Carbon names the reason only as the error message of the
             // input. A screen reader needs it as the description too.
             aria-describedby={
