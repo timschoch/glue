@@ -1,7 +1,7 @@
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { createApp } from './create-app.ts'
 import * as schema from './schema.ts'
@@ -12,16 +12,22 @@ let client: PGlite
 let database: ReturnType<typeof drizzle<typeof schema>>
 let app: ReturnType<typeof createApp>
 
-beforeEach(async () => {
+beforeAll(async () => {
   client = new PGlite()
   database = drizzle(client, { schema })
   await migrate(database, {
     migrationsFolder: new URL('../drizzle', import.meta.url).pathname,
   })
+})
+
+// Each test starts with an empty table and with row ids from 1. That is
+// faster than a new database for each test.
+beforeEach(async () => {
+  await client.exec('truncate comments restart identity')
   app = createApp({ database, readKey })
 })
 
-afterEach(async () => {
+afterAll(async () => {
   await client.close()
 })
 

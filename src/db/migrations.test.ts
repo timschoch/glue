@@ -3,7 +3,7 @@ import { readFile, readdir } from 'node:fs/promises'
 
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { addConceptRecord } from './concept-records.ts'
 import { kinds } from './kinds.ts'
@@ -46,16 +46,31 @@ async function runMigrationsAfter(migration: string) {
   }
 }
 
-beforeEach(() => {
-  client = new PGlite()
-})
+// Builds the start state of a group of tests one time. Each test of the
+// group gets its own copy of it, which is faster than building it again.
+function setStartState(build: () => Promise<void>) {
+  let startState: File | Blob
+
+  beforeAll(async () => {
+    client = new PGlite()
+    await build()
+    // Without the checkpoint, each sequence of the copy skips 32 numbers.
+    await client.exec('checkpoint')
+    startState = await client.dumpDataDir('none')
+    await client.close()
+  })
+
+  beforeEach(() => {
+    client = new PGlite({ loadDataDir: startState })
+  })
+}
 
 afterEach(async () => {
   await client.close()
 })
 
 describe('the migration that adds the record counters', () => {
-  beforeEach(() => runMigrationsBefore(countersMigration))
+  setStartState(() => runMigrationsBefore(countersMigration))
 
   it('starts each counter at the highest number of its Product and folder', async () => {
     await client.exec(`
@@ -99,7 +114,7 @@ describe('the migration that adds the record counters', () => {
 })
 
 describe('the migration that adds the Goal status and the mean measure', () => {
-  beforeEach(() => runMigrationsBefore(goalStatusMigration))
+  setStartState(() => runMigrationsBefore(goalStatusMigration))
 
   it('marks each stored measure object as a funnel, and each Goal as open', async () => {
     await client.exec(`
@@ -143,7 +158,7 @@ describe('the migration that adds the Goal status and the mean measure', () => {
 describe('the migration that renames Product to Project', () => {
   const token = 'glue_orchestrator'
 
-  beforeEach(async () => {
+  setStartState(async () => {
     await runMigrationsBefore(projectsMigration)
     await client.exec(`
       create role glue_ci;
@@ -238,7 +253,7 @@ describe('the migration that adds the tables of the Part model', () => {
   // Project 2 is flexibeck with the root Concept 3.
   // Part 1 is the Goal G1, Part 2 the Insight I1, Part 3 the Decision D1.
   // D1 needs G1.
-  beforeEach(async () => {
+  setStartState(async () => {
     await runMigrationsBefore(partTablesMigration)
     await client.exec(`
       create role glue_ci;
@@ -479,7 +494,7 @@ describe('the migration that copies the records into the Part model', () => {
   // a Guardrail. The Insight counter is at 5, above the highest id I2.
   // The Decision D2 superseded D1 and has the evidence F2, I1, F10, I2, F1.
   // flexibeck: D35 makes F2 a Guardrail and F10 a Hunch.
-  beforeEach(async () => {
+  setStartState(async () => {
     await runMigrationsBefore(cutoverMigration)
     await client.exec(`
       insert into projects (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
@@ -842,7 +857,7 @@ describe('the migration that copies the records into the Part model', () => {
 })
 
 describe('the migration that adds Trust and the Work state', () => {
-  beforeEach(async () => {
+  setStartState(async () => {
     await runMigrationsBefore(trustMigration)
     await client.exec(`
       insert into projects (slug, name) values ('glue', 'Glue');

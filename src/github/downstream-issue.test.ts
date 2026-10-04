@@ -1,7 +1,4 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   addConceptRecord,
@@ -10,11 +7,11 @@ import {
 } from '../db/concept-records.ts'
 import { findRecord } from '../db/legacy-records.ts'
 import * as schema from '../db/schema.ts'
+import { createTestDatabase } from '../db/test-database.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
 import { createDownstreamIssue } from './downstream-issue.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
+const { db } = createTestDatabase(schema)
 
 async function addDecision(status: schema.DecisionStatus) {
   return addConceptRecord(
@@ -33,9 +30,6 @@ async function addDecision(status: schema.DecisionStatus) {
 }
 
 beforeEach(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
   await addConceptRecord(
     db,
     'flexibeck',
@@ -58,10 +52,6 @@ beforeEach(async () => {
     '',
   )
   await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck-next')
-})
-
-afterEach(async () => {
-  await client.close()
 })
 
 describe('createDownstreamIssue', () => {
