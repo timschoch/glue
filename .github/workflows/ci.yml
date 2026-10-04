@@ -15,9 +15,6 @@ concurrency:
 
 jobs:
   verify:
-    # A release PR only bumps the version and CHANGELOG of a main that already
-    # passed. Skipped reports as passed, so the required check clears.
-    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -35,4 +32,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - run: node .agents/skills/verify/scripts/verify.mjs ci
         env:
+          # A PR runs only the tests its diff reaches. The release PR runs the full unit suite and the e2e smoke:
+          # release-please updates it after each merge to main, so each merge gets one full run before a release.
+          VERIFY_FULL: ${{ startsWith(github.head_ref, 'release-please--') && '1' || '' }}
           GLUE_API_TOKEN: ${{ secrets.GLUE_API_TOKEN }} # read token of the Project glue: the PR gate reads Decisions over Glue's HTTP API

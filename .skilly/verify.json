@@ -16,9 +16,9 @@
         { "name": "typecheck", "run": "pnpm run --if-present typecheck" },
         {
           "name": "unit (changed)",
-          "run": "pnpm exec vitest run --changed origin/main --passWithNoTests",
+          "run": "test -n \"$VERIFY_FULL\" || pnpm exec vitest run --changed origin/main --passWithNoTests",
           "target": "vitest.config.ts",
-          "why": "Only the tests the diff reaches, so the push stays inside the budget. The full suite runs in CI."
+          "why": "Only the tests the diff reaches, on a push and on each PR. A diff with a migration or the lockfile runs all tests (forceRerunTriggers in vitest.config.ts). The full suite runs on the release PR and each night (VERIFY_FULL), where this step skips (timschoch/skilly#154)."
         },
         {
           "name": "workflow guards",
@@ -37,7 +37,12 @@
           "why": "Issue link, Decision line that names an existing Decision, read over Glue's HTTP API (GLUE_API_TOKEN), tests with source changes. Reads the PR body, so it runs in CI only; elsewhere it passes."
         },
         { "name": "lint", "run": "pnpm run --if-present lint" },
-        { "name": "unit", "run": "pnpm exec vitest run --passWithNoTests", "target": "vitest.config.ts" },
+        {
+          "name": "unit",
+          "run": "test -z \"$VERIFY_FULL\" || pnpm exec vitest run --passWithNoTests",
+          "target": "vitest.config.ts",
+          "why": "The full suite, only with VERIFY_FULL: the release PR (ci.yml sets it). A PR runs unit (changed)."
+        },
         { "name": "build", "run": "pnpm run --if-present build" },
         {
           "name": "storybook build",
@@ -57,10 +62,10 @@
         },
         {
           "name": "e2e smoke",
-          "run": "pnpm exec playwright test --grep @smoke",
+          "run": "test -z \"$VERIFY_FULL\" || pnpm exec playwright test --grep @smoke",
           "tier": "product",
           "target": "playwright.config.ts",
-          "why": "A merge gate needs the critical paths, not the suite. Tag those specs @smoke; the rest runs nightly."
+          "why": "The critical paths, only with VERIFY_FULL: the release PR. Tag those specs @smoke; the rest runs nightly."
         }
       ]
     },
@@ -68,6 +73,7 @@
       "tier": "product",
       "budgetSeconds": 1800,
       "steps": [
+        { "name": "unit", "run": "pnpm exec vitest run --passWithNoTests", "target": "vitest.config.ts" },
         { "name": "e2e full", "run": "pnpm exec playwright test", "target": "playwright.config.ts" },
         {
           "name": "deps drift",

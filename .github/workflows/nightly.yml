@@ -8,6 +8,10 @@ on:
     - cron: '0 3 * * *' # 03:00 UTC
   workflow_dispatch: {} # so a failure can be re-run without waiting a day
 
+permissions:
+  contents: read
+  issues: write # the red-night issue
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -24,3 +28,12 @@ jobs:
       - if: hashFiles('playwright.config.*') != ''
         run: pnpm exec playwright install --with-deps
       - run: node .agents/skills/verify/scripts/verify.mjs nightly
+      # A red night opens one issue. No second issue while one is open.
+      - if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label nightly-red --state open --json number --jq length)
+          test "$open" != 0 || gh issue create --repo "$GITHUB_REPOSITORY" --label critical --label nightly-red \
+            --title "Nightly red: $(date -u +%F)" --body "The nightly run failed: $RUN_URL"
