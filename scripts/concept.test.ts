@@ -1,7 +1,4 @@
-import { PGlite } from '@electric-sql/pglite'
 import { eq } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -10,6 +7,7 @@ import {
 } from '../src/db/concept-records.ts'
 import { showConceptRecord } from '../src/db/legacy-records.ts'
 import * as schema from '../src/db/schema.ts'
+import { createTestDatabase } from '../src/db/test-database.ts'
 import { createFakeGithub } from '../src/test/github.ts'
 import {
   formatDownstreamIssue,
@@ -19,8 +17,7 @@ import {
 } from './concept.ts'
 
 describe('runConcept', () => {
-  let client: PGlite
-  let db: ReturnType<typeof drizzle<typeof schema>>
+  const { db } = createTestDatabase(schema)
   let fake: ReturnType<typeof createFakeGithub>
 
   const decisionFlags = [
@@ -46,9 +43,6 @@ describe('runConcept', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
     fake = createFakeGithub()
-    client = new PGlite()
-    db = drizzle(client, { schema })
-    await migrate(db, { migrationsFolder: './drizzle' })
     await addConceptRecord(
       db,
       'flexibeck',
@@ -66,9 +60,8 @@ describe('runConcept', () => {
     await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck-next')
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     vi.restoreAllMocks()
-    await client.close()
   })
 
   async function showIssueUrl(id: string) {

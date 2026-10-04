@@ -1,12 +1,8 @@
-import { join } from 'node:path'
-
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { discardInsight } from '../src/db/concept-records.ts'
 import * as schema from '../src/db/schema.ts'
+import { createTestDatabase } from '../src/db/test-database.ts'
 import {
   addInsights,
   extractFailLine,
@@ -14,18 +10,7 @@ import {
   toInsights,
 } from './collect-insights.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
-
-beforeEach(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: join(process.cwd(), 'drizzle') })
-})
-
-afterEach(async () => {
-  await client.close()
-})
+const { db } = createTestDatabase(schema)
 
 const existing = [
   { id: 'I1', source: 'https://github.com/timschoch/glue/pull/7' },

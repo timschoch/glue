@@ -1,18 +1,15 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { setProductRepository } from '../src/db/concept-records.ts'
 import { addProject } from '../src/db/part-records.ts'
 import { findPart } from '../src/db/parts.ts'
 import * as schema from '../src/db/schema.ts'
+import { createTestDatabase } from '../src/db/test-database.ts'
 import { createFakeGithub, failingGithub } from '../src/test/github.ts'
 import { runConcept } from './concept.ts'
 
 describe('pnpm concept signals', () => {
-  let client: PGlite
-  let db: ReturnType<typeof drizzle<typeof schema>>
+  const { db } = createTestDatabase(schema)
   let github = createFakeGithub().github
   let log: ReturnType<typeof vi.spyOn>
   let error: ReturnType<typeof vi.spyOn>
@@ -31,16 +28,12 @@ describe('pnpm concept signals', () => {
     log = vi.spyOn(console, 'log').mockImplementation(() => {})
     error = vi.spyOn(console, 'error').mockImplementation(() => {})
     github = createFakeGithub([signal]).github
-    client = new PGlite()
-    db = drizzle(client, { schema })
-    await migrate(db, { migrationsFolder: './drizzle' })
     await addProject(db, 'glue')
     await setProductRepository(db, 'glue', 'timschoch/glue')
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     vi.restoreAllMocks()
-    await client.close()
   })
 
   it('lists the Signals of the Project glue', async () => {

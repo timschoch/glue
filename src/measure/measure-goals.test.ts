@@ -1,7 +1,4 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   addConceptRecord,
@@ -15,6 +12,7 @@ import type {
   MeanMeasure,
 } from '../db/goal-measure.ts'
 import * as schema from '../db/schema.ts'
+import { createTestDatabase } from '../db/test-database.ts'
 import { measureGoals } from './measure-goals.ts'
 import type {
   FunnelQuery,
@@ -24,8 +22,7 @@ import type {
   MetricSource,
 } from './metric-source.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
+const { client, db } = createTestDatabase(schema)
 
 const NOW = new Date('2026-09-30T10:00:00Z')
 const LAST_WINDOW_END = new Date('2026-09-30T00:00:00Z')
@@ -38,16 +35,6 @@ const measure: FunnelMeasure = {
   target: 0.25,
   window_days: 7,
 }
-
-beforeEach(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
-})
-
-afterEach(async () => {
-  await client.close()
-})
 
 async function addGoal(
   goalMeasure: GoalMeasure,
