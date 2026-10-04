@@ -104,7 +104,7 @@ export const answerRules: Record<Answer, AnswerRule> = {
 }
 
 // The answers that a Part in the Work state takes.
-export function allowedAnswers(workState: WorkState): Answer[] {
+export function listAnswers(workState: WorkState): Answer[] {
   return answers.filter((answer) =>
     answerRules[answer].from.includes(workState),
   )

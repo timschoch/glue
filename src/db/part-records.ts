@@ -10,7 +10,7 @@ import type { GoalMeasure } from './goal-measure.ts'
 import { kinds } from './kinds.ts'
 import type { Kind } from './kinds.ts'
 import {
-  allowedAnswers,
+  listAnswers,
   answerRules,
   answers,
   NEW_PART_STATE,
@@ -1050,7 +1050,7 @@ export async function answerPart(
   const given = parseInput(partAnswerSchema, input)
   const projectId = await getProjectId(db, projectSlug)
   const [part] = await findParts(db, projectId, [recordId])
-  const allowed = allowedAnswers(part.workState)
+  const allowed = listAnswers(part.workState)
   if (!allowed.includes(given.answer))
     throw new InvalidRecordError(
       allowed.length === 0
