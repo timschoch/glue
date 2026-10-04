@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.2](https://github.com/timschoch/glue/compare/v1.11.1...v1.11.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* **app:** fix the faults from the live walk of release 1.11.0 ([#250](https://github.com/timschoch/glue/issues/250)) ([ec599f6](https://github.com/timschoch/glue/commit/ec599f6ed310066e4976fa31e8d3c3a251e98c09)), closes [#233](https://github.com/timschoch/glue/issues/233)
+
 ## [1.11.1](https://github.com/timschoch/glue/compare/v1.11.0...v1.11.1) (2026-10-04)
 
 
