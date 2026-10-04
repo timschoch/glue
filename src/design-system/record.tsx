@@ -10,6 +10,8 @@ import {
   Modal,
   Popover,
   PopoverContent,
+  RadioButton,
+  RadioButtonGroup,
   TextArea,
 } from '@carbon/react'
 import { useEffect, useId, useMemo, useState } from 'react'
@@ -120,6 +122,20 @@ export type RecordPart = RecordPartSummary & {
   flags: ReadonlyArray<RecordFlag>
   // What happened to the Part, newest first.
   activity: ReadonlyArray<RecordActivity>
+  // What a Decision asks: its options, the pick of its author and the answer
+  // that it got. `pick` and `option` count the options from 1.
+  question: {
+    options: ReadonlyArray<string>
+    pick: number | null
+    answer: {
+      option: number | null
+      text: string | null
+      by: string
+      at: string
+    } | null
+  } | null
+  // A superseded Decision that was never accepted.
+  unchosen: boolean
 }
 
 type OpenHandler = (
@@ -381,6 +397,9 @@ export type RecordProps = {
   error?: string
   // With it the box Next takes an answer in words, above the button.
   words?: { value: string; onChange: (value: string) => void }
+  // With it the box Next shows the options of the question as one choice.
+  // `value` counts the options from 1.
+  choice?: { value: number | null; onChange: (option: number) => void }
   onEdit?: () => void
   // The Parts that a new Joint or the pick of an action can go to.
   jointParts?: ReadonlyArray<RecordPartSummary>
@@ -409,6 +428,7 @@ export function Record({
   pending,
   error,
   words,
+  choice,
   onEdit,
   jointParts = [],
   onAddJoint,
@@ -421,6 +441,8 @@ export function Record({
   const searchId = useId()
   const nextId = useId()
   const wordsId = useId()
+  const choiceId = useId()
+  const questionId = useId()
   const pickId = useId()
   const activityId = useId()
   // Carbon renders the closed menu of the button on the server and not in
@@ -443,7 +465,8 @@ export function Record({
     ...[...part.needs, ...part.neededBy].map((end) => end.part.id),
   ])
   const { word, Glyph, className } = signs[part.trust]
-  const { measure, issueUrl } = part
+  const { measure, issueUrl, question } = part
+  const given = question?.answer
   const issueNumber = issueUrl && ISSUE_NUMBER.exec(issueUrl)?.[0]
   const fields: Array<[string, ReactNode]> = [
     ['Metric', part.metric],
@@ -473,7 +496,7 @@ export function Record({
       <header className={styles.head}>
         <div className={styles.signs}>
           <Glyph className={className} />
-          <span>{word}</span>
+          <span>{part.unchosen ? 'Not chosen' : word}</span>
           <span>{partTypes[part.type]}</span>
           <span>{part.id}</span>
           <div className={styles.controls}>
@@ -518,6 +541,24 @@ export function Record({
           <h2 id={nextId} className={styles.groupTitle}>
             Next
           </h2>
+          {choice && question && (
+            <RadioButtonGroup
+              legendText="Options"
+              name={choiceId}
+              orientation="vertical"
+              valueSelected={choice.value ?? undefined}
+              onChange={(option) => choice.onChange(Number(option))}
+            >
+              {question.options.map((option, index) => (
+                <RadioButton
+                  key={option}
+                  id={`${choiceId}-${index + 1}`}
+                  labelText={option}
+                  value={index + 1}
+                />
+              ))}
+            </RadioButtonGroup>
+          )}
           {words && (
             <div className={styles.words}>
               <TextArea
@@ -602,6 +643,38 @@ export function Record({
           }}
           onRequestClose={() => setConfirming(undefined)}
         />
+      )}
+      {question && !choice && (
+        <section aria-labelledby={questionId} className={styles.group}>
+          <h2 id={questionId} className={styles.groupTitle}>
+            {given ? 'Answer' : 'Options'}
+          </h2>
+          <ol className={styles.options}>
+            {question.options.map((option, index) => {
+              const chosen = given?.option === index + 1
+              return (
+                <li
+                  key={option}
+                  aria-current={chosen || undefined}
+                  className={chosen ? styles.chosen : undefined}
+                >
+                  {option}
+                </li>
+              )
+            })}
+            {given?.text != null && (
+              <li aria-current className={styles.chosen}>
+                {given.text}
+              </li>
+            )}
+          </ol>
+          {given && (
+            <div className={styles.state}>
+              <span>{given.by}</span>
+              <time dateTime={given.at}>{given.at.slice(0, DAY_LENGTH)}</time>
+            </div>
+          )}
+        </section>
       )}
       {part.body.trim() !== '' && (
         <Body body={part.body} parts={bodyParts} onOpen={onOpen} />

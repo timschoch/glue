@@ -56,6 +56,8 @@ const decision: Part = {
   signals: [],
   answers: ['not-ready', 'sink'],
   activity: [],
+  question: null,
+  unchosen: false,
 }
 
 const href = ({ id }: PartSummary) => `/glue/${id}`
@@ -184,6 +186,13 @@ describe('a Part in the record view', () => {
 
     expect(record).toMatchObject({ trust: 'wrong', workState: 'sunk' })
     expect(record.needs[0].part.trust).toBe('flagged')
+  })
+
+  it('has the question of a Decision, and that it was not chosen', () => {
+    const question = { options: ['Yes', 'No'], pick: 1, answer: null }
+    const record = toRecordPart({ ...decision, question, unchosen: true }, href)
+
+    expect(record).toMatchObject({ question, unchosen: true })
   })
 
   it('shows the Decision that supersedes it and the ones it supersedes', () => {

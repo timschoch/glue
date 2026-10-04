@@ -26,12 +26,14 @@ import {
   addPart,
   addProject,
   answerPart,
+  answerQuestion,
   expectedPartSchema,
   newConceptSchema,
   newJointSchema,
   newPartSchema,
   partAnswerSchema,
   partChangeSchema,
+  questionAnswerSchema,
   removeJoint,
   updatePart,
 } from './part-records.ts'
@@ -89,6 +91,10 @@ export const answerInputSchema = partReadInputSchema.extend({
   answer: partAnswerSchema,
 })
 
+export const questionAnswerInputSchema = partReadInputSchema.extend({
+  answer: questionAnswerSchema,
+})
+
 export const jointAddInputSchema = projectInputSchema.extend({
   joint: newJointSchema,
 })
@@ -132,6 +138,7 @@ export type PartAddInput = z.infer<typeof partAddInputSchema>
 export type PartUpdateInput = z.infer<typeof partUpdateInputSchema>
 export type ProjectAddInput = z.infer<typeof projectAddInputSchema>
 export type AnswerInput = z.infer<typeof answerInputSchema>
+export type QuestionAnswerInput = z.infer<typeof questionAnswerInputSchema>
 export type JointAddInput = z.infer<typeof jointAddInputSchema>
 export type JointRemoveInput = z.infer<typeof jointRemoveInputSchema>
 
@@ -200,6 +207,14 @@ export function createPartActions(request: ActionRequest) {
     answerPart: withMember(
       (db, { project, recordId, answer }: AnswerInput, member) =>
         answerPart(db, project, recordId, { ...answer, by: member.name })
+          .then(() => toSavedPart(project, recordId))
+          .catch(toFailure),
+    ),
+
+    // The answer to a question carries the name of the person of the session.
+    answerQuestion: withMember(
+      (db, { user }, { project, recordId, answer }: QuestionAnswerInput) =>
+        answerQuestion(db, project, recordId, { ...answer, by: user.name })
           .then(() => toSavedPart(project, recordId))
           .catch(toFailure),
     ),

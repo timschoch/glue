@@ -59,6 +59,14 @@ const DECISION: RecordPart = {
   signals: [],
   flags: [],
   activity: [],
+  question: null,
+  unchosen: false,
+}
+
+const QUESTION = {
+  options: ['Cache it', 'Render on the edge', 'Do nothing'],
+  pick: 2,
+  answer: null,
 }
 
 // Carbon's dialog watches its size, which jsdom can not do.
@@ -834,6 +842,112 @@ describe('the box Next', () => {
     await userEvent.type(field, '!')
 
     expect(onChange).toHaveBeenCalledExactlyOnceWith('Yes!')
+  })
+})
+
+describe('the question of a Decision', () => {
+  const next = () => within(screen.getByRole('region', { name: 'Next' }))
+
+  it('shows the options as one choice in the box Next, the pick of the author first', async () => {
+    const onChange = vi.fn()
+    renderRecord(
+      { question: QUESTION },
+      {
+        actions: [{ label: 'Answer', onClick: () => {} }],
+        words: { value: '', onChange: () => {} },
+        choice: { value: 2, onChange },
+      },
+    )
+
+    const options = next().getAllByRole('radio')
+
+    expect(
+      options.map((option) => [
+        option.closest('div')?.textContent,
+        (option as HTMLInputElement).checked,
+      ]),
+    ).toEqual([
+      ['Cache it', false],
+      ['Render on the edge', true],
+      ['Do nothing', false],
+    ])
+    expect(next().getByRole('textbox', { name: 'Answer' })).toBeDefined()
+    expect(next().getAllByRole('button')).toHaveLength(1)
+
+    await userEvent.click(next().getByRole('radio', { name: 'Do nothing' }))
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(3)
+  })
+
+  it('shows the chosen option and who chose it, with the other options', () => {
+    renderRecord({
+      question: {
+        ...QUESTION,
+        answer: {
+          option: 3,
+          text: null,
+          by: 'Ada',
+          at: '2026-10-04T08:00:00.000Z',
+        },
+      },
+    })
+
+    const answer = within(screen.getByRole('region', { name: 'Answer' }))
+
+    expect(
+      answer
+        .getAllByRole('listitem')
+        .map((item) => [item.textContent, item.getAttribute('aria-current')]),
+    ).toEqual([
+      ['Cache it', null],
+      ['Render on the edge', null],
+      ['Do nothing', 'true'],
+    ])
+    expect(answer.getByText('Ada')).toBeDefined()
+    expect(answer.getByText('2026-10-04')).toBeDefined()
+  })
+
+  it('shows an answer in words as the chosen one, after the options', () => {
+    renderRecord({
+      question: {
+        ...QUESTION,
+        answer: {
+          option: null,
+          text: 'Buy a CDN',
+          by: 'Ada',
+          at: '2026-10-04T08:00:00.000Z',
+        },
+      },
+    })
+
+    const answer = within(screen.getByRole('region', { name: 'Answer' }))
+
+    expect(
+      answer
+        .getAllByRole('listitem')
+        .map((item) => [item.textContent, item.getAttribute('aria-current')]),
+    ).toEqual([
+      ['Cache it', null],
+      ['Render on the edge', null],
+      ['Do nothing', null],
+      ['Buy a CDN', 'true'],
+    ])
+  })
+
+  it('lists the options of a question that nobody can answer now', () => {
+    renderRecord({ question: QUESTION })
+
+    expect(
+      within(screen.getByRole('region', { name: 'Options' }))
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(QUESTION.options)
+  })
+
+  it('says that a superseded Decision that was never accepted was not chosen', () => {
+    renderRecord({ trust: 'wrong', unchosen: true })
+
+    expect(texts(inRecord('header'))[0]).toBe('Not chosen')
   })
 })
 

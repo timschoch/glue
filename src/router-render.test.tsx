@@ -111,6 +111,7 @@ async function renderPage(path: string, changed: Partial<Server> = {}) {
     addPart: vi.fn(() => Promise.resolve(saved('D4'))),
     updatePart: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),
     answerPart: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),
+    answerQuestion: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),
     addJoint: vi.fn(() => Promise.resolve({ id: 20 })),
     removeJoint: vi.fn(() => Promise.resolve(undefined)),
     fetchPeople: vi.fn(() => Promise.resolve(people)),
@@ -892,6 +893,75 @@ describe('a flagged record', () => {
     await waitFor(() =>
       expect(server.answerPart).toHaveBeenCalledWith(
         answered('D4', { answer: 'wait', waitsOn: 'R1' }),
+      ),
+    )
+  })
+})
+
+describe('the question of a Decision', () => {
+  const asked = {
+    fetchPart: vi.fn(
+      changedPart('D4', {
+        status: 'proposed',
+        trust: 'not-ready',
+        workState: 'review',
+        answers: ['supersede', 'not-ready', 'sink'],
+        question: {
+          options: ['Cache it', 'Render on the edge', 'Do nothing'],
+          pick: 2,
+          answer: null,
+        },
+      }),
+    ),
+  }
+
+  it('answers with the pick of the author with the one button', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', asked)
+
+    await act('Answer')
+
+    await waitFor(() =>
+      expect(server.answerQuestion).toHaveBeenCalledWith(
+        answered('D4', { option: 2 }),
+      ),
+    )
+    expect(server.answerPart).not.toHaveBeenCalled()
+  })
+
+  it('answers with the option that the person picks', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', asked)
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Do nothing' }))
+    await act('Answer')
+
+    await waitFor(() =>
+      expect(server.answerQuestion).toHaveBeenCalledWith(
+        answered('D4', { option: 3 }),
+      ),
+    )
+  })
+
+  it('answers with the words of the person in place of an option', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', asked)
+
+    await userEvent.type(field('Answer'), 'Buy a CDN')
+    await act('Answer')
+
+    await waitFor(() =>
+      expect(server.answerQuestion).toHaveBeenCalledWith(
+        answered('D4', { text: 'Buy a CDN' }),
+      ),
+    )
+  })
+
+  it('keeps the other answers of the Decision in the menu', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', asked)
+
+    await act('Not ready')
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('D4', { answer: 'not-ready' }),
       ),
     )
   })

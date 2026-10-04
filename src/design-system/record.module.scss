@@ -68,6 +68,29 @@ $text-width: $card-width * 2;
   max-inline-size: $text-width;
 }
 
+// The width of the bar that marks the current item, as in the side nav.
+$current-bar: 3px;
+
+// The options of a question, one per line. The bar marks the chosen one.
+.options {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  max-inline-size: $text-width;
+
+  li {
+    overflow-wrap: anywhere;
+    padding-inline-start: calc(#{$spacing-05} + #{$current-bar});
+  }
+
+  .chosen {
+    border-inline-start: $current-bar solid $border-interactive;
+    padding-inline-start: $spacing-05;
+  }
+}
+
 // The open flags: each one is its reason above the card of its cause.
 .flags {
   display: flex;

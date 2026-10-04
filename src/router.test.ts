@@ -55,6 +55,9 @@ function context(overrides: Partial<Server> = {}): Server {
     answerPart: vi.fn(({ recordId }) =>
       Promise.resolve({ id: recordId, issueMissing: false }),
     ),
+    answerQuestion: vi.fn(({ recordId }) =>
+      Promise.resolve({ id: recordId, issueMissing: false }),
+    ),
     addJoint: vi.fn(() => Promise.resolve({ id: 1 })),
     removeJoint: vi.fn(() => Promise.resolve(undefined)),
     fetchPeople: vi.fn(() => Promise.resolve(people)),

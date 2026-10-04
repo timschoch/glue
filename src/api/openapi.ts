@@ -39,6 +39,7 @@ import {
   partUpdateSchema,
   projectConceptSchema,
   projectSchema,
+  questionAnswerInputSchema,
 } from './part-api.ts'
 import {
   assignmentInputSchema,
@@ -371,6 +372,23 @@ function listPartPaths() {
         responses: {
           200: {
             description: 'The Part after the answer',
+            ...jsonContent(changedPartSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/parts/{recordId}/question-answers`]: {
+      post: {
+        operationId: 'answerQuestion',
+        summary:
+          'Answer the question of a proposed Decision: pick an option or write an answer. The Decision becomes accepted',
+        requestParams: { path: path.extend({ recordId }) },
+        requestBody: jsonContent(questionAnswerInputSchema),
+        responses: {
+          200: {
+            description: 'The Decision after the answer',
             ...jsonContent(changedPartSchema),
           },
           400: errorResponses[400],

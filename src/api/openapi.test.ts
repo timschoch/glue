@@ -41,6 +41,7 @@ describe('GET /api/v1/openapi.json', () => {
             'get /parts/{recordId}',
             'patch /parts/{recordId}',
             'post /parts/{recordId}/answers',
+            'post /parts/{recordId}/question-answers',
             'get /mine',
             'get /signals',
             'post /signals/insights',
@@ -165,6 +166,26 @@ describe('GET /api/v1/openapi.json', () => {
       type: 'array',
       items: { $ref: '#/components/schemas/PartSummary' },
     })
+  })
+
+  it('describes the question of a Decision and its answer', async () => {
+    const document = await handleGetOpenApi().json()
+    const { schemas } = document.components
+    const answer =
+      document.paths[
+        '/api/v1/projects/{project}/parts/{recordId}/question-answers'
+      ].post
+
+    expect(answer.operationId).toBe('answerQuestion')
+    expect(answer.requestBody.content['application/json'].schema).toEqual({
+      $ref: '#/components/schemas/QuestionAnswerInput',
+    })
+    expect(JSON.stringify(schemas.QuestionAnswerInput)).toContain('"option"')
+    expect(JSON.stringify(schemas.QuestionAnswerInput)).toContain('"text"')
+    expect(schemas.Part.required).toEqual(
+      expect.arrayContaining(['question', 'unchosen']),
+    )
+    expect(JSON.stringify(schemas.PartInput)).toContain('"options"')
   })
 
   it('describes the issue of a Decision in the answer, and in no request', async () => {

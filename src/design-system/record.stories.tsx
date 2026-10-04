@@ -92,7 +92,19 @@ const noFields = {
   signals: [],
   flags: [],
   activity: [{ kind: 'published', at: '2026-10-03T08:00:00.000Z' }],
+  question: null,
+  unchosen: false,
 } satisfies Partial<RecordPart>
+
+const question = {
+  options: [
+    'Show the video of the creator',
+    'Show a video of Bakeday',
+    'Show a drawing of each technique',
+  ],
+  pick: 1,
+  answer: null,
+}
 
 const meta = {
   title: 'Record',
@@ -397,6 +409,82 @@ export const InReview: Story = {
   render: function Render(args) {
     const [words, setWords] = useState('')
     return <Record {...args} words={{ value: words, onChange: setWords }} />
+  },
+}
+
+// A proposed Decision with options: one choice, with the pick of the author,
+// and the field for another answer.
+export const Question: Story = {
+  args: {
+    part: {
+      ...Decision.args.part,
+      title: 'What does a technique show?',
+      trust: 'not-ready',
+      workState: 'review',
+      question,
+    },
+    actions: [
+      { label: 'Answer', onClick: () => {} },
+      {
+        label: 'Sink it',
+        onClick: () => {},
+        confirm: { title: 'Sink Decision D12', label: 'Sink it' },
+      },
+    ],
+  },
+  render: function Render(args) {
+    const [words, setWords] = useState('')
+    const [option, setOption] = useState<number | null>(question.pick)
+    return (
+      <Record
+        {...args}
+        words={{ value: words, onChange: setWords }}
+        choice={{ value: option, onChange: setOption }}
+      />
+    )
+  },
+}
+
+export const QuestionAnswered: Story = {
+  args: {
+    part: {
+      ...Decision.args.part,
+      title: 'What does a technique show?',
+      question: {
+        ...question,
+        answer: {
+          option: 2,
+          text: null,
+          by: 'Mara',
+          at: '2026-10-04T08:00:00.000Z',
+        },
+      },
+    },
+  },
+}
+
+export const QuestionAnsweredInWords: Story = {
+  args: {
+    part: {
+      ...Decision.args.part,
+      title: 'What does a technique show?',
+      question: {
+        ...question,
+        answer: {
+          option: null,
+          text: 'Show the video of the creator, and a drawing where no video exists',
+          by: 'Mara',
+          at: '2026-10-04T08:00:00.000Z',
+        },
+      },
+    },
+  },
+}
+
+// A superseded Decision that was never accepted.
+export const NotChosen: Story = {
+  args: {
+    part: { ...Superseded.args.part, unchosen: true },
   },
 }
 

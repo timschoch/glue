@@ -17,6 +17,7 @@ import type {
   PartAddInput,
   PartUpdateInput,
   ProjectAddInput,
+  QuestionAnswerInput,
   SavedPart,
   SignalInsightAddInput,
   UnassignInput,
@@ -60,6 +61,7 @@ export type Server = {
   addPart: (part: PartAddInput) => Promise<SavedPart | Failure>
   updatePart: (part: PartUpdateInput) => Promise<SavedPart | Failure>
   answerPart: (answer: AnswerInput) => Promise<SavedPart | Failure>
+  answerQuestion: (answer: QuestionAnswerInput) => Promise<SavedPart | Failure>
   addJoint: (joint: JointAddInput) => Promise<{ id: number } | Failure>
   removeJoint: (joint: JointRemoveInput) => Promise<Failure | undefined>
   addSignalInsight: (

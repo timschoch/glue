@@ -105,6 +105,12 @@ const requests = {
       recordId: 'G1',
       answer: { answer: 'sink' },
     }),
+  answerQuestion: () =>
+    actions.answerQuestion({
+      project,
+      recordId: 'G1',
+      answer: { option: 1 },
+    }),
   listMine: () => actions.listMine({ project }),
   listMeasured: () => actions.listMeasured({ project }),
   listSignals: () => actions.listSignals({ project }),
@@ -402,6 +408,41 @@ describe('a server function of the Part model with a session', () => {
     expect((await findPart(db, project, 'D1'))?.body).toMatch(
       /^Ada, \d{4}-\d{2}-\d{2}: Yes, go$/,
     )
+  })
+
+  it('answers the question of a Decision with the name of the person of the session', async () => {
+    await actions.addPart({
+      project,
+      part: {
+        ...decision,
+        status: 'proposed',
+        options: ['Before the push', 'In CI'],
+        pick: 1,
+      },
+    })
+
+    const saved = await actions.answerQuestion({
+      project,
+      recordId: 'D1',
+      answer: { option: 2, by: 'Eve' },
+    })
+
+    expect(saved).toEqual({ id: 'D1', issueMissing: false })
+    expect(await findPart(db, project, 'D1')).toMatchObject({
+      status: 'accepted',
+      question: { answer: { option: 2, text: null, by: 'Ada' } },
+    })
+    expect(fake.issues).toHaveLength(1)
+  })
+
+  it('answers a question that the Decision does not have as a failure', async () => {
+    const refused = await actions.answerQuestion({
+      project,
+      recordId: 'G1',
+      answer: { option: 1 },
+    })
+
+    expect(refused).toEqual({ message: expect.any(String) })
   })
 
   it('answers an answer that the Work state does not take as a failure', async () => {

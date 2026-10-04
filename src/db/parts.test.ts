@@ -326,6 +326,9 @@ describe('findPart', () => {
       signals: [],
       answers: ['supersede', 'not-ready', 'sink'],
       activity: [{ kind: 'changed', at: expect.any(String) }],
+      question: null,
+      // Superseded, and never accepted.
+      unchosen: true,
     })
   })
 

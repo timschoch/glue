@@ -93,6 +93,8 @@ export function toRecordPart(
     needs: toEnds(part.needs),
     neededBy: toEnds(part.neededBy),
     signals: part.signals,
+    question: part.question,
+    unchosen: part.unchosen,
     flags: part.flags.flatMap(({ cause, reason }) => {
       const found = findCause(cause.id)
       return found ? { reason, part: found } : []

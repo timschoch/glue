@@ -189,6 +189,8 @@ export async function addConceptRecord(
         ],
         supersedes: fields.supersedes as string | undefined,
         supersededBy: fields.superseded_by as string | undefined,
+        options: fields.option as string[] | undefined,
+        pick: fields.pick === undefined ? undefined : Number(fields.pick),
         body,
       })
     }

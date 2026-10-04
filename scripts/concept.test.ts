@@ -659,6 +659,102 @@ describe('runConcept', () => {
     expect(record.body).toMatch(/^Ada, \d{4}-\d{2}-\d{2}: Too slow$/)
   })
 
+  describe('a Decision with options', () => {
+    const questionFlags = [
+      ...decisionFlags,
+      '--status',
+      'proposed',
+      '--option',
+      'Cache it',
+      '--option',
+      'Render on the edge',
+      '--option',
+      'Do nothing',
+      '--pick',
+      '2',
+    ]
+
+    function listPrinted() {
+      return vi.mocked(console.log).mock.calls.map(([line]) => String(line))
+    }
+
+    it('shows its options in their order, with the pick of the author', async () => {
+      await run('add', 'decisions', ...questionFlags)
+
+      await run('show', 'D1', '--project', 'flexibeck')
+
+      expect(listPrinted()).toEqual(
+        expect.arrayContaining([
+          'option: 1 Cache it',
+          'option: 2 Render on the edge (pick)',
+          'option: 3 Do nothing',
+        ]),
+      )
+    })
+
+    it('takes an option as the answer, accepts the Decision and opens its issue', async () => {
+      await run('add', 'decisions', ...questionFlags)
+
+      await run(
+        'answer',
+        'D1',
+        '--option',
+        '3',
+        '--by',
+        'Ada',
+        '--project',
+        'flexibeck',
+      )
+      await run('show', 'D1', '--project', 'flexibeck')
+
+      const printed = listPrinted()
+      expect(printed).toContain('status: accepted')
+      expect(printed).toContainEqual(
+        expect.stringMatching(/^answer: option 3, Ada, \d{4}-\d{2}-\d{2}$/),
+      )
+      expect(fake.issues).toHaveLength(1)
+    })
+
+    it('takes an answer in words', async () => {
+      await run('add', 'decisions', ...questionFlags)
+
+      await run(
+        'answer',
+        'D1',
+        '--text',
+        'Buy a CDN',
+        '--by',
+        'Ada',
+        '--project',
+        'flexibeck',
+      )
+      await run('show', 'D1', '--project', 'flexibeck')
+
+      expect(listPrinted()).toContainEqual(
+        expect.stringMatching(/^answer: Buy a CDN, Ada, \d{4}-\d{2}-\d{2}$/),
+      )
+    })
+
+    it('shows a superseded Decision that was never accepted as not chosen', async () => {
+      await run('add', 'decisions', ...questionFlags)
+      await run('add', 'decisions', ...decisionFlags, '--status', 'accepted')
+      await run(
+        'set',
+        'D1',
+        '--status',
+        'superseded',
+        '--superseded-by',
+        'D2',
+        '--project',
+        'flexibeck',
+      )
+
+      await run('show', 'D1', '--project', 'flexibeck')
+
+      expect(listPrinted()).toContain('outcome: not chosen')
+    })
+  })
+
   it('rejects an unknown command and points to the help', async () => {
     await expect(run('lst')).rejects.toThrow(
       'unknown command "lst". See pnpm concept --help',
