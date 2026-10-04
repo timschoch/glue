@@ -6,13 +6,13 @@ import {
   InlineNotification,
   Select,
   SelectItem,
-  TextArea,
   TextInput,
 } from '@carbon/react'
 import { useId, useState } from 'react'
 import type { FormEvent, MouseEvent } from 'react'
 
 import { Card, evidenceLevels, partTypes } from './card.tsx'
+import { PartFormBody } from './part-form-body.tsx'
 import styles from './part-form.module.scss'
 import { PartSearch } from './part-search.tsx'
 import type { EvidenceLevel, PartType } from './card.tsx'
@@ -85,8 +85,9 @@ const typeFields: Record<PartType, ReadonlyArray<Field>> = {
 // The Joints of a Decision. A Part that exists changes them on its record.
 const jointFields = new Set<Field>(['goal', 'evidence'])
 
-// The Part types that a Decision takes as evidence.
-const evidenceTypes = new Set<PartType>(['insight', 'guardrail'])
+// The Part types that the evidence of a Decision offers. The server wants
+// one Insight or Guardrail among them.
+const evidenceTypes = new Set<PartType>(['insight', 'guardrail', 'decision'])
 
 // A field that a Part can be saved without. Each other field holds a text
 // or a pick.
@@ -104,12 +105,14 @@ type OpenHandler = (
 ) => void
 
 // The needed Parts of one field: a search over the given Parts, and each
-// pick as a minimal card with the one control that removes it.
+// pick as a minimal card with the one control that removes it. A field that
+// holds one pick shows its label in the place of the search while it has it.
 function PartPicker({
   id,
   label,
   parts,
   picks,
+  single = false,
   invalidText,
   onPick,
   onRemove,
@@ -120,6 +123,7 @@ function PartPicker({
   parts: ReadonlyArray<PartFormPart>
   // The record ids of the picks.
   picks: ReadonlyArray<string>
+  single?: boolean
   invalidText?: string
   onPick: (recordId: string) => void
   onRemove: (recordId: string) => void
@@ -131,13 +135,17 @@ function PartPicker({
 
   return (
     <div className={styles.picker}>
-      <PartSearch
-        id={id}
-        label={label}
-        parts={parts.filter((part) => !picks.includes(part.id))}
-        invalidText={invalidText}
-        onPick={onPick}
-      />
+      {single && pickedParts.length > 0 && invalidText === undefined ? (
+        <span className={styles.pickerLabel}>{label}</span>
+      ) : (
+        <PartSearch
+          id={id}
+          label={label}
+          parts={parts.filter((part) => !picks.includes(part.id))}
+          invalidText={invalidText}
+          onPick={onPick}
+        />
+      )}
       {pickedParts.length > 0 && (
         <ul aria-label={label} className={styles.picks}>
           {pickedParts.map((part) => (
@@ -257,12 +265,14 @@ export function PartForm({
     switch (field) {
       case 'body':
         return (
-          <TextArea
-            {...shared}
+          <PartFormBody
             key={field}
-            labelText={labels[field]}
+            id={shared.id}
+            label={labels[field]}
             value={values[field]}
-            onChange={({ target }) => change({ [field]: target.value })}
+            parts={parts.filter((part) => part.id !== recordId)}
+            invalidText={errors[field]}
+            onChange={(body) => change({ body })}
           />
         )
       case 'evidenceLevel':
@@ -297,6 +307,7 @@ export function PartForm({
             label={labels[field]}
             parts={parts.filter((part) => part.type === 'goal')}
             picks={values.goal === null ? [] : [values.goal]}
+            single
             invalidText={errors[field]}
             onPick={(goal) => change({ goal })}
             onRemove={() => change({ goal: null })}
