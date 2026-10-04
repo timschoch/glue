@@ -58,6 +58,7 @@ const DECISION: RecordPart = {
   neededBy: [],
   signals: [],
   flags: [],
+  activity: [],
 }
 
 // Carbon's dialog watches its size, which jsdom can not do.
@@ -839,6 +840,94 @@ describe('the box Next', () => {
     await userEvent.type(field, '!')
 
     expect(onChange).toHaveBeenCalledExactlyOnceWith('Yes!')
+  })
+})
+
+describe('the step bar of a record', () => {
+  const flow = {
+    name: 'Insight to Decision',
+    steps: ['Set Goal', 'Choose', 'Sign'],
+    current: 2,
+  }
+
+  it('sits between the head and the box Next', () => {
+    renderRecord(
+      {},
+      { flow, actions: [{ label: 'Sign off', onClick: () => {} }] },
+    )
+
+    const bar = screen.getByRole('list', { name: 'Insight to Decision' })
+
+    expect(inRecord('header').nextElementSibling).toBe(bar)
+    expect(bar.nextElementSibling).toBe(
+      screen.getByRole('region', { name: 'Next' }),
+    )
+    expect(
+      within(bar)
+        .getAllByRole('button')
+        .filter((step) => step.getAttribute('aria-current') === 'step')
+        .map((step) => step.title),
+    ).toEqual(['Sign'])
+  })
+
+  it('is not there without a flow', () => {
+    renderRecord()
+
+    expect(screen.queryByRole('list')).toBeNull()
+  })
+})
+
+describe('the activity of a record', () => {
+  const activity = [
+    { kind: 'changed', at: '2026-10-04T08:00:00.000Z' },
+    {
+      kind: 'flag-closed',
+      at: '2026-10-03T09:00:00.000Z',
+      flag: { reason: 'changed', part: INSIGHT },
+    },
+    {
+      kind: 'flag-opened',
+      at: '2026-10-03T08:00:00.000Z',
+      flag: { reason: 'changed', part: INSIGHT },
+    },
+    { kind: 'published', at: '2026-10-02T08:00:00.000Z' },
+  ] as const
+
+  it('lists what happened and when, in the order given, as the last group', () => {
+    renderRecord({ ...JOINTS, activity })
+
+    const group = screen.getByRole('region', { name: 'Activity' })
+
+    expect(
+      within(group)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([
+      '2026-10-04Edited',
+      '2026-10-03Flag closedChangedI7',
+      '2026-10-03Flag openedChangedI7',
+      '2026-10-02Published',
+    ])
+    expect(screen.getByRole('article').lastElementChild).toBe(group)
+  })
+
+  it('opens the cause of a flag', async () => {
+    const onOpen = vi.fn()
+    renderRecord({ activity }, { onOpen })
+
+    const [link] = within(
+      screen.getByRole('region', { name: 'Activity' }),
+    ).getAllByRole('link', { name: 'I7' })
+    await userEvent.click(link)
+
+    expect(link.getAttribute('href')).toBe('#I7')
+    expect(onOpen).toHaveBeenCalledWith('I7', expect.anything())
+  })
+
+  it('has no group without an entry', () => {
+    renderRecord()
+
+    expect(screen.queryByRole('region', { name: 'Activity' })).toBeNull()
   })
 })
 

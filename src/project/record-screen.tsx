@@ -1,4 +1,4 @@
-import { getRouteApi } from '@tanstack/react-router'
+import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { useCallback, useMemo, useState } from 'react'
 import type { MouseEvent } from 'react'
 
@@ -6,9 +6,10 @@ import type { Answer, Part, PartSummary } from '../db/parts.ts'
 import { partTypes } from '../design-system/card.tsx'
 import { Record } from '../design-system/record.tsx'
 import type { RecordAction } from '../design-system/record.tsx'
+import { findCommonFlow } from './common-flow.ts'
 import { PartFormScreen } from './part-form-screen.tsx'
 import { toRecordPart, toRecordSummaries } from './part-views.ts'
-import { changePin } from './project-search.ts'
+import { changePin, isPartType } from './project-search.ts'
 import { useProjectLinks } from './use-project-links.ts'
 import { useWrite } from './use-write.ts'
 
@@ -34,8 +35,10 @@ export function RecordScreen({
   part: Part
   parts: ReadonlyArray<PartSummary>
 }) {
+  const router = useRouter()
   const { answerPart, addJoint, removeJoint } = projectRoute.useRouteContext()
-  const { project, search, recordHref, open, changeSearch } = useProjectLinks()
+  const { project, search, conceptHref, recordHref, open, changeSearch } =
+    useProjectLinks()
   const { pending, failure, write } = useWrite()
   // The answer in words to a Decision in review.
   const [words, setWords] = useState('')
@@ -47,6 +50,7 @@ export function RecordScreen({
     () => toRecordPart(part, recordHref, parts),
     [part, recordHref, parts],
   )
+  const flow = useMemo(() => findCommonFlow(part), [part])
   const handleOpen = useCallback(
     (recordId: string, event: MouseEvent<HTMLAnchorElement>) => {
       const opened = bodyParts.find(({ id }) => id === recordId)
@@ -63,6 +67,10 @@ export function RecordScreen({
   }
   if (search.add === 'decision' && supersedes) {
     return <PartFormScreen type="decision" superseded={part} parts={parts} />
+  }
+  // The next step of a flow adds a Part that needs this one.
+  if (isPartType(search.add)) {
+    return <PartFormScreen type={search.add} needed={part} parts={parts} />
   }
 
   const name = `${partTypes[part.type]} ${part.id}`
@@ -101,17 +109,41 @@ export function RecordScreen({
     label: 'Supersede',
     onClick: () => void changeSearch({ ...search, add: 'decision' }),
   }
-  // A published Decision has no usual answer: the next step is the Decision
-  // that supersedes it.
-  const actions = !supersedes
+  // A published Decision has no usual answer: the Decision that supersedes
+  // it comes before the answers.
+  const answerActions = !supersedes
     ? answers
     : part.workState === 'published'
       ? [supersede, ...answers]
       : [...answers, supersede]
+  // The next step of the flow is the button. A next step that is an answer
+  // is the usual answer, which comes first already. Each other next step
+  // opens a form or the home Concept.
+  const next = flow?.next
+  const actions =
+    next === undefined || next.kind === 'answer'
+      ? answerActions
+      : [
+          {
+            label: next.label,
+            onClick: () =>
+              void (next.kind === 'concept'
+                ? router.navigate({ href: conceptHref(part.concept) })
+                : changeSearch(
+                    next.kind === 'edit'
+                      ? { ...search, edit: true }
+                      : { ...search, add: next.type },
+                  )),
+          },
+          ...answerActions,
+        ]
 
   return (
     <Record
       part={record}
+      flow={
+        flow && { name: flow.name, steps: flow.steps, current: flow.current }
+      }
       bodyParts={bodyParts}
       actions={actions}
       pending={pending}

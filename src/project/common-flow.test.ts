@@ -1,0 +1,210 @@
+import { describe, expect, it } from 'vitest'
+
+import type { Part, PartSummary } from '../db/parts.ts'
+import { findCommonFlow } from './common-flow.ts'
+
+const summary: PartSummary = {
+  id: 'D1',
+  type: 'decision',
+  title: 'Show the video of the creator',
+  status: 'accepted',
+  trust: 'solid',
+  workState: 'published',
+  concept: 'glue',
+  conceptTitle: 'Glue',
+}
+
+const published: Part = {
+  ...summary,
+  body: '',
+  owner: 'Tim',
+  date: '2026-10-02',
+  source: null,
+  metric: null,
+  enforcedBy: null,
+  evidenceLevel: null,
+  issueUrl: null,
+  measure: null,
+  supersededBy: null,
+  supersedes: [],
+  needs: [],
+  neededBy: [],
+  flags: [],
+  waitsOn: null,
+  signals: [],
+  answers: ['not-ready', 'sink'],
+  activity: [],
+}
+
+const draft = {
+  trust: 'not-ready',
+  workState: 'draft',
+  answers: ['supersede', 'not-ready', 'sink'],
+} satisfies Partial<Part>
+
+function neededBy(...types: Array<PartSummary['type']>): Part['neededBy'] {
+  return types.map((type, jointId) => ({
+    jointId,
+    twoWay: false,
+    link: false,
+    part: { ...summary, id: `X${jointId}`, type },
+  }))
+}
+
+describe('the common flow of a Part', () => {
+  it('asks to raise the level of an Insight that is a hunch', () => {
+    expect(
+      findCommonFlow({ ...published, type: 'insight', evidenceLevel: 'hunch' }),
+    ).toEqual({
+      name: 'Evidence to Insight',
+      steps: ['Group', 'Check', 'Verify'],
+      current: 1,
+      next: { kind: 'edit', label: 'Raise the level' },
+    })
+  })
+
+  it('moves an Insight one step with each Evidence level', () => {
+    const insight = { ...published, type: 'insight' } as const
+
+    expect(findCommonFlow({ ...insight, ...draft })?.current).toBe(0)
+    expect(
+      findCommonFlow({ ...insight, evidenceLevel: 'pattern' })?.current,
+    ).toBe(2)
+  })
+
+  it('asks for a Decision from a confirmed Insight that no Decision needs', () => {
+    const insight = {
+      ...published,
+      type: 'insight',
+      evidenceLevel: 'confirmed',
+    } as const
+
+    expect(findCommonFlow(insight)).toMatchObject({
+      current: 3,
+      next: { kind: 'add', type: 'decision', label: 'Add Decision' },
+    })
+    expect(
+      findCommonFlow({ ...insight, neededBy: neededBy('decision') })?.next,
+    ).toBeUndefined()
+  })
+
+  it('asks for a Decision on a Goal that has none', () => {
+    expect(findCommonFlow({ ...published, type: 'goal' })).toEqual({
+      name: 'Insight to Decision',
+      steps: ['Set Goal', 'Choose', 'Sign'],
+      current: 1,
+      next: { kind: 'add', type: 'decision', label: 'Add Decision' },
+    })
+  })
+
+  it('ends the flow of a Goal with its Decision', () => {
+    expect(
+      findCommonFlow({
+        ...published,
+        type: 'goal',
+        neededBy: neededBy('decision'),
+      }),
+    ).toMatchObject({ current: 3, next: undefined })
+  })
+
+  it('asks for the sign-off of a Decision in review', () => {
+    expect(
+      findCommonFlow({ ...published, ...draft, workState: 'review' }),
+    ).toEqual({
+      name: 'Insight to Decision',
+      steps: ['Set Goal', 'Choose', 'Sign'],
+      current: 2,
+      next: { kind: 'answer', answer: 'supersede' },
+    })
+  })
+
+  it('asks for a Flow on a published Decision with no Flow and no Entity', () => {
+    expect(findCommonFlow(published)).toEqual({
+      name: 'Decision to Brief',
+      steps: ['Fill slots', 'Sign'],
+      current: 0,
+      next: { kind: 'add', type: 'flow', label: 'Add Flow' },
+    })
+  })
+
+  it('sends a Decision with an Entity to its Concept for the sign-off', () => {
+    expect(
+      findCommonFlow({ ...published, neededBy: neededBy('entity') }),
+    ).toMatchObject({
+      current: 1,
+      next: { kind: 'concept', label: 'Open Concept' },
+    })
+  })
+
+  it('counts no sunk Part', () => {
+    const [sunk] = neededBy('flow')
+
+    expect(
+      findCommonFlow({
+        ...published,
+        neededBy: [{ ...sunk, part: { ...sunk.part, workState: 'sunk' } }],
+      })?.current,
+    ).toBe(0)
+  })
+
+  it('sends a published tier 1 Part to its Concept for the sign-off', () => {
+    for (const type of ['flow', 'entity', 'guardrail'] as const) {
+      expect(findCommonFlow({ ...published, type })).toEqual({
+        name: 'Decision to Brief',
+        steps: ['Fill slots', 'Sign'],
+        current: 1,
+        next: { kind: 'concept', label: 'Open Concept' },
+      })
+    }
+  })
+
+  it('asks for the sign-off of a draft', () => {
+    expect(findCommonFlow({ ...published, ...draft, type: 'flow' })).toEqual({
+      name: 'Decision to Brief',
+      steps: ['Fill slots', 'Sign'],
+      current: 0,
+      next: { kind: 'answer', answer: 'supersede' },
+    })
+    expect(
+      findCommonFlow({ ...published, ...draft, type: 'goal' }),
+    ).toMatchObject({ current: 0, next: { answer: 'supersede' } })
+  })
+
+  it('asks for an Insight from a published Metric', () => {
+    expect(findCommonFlow({ ...published, type: 'metric' })).toEqual({
+      name: 'Use to Insight',
+      steps: ['Measure', 'Read'],
+      current: 1,
+      next: { kind: 'add', type: 'insight', label: 'Add Insight' },
+    })
+  })
+
+  it('shows the flow of a flag on a Part of any type, with the usual answer', () => {
+    expect(
+      findCommonFlow({
+        ...published,
+        type: 'flow',
+        trust: 'flagged',
+        workState: 'to-check',
+        answers: ['fine', 'wait', 'need-time', 'not-ready', 'sink'],
+      }),
+    ).toEqual({
+      name: 'React to a change',
+      steps: ['Check', 'Answer'],
+      current: 0,
+      next: { kind: 'answer', answer: 'fine' },
+    })
+  })
+
+  it('keeps a waiting Part at the answer, with no next step', () => {
+    expect(
+      findCommonFlow({ ...published, trust: 'flagged', workState: 'waiting' }),
+    ).toMatchObject({ name: 'React to a change', current: 1, next: undefined })
+  })
+
+  it('has no flow for a sunk Part', () => {
+    expect(
+      findCommonFlow({ ...published, trust: 'wrong', workState: 'sunk' }),
+    ).toBeUndefined()
+  })
+})

@@ -125,6 +125,10 @@ const jointEndSchema = z
   })
   .meta({ id: 'JointEnd' })
 
+const flagCauseSchema = z
+  .object({ id: z.string(), title: z.string() })
+  .meta({ description: 'The Part that caused the flag' })
+
 export const partSchema = z
   .object({
     ...partSummarySchema.shape,
@@ -154,9 +158,7 @@ export const partSchema = z
     flags: z
       .array(
         z.object({
-          cause: z
-            .object({ id: z.string(), title: z.string() })
-            .meta({ description: 'The Part that caused the flag' }),
+          cause: flagCauseSchema,
           reason: z.enum(flagReasons),
           createdAt: z.iso.datetime(),
         }),
@@ -171,6 +173,22 @@ export const partSchema = z
     answers: z.array(z.enum(answers)).meta({
       description: 'The answers that the Work state takes, the usual one first',
     }),
+    activity: z
+      .array(
+        z.union([
+          z.object({
+            kind: z.enum(['changed', 'published']),
+            at: z.iso.datetime(),
+          }),
+          z.object({
+            kind: z.enum(['flag-opened', 'flag-closed']),
+            at: z.iso.datetime(),
+            cause: flagCauseSchema,
+            reason: z.enum(flagReasons),
+          }),
+        ]),
+      )
+      .meta({ description: 'What happened to the Part, newest first' }),
   })
   .meta({ id: 'Part' }) satisfies z.ZodType<Part>
 

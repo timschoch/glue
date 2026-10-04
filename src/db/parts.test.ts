@@ -323,7 +323,53 @@ describe('findPart', () => {
       waitsOn: null,
       signals: [],
       answers: ['supersede', 'not-ready', 'sink'],
+      activity: [{ kind: 'changed', at: expect.any(String) }],
     })
+  })
+
+  it('lists what happened to the Part, newest first', async () => {
+    await client.exec(`
+      update parts set published_at = '2026-10-02T08:00:00Z', changed_at = '2026-10-04T08:00:00Z' where id = 6;
+      insert into flags (part_id, cause_part_id, reason, created_at, closed_at) values
+        (6, 3, 'changed', '2026-10-03T08:00:00Z', '2026-10-03T09:00:00Z'),
+        (6, 5, 'not-ready', '2026-10-03T10:00:00Z', null);
+    `)
+    const changed = {
+      cause: { id: 'D1', title: 'Show the video of the creator' },
+      reason: 'changed',
+    }
+
+    const part = await findPart(db, 'glue', 'F1')
+
+    expect(part?.activity).toEqual([
+      { kind: 'changed', at: '2026-10-04T08:00:00.000Z' },
+      {
+        kind: 'flag-opened',
+        at: '2026-10-03T10:00:00.000Z',
+        cause: { id: 'E1', title: 'Technique' },
+        reason: 'not-ready',
+      },
+      { kind: 'flag-closed', at: '2026-10-03T09:00:00.000Z', ...changed },
+      { kind: 'flag-opened', at: '2026-10-03T08:00:00.000Z', ...changed },
+      { kind: 'published', at: '2026-10-02T08:00:00.000Z' },
+    ])
+    expect(part?.flags).toEqual([
+      {
+        cause: { id: 'E1', title: 'Technique' },
+        reason: 'not-ready',
+        createdAt: '2026-10-03T10:00:00.000Z',
+      },
+    ])
+  })
+
+  it('leaves out the change that is the sign-off itself', async () => {
+    await client.exec(`
+      update parts set published_at = '2026-10-02T08:00:00Z', changed_at = '2026-10-02T08:00:00Z' where id = 6;
+    `)
+
+    expect((await findPart(db, 'glue', 'F1'))?.activity).toEqual([
+      { kind: 'published', at: '2026-10-02T08:00:00.000Z' },
+    ])
   })
 
   it('returns the Parts that a Part supersedes', async () => {

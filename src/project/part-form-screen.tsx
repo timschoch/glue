@@ -20,16 +20,19 @@ const projectRoute = getRouteApi('/_signed-in/$project')
 
 // The Part form in the main window. With `edited` it changes that Part.
 // Without it, it adds a Part of the type to the open Concept. With
-// `superseded`, the new Decision supersedes that Decision.
+// `superseded`, the new Decision supersedes that Decision. With `needed`,
+// the new Part needs that Part.
 export function PartFormScreen({
   type,
   edited,
   superseded,
+  needed,
   parts,
 }: {
   type: PartType
   edited?: Part
   superseded?: Part
+  needed?: Part
   // The Parts of the Project: the pickers search them.
   parts: ReadonlyArray<PartSummary>
 }) {
@@ -46,6 +49,11 @@ export function PartFormScreen({
   const [startValues] = useState<Partial<PartFormValues>>(() => {
     if (edited) return toFormValues(edited)
     const added = { owner: session.user.name, date: todayUtc() }
+    // A Decision needs its Goal and its evidence through the form.
+    if (needed?.type === 'goal') return { ...added, goal: needed.id }
+    if (needed?.type === 'insight' || needed?.type === 'guardrail') {
+      return { ...added, evidence: [needed.id] }
+    }
     if (!superseded) return added
     const { goal, evidence } = toFormValues(superseded)
     return { ...added, goal, evidence }
@@ -79,6 +87,7 @@ export function PartFormScreen({
           part: toNewPart(type, values, {
             concept: superseded?.concept ?? concept,
             supersedes: superseded?.id,
+            needs: needed && type !== 'decision' ? [needed.id] : undefined,
           }),
         }),
       ({ id }) =>

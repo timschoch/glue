@@ -54,6 +54,7 @@ const decision: Part = {
   waitsOn: null,
   signals: [],
   answers: ['not-ready', 'sink'],
+  activity: [],
 }
 
 const href = ({ id }: PartSummary) => `/glue/${id}`
@@ -159,6 +160,37 @@ describe('a Part in the record view', () => {
           href: '/glue/I1',
         },
       },
+    ])
+  })
+
+  it('shows what happened, with the card of the cause of each flag', () => {
+    const record = toRecordPart(
+      {
+        ...decision,
+        activity: [
+          {
+            kind: 'flag-opened',
+            at: '2026-10-03T08:00:00.000Z',
+            cause: { id: 'I1', title: 'Bakers want step videos' },
+            reason: 'changed',
+          },
+          { kind: 'published', at: '2026-10-02T08:00:00.000Z' },
+        ],
+      },
+      href,
+      [goal, insight],
+    )
+
+    expect(record.activity).toEqual([
+      {
+        kind: 'flag-opened',
+        at: '2026-10-03T08:00:00.000Z',
+        flag: {
+          reason: 'changed',
+          part: expect.objectContaining({ id: 'I1', href: '/glue/I1' }),
+        },
+      },
+      { kind: 'published', at: '2026-10-02T08:00:00.000Z', flag: undefined },
     ])
   })
 

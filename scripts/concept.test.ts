@@ -332,6 +332,7 @@ describe('runConcept', () => {
       'needs: R1 CI takes ten minutes at most',
       'trust: not-ready',
       'work_state: draft',
+      expect.stringMatching(/^activity: \S+ changed$/),
       '\nFrom the push to the green check.',
     ])
   })
@@ -441,6 +442,7 @@ describe('runConcept', () => {
       'concept: flexibeck',
       'trust: not-ready',
       'work_state: draft',
+      expect.stringMatching(/^activity: \S+ changed$/),
     ])
   })
 
@@ -514,6 +516,9 @@ describe('runConcept', () => {
         /^flag: R1 changed \d{4}-\d{2}-\d{2} CI takes five minutes$/,
       ),
       'waits_on: R1 CI takes five minutes',
+      expect.stringMatching(/^activity: \S+ changed$/),
+      expect.stringMatching(/^activity: \S+ flag-opened R1 changed$/),
+      expect.stringMatching(/^activity: \S+ published$/),
     ])
   })
 

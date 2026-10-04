@@ -56,12 +56,23 @@ export function findProblems(
 
 // The new Part of the form. A new Decision is proposed. One that supersedes
 // a Decision is accepted, and the old one becomes superseded with it.
+// `needs` are the Parts that a Part of another type needs: a Decision
+// needs the Goal and the evidence of the form.
 export function toNewPart(
   type: PartType,
   values: PartFormValues,
-  { concept, supersedes }: { concept: string; supersedes?: string },
+  {
+    concept,
+    supersedes,
+    needs,
+  }: { concept: string; supersedes?: string; needs?: Array<string> },
 ): NewPart {
-  const common = { concept, title: values.title, body: values.body }
+  const common = {
+    concept,
+    title: values.title,
+    body: values.body,
+    ...(needs && { needs }),
+  }
   const date = values.date.trim()
   switch (type) {
     case 'insight':

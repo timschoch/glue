@@ -22,6 +22,7 @@ import type { MarkdownNode } from '../mention.ts'
 import { replaceMentions } from '../mention.ts'
 import { Card, evidenceLevels, partTypes, signs, workStates } from './card.tsx'
 import { PartSearch } from './part-search.tsx'
+import { StepBar } from './step-bar.tsx'
 import styles from './record.module.scss'
 import type {
   CardProps,
@@ -30,9 +31,13 @@ import type {
   Trust,
   WorkState,
 } from './card.tsx'
+import type { StepBarProps } from './step-bar.tsx'
 
 // The number at the end of an issue address.
 const ISSUE_NUMBER = /\d+$/
+
+// The length of the day in an ISO time: 2026-10-02.
+const DAY_LENGTH = 10
 
 // What a card shows of a Part: `PartSummary` of the read model, with its
 // Trust, its Work state and the place that opens it.
@@ -68,6 +73,22 @@ export type RecordFlag = {
   part: RecordPartSummary
 }
 
+// What happened to a Part: an edit, its first sign-off, or a flag that
+// opened or closed.
+const activityKinds = {
+  changed: 'Edited',
+  published: 'Published',
+  'flag-opened': 'Flag opened',
+  'flag-closed': 'Flag closed',
+} as const
+
+// One entry of the activity list, with its time as ISO.
+export type RecordActivity = {
+  kind: keyof typeof activityKinds
+  at: string
+  flag?: RecordFlag
+}
+
 // One Part with all the record view shows: `Part` of the read model.
 export type RecordPart = RecordPartSummary & {
   body: string
@@ -92,6 +113,8 @@ export type RecordPart = RecordPartSummary & {
   signals: ReadonlyArray<{ url: string; title: string }>
   // The open flags, oldest first.
   flags: ReadonlyArray<RecordFlag>
+  // What happened to the Part, newest first.
+  activity: ReadonlyArray<RecordActivity>
 }
 
 type OpenHandler = (
@@ -336,6 +359,8 @@ export type RecordAction = ClickAction | { label: string; pick: PartPick }
 
 export type RecordProps = {
   part: RecordPart
+  // The common flow that the Part is in, with its current step.
+  flow?: StepBarProps
   // The Parts whose record ids the body names.
   bodyParts?: ReadonlyArray<RecordPartSummary>
   pinned: boolean
@@ -358,11 +383,13 @@ export type RecordProps = {
   onRemoveJoint?: (jointId: number) => void
 }
 
-// One Part in the main window: the head, the box Next with the one button,
-// the open flags, the body, the type fields that have a value, and the Parts
-// it is glued to as groups of cards.
+// One Part in the main window: the head, the step bar of its flow, the box
+// Next with the one button, the open flags, the body, the type fields that
+// have a value, the Parts it is glued to as groups of cards, and what
+// happened to it.
 export function Record({
   part,
+  flow,
   bodyParts = [],
   pinned,
   onPinChange,
@@ -382,6 +409,7 @@ export function Record({
   const nextId = useId()
   const wordsId = useId()
   const pickId = useId()
+  const activityId = useId()
   // The action that waits for the answer of its dialog.
   const [confirming, setConfirming] = useState<ClickAction>()
   // The pick that waits for its Part.
@@ -467,6 +495,7 @@ export function Record({
           </div>
         )}
       </header>
+      {flow && <StepBar {...flow} />}
       {(action || pending !== undefined || error !== undefined) && (
         <section aria-labelledby={nextId} className={styles.action}>
           <h2 id={nextId} className={styles.groupTitle}>
@@ -624,6 +653,34 @@ export function Record({
         ends={partEnds(part.supersedes)}
         onOpen={onOpen}
       />
+      {part.activity.length > 0 && (
+        <section aria-labelledby={activityId} className={styles.group}>
+          <h2 id={activityId} className={styles.groupTitle}>
+            Activity
+          </h2>
+          <ol className={styles.activity}>
+            {part.activity.map(({ kind, at, flag }) => (
+              <li key={`${at} ${kind} ${flag?.part.id}`}>
+                <time dateTime={at}>{at.slice(0, DAY_LENGTH)}</time>
+                <span>{activityKinds[kind]}</span>
+                {flag && (
+                  <>
+                    <span>{flagReasons[flag.reason]}</span>
+                    <Link
+                      href={flag.part.href}
+                      onClick={
+                        onOpen && ((event) => onOpen(flag.part.id, event))
+                      }
+                    >
+                      {flag.part.id}
+                    </Link>
+                  </>
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
     </article>
   )
 }
