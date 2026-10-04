@@ -401,11 +401,17 @@ export const joints = pgTable(
   ],
 )
 
-export const flagReasons = ['changed', 'not-ready', 'wrong'] as const
+export const flagReasons = [
+  'changed',
+  'not-ready',
+  'wrong',
+  'off-target',
+] as const
 export type FlagReason = (typeof flagReasons)[number]
 
 // A flag tells the owner of `partId` to look: `causePartId`, a Part that it
-// needs, changed, or is not ready, or is wrong. An answer closes the flag.
+// needs, changed, or is not ready, or is wrong, or has a reading that misses
+// its target. An answer closes the flag.
 export const flags = pgTable(
   'flags',
   {
@@ -425,7 +431,7 @@ export const flags = pgTable(
   (table) => [
     check(
       'flags_reason_check',
-      sql`${table.reason} in ('changed', 'not-ready', 'wrong')`,
+      sql`${table.reason} in ('changed', 'not-ready', 'wrong', 'off-target')`,
     ),
     // One open flag per cause and reason. A second reason is a second flag.
     uniqueIndex('flags_open_unique')

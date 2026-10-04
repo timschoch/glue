@@ -2,7 +2,7 @@ import { getRouteApi } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import type { ProjectBuilds } from '../db/builds.ts'
-import type { Concept } from '../db/parts.ts'
+import type { Concept, PartSummary } from '../db/parts.ts'
 import type { ContractState } from '../db/contracts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
@@ -13,6 +13,7 @@ import { ContractSection } from './contract-screen.tsx'
 import { LinkedBuilds } from './linked-builds.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
+import { toReading } from './part-views.ts'
 import { PeopleScreen } from './people-screen.tsx'
 import { UNKNOWN_CONCEPT, isPartType, lensTypes } from './project-search.ts'
 import { SignalInsightScreen } from './signal-insight-screen.tsx'
@@ -25,8 +26,9 @@ const projectRoute = getRouteApi('/_signed-in/$project')
 // builds. The form that the address
 // names takes the place of the Concept. So does the form of the Insight that
 // grows from the picked Signals. The section Mine shows the Parts of the
-// whole Project that need the owner. The section People shows the members of
-// the Project in place of a Concept.
+// whole Project that need the owner. The section Use shows its Metrics and
+// its measured Goals, each with its newest value against its target. The
+// section People shows the members of the Project in place of a Concept.
 export function ConceptScreen({
   concept,
   contract,
@@ -38,7 +40,7 @@ export function ConceptScreen({
   signals?: ProjectSignals
   builds?: ProjectBuilds
 }) {
-  const { parts, mine } = projectRoute.useLoaderData()
+  const { parts, mine, measured } = projectRoute.useLoaderData()
   const { search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
@@ -72,18 +74,32 @@ export function ConceptScreen({
     },
   }))
 
+  const toCard = (part: PartSummary) => ({
+    id: part.id,
+    type: part.type,
+    title: part.title,
+    trust: part.trust,
+    workState: part.workState,
+    concept: part.conceptTitle,
+    href: recordHref(part),
+  })
+
   if (search.section === 'Mine') {
     return (
       <PartCards
         title="Mine"
-        parts={mine.map((part) => ({
-          id: part.id,
-          type: part.type,
-          title: part.title,
-          trust: part.trust,
-          workState: part.workState,
-          concept: part.conceptTitle,
-          href: recordHref(part),
+        parts={mine.map(toCard)}
+        onOpen={({ href }, event) => open(href, event)}
+      />
+    )
+  }
+  if (search.section === 'Use') {
+    return (
+      <PartCards
+        title="Use"
+        parts={measured.map((part) => ({
+          ...toCard(part),
+          reading: toReading(part.measure),
         }))}
         onOpen={({ href }, event) => open(href, event)}
       />

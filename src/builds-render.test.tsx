@@ -42,6 +42,7 @@ async function renderPage(path: string, overrides: Partial<Server> = {}) {
     ),
     fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
     fetchMine: vi.fn(() => Promise.resolve([])),
+    fetchMeasured: vi.fn(() => Promise.resolve([])),
     fetchSignals: vi.fn(() => Promise.resolve({ signals: [], reason: null })),
     fetchBuilds: vi.fn(() => Promise.resolve({ builds, reason: null })),
     addSignalInsight: vi.fn(() => Promise.resolve(saved)),

@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
 import { Frame, PlainFrame } from './frame.tsx'
+import { PartCards } from './part-cards.tsx'
+import { Readings } from './part-cards.stories.tsx'
 
 const meta = {
   title: 'Frame',
@@ -67,6 +69,17 @@ export const Pinned: StoryObj<typeof meta> = {
 // No section is chosen: the main window shows every Part type.
 export const NoSection: StoryObj<typeof meta> = {
   args: { section: undefined },
+}
+
+// The section Use: the Metrics and the measured Goals of the Project, each
+// with its newest value against its target.
+export const Use: StoryObj<typeof meta> = {
+  args: {
+    section: 'Use',
+    conceptPath: [],
+    trail: [],
+    children: <PartCards title="Use" parts={Readings.args?.parts ?? []} />,
+  },
 }
 
 // No Project can be added and nobody is signed in.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Part, PartSummary } from '../db/parts.ts'
-import { toRecordPart } from './part-views.ts'
+import type { Part, PartMeasure, PartSummary } from '../db/parts.ts'
+import { toReading, toRecordPart } from './part-views.ts'
 
 const goal: PartSummary = {
   id: 'G1',
@@ -43,6 +43,7 @@ const decision: Part = {
   evidenceLevel: null,
   issueUrl: 'https://github.com/timschoch/glue/issues/1',
   measure: null,
+  measured: [],
   supersededBy: null,
   supersedes: [],
   needs: [
@@ -58,6 +59,69 @@ const decision: Part = {
 }
 
 const href = ({ id }: PartSummary) => `/glue/${id}`
+
+// A funnel that misses its target.
+const funnelReading: PartMeasure = {
+  measure: {
+    kind: 'funnel',
+    source: 'mock-analytics',
+    steps: ['signed-up', 'paid'],
+    target: 0.2,
+    window_days: 7,
+  },
+  baseline: 0.1,
+  latestValue: 0.15,
+  latestBreakdownValue: null,
+  measuredAt: '2026-10-02T08:00:00.000Z',
+  target: 0.2,
+  onTarget: false,
+}
+
+describe('the reading on a card', () => {
+  it('shows the value of a funnel and its target as a share', () => {
+    expect(toReading(funnelReading)).toEqual({
+      value: '15%',
+      target: '20%',
+      onTarget: false,
+    })
+  })
+
+  it('shows the value of a mean and its target as a number', () => {
+    const reading = toReading({
+      measure: {
+        kind: 'mean',
+        source: 'mock-analytics',
+        event: 'survey sent',
+        property: '$survey_response',
+        target_change: 1,
+        window_days: 7,
+      },
+      baseline: 4.5,
+      latestValue: 5.666,
+      latestBreakdownValue: null,
+      measuredAt: '2026-10-02T08:00:00.000Z',
+      target: 5.5,
+      onTarget: true,
+    })
+
+    expect(reading).toEqual({ value: '5.67', target: '5.5', onTarget: true })
+  })
+
+  it('has no value before the first reading', () => {
+    const reading = toReading({
+      ...funnelReading,
+      latestValue: null,
+      measuredAt: null,
+      onTarget: null,
+    })
+
+    expect(reading).toEqual({ target: '20%' })
+  })
+
+  it('has no value and no target without a measure', () => {
+    expect(toReading(null)).toEqual({})
+  })
+})
 
 describe('a Part in the record view', () => {
   it('names the home Concept, with the address and the Trust of each card', () => {
@@ -195,25 +259,7 @@ describe('a Part in the record view', () => {
   })
 
   it('shows the target of the measure and the day of the last reading', () => {
-    const record = toRecordPart(
-      {
-        ...decision,
-        measure: {
-          measure: {
-            kind: 'funnel',
-            source: 'mock-analytics',
-            steps: ['signed-up', 'paid'],
-            target: 0.2,
-            window_days: 7,
-          },
-          baseline: 0.1,
-          latestValue: 0.15,
-          latestBreakdownValue: null,
-          measuredAt: '2026-10-02T08:00:00.000Z',
-        },
-      },
-      href,
-    )
+    const record = toRecordPart({ ...decision, measure: funnelReading }, href)
 
     expect(record.measure).toEqual({
       baseline: 0.1,
@@ -221,5 +267,17 @@ describe('a Part in the record view', () => {
       target: 0.2,
       measuredAt: '2026-10-02',
     })
+  })
+
+  it('shows the reading of a Goal that it serves on the card of the Goal', () => {
+    const record = toRecordPart(
+      { ...decision, measured: [{ ...goal, measure: funnelReading }] },
+      href,
+    )
+
+    expect(record.needs.map(({ part }) => part.reading)).toEqual([
+      { value: '15%', target: '20%', onTarget: false },
+      undefined,
+    ])
   })
 })

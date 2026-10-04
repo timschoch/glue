@@ -34,6 +34,7 @@ function context(overrides: Partial<Server> = {}): Server {
       Promise.resolve(findProject(project) ? parts : []),
     ),
     fetchMine: vi.fn(() => Promise.resolve([])),
+    fetchMeasured: vi.fn(() => Promise.resolve([])),
     fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
     fetchSignals: vi.fn(() => Promise.resolve({ signals: [], reason: null })),
     fetchBuilds: vi.fn(() => Promise.resolve({ builds: [], reason: null })),

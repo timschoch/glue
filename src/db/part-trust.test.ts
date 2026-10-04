@@ -19,6 +19,7 @@ import {
   addProject,
   answerPart,
   removePart,
+  setReading,
   supersedeDecision,
   updatePart,
 } from './part-records.ts'
@@ -859,5 +860,96 @@ describe('the list of what needs the owner', () => {
     await addPart(db, 'flexibeck', { type: 'entity', title: 'Recipe' })
 
     expect(await listMine(db, 'glue')).toEqual([])
+  })
+})
+
+describe('a reading of a Metric', () => {
+  // A Metric with a target of 25%, and an accepted Decision that needs it.
+  async function addMeasuredDecision() {
+    await addGoal()
+    await addInsight('Loads are slow')
+    await addPart(db, 'glue', {
+      type: 'metric',
+      title: 'Signup to paid',
+      measure: {
+        kind: 'funnel',
+        source: 'mock-analytics',
+        steps: ['signed-up', 'paid'],
+        target: 0.25,
+        window_days: 7,
+      },
+    })
+    return addDecision('accepted', ['G1', 'I1', 'M1'])
+  }
+
+  function read(latestValue: number) {
+    return setReading(db, 'glue', 'M1', {
+      baseline: null,
+      latestValue,
+      latestBreakdownValue: null,
+      measuredAt: new Date('2026-10-03T08:00:00Z'),
+    })
+  }
+
+  it('flags the Parts that need the Metric when it misses its target', async () => {
+    const id = await addMeasuredDecision()
+
+    await read(0.1)
+
+    expect(await listFlags(id)).toEqual(['M1 off-target'])
+    expect(await readState(id)).toEqual({
+      trust: 'flagged',
+      workState: 'to-check',
+    })
+    expect((await findPart(db, 'glue', 'M1'))?.measure).toMatchObject({
+      latestValue: 0.1,
+      target: 0.25,
+      onTarget: false,
+      measuredAt: '2026-10-03T08:00:00.000Z',
+    })
+  })
+
+  it('flags nothing when it reaches its target', async () => {
+    const id = await addMeasuredDecision()
+
+    await read(0.3)
+
+    expect(await listFlags(id)).toEqual([])
+    expect(await readState(id)).toEqual(solid)
+  })
+
+  it('flags once while the readings stay off target', async () => {
+    const id = await addMeasuredDecision()
+    await read(0.1)
+    await answerPart(db, 'glue', id, { answer: 'fine' })
+
+    await read(0.12)
+
+    expect(await listFlags(id)).toEqual([])
+    expect(await readState(id)).toEqual(solid)
+  })
+
+  it('flags again when it misses its target after it reached it', async () => {
+    const id = await addMeasuredDecision()
+    await read(0.1)
+    await answerPart(db, 'glue', id, { answer: 'fine' })
+    await read(0.3)
+
+    await read(0.1)
+
+    expect(await listFlags(id)).toEqual(['M1 off-target'])
+  })
+
+  it('refuses a Part without a measure', async () => {
+    await addGoal()
+
+    await expect(
+      setReading(db, 'glue', 'G1', {
+        baseline: null,
+        latestValue: 1,
+        latestBreakdownValue: null,
+        measuredAt: new Date(),
+      }),
+    ).rejects.toThrow('"G1" has no measure')
   })
 })

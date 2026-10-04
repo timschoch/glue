@@ -106,6 +106,7 @@ const requests = {
       answer: { answer: 'sink' },
     }),
   listMine: () => actions.listMine({ project }),
+  listMeasured: () => actions.listMeasured({ project }),
   listSignals: () => actions.listSignals({ project }),
   listBuilds: () => actions.listBuilds({ project }),
   addSignalInsight: () =>

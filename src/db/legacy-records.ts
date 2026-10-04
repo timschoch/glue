@@ -324,9 +324,9 @@ export async function findRecord(
   return find(db, project.id, recordId)
 }
 
-// The open Goals with a measure, each with the Project that holds it: of all
-// Projects, or of the one of the slug. The measure is as stored, not parsed.
-// `goalId` is the row id of the Part.
+// The open Goals and the Metrics with a measure, each with the Project that
+// holds it: of all Projects, or of the one of the slug. The measure is as
+// stored, not parsed. `goalId` is the row id of the Part.
 export function listGoalsWithMeasure(db: ConceptDb, projectSlug?: string) {
   return db
     .select({
@@ -335,6 +335,7 @@ export function listGoalsWithMeasure(db: ConceptDb, projectSlug?: string) {
       analyticsProject: projects.analyticsProject,
       goalId: parts.id,
       goalRecordId: parts.recordId,
+      type: parts.type,
       baseline: measures.baseline,
       measure: measures.measure,
     })
@@ -343,8 +344,10 @@ export function listGoalsWithMeasure(db: ConceptDb, projectSlug?: string) {
     .innerJoin(projects, eq(parts.projectId, projects.id))
     .where(
       and(
-        eq(parts.type, 'goal'),
-        eq(parts.status, 'open'),
+        or(
+          and(eq(parts.type, 'goal'), eq(parts.status, 'open')),
+          eq(parts.type, 'metric'),
+        ),
         projectSlug === undefined ? undefined : eq(projects.slug, projectSlug),
       ),
     )

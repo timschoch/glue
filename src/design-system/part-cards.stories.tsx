@@ -54,6 +54,56 @@ type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
 
+// The section Use: a reading on target, one off target, one with no target
+// yet and one empty slot.
+export const Readings: Story = {
+  args: {
+    title: 'Use',
+    parts: [
+      {
+        id: 'G2',
+        type: 'goal',
+        title: 'First bake feels easy',
+        trust: 'solid',
+        workState: 'published',
+        reading: { value: '5.8', target: '5.5', onTarget: true },
+        concept: 'First bake',
+        href: '#',
+      },
+      {
+        id: 'M1',
+        type: 'metric',
+        title: 'Signup to first bake',
+        trust: 'solid',
+        workState: 'published',
+        reading: { value: '18.4%', target: '25%', onTarget: false },
+        concept: 'First bake',
+        href: '#',
+      },
+      {
+        id: 'M2',
+        type: 'metric',
+        title: 'Videos watched to the end',
+        trust: 'solid',
+        workState: 'published',
+        reading: { target: '40%' },
+        concept: 'Technique videos',
+        href: '#',
+      },
+      {
+        id: 'M3',
+        type: 'metric',
+        title: 'Bakes shared',
+        trust: 'not-ready',
+        workState: 'draft',
+        reading: {},
+        concept: 'First bake',
+        href: '#',
+      },
+    ],
+  },
+}
+
 export const Empty: Story = { args: { parts: [] } }
 
 export const InNarrowWindow: Story = {

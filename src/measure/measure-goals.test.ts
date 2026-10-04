@@ -11,6 +11,8 @@ import type {
   GoalMeasure,
   MeanMeasure,
 } from '../db/goal-measure.ts'
+import { addPart } from '../db/part-records.ts'
+import { findPart } from '../db/parts.ts'
 import * as schema from '../db/schema.ts'
 import { createTestDatabase } from '../db/test-database.ts'
 import { measureGoals } from './measure-goals.ts'
@@ -189,6 +191,45 @@ describe('measureGoals', () => {
     })
 
     expect(await runMeasure(source)).toEqual([])
+  })
+
+  it('stores the conversion of a funnel as its latest value, also without an Insight', async () => {
+    await addGoal({ ...measure, target: 0.05 })
+    const { source } = createFakeSource({
+      current: [funnel([100, 50, 10])],
+      previous: [funnel([100, 50, 11])],
+    })
+
+    await runMeasure(source)
+
+    expect((await findPart(db, 'flexibeck', 'G1'))?.measure).toMatchObject({
+      latestValue: 0.1,
+      target: 0.05,
+      onTarget: true,
+      measuredAt: NOW.toISOString(),
+    })
+  })
+
+  it('measures a Metric like a Goal', async () => {
+    await addGoal(measure)
+    await addPart(db, 'flexibeck', {
+      type: 'metric',
+      title: 'Signup to paid',
+      measure,
+    })
+    const { source } = createFakeSource(belowTarget)
+
+    const written = await runMeasure(source)
+
+    expect(written.map(({ goal, title }) => [goal, title])).toEqual([
+      ['G1', 'G1 signed-up → paid: 10%, below the target of 25%'],
+      ['M1', 'M1 signed-up → paid: 10%, below the target of 25%'],
+    ])
+    expect(written[1].body).toMatch(/^Metric M1, target 25%/)
+    expect((await findPart(db, 'flexibeck', 'M1'))?.measure).toMatchObject({
+      latestValue: 0.1,
+      onTarget: false,
+    })
   })
 
   it('writes nothing with fewer than 30 users in the first step of the last window', async () => {
