@@ -1,18 +1,15 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { addConceptRecord, setAnalyticsProject } from '../db/concept-records.ts'
 import * as schema from '../db/schema.ts'
+import { createTestDatabase } from '../db/test-database.ts'
 import { measureGoals } from '../measure/measure-goals.ts'
 import type { MetricSource } from '../measure/metric-source.ts'
 import { handleMeasureCron } from './cron-api.ts'
 
 const CRON_SECRET = 'cron-secret-for-tests'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
+const { db } = createTestDatabase(schema)
 
 // Every funnel converts 10% from the first to the last step.
 const source: MetricSource = {
@@ -30,9 +27,6 @@ const source: MetricSource = {
 }
 
 beforeEach(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
   for (const product of ['flexibeck', 'glue']) {
     await addConceptRecord(
       db,
@@ -54,10 +48,6 @@ beforeEach(async () => {
     )
     await setAnalyticsProject(db, product, `phc_${product}`)
   }
-})
-
-afterEach(async () => {
-  await client.close()
 })
 
 let measureCalls = 0

@@ -1,16 +1,13 @@
-import { PGlite } from '@electric-sql/pglite'
 import { isRedirect } from '@tanstack/react-router'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { Session } from '../authentication/session.ts'
 import { createContractActions } from './contract-actions.ts'
 import { addPart, addProject, answerPart } from './part-records.ts'
 import * as schema from './schema.ts'
+import { createTestDatabase } from './test-database.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
+const { db } = createTestDatabase(schema)
 let session: Session | undefined
 
 const actions = createContractActions({
@@ -23,15 +20,8 @@ const input = { project, concept: project }
 
 beforeEach(async () => {
   session = undefined
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
   await addProject(db, project)
   await addPart(db, project, { type: 'flow', title: 'Pay the cart' })
-})
-
-afterEach(async () => {
-  await client.close()
 })
 
 function signIn() {

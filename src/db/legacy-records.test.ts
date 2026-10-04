@@ -1,7 +1,4 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { ProductNotFoundError } from './record-errors.ts'
 import {
@@ -15,19 +12,9 @@ import {
   showConceptRecord,
 } from './legacy-records.ts'
 import * as schema from './schema.ts'
+import { createTestDatabase } from './test-database.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
-
-beforeEach(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
-})
-
-afterEach(async () => {
-  await client.close()
-})
+const { client, db } = createTestDatabase(schema)
 
 // Project 1 is glue with the root Concept 1. Project 2 is flexibeck with the
 // root Concept 2.

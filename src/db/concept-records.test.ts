@@ -1,7 +1,5 @@
-import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   acceptDecision,
@@ -16,19 +14,16 @@ import {
 import { listConceptRecords, showConceptRecord } from './legacy-records.ts'
 import { ProductNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
+import { createTestDatabase } from './test-database.ts'
 import type { GithubClient, IssueInput } from '../github/client.ts'
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import { createFakeGithub } from '../test/github.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
+const { client, db } = createTestDatabase(schema)
 let github: GithubClient
 let issues: { repository: string; issue: IssueInput }[]
 
 beforeEach(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
   ;({ github, issues } = createFakeGithub())
   await addConceptRecord(
     db,
@@ -73,10 +68,6 @@ beforeEach(async () => {
     },
     'Cache reads at the edge.',
   )
-})
-
-afterEach(async () => {
-  await client.close()
 })
 
 describe('listConceptRecords', () => {

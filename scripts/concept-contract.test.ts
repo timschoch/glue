@@ -1,16 +1,13 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MockInstance } from 'vitest'
 
 import * as schema from '../src/db/schema.ts'
+import { createTestDatabase } from '../src/db/test-database.ts'
 import { createFakeGithub } from '../src/test/github.ts'
 import { runConcept } from './concept.ts'
 
 describe('pnpm concept contract', () => {
-  let client: PGlite
-  let db: ReturnType<typeof drizzle<typeof schema>>
+  const { db } = createTestDatabase(schema)
   let printed: MockInstance<typeof console.log>
 
   function run(...args: string[]) {
@@ -26,9 +23,6 @@ describe('pnpm concept contract', () => {
   beforeEach(async () => {
     printed = vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    client = new PGlite()
-    db = drizzle(client, { schema })
-    await migrate(db, { migrationsFolder: './drizzle' })
     await run('project', 'add', 'glue')
     await run(
       'concept',
@@ -62,9 +56,8 @@ describe('pnpm concept contract', () => {
     printed.mockClear()
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     vi.restoreAllMocks()
-    await client.close()
   })
 
   it('sign names the Parts that block', async () => {

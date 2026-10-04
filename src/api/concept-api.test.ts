@@ -1,7 +1,4 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   addConceptRecord,
@@ -9,6 +6,7 @@ import {
   setProductRepository,
 } from '../db/concept-records.ts'
 import * as schema from '../db/schema.ts'
+import { createTestDatabase } from '../db/test-database.ts'
 import { createToken } from '../db/tokens.ts'
 import type { GithubClient, IssueInput } from '../github/client.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
@@ -23,16 +21,12 @@ import {
 import type { ApiRequest } from './concept-api.ts'
 import type { MetricSource } from '../measure/metric-source.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
+const { db } = createTestDatabase(schema)
 let token: string
 let github: GithubClient
 let issues: { repository: string; issue: IssueInput }[]
 
 beforeEach(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
   ;({ github, issues } = createFakeGithub())
   ;({ token } = await createToken(db, 'flexibeck', 'orchestrator'))
   await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck-next')
@@ -57,10 +51,6 @@ beforeEach(async () => {
     { title: 'Glue keeps the why', source: 'readme' },
     '',
   )
-})
-
-afterEach(async () => {
-  await client.close()
 })
 
 type Params = ApiRequest['params']

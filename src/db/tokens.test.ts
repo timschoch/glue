@@ -1,7 +1,4 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   createToken,
@@ -10,19 +7,9 @@ import {
   listTokens,
 } from './tokens.ts'
 import * as schema from './schema.ts'
+import { createTestDatabase } from './test-database.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
-
-beforeEach(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
-})
-
-afterEach(async () => {
-  await client.close()
-})
+const { db } = createTestDatabase(schema)
 
 describe('createToken', () => {
   it('creates the Product when it does not exist yet', async () => {
