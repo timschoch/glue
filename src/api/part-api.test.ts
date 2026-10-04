@@ -389,6 +389,7 @@ describe('GET a Part', () => {
       waitsOn: null,
       signals: [],
       answers: ['not-ready', 'sink'],
+      activity: [{ kind: 'published', at: expect.any(String) }],
     })
   })
 

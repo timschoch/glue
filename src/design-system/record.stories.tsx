@@ -91,6 +91,7 @@ const noFields = {
   neededBy: [],
   signals: [],
   flags: [],
+  activity: [{ kind: 'published', at: '2026-10-03T08:00:00.000Z' }],
 } satisfies Partial<RecordPart>
 
 const meta = {
@@ -169,6 +170,38 @@ export const Decision: Story = {
         { jointId: 5, link: false, part: entity },
       ],
     },
+  },
+}
+
+// The step bar and the next step of the common flow, with what happened.
+export const WithCommonFlow: Story = {
+  args: {
+    ...Decision.args,
+    part: {
+      ...Decision.args.part,
+      activity: [
+        {
+          kind: 'flag-closed',
+          at: '2026-10-04T09:00:00.000Z',
+          flag: { reason: 'changed', part: insight },
+        },
+        {
+          kind: 'flag-opened',
+          at: '2026-10-03T10:00:00.000Z',
+          flag: { reason: 'changed', part: insight },
+        },
+        { kind: 'published', at: '2026-10-03T08:00:00.000Z' },
+      ],
+    },
+    flow: {
+      name: 'Decision to Brief',
+      steps: ['Fill slots', 'Sign'],
+      current: 1,
+    },
+    actions: [
+      { label: 'Open Concept', onClick: () => {} },
+      { label: 'Not ready', onClick: () => {} },
+    ],
   },
 }
 

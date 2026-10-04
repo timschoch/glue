@@ -230,6 +230,10 @@ function printTrust(part: Part) {
   if (part.waitsOn) {
     console.log(`waits_on: ${part.waitsOn.id} ${part.waitsOn.title}`)
   }
+  for (const entry of part.activity) {
+    const flag = 'cause' in entry ? ` ${entry.cause.id} ${entry.reason}` : ''
+    console.log(`activity: ${entry.at} ${entry.kind}${flag}`)
+  }
 }
 
 function printRecord(

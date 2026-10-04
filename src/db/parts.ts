@@ -1,5 +1,5 @@
 import type { SQL } from 'drizzle-orm'
-import { and, count, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import type { ConceptDb } from './client.ts'
@@ -58,6 +58,17 @@ export type Flag = {
   reason: FlagReason
   createdAt: string
 }
+
+// One thing that happened to a Part: an edit, its first sign-off, or a flag
+// that opened or closed. An answer closes the flags of a Part.
+export type Activity =
+  | { kind: 'changed' | 'published'; at: string }
+  | {
+      kind: 'flag-opened' | 'flag-closed'
+      at: string
+      cause: Flag['cause']
+      reason: FlagReason
+    }
 
 export type ConceptNode = {
   slug: string
@@ -138,6 +149,8 @@ export type Part = PartSummary & {
   signals: { url: string; title: string }[]
   // The answers that the Work state takes, the usual one first.
   answers: Answer[]
+  // What happened to the Part, newest first.
+  activity: Activity[]
 }
 
 const { projects, concepts, parts, joints, measures, flags, signals } = schema
@@ -374,22 +387,52 @@ export function listMine(
     .orderBy(desc(parts.changedAt), desc(parts.id))
 }
 
-// The open flags of the Part, oldest first.
-async function listFlags(db: ConceptDb, partId: number): Promise<Flag[]> {
-  const found = await db
+// The flags of the Part, open and closed, oldest first.
+function listFlags(db: ConceptDb, partId: number) {
+  return db
     .select({
       cause: { id: parts.recordId, title: parts.title },
       reason: flags.reason,
       createdAt: flags.createdAt,
+      closedAt: flags.closedAt,
     })
     .from(flags)
     .innerJoin(parts, eq(flags.causePartId, parts.id))
-    .where(and(eq(flags.partId, partId), isNull(flags.closedAt)))
+    .where(eq(flags.partId, partId))
     .orderBy(flags.id)
-  return found.map(({ createdAt, ...flag }) => ({
-    ...flag,
-    createdAt: createdAt.toISOString(),
-  }))
+}
+
+// What the database keeps of the past of a Part, newest first. A write
+// that publishes the Part or flags it also sets the time of its last change,
+// so a change at the time of another entry is that entry.
+function listActivity(
+  part: { changedAt: Date; publishedAt: Date | null },
+  partFlags: Awaited<ReturnType<typeof listFlags>>,
+): Activity[] {
+  const entries: Activity[] = partFlags.flatMap(
+    ({ cause, reason, createdAt, closedAt }) => [
+      { kind: 'flag-opened', at: createdAt.toISOString(), cause, reason },
+      ...(closedAt === null
+        ? []
+        : [
+            {
+              kind: 'flag-closed' as const,
+              at: closedAt.toISOString(),
+              cause,
+              reason,
+            },
+          ]),
+    ],
+  )
+  if (part.publishedAt !== null) {
+    entries.push({ kind: 'published', at: part.publishedAt.toISOString() })
+  }
+  const changedAt = part.changedAt.toISOString()
+  if (entries.every(({ at }) => at !== changedAt)) {
+    entries.push({ kind: 'changed', at: changedAt })
+  }
+  // An ISO time in UTC sorts as text.
+  return entries.sort((one, other) => other.at.localeCompare(one.at))
 }
 
 export async function findPart(
@@ -408,7 +451,7 @@ export async function findPart(
   if (!row) return undefined
   const { part, concept, measure } = row
 
-  const [supersededBy, waitsOn, openFlags, supersedes, jointRows, grownFrom] =
+  const [supersededBy, waitsOn, partFlags, supersedes, jointRows, grownFrom] =
     await Promise.all([
       part.supersededById === null
         ? []
@@ -471,9 +514,16 @@ export async function findPart(
     supersedes,
     needs,
     neededBy,
-    flags: openFlags,
+    flags: partFlags
+      .filter(({ closedAt }) => closedAt === null)
+      .map(({ cause, reason, createdAt }) => ({
+        cause,
+        reason,
+        createdAt: createdAt.toISOString(),
+      })),
     waitsOn: waitsOn.at(0) ?? null,
     signals: grownFrom,
     answers: listAnswers(part.workState),
+    activity: listActivity(part, partFlags),
   }
 }

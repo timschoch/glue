@@ -46,6 +46,12 @@ describe('the Part that the form adds', () => {
     ).toMatchObject({ status: 'accepted', supersedes: 'D4' })
   })
 
+  it('needs the Part of the record that it was added from', () => {
+    expect(
+      toNewPart('flow', values, { ...place, needs: ['D4'] }),
+    ).toMatchObject({ type: 'flow', needs: ['D4'] })
+  })
+
   it.each([
     ['insight', ['source', 'date', 'evidenceLevel']],
     ['goal', ['metric', 'source']],

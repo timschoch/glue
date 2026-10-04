@@ -876,7 +876,130 @@ describe('the answers of a Decision', () => {
     const main = within(screen.getByRole('main'))
 
     expect(main.queryByRole('button', { name: 'Supersede' })).toBeNull()
-    expect(main.getByRole('button', { name: 'Not ready' })).toBeDefined()
+    expect(main.getByRole('button', { name: 'Add Flow' })).toBeDefined()
+  })
+})
+
+describe('the common flow of a record', () => {
+  // The step bar of the flow, and the label of its current step.
+  function currentStep(flow: string): string | undefined {
+    const bar = within(screen.getByRole('list', { name: flow }))
+    return bar
+      .getAllByRole('button')
+      .find((step) => step.getAttribute('aria-current') === 'step')?.title
+  }
+
+  it('shows the step bar above the box Next, with the next step as the one button', async () => {
+    await renderPage('/glue/part-model/D4')
+
+    const next = screen.getByRole('region', { name: 'Next' })
+
+    expect(currentStep('Decision to Brief')).toBe('Fill slots')
+    expect(next.previousElementSibling).toBe(
+      screen.getByRole('list', { name: 'Decision to Brief' }),
+    )
+    expect(within(next).getByRole('button', { name: 'Add Flow' })).toBeDefined()
+  })
+
+  it('adds the Flow that needs the Decision', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model/D4')
+
+    await act('Add Flow')
+    await expectAddress('/glue/part-model/D4', { add: 'flow' })
+    expect(pageTitle()).toBe('Flow')
+    await userEvent.type(field('Title'), 'Read a Concept')
+    await userEvent.click(button('Save'))
+
+    await waitFor(() =>
+      expect(server.addPart).toHaveBeenCalledWith({
+        project: 'glue',
+        part: {
+          type: 'flow',
+          concept: 'part-model',
+          title: 'Read a Concept',
+          body: '',
+          needs: ['D4'],
+        },
+      }),
+    )
+  })
+
+  it('opens the form of the Decision that serves the Goal, with the Goal as its pick', async () => {
+    const { expectAddress } = await renderPage('/glue/glue/G1', {
+      fetchPart: vi.fn(changedPart('G1', { neededBy: [] })),
+    })
+
+    expect(currentStep('Insight to Decision')).toBe('Choose')
+
+    await act('Add Decision')
+
+    await expectAddress('/glue/glue/G1', { add: 'decision' })
+    expect(pageTitle()).toBe('Decision')
+    expect(
+      within(screen.getByRole('main')).getByText(
+        'Agents build from the Concept',
+      ),
+    ).toBeDefined()
+  })
+
+  it('opens the form of an Insight to raise its level', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model/I3')
+
+    expect(currentStep('Evidence to Insight')).toBe('Check')
+
+    await act('Raise the level')
+
+    await expectAddress('/glue/part-model/I3', { edit: true })
+  })
+
+  it('opens the Concept of a published Guardrail for its sign-off', async () => {
+    const { expectAddress } = await renderPage('/glue/read-model/R1')
+
+    expect(currentStep('Decision to Brief')).toBe('Sign')
+
+    await act('Open Concept')
+
+    await expectAddress('/glue/read-model')
+  })
+
+  it('keeps the other answers in the menu of the button', async () => {
+    const { server } = await renderPage('/glue/read-model/R1')
+
+    await act('Not ready')
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('R1', { answer: 'not-ready' }),
+      ),
+    )
+  })
+
+  it('lists what happened to the record, with a link to the cause of a flag', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model/D4', {
+      fetchPart: vi.fn(
+        changedPart('D4', {
+          activity: [
+            {
+              kind: 'flag-closed',
+              at: '2026-10-03T09:00:00.000Z',
+              cause: { id: 'I3', title: I3 },
+              reason: 'changed',
+            },
+            { kind: 'published', at: '2026-10-02T08:00:00.000Z' },
+          ],
+        }),
+      ),
+    })
+
+    const activity = within(screen.getByRole('region', { name: 'Activity' }))
+
+    expect(
+      activity.getAllByRole('listitem').map((item) => item.textContent),
+    ).toEqual(['2026-10-03Flag closedChangedI3', '2026-10-02Published'])
+
+    await userEvent.click(activity.getByRole('link', { name: 'I3' }))
+
+    await expectAddress('/glue/part-model/I3', { trail: ['D4'] })
   })
 })
 

@@ -46,6 +46,10 @@ export function toRecordPart(
       link,
       part: toRecordSummary(end, href),
     }))
+  const findCause = (recordId: string) => {
+    const found = parts.find(({ id }) => id === recordId)
+    return found && toRecordSummary(found, href)
+  }
 
   return {
     ...toRecordSummary(part, href),
@@ -70,8 +74,19 @@ export function toRecordPart(
     neededBy: toEnds(part.neededBy),
     signals: part.signals,
     flags: part.flags.flatMap(({ cause, reason }) => {
-      const found = parts.find(({ id }) => id === cause.id)
-      return found ? { reason, part: toRecordSummary(found, href) } : []
+      const found = findCause(cause.id)
+      return found ? { reason, part: found } : []
+    }),
+    activity: part.activity.map((entry) => {
+      const cause = 'cause' in entry ? findCause(entry.cause.id) : undefined
+      return {
+        kind: entry.kind,
+        at: entry.at,
+        flag:
+          cause && 'reason' in entry
+            ? { reason: entry.reason, part: cause }
+            : undefined,
+      }
     }),
   }
 }

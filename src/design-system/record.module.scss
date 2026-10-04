@@ -188,6 +188,25 @@ $text-width: $card-width * 2;
   gap: $spacing-03;
 }
 
+// Each entry of the activity list is one line: the day, then what happened.
+.activity {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $spacing-03 $spacing-05;
+  }
+
+  time {
+    color: $text-secondary;
+  }
+}
+
 // The search of a group is as wide as one card.
 .search {
   max-inline-size: $card-width;

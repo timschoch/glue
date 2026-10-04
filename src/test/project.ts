@@ -164,6 +164,7 @@ function part(
     waitsOn: null,
     signals: [],
     answers: ['not-ready', 'sink'],
+    activity: [{ kind: 'published', at: '2026-10-02T08:00:00.000Z' }],
   }
 }
 
