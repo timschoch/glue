@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.10.0](https://github.com/timschoch/glue/compare/v1.9.0...v1.10.0) (2026-10-04)
+
+
+### Features
+
+* **app:** show flags, the answers and the seven sections ([#196](https://github.com/timschoch/glue/issues/196)) ([ee6cdd6](https://github.com/timschoch/glue/commit/ee6cdd6f51cf0452736d9750b54e4504fa37511f))
+* **app:** show the step bar, the next step and the activity of a Part ([#201](https://github.com/timschoch/glue/issues/201)) ([915b597](https://github.com/timschoch/glue/commit/915b597595ff22b4c0600218026b245bafad77d1)), closes [#199](https://github.com/timschoch/glue/issues/199)
+* **db:** sign off a Concept as a Contract Version, with the screen and the gate ([#191](https://github.com/timschoch/glue/issues/191)) ([e267084](https://github.com/timschoch/glue/commit/e267084f4f28e0938a5eec073c13645269bd30ba))
+* **signals:** show the Signals from GitHub and make an Insight from them ([#193](https://github.com/timschoch/glue/issues/193)) ([90c6fff](https://github.com/timschoch/glue/commit/90c6fff44feef94201a725a6e02b9c74ece6775a))
+
 ## [1.9.0](https://github.com/timschoch/glue/compare/v1.8.0...v1.9.0) (2026-10-04)
 
 
