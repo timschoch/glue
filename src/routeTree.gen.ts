@@ -9,16 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as MantineRouteImport } from './routes/_mantine'
 import { Route as SignedInRouteImport } from './routes/_signed-in'
-import { Route as SignInRouteImport } from './routes/sign-in'
-import { Route as SignUpRouteImport } from './routes/sign-up'
+import { Route as MantineSignedInRouteImport } from './routes/_mantine._signed-in'
+import { Route as MantineSignInRouteImport } from './routes/_mantine.sign-in'
+import { Route as MantineSignUpRouteImport } from './routes/_mantine.sign-up'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in.index'
-import { Route as SignedInProductRouteImport } from './routes/_signed-in.$product'
-import { Route as SignedInProductIndexRouteImport } from './routes/_signed-in.$product.index'
+import { Route as SignedInSplatRouteImport } from './routes/_signed-in.$'
+import { Route as SignedInProjectRouteImport } from './routes/_signed-in.$project'
+import { Route as SignedInProjectIndexRouteImport } from './routes/_signed-in.$project.index'
 import { Route as ApiCronMeasureRouteImport } from './routes/api/cron.measure'
 import { Route as ApiV1OpenapiDotjsonRouteImport } from './routes/api/v1.openapi[.]json'
-import { Route as SignedInProductConceptRecordIdRouteImport } from './routes/_signed-in.$product.concept.$recordId'
-import { Route as SignedInProductDecisionsNewRouteImport } from './routes/_signed-in.$product.decisions.new'
+import { Route as SignedInProjectConceptIndexRouteImport } from './routes/_signed-in.$project.$concept.index'
+import { Route as SignedInProjectConceptRecordIdRouteImport } from './routes/_signed-in.$project.$concept.$recordId'
+import { Route as MantineSignedInProjectDecisionsNewRouteImport } from './routes/_mantine._signed-in.$project.decisions.new'
 import { Route as ApiV1ProductsProductFolderRouteImport } from './routes/api/v1.products.$product.$folder'
 import { Route as ApiV1ProductsProductConceptRouteImport } from './routes/api/v1.products.$product.concept'
 import { Route as ApiV1ProductsProductMeasureRouteImport } from './routes/api/v1.products.$product.measure'
@@ -35,34 +39,47 @@ import { Route as ApiV1ProjectsProjectConceptsConceptRouteImport } from './route
 import { Route as ApiV1ProjectsProjectJointsJointIdRouteImport } from './routes/api/v1.projects.$project.joints.$jointId'
 import { Route as ApiV1ProjectsProjectPartsRecordIdRouteImport } from './routes/api/v1.projects.$project.parts.$recordId'
 
+const MantineRoute = MantineRouteImport.update({
+  id: '/_mantine',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignedInRoute = SignedInRouteImport.update({
   id: '/_signed-in',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignInRoute = SignInRouteImport.update({
+const MantineSignedInRoute = MantineSignedInRouteImport.update({
+  id: '/_signed-in',
+  getParentRoute: () => MantineRoute,
+} as any)
+const MantineSignInRoute = MantineSignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => MantineRoute,
 } as any)
-const SignUpRoute = SignUpRouteImport.update({
+const MantineSignUpRoute = MantineSignUpRouteImport.update({
   id: '/sign-up',
   path: '/sign-up',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => MantineRoute,
 } as any)
 const SignedInIndexRoute = SignedInIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => SignedInRoute,
 } as any)
-const SignedInProductRoute = SignedInProductRouteImport.update({
-  id: '/$product',
-  path: '/$product',
+const SignedInSplatRoute = SignedInSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => SignedInRoute,
 } as any)
-const SignedInProductIndexRoute = SignedInProductIndexRouteImport.update({
+const SignedInProjectRoute = SignedInProjectRouteImport.update({
+  id: '/$project',
+  path: '/$project',
+  getParentRoute: () => SignedInRoute,
+} as any)
+const SignedInProjectIndexRoute = SignedInProjectIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => SignedInProductRoute,
+  getParentRoute: () => SignedInProjectRoute,
 } as any)
 const ApiCronMeasureRoute = ApiCronMeasureRouteImport.update({
   id: '/api/cron/measure',
@@ -74,17 +91,23 @@ const ApiV1OpenapiDotjsonRoute = ApiV1OpenapiDotjsonRouteImport.update({
   path: '/api/v1/openapi.json',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignedInProductConceptRecordIdRoute =
-  SignedInProductConceptRecordIdRouteImport.update({
-    id: '/concept/$recordId',
-    path: '/concept/$recordId',
-    getParentRoute: () => SignedInProductRoute,
+const SignedInProjectConceptIndexRoute =
+  SignedInProjectConceptIndexRouteImport.update({
+    id: '/$concept/',
+    path: '/$concept/',
+    getParentRoute: () => SignedInProjectRoute,
   } as any)
-const SignedInProductDecisionsNewRoute =
-  SignedInProductDecisionsNewRouteImport.update({
-    id: '/decisions/new',
-    path: '/decisions/new',
-    getParentRoute: () => SignedInProductRoute,
+const SignedInProjectConceptRecordIdRoute =
+  SignedInProjectConceptRecordIdRouteImport.update({
+    id: '/$concept/$recordId',
+    path: '/$concept/$recordId',
+    getParentRoute: () => SignedInProjectRoute,
+  } as any)
+const MantineSignedInProjectDecisionsNewRoute =
+  MantineSignedInProjectDecisionsNewRouteImport.update({
+    id: '/$project/decisions/new',
+    path: '/$project/decisions/new',
+    getParentRoute: () => MantineSignedInRoute,
   } as any)
 const ApiV1ProductsProductFolderRoute =
   ApiV1ProductsProductFolderRouteImport.update({
@@ -179,14 +202,16 @@ const ApiV1ProjectsProjectPartsRecordIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof SignedInIndexRoute
-  '/sign-in': typeof SignInRoute
-  '/sign-up': typeof SignUpRoute
-  '/$product': typeof SignedInProductRouteWithChildren
+  '/sign-in': typeof MantineSignInRoute
+  '/sign-up': typeof MantineSignUpRoute
+  '/$': typeof SignedInSplatRoute
+  '/$project': typeof SignedInProjectRouteWithChildren
   '/api/cron/measure': typeof ApiCronMeasureRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
-  '/$product/': typeof SignedInProductIndexRoute
-  '/$product/concept/$recordId': typeof SignedInProductConceptRecordIdRoute
-  '/$product/decisions/new': typeof SignedInProductDecisionsNewRoute
+  '/$project/': typeof SignedInProjectIndexRoute
+  '/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
+  '/$project/$concept/': typeof SignedInProjectConceptIndexRoute
+  '/$project/decisions/new': typeof MantineSignedInProjectDecisionsNewRoute
   '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
@@ -204,14 +229,16 @@ export interface FileRoutesByFullPath {
   '/api/v1/projects/$project/parts/$recordId': typeof ApiV1ProjectsProjectPartsRecordIdRoute
 }
 export interface FileRoutesByTo {
-  '/sign-in': typeof SignInRoute
-  '/sign-up': typeof SignUpRoute
   '/': typeof SignedInIndexRoute
+  '/sign-in': typeof MantineSignInRoute
+  '/sign-up': typeof MantineSignUpRoute
+  '/$': typeof SignedInSplatRoute
   '/api/cron/measure': typeof ApiCronMeasureRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
-  '/$product': typeof SignedInProductIndexRoute
-  '/$product/concept/$recordId': typeof SignedInProductConceptRecordIdRoute
-  '/$product/decisions/new': typeof SignedInProductDecisionsNewRoute
+  '/$project': typeof SignedInProjectIndexRoute
+  '/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
+  '/$project/$concept': typeof SignedInProjectConceptIndexRoute
+  '/$project/decisions/new': typeof MantineSignedInProjectDecisionsNewRoute
   '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
@@ -230,16 +257,20 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/_mantine': typeof MantineRouteWithChildren
   '/_signed-in': typeof SignedInRouteWithChildren
-  '/sign-in': typeof SignInRoute
-  '/sign-up': typeof SignUpRoute
-  '/_signed-in/$product': typeof SignedInProductRouteWithChildren
+  '/_mantine/_signed-in': typeof MantineSignedInRouteWithChildren
+  '/_mantine/sign-in': typeof MantineSignInRoute
+  '/_mantine/sign-up': typeof MantineSignUpRoute
+  '/_signed-in/$': typeof SignedInSplatRoute
+  '/_signed-in/$project': typeof SignedInProjectRouteWithChildren
   '/_signed-in/': typeof SignedInIndexRoute
   '/api/cron/measure': typeof ApiCronMeasureRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
-  '/_signed-in/$product/': typeof SignedInProductIndexRoute
-  '/_signed-in/$product/concept/$recordId': typeof SignedInProductConceptRecordIdRoute
-  '/_signed-in/$product/decisions/new': typeof SignedInProductDecisionsNewRoute
+  '/_signed-in/$project/': typeof SignedInProjectIndexRoute
+  '/_signed-in/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
+  '/_signed-in/$project/$concept/': typeof SignedInProjectConceptIndexRoute
+  '/_mantine/_signed-in/$project/decisions/new': typeof MantineSignedInProjectDecisionsNewRoute
   '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
@@ -262,12 +293,14 @@ export interface FileRouteTypes {
     | '/'
     | '/sign-in'
     | '/sign-up'
-    | '/$product'
+    | '/$'
+    | '/$project'
     | '/api/cron/measure'
     | '/api/v1/openapi.json'
-    | '/$product/'
-    | '/$product/concept/$recordId'
-    | '/$product/decisions/new'
+    | '/$project/'
+    | '/$project/$concept/$recordId'
+    | '/$project/$concept/'
+    | '/$project/decisions/new'
     | '/api/v1/products/$product/$folder'
     | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
@@ -285,14 +318,16 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/parts/$recordId'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/sign-in'
     | '/sign-up'
-    | '/'
+    | '/$'
     | '/api/cron/measure'
     | '/api/v1/openapi.json'
-    | '/$product'
-    | '/$product/concept/$recordId'
-    | '/$product/decisions/new'
+    | '/$project'
+    | '/$project/$concept/$recordId'
+    | '/$project/$concept'
+    | '/$project/decisions/new'
     | '/api/v1/products/$product/$folder'
     | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
@@ -310,16 +345,20 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/parts/$recordId'
   id:
     | '__root__'
+    | '/_mantine'
     | '/_signed-in'
-    | '/sign-in'
-    | '/sign-up'
-    | '/_signed-in/$product'
+    | '/_mantine/_signed-in'
+    | '/_mantine/sign-in'
+    | '/_mantine/sign-up'
+    | '/_signed-in/$'
+    | '/_signed-in/$project'
     | '/_signed-in/'
     | '/api/cron/measure'
     | '/api/v1/openapi.json'
-    | '/_signed-in/$product/'
-    | '/_signed-in/$product/concept/$recordId'
-    | '/_signed-in/$product/decisions/new'
+    | '/_signed-in/$project/'
+    | '/_signed-in/$project/$concept/$recordId'
+    | '/_signed-in/$project/$concept/'
+    | '/_mantine/_signed-in/$project/decisions/new'
     | '/api/v1/products/$product/$folder'
     | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
@@ -338,9 +377,8 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  MantineRoute: typeof MantineRouteWithChildren
   SignedInRoute: typeof SignedInRouteWithChildren
-  SignInRoute: typeof SignInRoute
-  SignUpRoute: typeof SignUpRoute
   ApiCronMeasureRoute: typeof ApiCronMeasureRoute
   ApiV1OpenapiDotjsonRoute: typeof ApiV1OpenapiDotjsonRoute
   ApiV1ProductsProductFolderRoute: typeof ApiV1ProductsProductFolderRouteWithChildren
@@ -357,6 +395,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/_mantine': {
+      id: '/_mantine'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof MantineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_signed-in': {
       id: '/_signed-in'
       path: ''
@@ -364,19 +409,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sign-in': {
-      id: '/sign-in'
+    '/_mantine/_signed-in': {
+      id: '/_mantine/_signed-in'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof MantineSignedInRouteImport
+      parentRoute: typeof MantineRoute
+    }
+    '/_mantine/sign-in': {
+      id: '/_mantine/sign-in'
       path: '/sign-in'
       fullPath: '/sign-in'
-      preLoaderRoute: typeof SignInRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof MantineSignInRouteImport
+      parentRoute: typeof MantineRoute
     }
-    '/sign-up': {
-      id: '/sign-up'
+    '/_mantine/sign-up': {
+      id: '/_mantine/sign-up'
       path: '/sign-up'
       fullPath: '/sign-up'
-      preLoaderRoute: typeof SignUpRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof MantineSignUpRouteImport
+      parentRoute: typeof MantineRoute
     }
     '/_signed-in/': {
       id: '/_signed-in/'
@@ -385,19 +437,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInIndexRouteImport
       parentRoute: typeof SignedInRoute
     }
-    '/_signed-in/$product': {
-      id: '/_signed-in/$product'
-      path: '/$product'
-      fullPath: '/$product'
-      preLoaderRoute: typeof SignedInProductRouteImport
+    '/_signed-in/$': {
+      id: '/_signed-in/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof SignedInSplatRouteImport
       parentRoute: typeof SignedInRoute
     }
-    '/_signed-in/$product/': {
-      id: '/_signed-in/$product/'
+    '/_signed-in/$project': {
+      id: '/_signed-in/$project'
+      path: '/$project'
+      fullPath: '/$project'
+      preLoaderRoute: typeof SignedInProjectRouteImport
+      parentRoute: typeof SignedInRoute
+    }
+    '/_signed-in/$project/': {
+      id: '/_signed-in/$project/'
       path: '/'
-      fullPath: '/$product/'
-      preLoaderRoute: typeof SignedInProductIndexRouteImport
-      parentRoute: typeof SignedInProductRoute
+      fullPath: '/$project/'
+      preLoaderRoute: typeof SignedInProjectIndexRouteImport
+      parentRoute: typeof SignedInProjectRoute
     }
     '/api/cron/measure': {
       id: '/api/cron/measure'
@@ -413,19 +472,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1OpenapiDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_signed-in/$product/concept/$recordId': {
-      id: '/_signed-in/$product/concept/$recordId'
-      path: '/concept/$recordId'
-      fullPath: '/$product/concept/$recordId'
-      preLoaderRoute: typeof SignedInProductConceptRecordIdRouteImport
-      parentRoute: typeof SignedInProductRoute
+    '/_signed-in/$project/$concept/': {
+      id: '/_signed-in/$project/$concept/'
+      path: '/$concept'
+      fullPath: '/$project/$concept/'
+      preLoaderRoute: typeof SignedInProjectConceptIndexRouteImport
+      parentRoute: typeof SignedInProjectRoute
     }
-    '/_signed-in/$product/decisions/new': {
-      id: '/_signed-in/$product/decisions/new'
-      path: '/decisions/new'
-      fullPath: '/$product/decisions/new'
-      preLoaderRoute: typeof SignedInProductDecisionsNewRouteImport
-      parentRoute: typeof SignedInProductRoute
+    '/_signed-in/$project/$concept/$recordId': {
+      id: '/_signed-in/$project/$concept/$recordId'
+      path: '/$concept/$recordId'
+      fullPath: '/$project/$concept/$recordId'
+      preLoaderRoute: typeof SignedInProjectConceptRecordIdRouteImport
+      parentRoute: typeof SignedInProjectRoute
+    }
+    '/_mantine/_signed-in/$project/decisions/new': {
+      id: '/_mantine/_signed-in/$project/decisions/new'
+      path: '/$project/decisions/new'
+      fullPath: '/$project/decisions/new'
+      preLoaderRoute: typeof MantineSignedInProjectDecisionsNewRouteImport
+      parentRoute: typeof MantineSignedInRoute
     }
     '/api/v1/products/$product/$folder': {
       id: '/api/v1/products/$product/$folder'
@@ -535,29 +601,59 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface SignedInProductRouteChildren {
-  SignedInProductIndexRoute: typeof SignedInProductIndexRoute
-  SignedInProductConceptRecordIdRoute: typeof SignedInProductConceptRecordIdRoute
-  SignedInProductDecisionsNewRoute: typeof SignedInProductDecisionsNewRoute
+interface MantineSignedInRouteChildren {
+  MantineSignedInProjectDecisionsNewRoute: typeof MantineSignedInProjectDecisionsNewRoute
 }
 
-const SignedInProductRouteChildren: SignedInProductRouteChildren = {
-  SignedInProductIndexRoute: SignedInProductIndexRoute,
-  SignedInProductConceptRecordIdRoute: SignedInProductConceptRecordIdRoute,
-  SignedInProductDecisionsNewRoute: SignedInProductDecisionsNewRoute,
+const MantineSignedInRouteChildren: MantineSignedInRouteChildren = {
+  MantineSignedInProjectDecisionsNewRoute:
+    MantineSignedInProjectDecisionsNewRoute,
 }
 
-const SignedInProductRouteWithChildren = SignedInProductRoute._addFileChildren(
-  SignedInProductRouteChildren,
+const MantineSignedInRouteWithChildren = MantineSignedInRoute._addFileChildren(
+  MantineSignedInRouteChildren,
+)
+
+interface MantineRouteChildren {
+  MantineSignedInRoute: typeof MantineSignedInRouteWithChildren
+  MantineSignInRoute: typeof MantineSignInRoute
+  MantineSignUpRoute: typeof MantineSignUpRoute
+}
+
+const MantineRouteChildren: MantineRouteChildren = {
+  MantineSignedInRoute: MantineSignedInRouteWithChildren,
+  MantineSignInRoute: MantineSignInRoute,
+  MantineSignUpRoute: MantineSignUpRoute,
+}
+
+const MantineRouteWithChildren =
+  MantineRoute._addFileChildren(MantineRouteChildren)
+
+interface SignedInProjectRouteChildren {
+  SignedInProjectIndexRoute: typeof SignedInProjectIndexRoute
+  SignedInProjectConceptRecordIdRoute: typeof SignedInProjectConceptRecordIdRoute
+  SignedInProjectConceptIndexRoute: typeof SignedInProjectConceptIndexRoute
+}
+
+const SignedInProjectRouteChildren: SignedInProjectRouteChildren = {
+  SignedInProjectIndexRoute: SignedInProjectIndexRoute,
+  SignedInProjectConceptRecordIdRoute: SignedInProjectConceptRecordIdRoute,
+  SignedInProjectConceptIndexRoute: SignedInProjectConceptIndexRoute,
+}
+
+const SignedInProjectRouteWithChildren = SignedInProjectRoute._addFileChildren(
+  SignedInProjectRouteChildren,
 )
 
 interface SignedInRouteChildren {
-  SignedInProductRoute: typeof SignedInProductRouteWithChildren
+  SignedInSplatRoute: typeof SignedInSplatRoute
+  SignedInProjectRoute: typeof SignedInProjectRouteWithChildren
   SignedInIndexRoute: typeof SignedInIndexRoute
 }
 
 const SignedInRouteChildren: SignedInRouteChildren = {
-  SignedInProductRoute: SignedInProductRouteWithChildren,
+  SignedInSplatRoute: SignedInSplatRoute,
+  SignedInProjectRoute: SignedInProjectRouteWithChildren,
   SignedInIndexRoute: SignedInIndexRoute,
 }
 
@@ -641,9 +737,8 @@ const ApiV1ProjectsProjectPartsRouteWithChildren =
   )
 
 const rootRouteChildren: RootRouteChildren = {
+  MantineRoute: MantineRouteWithChildren,
   SignedInRoute: SignedInRouteWithChildren,
-  SignInRoute: SignInRoute,
-  SignUpRoute: SignUpRoute,
   ApiCronMeasureRoute: ApiCronMeasureRoute,
   ApiV1OpenapiDotjsonRoute: ApiV1OpenapiDotjsonRoute,
   ApiV1ProductsProductFolderRoute: ApiV1ProductsProductFolderRouteWithChildren,

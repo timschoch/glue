@@ -7,15 +7,17 @@ import {
   submitSignUp,
 } from './authentication/session.functions.ts'
 import {
-  fetchConcept,
-  fetchProducts,
+  fetchConcept as fetchProductConcept,
   fetchRecord,
-  submitAcceptDecision,
-  submitDiscardInsight,
-  submitKeepInsight,
   submitProposeDecision,
-  submitUpdateGoal,
 } from './db/concept.functions.ts'
+import {
+  fetchConcept,
+  fetchPart,
+  fetchParts,
+  fetchProject,
+  fetchProjects,
+} from './db/parts.functions.ts'
 import { createRouterContext } from './router-context.ts'
 import type { Server, SessionMemory } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
@@ -23,13 +25,13 @@ import { routeTree } from './routeTree.gen'
 // The routes reach the server only through these functions.
 const server: Server = {
   fetchSession: () => fetchSession(),
-  fetchProducts: () => fetchProducts(),
-  fetchConcept: (product) => fetchConcept({ data: product }),
+  fetchProjects: () => fetchProjects(),
+  fetchProject: (project) => fetchProject({ data: { project } }),
+  fetchConcept: (concept) => fetchConcept({ data: concept }),
+  fetchParts: (project) => fetchParts({ data: { project } }),
+  fetchPart: (part) => fetchPart({ data: part }),
+  fetchProductConcept: (product) => fetchProductConcept({ data: product }),
   fetchRecord: (record) => fetchRecord({ data: record }),
-  keepInsight: (insight) => submitKeepInsight({ data: insight }),
-  discardInsight: (insight) => submitDiscardInsight({ data: insight }),
-  acceptDecision: (decision) => submitAcceptDecision({ data: decision }),
-  updateGoal: (goal) => submitUpdateGoal({ data: goal }),
   proposeDecision: (proposal) => submitProposeDecision({ data: proposal }),
   signIn: (credentials) => submitSignIn({ data: credentials }),
   signUp: (account) => submitSignUp({ data: account }),

@@ -1,5 +1,6 @@
-// The pages that can be a target: the overview of a Product and a record.
-const targetPattern = /^\/([\w-]+)(?:\/concept\/([GDIFR]\d+))?$/
+// The pages that can be a target: the start of a Project, a Concept and a
+// record.
+const targetPattern = /^\/([\w-]+)(?:\/([\w-]+)(?:\/([A-Z]\d+))?)?$/
 
 // The page to show after sign-in. Only a path of Glue itself is a target,
 // so a link to sign-in can never send a person to another site.
@@ -9,15 +10,19 @@ export function parseRedirect(input: unknown): string | undefined {
     : undefined
 }
 
-// Without a target, the overview.
+// Without a target, the start.
 export function toDestination(target: string | undefined) {
   const found = targetPattern.exec(target ?? '')
   if (!found) return { to: '/' } as const
-  const [, product, recordId] = found
-  return recordId
-    ? ({
-        to: '/$product/concept/$recordId',
-        params: { product, recordId },
-      } as const)
-    : ({ to: '/$product', params: { product } } as const)
+  const [, project, concept, recordId] = found as Array<string | undefined>
+  if (project && concept && recordId) {
+    return {
+      to: '/$project/$concept/$recordId',
+      params: { project, concept, recordId },
+    } as const
+  }
+  if (project && concept) {
+    return { to: '/$project/$concept', params: { project, concept } } as const
+  }
+  return { to: '/$project', params: { project: project ?? '' } } as const
 }

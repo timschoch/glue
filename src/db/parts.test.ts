@@ -79,6 +79,7 @@ const goal = {
   title: 'More users pay',
   status: 'open',
   concept: 'glue',
+  conceptTitle: 'Glue',
 }
 const insight = {
   id: 'I1',
@@ -86,6 +87,7 @@ const insight = {
   title: 'Bakers want step videos',
   status: null,
   concept: 'part-model',
+  conceptTitle: 'Part model',
 }
 const decision = {
   id: 'D1',
@@ -93,6 +95,7 @@ const decision = {
   title: 'Show the video of the creator',
   status: 'superseded',
   concept: 'part-model',
+  conceptTitle: 'Part model',
 }
 const replacement = {
   id: 'D2',
@@ -100,6 +103,7 @@ const replacement = {
   title: 'Show the video of the baker',
   status: 'proposed',
   concept: 'part-model',
+  conceptTitle: 'Part model',
 }
 const guardrail = {
   id: 'R1',
@@ -107,6 +111,7 @@ const guardrail = {
   title: 'No query over 200ms',
   status: null,
   concept: 'glue',
+  conceptTitle: 'Glue',
 }
 const entity = {
   id: 'E1',
@@ -114,6 +119,7 @@ const entity = {
   title: 'Technique',
   status: null,
   concept: 'read-model',
+  conceptTitle: 'Read model',
 }
 const flow = {
   id: 'F1',
@@ -121,6 +127,7 @@ const flow = {
   title: 'Read a Concept',
   status: null,
   concept: 'read-model',
+  conceptTitle: 'Read model',
 }
 
 const readModel = {

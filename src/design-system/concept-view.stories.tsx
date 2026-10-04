@@ -127,6 +127,11 @@ export const Empty: Story = {
   args: { concept: { ...concept, parts: [], linkedParts: [] } },
 }
 
+// No Part can be added: the empty slots show their type alone.
+export const ReadOnly: Story = {
+  args: { concept: brief, onAddPart: undefined },
+}
+
 export const WithConcepts: Story = {
   args: { concept: { ...brief, concepts } },
 }

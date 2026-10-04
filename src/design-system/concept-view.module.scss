@@ -61,6 +61,11 @@ $card-width: $spacing-13 * 2;
   border: 1px dashed $border-strong-01;
 }
 
+// The type of an empty slot that has no button: it takes the room of the button.
+.slotType {
+  padding: $spacing-03 $spacing-05;
+}
+
 .add {
   align-self: flex-start;
 }

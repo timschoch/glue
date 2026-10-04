@@ -65,8 +65,9 @@ export type ConceptViewProps = {
   ) => void
   // A tile opens with a click or with a key.
   onOpenConcept?: (concept: ConceptViewNode, event: SyntheticEvent) => void
-  // Without a type: the first Part of a Concept that has none.
-  onAddPart: (type?: PartType) => void
+  // Without a type: the first Part of a Concept that has none. Without the
+  // callback the view has no button: an empty slot shows its type alone.
+  onAddPart?: (type?: PartType) => void
 }
 
 // One Concept in the main window: its head, the Concepts inside it, and its
@@ -146,15 +147,17 @@ export function ConceptView({
       {groups.length === 0 && (
         <div className={styles.group}>
           <p className={styles.label}>No Parts</p>
-          <Button
-            kind="ghost"
-            size="sm"
-            renderIcon={Add}
-            className={styles.add}
-            onClick={() => onAddPart()}
-          >
-            Add Part
-          </Button>
+          {onAddPart && (
+            <Button
+              kind="ghost"
+              size="sm"
+              renderIcon={Add}
+              className={styles.add}
+              onClick={() => onAddPart()}
+            >
+              Add Part
+            </Button>
+          )}
         </div>
       )}
       {groups.map(({ type, many, parts, linkedParts, empty }) => (
@@ -171,15 +174,21 @@ export function ConceptView({
             ))}
             {empty && (
               <li className={styles.emptySlot}>
-                <Button
-                  kind="ghost"
-                  size="sm"
-                  renderIcon={Add}
-                  className={styles.add}
-                  onClick={() => onAddPart(type)}
-                >
-                  Add {partTypes[type]}
-                </Button>
+                {onAddPart ? (
+                  <Button
+                    kind="ghost"
+                    size="sm"
+                    renderIcon={Add}
+                    className={styles.add}
+                    onClick={() => onAddPart(type)}
+                  >
+                    Add {partTypes[type]}
+                  </Button>
+                ) : (
+                  <span className={`${styles.label} ${styles.slotType}`}>
+                    {partTypes[type]}
+                  </span>
+                )}
               </li>
             )}
           </ul>

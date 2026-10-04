@@ -76,6 +76,10 @@ $pinned-breakpoint: 'lg';
   }
 }
 
+.canvas {
+  background-color: $background;
+}
+
 .besidePinned {
   @include breakpoint($pinned-breakpoint) {
     margin-inline-end: $pinned-width;
