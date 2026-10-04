@@ -92,6 +92,13 @@ export function ConceptScreen({
   return (
     <ConceptView
       concept={concept}
+      view={search.view ?? 'list'}
+      onViewChange={(view) =>
+        void changeSearch({
+          ...search,
+          view: view === 'map' ? view : undefined,
+        })
+      }
       types={lensTypes(search.section)}
       partHref={recordHref}
       conceptHref={({ slug }) => conceptHref(slug)}

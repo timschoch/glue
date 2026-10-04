@@ -77,6 +77,7 @@ export function ProjectFrame({
         conceptHref(concept, {
           section: section === search.section ? undefined : section,
           pins: search.pins,
+          view: search.view,
         })
       }
       concepts={project.concept.concepts.map((node) => ({
