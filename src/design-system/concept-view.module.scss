@@ -19,6 +19,19 @@ $card-width: $spacing-13 * 2;
   gap: $spacing-03;
 }
 
+// The head: the name at the start, the switch of the view at the end.
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: $spacing-05;
+}
+
+.switch {
+  inline-size: $spacing-13;
+}
+
 .title {
   @include type-style('heading-03');
 

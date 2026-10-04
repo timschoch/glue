@@ -137,6 +137,27 @@ export const WithConcepts: Story = {
   args: { concept: { ...brief, concepts } },
 }
 
+// The map in place of the list.
+export const MapView: Story = {
+  args: {
+    concept: {
+      ...concept,
+      joints: [
+        { id: 1, part: 'D12', needs: 'G2', twoWay: false },
+        { id: 2, part: 'D12', needs: 'I7', twoWay: false },
+        { id: 3, part: 'D13', needs: 'I9', twoWay: false },
+        { id: 4, part: 'D13', needs: 'I21', twoWay: false },
+        { id: 5, part: 'F5', needs: 'D12', twoWay: false },
+        { id: 6, part: 'E3', needs: 'D12', twoWay: false },
+        { id: 7, part: 'R4', needs: 'D13', twoWay: false },
+        { id: 8, part: 'M1', needs: 'G2', twoWay: false },
+      ],
+    },
+    view: 'map',
+    onViewChange: () => {},
+  },
+}
+
 // The lens of the section Decide.
 export const Lens: Story = {
   args: { concept: brief, types: ['goal', 'decision', 'guardrail'] },

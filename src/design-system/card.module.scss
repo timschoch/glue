@@ -6,9 +6,11 @@
 // The height of a small Carbon button.
 $action-height: $spacing-07;
 
-// The action button lies on the card, so the card places it.
+// The action button lies on the card, so the card places it. The click
+// target fills a card that is higher than its content, as a node of the map.
 .card {
   position: relative;
+  display: grid;
 }
 
 // The click target is the surface of the card, on the layer below it.

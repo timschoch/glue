@@ -215,6 +215,24 @@ describe('the start of a Project', () => {
     ).toBeDefined()
   })
 
+  it('switches a Concept to the map and back, and the address keeps the view', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model')
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Map' }))
+
+    await expectAddress('/glue/part-model', { view: 'map' })
+    expect(screen.queryByRole('region', { name: 'Decisions' })).toBeNull()
+    expect(card('D4').closest('li')?.style.top).toBeDefined()
+    expect(
+      screen.getByRole('tab', { name: 'Map' }).getAttribute('aria-selected'),
+    ).toBe('true')
+
+    await userEvent.click(screen.getByRole('tab', { name: 'List' }))
+
+    await expectAddress('/glue/part-model')
+    expect(screen.getByRole('region', { name: 'Decisions' })).toBeDefined()
+  })
+
   it('opens a Concept with a click on its tile', async () => {
     const { expectAddress } = await renderPage('/glue')
 
