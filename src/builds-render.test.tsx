@@ -92,6 +92,14 @@ describe('the builds of a Project', () => {
     expect(listed()).toEqual(['Read the Concept from the database'])
   })
 
+  it('shows on the record of a Decision no card of this Decision in a build', async () => {
+    await renderPage('/glue/part-model/D4')
+
+    const list = within(screen.getByRole('region', { name: 'Builds' }))
+
+    expect(list.queryByRole('link', { name: /D4/ })).toBeNull()
+  })
+
   it('shows in the Contract of a Concept the builds that name it', async () => {
     await renderPage('/glue/part-model')
 

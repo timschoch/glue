@@ -4,6 +4,7 @@
 import { chromium } from '@playwright/test'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { openFirstRecord, saveScreenshot } from './live-walk-page.mjs'
 
 const base = process.argv[2] ?? 'https://glue-glue-glue.vercel.app'
 const accountFile = new URL('../.temp/test-account.json', import.meta.url)
@@ -45,10 +46,7 @@ page.on('response', (response) => {
 
 async function shot(name) {
   await page.waitForLoadState('networkidle').catch(() => {})
-  await page.screenshot({
-    path: new URL(`${name}.png`, out).pathname,
-    fullPage: true,
-  })
+  await saveScreenshot(page, new URL(`${name}.png`, out).pathname)
   const text = (
     await page
       .locator('main')
@@ -118,11 +116,12 @@ for (const path of process.argv.slice(3)) {
 where = 'record'
 await page.goto(`${base}/glue`)
 await page.waitForLoadState('networkidle').catch(() => {})
-const card = page.locator('main a[href*="/glue/"]').first()
-if (await card.count()) {
-  await card.click()
-  await shot(`${shotNumber++}-record`)
-} else problems.push('record: no card link on the Project page')
+const opened = await openFirstRecord(page).catch(() => {
+  problems.push('record: the record did not come on the screen')
+  return true
+})
+if (opened) await shot(`${shotNumber++}-record`)
+else problems.push('record: no card link on the Project page')
 
 console.log(`problems: ${problems.length}`)
 for (const problem of [...new Set(problems)].slice(0, 40))
