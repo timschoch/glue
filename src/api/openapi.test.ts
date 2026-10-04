@@ -34,6 +34,8 @@ describe('GET /api/v1/openapi.json', () => {
             'get ',
             'get /concepts/{concept}',
             'post /concepts',
+            'get /concepts/{concept}/contract',
+            'post /concepts/{concept}/contract',
             'get /parts',
             'post /parts',
             'get /parts/{recordId}',
@@ -81,6 +83,34 @@ describe('GET /api/v1/openapi.json', () => {
       enum: ['hunch', 'pattern', 'confirmed'],
     })
     expect(JSON.stringify(schemas.PartInput)).toContain('"entity"')
+  })
+
+  it('describes the Contract of a Concept: the Version, the checksum and the two tiers', async () => {
+    const document = await handleGetOpenApi().json()
+    const contract =
+      document.paths['/api/v1/projects/{project}/concepts/{concept}/contract']
+    const { Contract } = document.components.schemas
+
+    expect(contract.get.operationId).toBe('getContract')
+    expect(contract.get.parameters).toContainEqual(
+      expect.objectContaining({ in: 'query', name: 'version' }),
+    )
+    expect(contract.post.operationId).toBe('signContract')
+    expect(
+      contract.post.requestBody.content['application/json'].schema,
+    ).toEqual({ $ref: '#/components/schemas/ContractSignInput' })
+    expect(Object.keys(Contract.properties)).toEqual(
+      expect.arrayContaining([
+        'version',
+        'checksum',
+        'tier1',
+        'tier2',
+        'slots',
+      ]),
+    )
+    expect(Contract.properties.tier1.items).toEqual({
+      $ref: '#/components/schemas/FrozenPart',
+    })
   })
 
   it('describes Trust, the Work state, the flags and the answers', async () => {
