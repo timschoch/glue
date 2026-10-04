@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
-import { Frame } from './frame.tsx'
+import { Frame, PlainFrame } from './frame.tsx'
 
 const meta = {
   title: 'Frame',
@@ -11,14 +11,29 @@ const meta = {
     projects: ['Bakeday', 'Flexibeck'],
     onProjectChange: () => {},
     onUnpin: () => {},
+    onOpen: (_href, event) => event.preventDefault(),
     section: 'Decide',
+    sectionHref: (section) => `/bakeday?section=${section}`,
     concepts: [
-      { name: 'Technique videos', concepts: ['Step videos', 'Creator videos'] },
-      { name: 'First bake' },
-      { name: 'Shopping list' },
+      {
+        name: 'Technique videos',
+        href: '/bakeday/technique-videos',
+        concepts: [
+          { name: 'Step videos', href: '/bakeday/step-videos' },
+          { name: 'Creator videos', href: '/bakeday/creator-videos' },
+        ],
+      },
+      { name: 'First bake', href: '/bakeday/first-bake' },
+      { name: 'Shopping list', href: '/bakeday/shopping-list' },
     ],
-    conceptPath: ['Technique videos', 'Step videos'],
-    trail: ['Show each technique', 'Videos are too long'],
+    conceptPath: [
+      { name: 'Technique videos', href: '/bakeday/technique-videos' },
+      { name: 'Step videos', href: '/bakeday/step-videos' },
+    ],
+    trail: [
+      { name: 'Show each technique', href: '/bakeday/step-videos/D12' },
+      { name: 'Videos are too long', href: '/bakeday/step-videos/I7' },
+    ],
   },
 } satisfies Meta<typeof Frame>
 
@@ -34,15 +49,27 @@ export const Pinned: StoryObj<typeof meta> = {
         recordId: 'I7',
         title: 'Videos are too long',
         trust: 'flagged',
+        href: '/bakeday/step-videos/I7',
       },
       {
         type: 'decision',
         recordId: 'D12',
         title: 'Show each technique',
         trust: 'solid',
+        href: '/bakeday/step-videos/D12',
       },
     ],
   },
+}
+
+// No section is chosen: the main window shows every Part type.
+export const NoSection: StoryObj<typeof meta> = {
+  args: { section: undefined },
+}
+
+// A screen that has no Project.
+export const Plain: StoryObj<typeof meta> = {
+  render: () => <PlainFrame />,
 }
 
 // A narrow window, with the left panel open over the main window.

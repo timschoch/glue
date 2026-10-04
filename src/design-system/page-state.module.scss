@@ -1,0 +1,18 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The title and its link are one group, at the start edge.
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-03;
+}
+
+.title {
+  @include type-style('heading-03');
+
+  color: $text-primary;
+  overflow-wrap: anywhere;
+}

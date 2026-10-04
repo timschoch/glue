@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import './theme.scss'
-import { Frame } from './frame.tsx'
-import type { FramePin } from './frame.tsx'
+import { Frame, PlainFrame } from './frame.tsx'
+import type { FramePin, FrameProps } from './frame.tsx'
 
 // The g10 values of the two layers, from Carbon's theme table.
 const BACKGROUND = '#f4f4f4'
@@ -34,12 +34,14 @@ const PINNED: ReadonlyArray<FramePin> = [
     recordId: 'I7',
     title: 'Videos are too long',
     trust: 'flagged',
+    href: '/bakeday/technique-videos/I7',
   },
   {
     type: 'decision',
     recordId: 'D12',
     title: 'Show each technique',
     trust: 'solid',
+    href: '/bakeday/technique-videos/D12',
   },
 ]
 
@@ -70,6 +72,7 @@ function renderFrame(
   pinned: ReadonlyArray<FramePin> = [],
   onProjectChange: (project: string) => void = () => {},
   onUnpin: (recordId: string) => void = () => {},
+  props: Partial<FrameProps> = {},
 ) {
   render(
     <Frame
@@ -77,17 +80,29 @@ function renderFrame(
       projects={['Bakeday', 'Flexibeck']}
       onProjectChange={onProjectChange}
       section="Decide"
+      sectionHref={(section) => `/bakeday?section=${section}`}
       concepts={[
         {
           name: 'Technique videos',
-          concepts: ['Step videos', 'Creator videos'],
+          href: '/bakeday/technique-videos',
+          concepts: [
+            { name: 'Step videos', href: '/bakeday/step-videos' },
+            { name: 'Creator videos', href: '/bakeday/creator-videos' },
+          ],
         },
-        { name: 'First bake' },
+        { name: 'First bake', href: '/bakeday/first-bake' },
       ]}
-      conceptPath={['Technique videos', 'Step videos']}
-      trail={['Show each technique', 'Videos are too long']}
+      conceptPath={[
+        { name: 'Technique videos', href: '/bakeday/technique-videos' },
+        { name: 'Step videos', href: '/bakeday/step-videos' },
+      ]}
+      trail={[
+        { name: 'Show each technique', href: '/bakeday/step-videos/D12' },
+        { name: 'Videos are too long', href: '/bakeday/step-videos/I7' },
+      ]}
       pinned={pinned}
       onUnpin={onUnpin}
+      {...props}
     >
       Content
     </Frame>,
@@ -507,6 +522,13 @@ describe('Frame', () => {
       () => userEvent.click(screen.getByRole('link', { name: 'Design' })),
     ],
   ])('closes the open left panel on %s', async (_name, close) => {
+    // Escape in the Project switcher starts a timer of 3 s in Carbon. The
+    // test runs it, so it does not end after the test file.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    onTestFinished(() => {
+      vi.runOnlyPendingTimers()
+      vi.useRealTimers()
+    })
     renderFrame()
 
     const menu = screen.getByRole('button', { name: 'Menu' })
@@ -517,5 +539,137 @@ describe('Frame', () => {
     expect(
       screen.getByRole('navigation', { name: 'Main' }).hasAttribute('inert'),
     ).toBe(true)
+  })
+
+  it('gives each link the address of its place', () => {
+    renderFrame(PINNED)
+
+    const address = (name: string, within_: HTMLElement) =>
+      within(within_).getByRole('link', { name }).getAttribute('href')
+    const panel = screen.getByRole('navigation', { name: 'Main' })
+
+    expect(address('Design', panel)).toBe('/bakeday?section=Design')
+    expect(address('Step videos', panel)).toBe('/bakeday/step-videos')
+    expect(address('First bake', panel)).toBe('/bakeday/first-bake')
+    expect(
+      address(
+        'Technique videos',
+        screen.getByRole('navigation', { name: 'Breadcrumb' }),
+      ),
+    ).toBe('/bakeday/technique-videos')
+    expect(
+      address(
+        'Show each technique',
+        screen.getByRole('navigation', { name: 'Trail' }),
+      ),
+    ).toBe('/bakeday/step-videos/D12')
+    expect(
+      within(screen.getByRole('complementary', { name: 'Pinned' }))
+        .getAllByRole('link')
+        .map((card) => card.getAttribute('href')),
+    ).toEqual(['/bakeday/technique-videos/I7', '/bakeday/technique-videos/D12'])
+  })
+
+  it.each([
+    ['a section', 'Main', 'Design', '/bakeday?section=Design'],
+    ['a Concept', 'Main', 'First bake', '/bakeday/first-bake'],
+    [
+      'a Concept inside a Concept',
+      'Main',
+      'Creator videos',
+      '/bakeday/creator-videos',
+    ],
+    [
+      'a Concept of the path',
+      'Breadcrumb',
+      'Technique videos',
+      '/bakeday/technique-videos',
+    ],
+    [
+      'a record of the trail',
+      'Trail',
+      'Show each technique',
+      '/bakeday/step-videos/D12',
+    ],
+  ])('opens %s with a click on its link', async (_name, place, name, href) => {
+    const onOpen = vi.fn()
+    renderFrame([], undefined, undefined, { onOpen })
+
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: place })).getByRole(
+        'link',
+        { name },
+      ),
+    )
+
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(href, expect.anything())
+  })
+
+  it('opens a pinned record with a click on its card', async () => {
+    const onOpen = vi.fn()
+    renderFrame(PINNED, undefined, undefined, { onOpen })
+
+    const [card] = within(
+      screen.getByRole('complementary', { name: 'Pinned' }),
+    ).getAllByRole('link')
+    await userEvent.click(card)
+
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(
+      '/bakeday/technique-videos/I7',
+      expect.anything(),
+    )
+  })
+
+  it('marks no section while none is chosen', () => {
+    renderFrame([], undefined, undefined, { section: undefined })
+
+    const panel = within(screen.getByRole('navigation', { name: 'Main' }))
+
+    expect(
+      panel
+        .getAllByRole('link', { current: 'page' })
+        .map((link) => link.textContent),
+    ).toEqual(['Step videos'])
+  })
+
+  it.each([
+    [
+      'the Concept of the path that the panel shows, under a root Concept and over a deeper one',
+      [
+        { name: 'Bakeday', href: '/bakeday' },
+        { name: 'Technique videos', href: '/bakeday/technique-videos' },
+        { name: 'Step videos', href: '/bakeday/step-videos' },
+        { name: 'Kneading', href: '/bakeday/kneading' },
+      ],
+      ['Step videos'],
+    ],
+    [
+      'no Concept while the path has none of the panel',
+      [{ name: 'Bakeday', href: '/bakeday' }],
+      [],
+    ],
+  ])('marks %s', (_name, conceptPath, marked) => {
+    renderFrame([], undefined, undefined, {
+      section: undefined,
+      conceptPath,
+    })
+
+    expect(
+      within(screen.getByRole('navigation', { name: 'Main' }))
+        .queryAllByRole('link', { current: 'page' })
+        .map((link) => link.textContent),
+    ).toEqual(marked)
+  })
+})
+
+describe('PlainFrame', () => {
+  it('puts a page without the panels on the canvas, in the main landmark', () => {
+    render(<PlainFrame>Content</PlainFrame>)
+
+    const main = screen.getByRole('main')
+
+    expect(main.textContent).toBe('Content')
+    expect(layer(main)).toBe(BACKGROUND)
+    expect(marginStartAt(main)).toEqual({})
   })
 })

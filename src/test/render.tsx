@@ -36,7 +36,7 @@ export function shownValue(label: string): string {
   return (value?.textContent ?? '').replace(/\s+/g, ' ').trim()
 }
 
-// Renders a component as the overview of a Product, in the theme, in a router
+// Renders a component as the start of a Project, in the theme, in a router
 // that knows the paths of Glue. The links of the component work, the pages
 // behind them are empty.
 export async function renderInRouter(ui: ReactNode, path = '/glue') {
@@ -49,8 +49,8 @@ export async function renderInRouter(ui: ReactNode, path = '/glue') {
   })
   const others = [
     '/',
-    '/$product/concept/$recordId',
-    '/$product/decisions/new',
+    '/$project/$concept/$recordId',
+    '/$project/decisions/new',
     '/sign-in',
     '/sign-up',
   ]
@@ -58,7 +58,7 @@ export async function renderInRouter(ui: ReactNode, path = '/glue') {
     routeTree: root.addChildren([
       createRoute({
         getParentRoute: () => root,
-        path: '/$product',
+        path: '/$project',
         component: () => ui,
       }),
       ...others.map((other) =>

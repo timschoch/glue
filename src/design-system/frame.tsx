@@ -19,7 +19,7 @@ import {
   SideNavMenuItem,
 } from '@carbon/react'
 import { useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 
 import { Card } from './card.tsx'
 import type { CardProps } from './card.tsx'
@@ -37,14 +37,37 @@ export const sections = [
 
 export type Section = (typeof sections)[number]
 
-// A Concept of the Project, with the names of the Concepts one level inside it.
-export type FrameConcept = { name: string; concepts?: ReadonlyArray<string> }
+// A place the frame links to: its name and its address.
+export type FrameLink = { name: string; href: string }
+
+// A Concept of the Project, with the Concepts one level inside it.
+export type FrameConcept = FrameLink & { concepts?: ReadonlyArray<FrameLink> }
 
 // A pinned record: what its minimal card shows.
-export type FramePin = Pick<CardProps, 'type' | 'recordId' | 'title' | 'trust'>
+export type FramePin = Pick<
+  CardProps,
+  'type' | 'recordId' | 'title' | 'trust' | 'href'
+>
 
-// The left panel shows two levels of Concepts.
-const PANEL_LEVELS = 2
+export type FrameProps = {
+  project: string
+  projects: ReadonlyArray<string>
+  onProjectChange: (project: string) => void
+  // No section while the main window shows every Part type.
+  section?: Section
+  sectionHref: (section: Section) => string
+  concepts: ReadonlyArray<FrameConcept>
+  // The open Concept and the Concepts around it, outermost first.
+  conceptPath: ReadonlyArray<FrameLink>
+  // The records opened on the way to the open record, the open record last.
+  trail?: ReadonlyArray<FrameLink>
+  // The pinned records, newest first.
+  pinned?: ReadonlyArray<FramePin>
+  onUnpin: (recordId: string) => void
+  // A click on a link of the frame, with the address of the link.
+  onOpen?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
+  children?: ReactNode
+}
 
 // The current marker of a navigation item: Carbon draws the bar, and
 // `aria-current` says it without colour.
@@ -65,39 +88,31 @@ export function Frame({
   projects,
   onProjectChange,
   section,
+  sectionHref,
   concepts,
   conceptPath,
   trail = [],
   pinned = [],
   onUnpin,
+  onOpen,
   children,
-}: {
-  project: string
-  projects: ReadonlyArray<string>
-  onProjectChange: (project: string) => void
-  section: Section
-  concepts: ReadonlyArray<FrameConcept>
-  // The open Concept and the Concepts around it, outermost first.
-  conceptPath: ReadonlyArray<string>
-  // The records opened on the way to the open record, the open record last.
-  trail?: ReadonlyArray<string>
-  // The pinned records, newest first.
-  pinned?: ReadonlyArray<FramePin>
-  onUnpin: (recordId: string) => void
-  children?: ReactNode
-}) {
+}: FrameProps) {
   // In a narrow window the stack of pinned records opens over the main window.
   const [stackOpen, setStackOpen] = useState(false)
   // In a narrow window the left panel opens over the main window.
   const [panelOpen, setPanelOpen] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const isPinned = pinned.length > 0
+  const link = (href: string) => ({
+    href,
+    onClick: (event: MouseEvent<HTMLAnchorElement>) => onOpen?.(href, event),
+  })
   const cards = pinned.map((pin) => (
     <Card
       key={pin.recordId}
       {...pin}
       minimal
-      href="#"
+      onOpen={(event) => onOpen?.(pin.href, event)}
       action={{
         label: 'Unpin',
         icon: PinFilled,
@@ -105,7 +120,14 @@ export function Frame({
       }}
     />
   ))
-  const currentConcept = conceptPath.slice(0, PANEL_LEVELS).at(-1)
+  const isOnPath = (concept: FrameLink) =>
+    conceptPath.some(({ href }) => href === concept.href)
+  // The left panel shows two levels of Concepts. The current one is the
+  // innermost Concept of the path that the panel has a link for.
+  const currentConcept = concepts
+    .flatMap((concept) => concept.concepts ?? [concept])
+    .filter(isOnPath)
+    .at(-1)?.href
 
   return (
     <>
@@ -130,13 +152,12 @@ export function Frame({
             onClick={() => setPanelOpen((open) => !open)}
           />
           <Breadcrumb noTrailingSlash className={styles.breadcrumb}>
-            {conceptPath.map((name, index) => (
+            {conceptPath.map(({ name, href }, index) => (
               <BreadcrumbItem
-                key={name}
-                href="#"
+                key={href}
                 isCurrentPage={index === conceptPath.length - 1}
               >
-                {name}
+                <a {...link(href)}>{name}</a>
               </BreadcrumbItem>
             ))}
           </Breadcrumb>
@@ -168,7 +189,11 @@ export function Frame({
             </Layer>
             <SideNavItems>
               {sections.map((name) => (
-                <SideNavLink key={name} href="#" {...current(name === section)}>
+                <SideNavLink
+                  key={name}
+                  {...link(sectionHref(name))}
+                  {...current(name === section)}
+                >
                   {name}
                 </SideNavLink>
               ))}
@@ -176,15 +201,16 @@ export function Frame({
               {concepts.map((concept) =>
                 concept.concepts ? (
                   <SideNavMenu
-                    key={concept.name}
+                    // A Concept that comes onto the path opens its menu.
+                    key={`${concept.href} ${isOnPath(concept)}`}
                     title={concept.name}
-                    defaultExpanded={conceptPath.includes(concept.name)}
+                    defaultExpanded={isOnPath(concept)}
                   >
-                    {concept.concepts.map((name) => (
+                    {concept.concepts.map(({ name, href }) => (
                       <SideNavMenuItem
-                        key={name}
-                        href="#"
-                        {...current(name === currentConcept)}
+                        key={href}
+                        {...link(href)}
+                        {...current(href === currentConcept)}
                       >
                         {name}
                       </SideNavMenuItem>
@@ -192,9 +218,9 @@ export function Frame({
                   </SideNavMenu>
                 ) : (
                   <SideNavLink
-                    key={concept.name}
-                    href="#"
-                    {...current(concept.name === currentConcept)}
+                    key={concept.href}
+                    {...link(concept.href)}
+                    {...current(concept.href === currentConcept)}
                   >
                     {concept.name}
                   </SideNavLink>
@@ -213,13 +239,13 @@ export function Frame({
           <div className={styles.trail}>
             <nav aria-label="Trail">
               <ol className={styles.records}>
-                {trail.map((record, index) => (
-                  <li key={record} className={styles.record}>
+                {trail.map(({ name, href }, index) => (
+                  <li key={href} className={styles.record}>
                     {index > 0 && <ArrowRight className={styles.glyph} />}
                     {index === trail.length - 1 ? (
-                      <span aria-current="page">{record}</span>
+                      <span aria-current="page">{name}</span>
                     ) : (
-                      <Link href="#">{record}</Link>
+                      <Link {...link(href)}>{name}</Link>
                     )}
                   </li>
                 ))}
@@ -264,4 +290,9 @@ export function Frame({
       )}
     </>
   )
+}
+
+// The frame of a screen that has no Project: the canvas alone.
+export function PlainFrame({ children }: { children?: ReactNode }) {
+  return <Content className={styles.canvas}>{children}</Content>
 }

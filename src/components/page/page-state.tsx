@@ -63,7 +63,7 @@ export function MissingRecordState({ recordId }: { recordId: string }) {
       title={`No record ${recordId}`}
       text="The Concept has no record with this id. The id of a record is a letter and a number, such as D5."
     >
-      <Link from="/$product" to="/$product" params={true}>
+      <Link from="/$project/decisions/new" to="/$project" params={true}>
         Go to the Concept
       </Link>
     </MissingState>

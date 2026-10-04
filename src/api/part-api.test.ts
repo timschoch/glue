@@ -250,6 +250,7 @@ describe('Concepts', () => {
           title: 'Pay the cart',
           status: null,
           concept: 'cart',
+          conceptTitle: 'Cart',
         },
       ],
     })
@@ -299,6 +300,7 @@ describe('GET the Parts', () => {
         title: 'Users churn on slow loads',
         status: null,
         concept: 'flexibeck',
+        conceptTitle: 'flexibeck',
       },
       {
         id: 'G1',
@@ -306,6 +308,7 @@ describe('GET the Parts', () => {
         title: 'Ship faster',
         status: 'open',
         concept: 'flexibeck',
+        conceptTitle: 'flexibeck',
       },
       {
         id: 'R1',
@@ -313,6 +316,7 @@ describe('GET the Parts', () => {
         title: 'No query over 200ms',
         status: null,
         concept: 'flexibeck',
+        conceptTitle: 'flexibeck',
       },
     ])
   })
@@ -351,6 +355,7 @@ describe('GET a Part', () => {
       title: 'Users churn on slow loads',
       status: null,
       concept: 'flexibeck',
+      conceptTitle: 'flexibeck',
       body: '',
       owner: null,
       date: '2026-09-30',

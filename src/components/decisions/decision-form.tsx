@@ -19,6 +19,7 @@ import type {
   DecisionProposal,
   ProposalField,
 } from '../../db/decision-proposal.ts'
+import { UNKNOWN_CONCEPT } from '../../project/project-search.ts'
 import { RecordTitle } from '../records/record-link.tsx'
 import classes from './decision-form.module.css'
 
@@ -110,7 +111,7 @@ export function DecisionForm({
       {missing ? (
         <>
           <p className={classes.note}>{missing}</p>
-          <Link from="/$product" to="/$product" params={true}>
+          <Link from="/$project/decisions/new" to="/$project" params={true}>
             Go to the Concept
           </Link>
         </>
@@ -201,17 +202,21 @@ export function DecisionForm({
             </Button>
             {superseded ? (
               <Link
-                from="/$product"
-                to="/$product/concept/$recordId"
-                params={(current) => ({ ...current, recordId: superseded.id })}
+                from="/$project/decisions/new"
+                to="/$project/$concept/$recordId"
+                params={(current) => ({
+                  ...current,
+                  concept: UNKNOWN_CONCEPT,
+                  recordId: superseded.id,
+                })}
                 className={classes.cancel}
               >
                 Cancel
               </Link>
             ) : (
               <Link
-                from="/$product"
-                to="/$product"
+                from="/$project/decisions/new"
+                to="/$project"
                 params={true}
                 className={classes.cancel}
               >

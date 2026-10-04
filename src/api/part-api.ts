@@ -40,6 +40,9 @@ export const partSummarySchema = z
     title: z.string(),
     status: z.string().nullable(),
     concept: z.string().meta({ description: 'The slug of the home Concept' }),
+    conceptTitle: z
+      .string()
+      .meta({ description: 'The title of the home Concept' }),
   })
   .meta({ id: 'PartSummary' }) satisfies z.ZodType<PartSummary>
 

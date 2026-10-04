@@ -3,19 +3,11 @@ import {
   Scripts,
   createRootRouteWithContext,
 } from '@tanstack/react-router'
-import {
-  ColorSchemeScript,
-  MantineProvider,
-  mantineHtmlProps,
-} from '@mantine/core'
 
-import mantineCss from '@mantine/core/styles.css?url'
-import appCss from '../styles.css?url'
-import { PlainFrame } from '../components/page/page-frame.tsx'
-import { MissingPageState } from '../components/page/page-state.tsx'
 import type { RouterContext } from '../router-context.ts'
-import { cssVariablesResolver, theme } from '../theme'
 
+// The document alone. A UI kit comes with the routes that use it: Carbon
+// with `_signed-in`, Mantine with `_mantine`.
 export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
@@ -30,40 +22,19 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         title: 'Glue',
       },
     ],
-    links: [
-      {
-        rel: 'stylesheet',
-        href: mantineCss,
-      },
-      {
-        rel: 'stylesheet',
-        href: appCss,
-      },
-    ],
   }),
   shellComponent: RootDocument,
-  notFoundComponent: () => (
-    <PlainFrame>
-      <MissingPageState />
-    </PlainFrame>
-  ),
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" {...mantineHtmlProps}>
+    // Mantine writes its colour scheme on this element before React starts.
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <ColorSchemeScript />
         <HeadContent />
       </head>
       <body>
-        <MantineProvider
-          theme={theme}
-          cssVariablesResolver={cssVariablesResolver}
-        >
-          {children}
-        </MantineProvider>
-
+        {children}
         <Scripts />
       </body>
     </html>

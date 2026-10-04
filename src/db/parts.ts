@@ -25,6 +25,7 @@ export type PartSummary = {
   status: string | null
   // The slug of the home Concept.
   concept: string
+  conceptTitle: string
 }
 
 export type ConceptNode = {
@@ -112,6 +113,7 @@ const summary = {
   title: parts.title,
   status: parts.status,
   concept: concepts.slug,
+  conceptTitle: concepts.title,
 }
 
 const neededSummary = {
@@ -120,6 +122,7 @@ const neededSummary = {
   title: neededParts.title,
   status: neededParts.status,
   concept: neededConcepts.slug,
+  conceptTitle: neededConcepts.title,
 }
 
 // Parts sort by their type, then by the number of their record id: D2 comes
@@ -313,7 +316,7 @@ export async function findPart(
   recordId: string,
 ): Promise<Part | undefined> {
   const found = await db
-    .select({ part: parts, concept: concepts.slug, measure: measures })
+    .select({ part: parts, concept: concepts, measure: measures })
     .from(parts)
     .innerJoin(concepts, eq(parts.conceptId, concepts.id))
     .innerJoin(projects, eq(parts.projectId, projects.id))
@@ -353,7 +356,8 @@ export async function findPart(
     type: part.type,
     title: part.title,
     status: part.status,
-    concept,
+    concept: concept.slug,
+    conceptTitle: concept.title,
     body: part.body,
     owner: part.owner,
     date: part.date,

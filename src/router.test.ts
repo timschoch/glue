@@ -9,12 +9,21 @@ import { describe, expect, it, vi } from 'vitest'
 import { createRouterContext } from './router-context.ts'
 import type { RouterContext, Server, SessionMemory } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
+import {
+  decision,
+  findConcept,
+  findPart,
+  findProject,
+  parts,
+  projects,
+} from './test/project.ts'
 
 const session = {
   user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' },
 }
 
-const concept = {
+// The Concept of the model before the Part model: the Decision form reads it.
+const productConcept = {
   product: { slug: 'glue', name: 'Glue' },
   goals: [],
   decisions: [],
@@ -23,47 +32,18 @@ const concept = {
   facts: [],
 }
 
-const guardrail = {
-  kind: 'guardrail' as const,
-  id: 'R1',
-  title: 'No query over 200ms',
-  enforcedBy: 'none yet',
-  source: null,
-  body: '',
-}
-
-const decision = {
-  kind: 'decision' as const,
-  id: 'D4',
-  title: 'The Concept lives in the database',
-  date: '2026-01-15',
-  owner: 'Ada',
-  status: 'accepted' as const,
-  body: '',
-  goal: { id: 'G1', title: 'Agents build from the Concept' },
-  evidence: [],
-  supersededBy: null,
-  supersedes: [],
-  issueUrl: null,
-}
-
-const products = [
-  { slug: 'flexibeck', name: 'flexibeck' },
-  { slug: 'glue', name: 'Glue' },
-]
-
 function context(overrides: Partial<Server> = {}): Server {
   return {
     fetchSession: vi.fn(() => Promise.resolve(undefined)),
-    fetchProducts: vi.fn(() => Promise.resolve(products)),
-    fetchConcept: vi.fn(() => Promise.resolve(concept)),
-    fetchRecord: vi.fn(() => Promise.resolve(guardrail)),
-    keepInsight: vi.fn(() => Promise.resolve(undefined)),
-    discardInsight: vi.fn(() => Promise.resolve(undefined)),
-    acceptDecision: vi.fn(() =>
-      Promise.resolve({ id: 'D1', issueMissing: false }),
+    fetchProjects: vi.fn(() => Promise.resolve(projects)),
+    fetchProject: vi.fn((project) => Promise.resolve(findProject(project))),
+    fetchConcept: vi.fn((input) => Promise.resolve(findConcept(input))),
+    fetchParts: vi.fn((project) =>
+      Promise.resolve(findProject(project) ? parts : []),
     ),
-    updateGoal: vi.fn(() => Promise.resolve(undefined)),
+    fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
+    fetchProductConcept: vi.fn(() => Promise.resolve(productConcept)),
+    fetchRecord: vi.fn(() => Promise.resolve(decision)),
     proposeDecision: vi.fn(() =>
       Promise.resolve({ id: 'D1', issueMissing: false }),
     ),
@@ -89,15 +69,26 @@ async function load(path: string, server: Server) {
   return router.state.location
 }
 
-describe('a Concept route without a session', () => {
-  it('sends the overview to sign-in', async () => {
+type Router = Awaited<ReturnType<typeof open>>
+
+function findMatch(router: Router, routeId: string) {
+  return router.state.matches.find((match) => match.routeId === routeId)
+}
+
+const PROJECT = '/_signed-in/$project'
+const CONCEPT = '/_signed-in/$project/$concept/'
+const RECORD = '/_signed-in/$project/$concept/$recordId'
+const DECISION_FORM = '/_mantine/_signed-in/$project/decisions/new'
+
+describe('a Project route without a session', () => {
+  it('sends the start to sign-in', async () => {
     const location = await load('/', context())
 
     expect(location.pathname).toBe('/sign-in')
     expect(location.search).toEqual({})
   })
 
-  it.each(['/flexibeck', '/flexibeck/concept/D5'])(
+  it.each(['/flexibeck', '/flexibeck/cart', '/flexibeck/cart/D5'])(
     'sends %s to sign-in and keeps the page as the target',
     async (path) => {
       const location = await load(path, context())
@@ -107,190 +98,281 @@ describe('a Concept route without a session', () => {
     },
   )
 
-  it('does not read the Concept', async () => {
+  it('does not read the Project', async () => {
     const signedOut = context()
 
     await load('/', signedOut)
     await load('/glue', signedOut)
-    await load('/glue/concept/D5', signedOut)
+    await load('/glue/part-model', signedOut)
+    await load('/glue/part-model/D4', signedOut)
     await load('/glue/decisions/new', signedOut)
 
-    expect(signedOut.fetchProducts).not.toHaveBeenCalled()
+    expect(signedOut.fetchProjects).not.toHaveBeenCalled()
+    expect(signedOut.fetchProject).not.toHaveBeenCalled()
     expect(signedOut.fetchConcept).not.toHaveBeenCalled()
+    expect(signedOut.fetchParts).not.toHaveBeenCalled()
+    expect(signedOut.fetchPart).not.toHaveBeenCalled()
+    expect(signedOut.fetchProductConcept).not.toHaveBeenCalled()
     expect(signedOut.fetchRecord).not.toHaveBeenCalled()
   })
 })
 
-describe('a Concept route with a session', () => {
-  const signedIn = () =>
-    context({ fetchSession: vi.fn(() => Promise.resolve(session)) })
+describe('a Project route with a session', () => {
+  const signedIn = (overrides: Partial<Server> = {}) =>
+    context({
+      fetchSession: vi.fn(() => Promise.resolve(session)),
+      ...overrides,
+    })
 
-  it('shows the overview of Glue at /', async () => {
-    const routerContext = signedIn()
+  it('shows the start of Glue at /', async () => {
+    const server = signedIn()
 
-    const location = await load('/', routerContext)
+    const location = await load('/', server)
 
     expect(location.pathname).toBe('/glue')
-    expect(routerContext.fetchConcept).toHaveBeenCalledExactlyOnceWith('glue')
   })
 
-  it('shows the overview of the Product in the path', async () => {
-    const routerContext = signedIn()
+  it('reads the Project, its Parts and its root Concept at the start of the Project', async () => {
+    const server = signedIn()
 
-    const location = await load('/flexibeck', routerContext)
+    await load('/flexibeck', server)
 
-    expect(location.pathname).toBe('/flexibeck')
-    expect(routerContext.fetchConcept).toHaveBeenCalledExactlyOnceWith(
-      'flexibeck',
-    )
-  })
-
-  it('reads the record with the Product and the id from the path', async () => {
-    const routerContext = signedIn()
-
-    const location = await load('/flexibeck/concept/R1', routerContext)
-
-    expect(location.pathname).toBe('/flexibeck/concept/R1')
-    expect(routerContext.fetchRecord).toHaveBeenCalledWith({
-      product: 'flexibeck',
-      recordId: 'R1',
+    expect(server.fetchProjects).toHaveBeenCalledOnce()
+    expect(server.fetchProject).toHaveBeenCalledExactlyOnceWith('flexibeck')
+    expect(server.fetchParts).toHaveBeenCalledExactlyOnceWith('flexibeck')
+    expect(server.fetchConcept).toHaveBeenCalledExactlyOnceWith({
+      project: 'flexibeck',
+      concept: 'flexibeck',
     })
   })
 
-  type Router = Awaited<ReturnType<typeof open>>
+  it('reads the Concept in the path', async () => {
+    const server = signedIn()
 
-  function findMatch(router: Router, routeId: string) {
-    return router.state.matches.find((match) => match.routeId === routeId)
-  }
+    const router = await open('/glue/part-model', server)
 
-  function recordMatch(router: Router) {
-    return findMatch(router, '/_signed-in/$product/concept/$recordId')
-  }
+    expect(server.fetchConcept).toHaveBeenCalledExactlyOnceWith({
+      project: 'glue',
+      concept: 'part-model',
+    })
+    expect(findMatch(router, CONCEPT)?.meta).toContainEqual({
+      title: 'Part model | Glue',
+    })
+  })
 
-  it.each(['/nope', '/nope/concept/R1', '/nope/decisions/new'])(
-    'has no page at %s, the path of a Product that Glue does not know',
+  it('reads the record with the Project and the id from the path', async () => {
+    const server = signedIn()
+
+    const router = await open('/glue/part-model/D4', server)
+
+    expect(router.state.location.pathname).toBe('/glue/part-model/D4')
+    expect(server.fetchPart).toHaveBeenCalledExactlyOnceWith({
+      project: 'glue',
+      recordId: 'D4',
+    })
+    expect(server.fetchConcept).not.toHaveBeenCalled()
+    expect(findMatch(router, RECORD)?.meta).toContainEqual({
+      title: 'D4 The Concept lives in the database | Glue',
+    })
+  })
+
+  it.each([
+    ['the address before the Part model', '/glue/concept/D4'],
+    ['a Concept that is not the home of the record', '/glue/read-model/D4'],
+  ])('sends %s to the record in its home Concept', async (_name, path) => {
+    const location = await load(path, signedIn())
+
+    expect(location.pathname).toBe('/glue/part-model/D4')
+  })
+
+  it('keeps the trail and the pins when it sends a record to its home Concept', async () => {
+    const search = { section: 'Decide' as const, pins: ['I3'], trail: ['G1'] }
+    const router = await open('/glue', signedIn())
+
+    await router.navigate({
+      to: '/$project/$concept/$recordId',
+      params: { project: 'glue', concept: 'concept', recordId: 'D4' },
+      search,
+    })
+
+    expect(router.state.location.pathname).toBe('/glue/part-model/D4')
+    expect(router.state.location.search).toEqual(search)
+  })
+
+  it('reads the section, the pins and the trail from the address', async () => {
+    const router = await open(
+      `/glue/part-model/D4?section=Decide&pins=${encodeURIComponent('["I3","G1"]')}&trail=${encodeURIComponent('["R1"]')}`,
+      signedIn(),
+    )
+
+    expect(findMatch(router, PROJECT)?.search).toEqual({
+      section: 'Decide',
+      pins: ['I3', 'G1'],
+      trail: ['R1'],
+    })
+  })
+
+  it('does not read a section or a record id that is none', async () => {
+    const router = await open(
+      `/glue?section=Nope&pins=${encodeURIComponent('["nope"]')}&trail=D4`,
+      signedIn(),
+    )
+
+    expect(findMatch(router, PROJECT)?.search).toEqual({})
+  })
+
+  it.each(['/nope', '/nope/part-model', '/nope/part-model/D4'])(
+    'has no page at %s, the path of a Project that Glue does not know',
     async (path) => {
       const router = await open(path, signedIn())
 
-      const match = findMatch(router, '/_signed-in/$product')
+      const match = findMatch(router, PROJECT)
 
       expect(match?.status).toBe('notFound')
-      expect(match?.meta).toContainEqual({ title: 'No Product nope | Glue' })
+      expect(match?.meta).toContainEqual({ title: 'No Project nope | Glue' })
     },
   )
+
+  it('has no page for a Concept that the Project does not have', async () => {
+    const router = await open('/glue/nope', signedIn())
+
+    const match = findMatch(router, CONCEPT)
+
+    expect(findMatch(router, PROJECT)?.status).toBe('success')
+    expect(match?.status).toBe('notFound')
+    expect(match?.meta).toContainEqual({ title: 'No Concept nope | Glue' })
+  })
+
+  it('names the missing record in the tab title', async () => {
+    const router = await open('/glue/part-model/D9', signedIn())
+
+    const match = findMatch(router, RECORD)
+
+    expect(match?.status).toBe('notFound')
+    expect(match?.meta).toContainEqual({ title: 'No record D9 | Glue' })
+  })
+
+  it('names the record page in the tab title when it fails to load', async () => {
+    const server = signedIn({
+      fetchPart: vi.fn(() => Promise.reject(new Error('offline'))),
+    })
+
+    const router = await open('/glue/part-model/D4', server)
+
+    expect(findMatch(router, RECORD)?.meta).toContainEqual({
+      title: 'Unable to load the record | Glue',
+    })
+  })
+
+  it('has no page at an address that is no Project, Concept or record', async () => {
+    const router = await open('/glue/part-model/D4/more', signedIn())
+
+    expect(findMatch(router, '/_signed-in/$')?.meta).toContainEqual({
+      title: 'No page at this address | Glue',
+    })
+  })
+
+  it.each(['/glue', '/glue/part-model', '/glue/part-model/D4'])(
+    'shows %s without the Mantine kit',
+    async (path) => {
+      const router = await open(path, signedIn())
+
+      expect(findMatch(router, '/_mantine')).toBeUndefined()
+      expect(findMatch(router, '/_signed-in')?.links).toHaveLength(1)
+    },
+  )
+
+  it.each(['/glue/decisions/new', '/sign-in', '/sign-up'])(
+    'shows %s without the Carbon kit',
+    async (path) => {
+      const router = await open(
+        path,
+        path === '/glue/decisions/new' ? signedIn() : context(),
+      )
+
+      expect(findMatch(router, '/_signed-in')).toBeUndefined()
+      expect(findMatch(router, '/_mantine')?.links).toHaveLength(2)
+    },
+  )
+
+  it('has no Decision form for a Project that Glue does not know', async () => {
+    const server = signedIn({
+      fetchProductConcept: vi.fn(() => Promise.resolve(undefined)),
+    })
+
+    const router = await open('/nope/decisions/new', server)
+
+    const match = findMatch(router, DECISION_FORM)
+
+    expect(match?.status).toBe('notFound')
+    expect(match?.meta).toContainEqual({ title: 'No Product nope | Glue' })
+  })
 
   it.each(['I3', 'R2'])(
     'opens the Decision form with %s from the address as evidence',
     async (evidence) => {
-      const routerContext = signedIn()
+      const server = signedIn()
 
       const location = await load(
         `/flexibeck/decisions/new?evidence=${evidence}`,
-        routerContext,
+        server,
       )
 
       expect(location.search).toEqual({ evidence })
-      expect(routerContext.fetchConcept).toHaveBeenCalledWith('flexibeck')
-      expect(routerContext.fetchRecord).not.toHaveBeenCalled()
+      expect(server.fetchProductConcept).toHaveBeenCalledWith('flexibeck')
+      expect(server.fetchRecord).not.toHaveBeenCalled()
     },
   )
 
   it('reads the Decision that the form supersedes', async () => {
-    const routerContext = signedIn()
-    routerContext.fetchRecord = vi.fn(() => Promise.resolve(decision))
+    const server = signedIn()
 
-    const router = await open(
-      '/glue/decisions/new?supersedes=D4',
-      routerContext,
-    )
+    const router = await open('/glue/decisions/new?supersedes=D4', server)
 
-    expect(routerContext.fetchRecord).toHaveBeenCalledWith({
+    expect(server.fetchRecord).toHaveBeenCalledWith({
       product: 'glue',
       recordId: 'D4',
     })
-    expect(
-      findMatch(router, '/_signed-in/$product/decisions/new')?.status,
-    ).toBe('success')
+    expect(findMatch(router, DECISION_FORM)?.status).toBe('success')
   })
 
   it('shows the record, not the form, for a Decision that is superseded already', async () => {
-    const routerContext = signedIn()
-    routerContext.fetchRecord = vi.fn(() =>
-      Promise.resolve({
-        ...decision,
-        status: 'superseded' as const,
-        supersededBy: { id: 'D5', title: 'The Concept lives in files' },
-      }),
-    )
+    const server = signedIn({
+      fetchRecord: vi.fn(() =>
+        Promise.resolve({
+          ...decision,
+          status: 'superseded' as const,
+          supersededBy: { id: 'D5', title: 'The Concept lives in files' },
+        }),
+      ),
+    })
 
-    const location = await load(
-      '/glue/decisions/new?supersedes=D4',
-      routerContext,
-    )
+    const location = await load('/glue/decisions/new?supersedes=D4', server)
 
-    expect(location.pathname).toBe('/glue/concept/D4')
-  })
-
-  it.each([
-    ['issue=missing', { issue: 'missing' }],
-    ['issue=nope', {}],
-  ])('reads %s from the address of a record', async (search, expected) => {
-    const router = await open(`/glue/concept/R1?${search}`, signedIn())
-
-    expect(recordMatch(router)?.search).toEqual(expected)
+    expect(location.pathname).toBe('/glue/part-model/D4')
   })
 
   it('has no Decision form for a Decision that the Concept does not have', async () => {
-    const routerContext = signedIn()
-    routerContext.fetchRecord = vi.fn(() => Promise.resolve(undefined))
+    const server = signedIn({
+      fetchRecord: vi.fn(() => Promise.resolve(undefined)),
+    })
 
-    const router = await open(
-      '/glue/decisions/new?supersedes=D9',
-      routerContext,
-    )
+    const router = await open('/glue/decisions/new?supersedes=D9', server)
 
-    expect(
-      findMatch(router, '/_signed-in/$product/decisions/new')?.status,
-    ).toBe('notFound')
+    expect(findMatch(router, DECISION_FORM)?.status).toBe('notFound')
   })
 
   it.each(['evidence=nope', 'evidence=F1', 'supersedes=I3'])(
     'does not give %s from the address to the Decision form',
     async (search) => {
-      const routerContext = signedIn()
+      const server = signedIn()
 
-      const router = await open(`/glue/decisions/new?${search}`, routerContext)
+      const router = await open(`/glue/decisions/new?${search}`, server)
 
-      expect(
-        findMatch(router, '/_signed-in/$product/decisions/new')?.search,
-      ).toEqual({})
-      expect(routerContext.fetchRecord).not.toHaveBeenCalled()
+      expect(findMatch(router, DECISION_FORM)?.search).toEqual({})
+      expect(server.fetchRecord).not.toHaveBeenCalled()
     },
   )
-
-  it('names the missing record in the tab title', async () => {
-    const routerContext = signedIn()
-    routerContext.fetchRecord = vi.fn(() => Promise.resolve(undefined))
-
-    const router = await open('/glue/concept/D9', routerContext)
-
-    expect(recordMatch(router)?.meta).toContainEqual({
-      title: 'No record D9 | Glue',
-    })
-  })
-
-  it('names the record page in the tab title when it fails to load', async () => {
-    const routerContext = signedIn()
-    routerContext.fetchRecord = vi.fn(() =>
-      Promise.reject(new Error('offline')),
-    )
-
-    const router = await open('/glue/concept/R1', routerContext)
-
-    expect(recordMatch(router)?.meta).toContainEqual({
-      title: 'Unable to load the record | Glue',
-    })
-  })
 })
 
 describe('the session of a signed-in person', () => {
@@ -311,14 +393,14 @@ describe('the session of a signed-in person', () => {
     })
   }
 
-  function statuses(router: Awaited<ReturnType<typeof open>>) {
+  function statuses(router: Router) {
     return router.state.matches.map((match) => [match.routeId, match.status])
   }
 
-  function openRecord(router: Awaited<ReturnType<typeof open>>) {
+  function openRecord(router: Router) {
     return router.navigate({
-      to: '/$product/concept/$recordId',
-      params: { product: 'glue', recordId: 'R1' },
+      to: '/$project/$concept/$recordId',
+      params: { project: 'glue', concept: 'part-model', recordId: 'D4' },
     })
   }
 
@@ -328,18 +410,12 @@ describe('the session of a signed-in person', () => {
 
     await openRecord(router)
 
-    expect(router.state.location.pathname).toBe('/glue/concept/R1')
+    expect(router.state.location.pathname).toBe('/glue/part-model/D4')
     expect(server.fetchSession).toHaveBeenCalledOnce()
   })
 
-  it('keeps the page frame when the network fails, the error is at the record', async () => {
-    const server = serverWithOneAnswer(offline, {
-      fetchProducts: vi
-        .fn<Server['fetchProducts']>()
-        .mockResolvedValueOnce(products)
-        .mockImplementation(offline),
-      fetchRecord: vi.fn(offline),
-    })
+  it('keeps the frame when the network fails, the error is at the record', async () => {
+    const server = serverWithOneAnswer(offline, { fetchPart: vi.fn(offline) })
     const router = await open('/', server)
 
     await openRecord(router)
@@ -347,14 +423,14 @@ describe('the session of a signed-in person', () => {
     expect(statuses(router)).toEqual([
       ['__root__', 'success'],
       ['/_signed-in', 'success'],
-      ['/_signed-in/$product', 'success'],
-      ['/_signed-in/$product/concept/$recordId', 'error'],
+      [PROJECT, 'success'],
+      [RECORD, 'error'],
     ])
   })
 
   it('keeps the record as the target when the session expires mid-navigation', async () => {
     const server = serverWithOneAnswer(offline, {
-      fetchRecord: vi.fn(() => Promise.reject(redirect({ to: '/sign-in' }))),
+      fetchPart: vi.fn(() => Promise.reject(redirect({ to: '/sign-in' }))),
     })
     const router = await open('/', server)
 
@@ -362,16 +438,16 @@ describe('the session of a signed-in person', () => {
 
     expect(router.state.location.pathname).toBe('/sign-in')
     expect(router.state.location.search).toEqual({
-      redirect: '/glue/concept/R1',
+      redirect: '/glue/concept/D4',
     })
   })
 
   it('comes with the page from the server, so the browser does not ask again', async () => {
     const server = context({ fetchSession: vi.fn(offline) })
 
-    const router = await open('/glue/concept/R1', server, { session })
+    const router = await open('/glue/part-model/D4', server, { session })
 
-    expect(router.state.location.pathname).toBe('/glue/concept/R1')
+    expect(router.state.location.pathname).toBe('/glue/part-model/D4')
     expect(server.fetchSession).not.toHaveBeenCalled()
   })
 
@@ -413,7 +489,7 @@ describe('the sign-in and sign-up routes', () => {
   )
 
   it.each(['/sign-in', '/sign-up'])(
-    'sends %s to the overview when there is a session',
+    'sends %s to the start when there is a session',
     async (path) => {
       const signedIn = context({
         fetchSession: vi.fn(() => Promise.resolve(session)),
@@ -425,7 +501,7 @@ describe('the sign-in and sign-up routes', () => {
     },
   )
 
-  it.each(['/flexibeck', '/flexibeck/concept/D5'])(
+  it.each(['/glue', '/glue/read-model', '/glue/part-model/D4'])(
     'sends a signed-in person to %s, the target of the redirect',
     async (target) => {
       const signedIn = context({
@@ -449,6 +525,7 @@ describe('the sign-in and sign-up routes', () => {
     '/glue/concept/D5/../../sign-up',
     '/glue/concept/https://evil.example',
     '/glue//evil.example',
+    '/glue/evil.example',
     '/evil.example',
   ])('does not follow the redirect %s to another site', async (target) => {
     const signedIn = context({

@@ -328,6 +328,23 @@ describe('ConceptView', () => {
     expect(onAddPart).toHaveBeenCalledExactlyOnceWith()
   })
 
+  it('shows an empty slot as its type alone, and no button, when no Part can be added', () => {
+    renderView({ concept: BRIEF, onAddPart: undefined })
+
+    const slot = within(group('Decisions')).getByRole('listitem')
+
+    expect(slot.textContent).toBe('Decision')
+    expect(border(slot)).toBe('1px dashed var(--cds-border-strong-01, #8d8d8d)')
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('shows an empty Concept as plain words alone when no Part can be added', () => {
+    renderView({ concept: { ...CONCEPT, parts: [] }, onAddPart: undefined })
+
+    expect(screen.getByText('No Parts')).toBeDefined()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
   it('shows an empty lens the same way', () => {
     renderView({ types: [] })
 

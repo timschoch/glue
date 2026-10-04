@@ -15,21 +15,21 @@ export function PlainFrame({ children }: { children: ReactNode }) {
   return <main className={classes.plain}>{children}</main>
 }
 
-// Shows the Product of the page and goes to the overview of another one.
+// Shows the Project of the page and goes to the start of another one.
 function ProductSwitch({ products }: { products: ReadonlyArray<Product> }) {
-  const { product } = useParams({ strict: false })
+  const { project } = useParams({ strict: false })
   const navigate = useNavigate()
-  const known = products.some(({ slug }) => slug === product)
+  const known = products.some(({ slug }) => slug === project)
 
   return (
     <NativeSelect
       aria-label="Product"
       classNames={{ root: classes.switch, input: classes.product }}
-      value={known ? product : ''}
+      value={known ? project : ''}
       onChange={(event) =>
         navigate({
-          to: '/$product',
-          params: { product: event.currentTarget.value },
+          to: '/$project',
+          params: { project: event.currentTarget.value },
         })
       }
     >
