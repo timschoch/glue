@@ -525,3 +525,80 @@ export const partCounters = pgTable(
   },
   (table) => [primaryKey({ columns: [table.projectId, table.type] })],
 )
+
+// The steps of the loop in docs/concept.md, section 1.
+export const loopSteps = [
+  'understand',
+  'decide',
+  'design',
+  'build',
+  'use',
+] as const
+export type LoopStep = (typeof loopSteps)[number]
+
+// A member of a Project: an account of Neon Auth that writes to the Project
+// in the app (D31). The name and the e-mail address are the ones of the
+// account at the time it became a member.
+export const members = pgTable(
+  'members',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id),
+    // The id of the account in Neon Auth.
+    userId: text('user_id').notNull(),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    // The usual loop steps of the member.
+    loopSteps: text('loop_steps')
+      .array()
+      .notNull()
+      .default(sql`'{}'`)
+      .$type<LoopStep[]>(),
+  },
+  (table) => [
+    unique().on(table.projectId, table.userId),
+    check(
+      'members_loop_steps_check',
+      sql`${table.loopSteps} <@ array['understand', 'decide', 'design', 'build', 'use']`,
+    ),
+  ],
+)
+
+export const assignmentRoles = ['responsible', 'co-author'] as const
+export type AssignmentRole = (typeof assignmentRoles)[number]
+
+// An assignment gives a member a Concept or a Part: as Responsible, the main
+// point of contact, or as Co-Author.
+export const assignments = pgTable(
+  'assignments',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    memberId: integer('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    conceptId: integer('concept_id').references(() => concepts.id, {
+      onDelete: 'cascade',
+    }),
+    partId: integer('part_id').references(() => parts.id, {
+      onDelete: 'cascade',
+    }),
+    role: text('role').notNull().$type<AssignmentRole>(),
+  },
+  (table) => [
+    // A member has one role on a Concept or a Part.
+    unique()
+      .on(table.memberId, table.conceptId, table.partId)
+      .nullsNotDistinct(),
+    check(
+      'assignments_one_target_check',
+      sql`num_nonnulls(${table.conceptId}, ${table.partId}) = 1`,
+    ),
+    check(
+      'assignments_role_check',
+      sql`${table.role} in ('responsible', 'co-author')`,
+    ),
+    index('assignments_part_id_index').on(table.partId),
+  ],
+)

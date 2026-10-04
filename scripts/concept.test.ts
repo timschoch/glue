@@ -17,7 +17,7 @@ import {
 } from './concept.ts'
 
 describe('runConcept', () => {
-  const { db } = createTestDatabase(schema)
+  const { client, db } = createTestDatabase(schema)
   let fake: ReturnType<typeof createFakeGithub>
 
   const decisionFlags = [
@@ -516,6 +516,45 @@ describe('runConcept', () => {
     await run('mine', '--project', 'flexibeck')
 
     expect(logged()).toEqual(['G1  open  not-ready  draft  Ship faster'])
+  })
+
+  it('adds members, assigns a record and a Concept, and lists what a member has', async () => {
+    const project = ['--project', 'flexibeck']
+    await client.exec(`
+      create schema neon_auth;
+      create table neon_auth."user" (id uuid primary key, name text not null, email text not null);
+      insert into neon_auth."user" (id, name, email) values
+        ('00000000-0000-0000-0000-000000000001', 'Ada', 'ada@example.com'),
+        ('00000000-0000-0000-0000-000000000002', 'Bo', 'bo@example.com');
+    `)
+
+    await run('member', 'add', 'ada@example.com', ...project)
+    await run('member', 'add', 'bo@example.com', ...project)
+    await run('assign', 'G1', '--responsible', 'ada@example.com', ...project)
+    await run('assign', 'G1', '--co-author', 'bo@example.com', ...project)
+    await run('assign', 'R1', '--responsible', 'bo@example.com', ...project)
+    await run(
+      'assign',
+      'flexibeck',
+      '--co-author',
+      'ada@example.com',
+      ...project,
+    )
+    vi.mocked(console.log).mockClear()
+    await run('member', 'list', ...project)
+    await run('mine', '--member', 'ada@example.com', ...project)
+
+    expect(logged()).toEqual([
+      'Ada  ada@example.com  responsible: G1  co-author: flexibeck',
+      'Bo  bo@example.com  responsible: R1  co-author: G1',
+      'G1  open  not-ready  draft  Ship faster',
+    ])
+  })
+
+  it('refuses an assign without a member', async () => {
+    await expect(run('assign', 'G1', '--project', 'flexibeck')).rejects.toThrow(
+      'assign needs --responsible <e-mail> or --co-author <e-mail>',
+    )
   })
 
   it('makes a flagged Part wait, and shows its flag and the Part that it waits on', async () => {

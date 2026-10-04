@@ -10,11 +10,14 @@ import { getSetting } from '../settings.server.ts'
 import { createDb } from './client.ts'
 import {
   answerInputSchema,
+  assignInputSchema,
   conceptAddInputSchema,
   conceptReadInputSchema,
   createPartActions,
   jointAddInputSchema,
   jointRemoveInputSchema,
+  loopStepsInputSchema,
+  memberAddInputSchema,
   partAddInputSchema,
   partListInputSchema,
   partReadInputSchema,
@@ -22,6 +25,7 @@ import {
   projectAddInputSchema,
   projectInputSchema,
   signalInsightAddInputSchema,
+  unassignInputSchema,
 } from './part-actions.ts'
 
 // The server functions of the Part model. The validators parse the input.
@@ -96,3 +100,23 @@ export const submitAddJoint = createServerFn({ method: 'POST' })
 export const submitRemoveJoint = createServerFn({ method: 'POST' })
   .validator(jointRemoveInputSchema)
   .handler(({ data }) => actions.removeJoint(data))
+
+export const fetchPeople = createServerFn({ method: 'GET' })
+  .validator(projectInputSchema)
+  .handler(({ data }) => actions.findPeople(data))
+
+export const submitAddMember = createServerFn({ method: 'POST' })
+  .validator(memberAddInputSchema)
+  .handler(({ data }) => actions.addMember(data))
+
+export const submitSetLoopSteps = createServerFn({ method: 'POST' })
+  .validator(loopStepsInputSchema)
+  .handler(({ data }) => actions.setLoopSteps(data))
+
+export const submitAssign = createServerFn({ method: 'POST' })
+  .validator(assignInputSchema)
+  .handler(({ data }) => actions.assign(data))
+
+export const submitUnassign = createServerFn({ method: 'POST' })
+  .validator(unassignInputSchema)
+  .handler(({ data }) => actions.unassign(data))

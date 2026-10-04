@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { Session } from '../authentication/session.ts'
 import { createContractActions } from './contract-actions.ts'
+import { joinProject } from './members.ts'
 import { addPart, addProject, answerPart } from './part-records.ts'
 import * as schema from './schema.ts'
 import { createTestDatabase } from './test-database.ts'
@@ -24,8 +25,12 @@ beforeEach(async () => {
   await addPart(db, project, { type: 'flow', title: 'Pay the cart' })
 })
 
-function signIn() {
-  session = { user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' } }
+const ada = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
+
+// Ada signs in. She is a member of the Project.
+async function signIn() {
+  session = { user: ada }
+  await joinProject(db, project, ada)
 }
 
 const requests = {
@@ -67,7 +72,17 @@ describe('a server function of the Contract with a session', () => {
     })
   })
 
-  it('signs off with the name of the person, then reads the Version', async () => {
+  it('lets only a member sign off', async () => {
+    await answerPart(db, project, 'F1', { answer: 'supersede' })
+    session = { user: { id: 'user-2', name: 'Bo', email: 'bo@example.com' } }
+
+    expect(await actions.signContract(input)).toEqual({
+      message: 'Only a member of the Project can change it.',
+    })
+    expect(await db.select().from(schema.contractVersions)).toEqual([])
+  })
+
+  it('signs off with the name of the member, then reads the Version', async () => {
     await answerPart(db, project, 'F1', { answer: 'supersede' })
 
     expect(await actions.signContract(input)).toEqual({ version: 1 })

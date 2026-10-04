@@ -166,6 +166,8 @@ export type ConceptViewProps = {
   children?: ReactNode
   // The Contract of the Concept, below the head.
   contract?: ReactNode
+  // The Responsible and the Co-Authors of the Concept.
+  assignees?: ReactNode
 }
 
 // One Concept in the main window: its head, the Concepts inside it, and its
@@ -188,6 +190,7 @@ export function ConceptView({
   onAddConcept,
   children,
   contract,
+  assignees,
 }: ConceptViewProps) {
   const groups = typeGroups
     .filter(({ type }) => types === undefined || types.includes(type))
@@ -244,6 +247,7 @@ export function ConceptView({
           </ContentSwitcher>
         )}
       </header>
+      {assignees}
       {contract}
       {view === 'map' && (
         <ConceptMap

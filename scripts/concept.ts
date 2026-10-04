@@ -26,6 +26,13 @@ import {
   showConceptRecord,
 } from '../src/db/legacy-records.ts'
 import {
+  addMember,
+  assign,
+  assignmentRoles,
+  listAssignments,
+  listMembers,
+} from '../src/db/members.ts'
+import {
   addConcept,
   addJoint,
   addPart,
@@ -59,6 +66,7 @@ const FLAG_TO_FIELD: Record<string, string> = {
   'enforced-by': 'enforced_by',
   'superseded-by': 'superseded_by',
   'waits-on': 'waits_on',
+  'co-author': 'co_author',
   level: 'evidence_level',
 }
 
@@ -104,6 +112,9 @@ const KNOWN_FIELDS = new Set(
       'words',
       'by',
       'version',
+      'member',
+      'responsible',
+      'co_author',
     ]),
 )
 
@@ -296,10 +307,14 @@ function formatHelp() {
     'pnpm concept set <id> <flags of the type>',
     'pnpm concept downstream <id>',
     'pnpm concept answer <id> <answer> [--waits-on <id>] [--words <text> --by <name>]',
-    'pnpm concept mine',
     'pnpm concept signals',
     'pnpm concept signals insight <address> [<address> ...] --title <title> [--concept <slug>] [--body <text>]',
     'pnpm concept builds',
+    'pnpm concept mine [--member <e-mail>]',
+    'pnpm concept member add <e-mail>',
+    'pnpm concept member list',
+    'pnpm concept assign <id or Concept slug> --responsible <e-mail>',
+    'pnpm concept assign <id or Concept slug> --co-author <e-mail>',
     'pnpm concept concept add <slug> --title <title> [--kind <kind>] [--parent <slug>]',
     'pnpm concept contract show <concept> [--version <number>]',
     'pnpm concept contract sign <concept> --owner <name>',
@@ -311,7 +326,7 @@ function formatHelp() {
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set, downstream, answer, mine, signals, builds, concept, contract and joint take --project <slug>. The default is glue.',
+    'list, show, add, set, downstream, answer, mine, signals, builds, member, assign, concept, contract and joint take --project <slug>. The default is glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -337,6 +352,8 @@ function formatHelp() {
     'builds lists the pull requests of the repository of the Project, each with the Decisions or the Contract Version that it names. stale: the Contract Version is old, or a Decision is sunk.',
     'contract sign freezes the records of a Concept as its next Contract Version. Each record needs Trust solid.',
     'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
+    'With --member: the records of the member, and the records that nobody has.',
+    'member add takes the e-mail address of an account. A record or a Concept has one Responsible.',
   ].join('\n')
 }
 
@@ -389,7 +406,8 @@ export async function runConcept(
     case 'mine': {
       const flags = parseFlags(rest)
       const product = (flags.project as string | undefined) ?? 'glue'
-      for (const part of await listMine(db, product)) {
+      const member = flags.member as string | undefined
+      for (const part of await listMine(db, product, member)) {
         console.log(formatRow(part))
       }
       return
@@ -522,6 +540,24 @@ export async function runConcept(
     case 'project':
       await handleProjectCommand(db, rest)
       return
+    case 'member':
+      await handleMemberCommand(db, rest)
+      return
+    case 'assign': {
+      const [id, ...flagArgs] = rest
+      const flags = parseFlags(flagArgs)
+      const project = (flags.project as string | undefined) ?? 'glue'
+      const role = flags.responsible ? 'responsible' : 'co-author'
+      const member = flags.responsible ?? flags.co_author
+      if (!member) {
+        throw new Error(
+          'assign needs --responsible <e-mail> or --co-author <e-mail>',
+        )
+      }
+      const target = typeOfRecordId(id) ? { part: id } : { concept: id }
+      await assign(db, project, { member, role, ...target })
+      return
+    }
     case 'product':
       throw new Error('"product" is gone: use "pnpm concept project set"')
     case 'token':
@@ -665,6 +701,47 @@ async function handleContractCommand(
     }
     default:
       throw new Error(`unknown contract command "${command}"`)
+  }
+}
+
+// `member add <e-mail>` makes the account of the e-mail address a member of
+// the Project. `member list` prints each member with the loop steps and with
+// the Concepts and Parts of each role.
+async function handleMemberCommand(
+  db: ConceptDb,
+  [command, ...rest]: string[],
+) {
+  switch (command) {
+    case 'add': {
+      const [email, ...flagArgs] = rest
+      const flags = parseFlags(flagArgs)
+      const project = (flags.project as string | undefined) ?? 'glue'
+      if (!email) throw new Error('member add needs <e-mail>')
+      const member = await addMember(db, project, email)
+      console.log(`${member.name}  ${member.email}`)
+      return
+    }
+    case 'list': {
+      const flags = parseFlags(rest)
+      const project = (flags.project as string | undefined) ?? 'glue'
+      const assignments = await listAssignments(db, project)
+      for (const member of await listMembers(db, project)) {
+        const held = assignmentRoles.flatMap((role) => {
+          const ids = assignments
+            .filter((item) => item.memberId === member.id && item.role === role)
+            .map((item) => item.part ?? item.concept)
+          return ids.length > 0 ? [`${role}: ${ids.join(',')}`] : []
+        })
+        console.log(
+          [member.name, member.email, member.loopSteps.join(','), ...held]
+            .filter(Boolean)
+            .join('  '),
+        )
+      }
+      return
+    }
+    default:
+      throw new Error(`unknown member command "${command}"`)
   }
 }
 

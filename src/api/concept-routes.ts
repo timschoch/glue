@@ -28,6 +28,13 @@ import {
   handleRemoveJoint,
   handleUpdatePart,
 } from './part-api.ts'
+import {
+  handleAddMember,
+  handleAssign,
+  handleListAssignments,
+  handleListMembers,
+  handleUnassign,
+} from './people-api.ts'
 import { handleAddSignalInsight, handleListSignals } from './signal-api.ts'
 import { handleListBuilds } from './build-api.ts'
 
@@ -112,6 +119,17 @@ export const buildsHandlers = {
 
 export const signalInsightsHandlers = {
   POST: (route: RouteRequest) => handleAddSignalInsight(toChangeRequest(route)),
+}
+
+export const membersHandlers = {
+  GET: (route: RouteRequest) => handleListMembers(toApiRequest(route)),
+  POST: (route: RouteRequest) => handleAddMember(toApiRequest(route)),
+}
+
+export const assignmentsHandlers = {
+  GET: (route: RouteRequest) => handleListAssignments(toApiRequest(route)),
+  POST: (route: RouteRequest) => handleAssign(toApiRequest(route)),
+  DELETE: (route: RouteRequest) => handleUnassign(toApiRequest(route)),
 }
 
 export const conceptHandlers = {

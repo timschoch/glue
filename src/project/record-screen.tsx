@@ -7,8 +7,9 @@ import type { Answer, Part, PartSummary } from '../db/parts.ts'
 import { partTypes } from '../design-system/card.tsx'
 import { Record } from '../design-system/record.tsx'
 import type { RecordAction } from '../design-system/record.tsx'
-import { LinkedBuilds } from './linked-builds.tsx'
+import { AssigneesControl } from './assignees-control.tsx'
 import { findCommonFlow } from './common-flow.ts'
+import { LinkedBuilds } from './linked-builds.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
 import { toRecordPart, toRecordSummaries } from './part-views.ts'
 import { changePin, isPartType } from './project-search.ts'
@@ -172,6 +173,7 @@ export function RecordScreen({
         void changeSearch(changePin(search, part.id, pinned))
       }
       onOpen={handleOpen}
+      assignees={<AssigneesControl target={{ part: part.id }} />}
     >
       {named.length > 0 && <LinkedBuilds builds={named} />}
     </Record>

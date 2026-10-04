@@ -385,6 +385,8 @@ export type RecordProps = {
   // What the tools outside Glue have on the Part. It comes before the
   // activity.
   children?: ReactNode
+  // The Responsible and the Co-Authors of the Part.
+  assignees?: ReactNode
 }
 
 // One Part in the main window: the head, the step bar of its flow, the box
@@ -407,6 +409,7 @@ export function Record({
   onAddJoint,
   onRemoveJoint,
   children,
+  assignees,
 }: RecordProps) {
   const titleId = useId()
   const signalsId = useId()
@@ -503,6 +506,7 @@ export function Record({
           </div>
         )}
       </header>
+      {assignees}
       {flow && <StepBar {...flow} />}
       {(action || pending !== undefined || error !== undefined) && (
         <section aria-labelledby={nextId} className={styles.action}>
