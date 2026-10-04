@@ -235,6 +235,37 @@ describe('runConcept', () => {
     ])
   })
 
+  it('clears the status of a draft Insight with an empty status', async () => {
+    await run('add', 'insights', ...insightFlags, '--status', 'draft')
+
+    await run('set', 'I1', '--project', 'flexibeck', '--status', '')
+
+    const insight = await showConceptRecord(db, 'flexibeck', 'I1')
+    expect(insight.fields.status).toBeNull()
+  })
+
+  it('refuses to clear a field that the type needs', async () => {
+    await expect(
+      run('set', 'R1', '--project', 'flexibeck', '--title', ''),
+    ).rejects.toThrow('title')
+  })
+
+  it.each([
+    ['I1', '"draft"'],
+    ['G1', /"open".*"achieved"/],
+    ['D1', /proposed.*accepted/],
+  ])(
+    'refuses a status that %s does not have, and names the right ones',
+    async (id, statuses) => {
+      await run('add', 'insights', ...insightFlags)
+      await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
+
+      await expect(
+        run('set', id, '--project', 'flexibeck', '--status', 'confirmed'),
+      ).rejects.toThrow(statuses)
+    },
+  )
+
   it('shows the source of a Guardrail', async () => {
     await run(
       'add',
