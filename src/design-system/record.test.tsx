@@ -57,6 +57,7 @@ const DECISION: RecordPart = {
   needs: [],
   neededBy: [],
   signals: [],
+  flags: [],
 }
 
 // Carbon's dialog watches its size, which jsdom can not do.
@@ -767,5 +768,123 @@ describe('Record', () => {
     renderRecord()
 
     expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+})
+
+describe('the box Next', () => {
+  const next = () => within(screen.getByRole('region', { name: 'Next' }))
+
+  it('holds the one button, directly below the head', () => {
+    renderRecord(
+      { body: 'One video per step.' },
+      { actions: [{ label: 'It is fine', onClick: () => {} }] },
+    )
+
+    expect(next().getAllByRole('button')).toHaveLength(1)
+    expect(inRecord('header').nextElementSibling).toBe(
+      screen.getByRole('region', { name: 'Next' }),
+    )
+  })
+
+  it('is not there without an action', () => {
+    renderRecord()
+
+    expect(screen.queryByRole('region', { name: 'Next' })).toBeNull()
+  })
+
+  it('asks for the Part of an action that needs one, and gives its record id', async () => {
+    const onPick = vi.fn()
+    renderRecord(
+      {},
+      {
+        jointParts: [DECISION, GOAL],
+        actions: [{ label: 'Wait', pick: { label: 'Wait for', onPick } }],
+      },
+    )
+
+    expect(screen.queryByRole('combobox')).toBeNull()
+
+    await userEvent.click(next().getByRole('button', { name: 'Wait' }))
+    await userEvent.click(next().getByRole('combobox', { name: 'Wait for' }))
+
+    // Not the Part itself.
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual(['G2 First bake feels easy'])
+
+    await userEvent.click(screen.getByRole('option'))
+
+    expect(onPick).toHaveBeenCalledExactlyOnceWith('G2')
+    expect(screen.queryByRole('combobox')).toBeNull()
+  })
+
+  it('takes an answer in words above the button', async () => {
+    const onChange = vi.fn()
+    renderRecord(
+      {},
+      {
+        actions: [{ label: 'Sign off', onClick: () => {} }],
+        words: { value: 'Yes', onChange },
+      },
+    )
+
+    const field = next().getByRole('textbox', { name: 'Answer' })
+    const button = next().getByRole('button', { name: 'Sign off' })
+
+    expect(field).toHaveProperty('value', 'Yes')
+    expect(
+      field.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+
+    await userEvent.type(field, '!')
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('Yes!')
+  })
+})
+
+describe('the flags of a record', () => {
+  const flags = [
+    { reason: 'changed', part: INSIGHT },
+    { reason: 'not-ready', part: GOAL },
+  ] as const
+
+  it('lists each flag as its reason and the minimal card of its cause, below the box Next', () => {
+    renderRecord(
+      { trust: 'flagged', workState: 'to-check', flags },
+      { actions: [{ label: 'It is fine', onClick: () => {} }] },
+    )
+
+    const list = screen.getByRole('list', { name: 'Flags' })
+
+    expect(
+      within(list)
+        .getAllByRole('listitem')
+        .map((item) => texts(item)),
+    ).toEqual([
+      ['Changed', 'Insight', 'I7'],
+      ['Not ready', 'Goal', 'G2'],
+    ])
+    expect(
+      screen.getByRole('region', { name: 'Next' }).nextElementSibling,
+    ).toBe(list)
+  })
+
+  it('opens the cause of a flag', async () => {
+    const onOpen = vi.fn()
+    renderRecord({ flags }, { onOpen })
+
+    await userEvent.click(
+      within(screen.getByRole('list', { name: 'Flags' })).getByRole('link', {
+        name: / G2 /,
+      }),
+    )
+
+    expect(onOpen).toHaveBeenCalledWith('G2', expect.anything())
+  })
+
+  it('has no list without a flag', () => {
+    renderRecord()
+
+    expect(screen.queryByRole('list', { name: 'Flags' })).toBeNull()
   })
 })

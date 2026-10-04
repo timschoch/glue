@@ -90,6 +90,7 @@ const noFields = {
   needs: [],
   neededBy: [],
   signals: [],
+  flags: [],
 } satisfies Partial<RecordPart>
 
 const meta = {
@@ -316,6 +317,51 @@ export const WritableNoJoint: Story = {
     jointParts: Writable.args.jointParts,
     onAddJoint: () => {},
     onRemoveJoint: () => {},
+  },
+}
+
+// A flagged record: the usual answer is the button, and each flag shows its
+// reason and the card of its cause.
+export const Flagged: Story = {
+  args: {
+    part: {
+      ...Flow.args.part,
+      flags: [
+        { reason: 'changed', part: decision },
+        { reason: 'not-ready', part: guardrail },
+      ],
+    },
+    jointParts: [insight, goal, decision, guardrail, entity, flow, metric],
+    actions: [
+      { label: 'It is fine', onClick: () => {} },
+      { label: 'Wait', pick: { label: 'Wait for', onPick: () => {} } },
+      { label: 'I need time', onClick: () => {} },
+      { label: 'Not ready', onClick: () => {} },
+      {
+        label: 'Sink it',
+        onClick: () => {},
+        confirm: { title: 'Sink Flow F5', label: 'Sink it' },
+      },
+    ],
+  },
+}
+
+// A Decision in review takes an answer in words.
+export const InReview: Story = {
+  args: {
+    part: { ...Decision.args.part, trust: 'not-ready', workState: 'review' },
+    actions: [
+      { label: 'Sign off', onClick: () => {} },
+      {
+        label: 'Sink it',
+        onClick: () => {},
+        confirm: { title: 'Sink Decision D12', label: 'Sink it' },
+      },
+    ],
+  },
+  render: function Render(args) {
+    const [words, setWords] = useState('')
+    return <Record {...args} words={{ value: words, onChange: setWords }} />
   },
 }
 

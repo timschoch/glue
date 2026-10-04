@@ -757,6 +757,26 @@ describe('Frame', () => {
     ).toEqual(['Step videos'])
   })
 
+  it('shows the count of the Parts to check as a plain number beside Mine', () => {
+    renderFrame([], undefined, undefined, { toCheckCount: 3 })
+
+    const panel = within(screen.getByRole('navigation', { name: 'Main' }))
+
+    expect(panel.getByRole('link', { name: 'Mine 3' })).toBeDefined()
+    expect(panel.getByRole('link', { name: 'Decide' })).toBeDefined()
+  })
+
+  it('shows no count beside Mine at zero', () => {
+    renderFrame([], undefined, undefined, { toCheckCount: 0 })
+
+    expect(
+      within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
+        'link',
+        { name: 'Mine' },
+      ),
+    ).toBeDefined()
+  })
+
   it.each([
     [
       'the Concept of the path that the panel shows, under a root Concept and over a deeper one',

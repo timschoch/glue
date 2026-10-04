@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { Concept } from '../db/parts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
+import { PartList } from '../design-system/part-list.tsx'
 import { Signals } from '../design-system/signals.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
@@ -16,7 +17,8 @@ const projectRoute = getRouteApi('/_signed-in/$project')
 // One Concept in the main window, with the lens of the section. The section
 // Understand shows the Signals of the Project too. The form that the address
 // names takes the place of the Concept. So does the form of the Insight that
-// grows from the picked Signals.
+// grows from the picked Signals. The section Mine shows the Parts of the
+// whole Project that need the owner.
 export function ConceptScreen({
   concept,
   signals,
@@ -24,7 +26,7 @@ export function ConceptScreen({
   concept: Concept
   signals?: ProjectSignals
 }) {
-  const { parts } = projectRoute.useLoaderData()
+  const { parts, mine } = projectRoute.useLoaderData()
   const { search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
@@ -56,6 +58,23 @@ export function ConceptScreen({
       }),
     },
   }))
+  if (search.section === 'Mine') {
+    return (
+      <PartList
+        title="Mine"
+        parts={mine.map((part) => ({
+          id: part.id,
+          type: part.type,
+          title: part.title,
+          trust: part.trust,
+          workState: part.workState,
+          concept: part.conceptTitle,
+          href: recordHref(part),
+        }))}
+        onOpen={({ href }, event) => open(href, event)}
+      />
+    )
+  }
 
   return (
     <ConceptView

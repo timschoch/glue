@@ -131,6 +131,37 @@ describe('a Part in the record view', () => {
     expect(record.supersedes.map((part) => part.href)).toEqual(['/glue/I1'])
   })
 
+  it('shows each open flag with its reason and the card of its cause', () => {
+    const record = toRecordPart(
+      {
+        ...decision,
+        flags: [
+          {
+            cause: { id: 'I1', title: 'Bakers want step videos' },
+            reason: 'changed',
+            createdAt: '2026-10-03T08:00:00.000Z',
+          },
+        ],
+      },
+      href,
+      [goal, insight],
+    )
+
+    expect(record.flags).toEqual([
+      {
+        reason: 'changed',
+        part: {
+          id: 'I1',
+          type: 'insight',
+          title: 'Bakers want step videos',
+          concept: 'Part model',
+          trust: 'solid',
+          href: '/glue/I1',
+        },
+      },
+    ])
+  })
+
   it('shows the target of the measure and the day of the last reading', () => {
     const record = toRecordPart(
       {

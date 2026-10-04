@@ -1,8 +1,8 @@
 import { getRouteApi } from '@tanstack/react-router'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { MouseEvent } from 'react'
 
-import type { Part, PartSummary } from '../db/parts.ts'
+import type { Answer, Part, PartSummary } from '../db/parts.ts'
 import { partTypes } from '../design-system/card.tsx'
 import { Record } from '../design-system/record.tsx'
 import type { RecordAction } from '../design-system/record.tsx'
@@ -14,6 +14,16 @@ import { useWrite } from './use-write.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
 
+// The words of each answer on its button.
+const answerLabels: { [answer in Answer]: string } = {
+  fine: 'It is fine',
+  supersede: 'Sign off',
+  wait: 'Wait',
+  'need-time': 'I need time',
+  'not-ready': 'Not ready',
+  sink: 'Sink it',
+}
+
 // One record in the main window. `parts` are the Parts of the Project: a
 // record id in the text opens its record, and a Joint goes to one of them.
 // The form that the address names takes the place of the record.
@@ -24,17 +34,18 @@ export function RecordScreen({
   part: Part
   parts: ReadonlyArray<PartSummary>
 }) {
-  const { updatePart, answerPart, addJoint, removeJoint } =
-    projectRoute.useRouteContext()
+  const { answerPart, addJoint, removeJoint } = projectRoute.useRouteContext()
   const { project, search, recordHref, open, changeSearch } = useProjectLinks()
   const { pending, failure, write } = useWrite()
+  // The answer in words to a Decision in review.
+  const [words, setWords] = useState('')
   const bodyParts = useMemo(
     () => toRecordSummaries(parts, recordHref),
     [parts, recordHref],
   )
   const record = useMemo(
-    () => toRecordPart(part, recordHref),
-    [part, recordHref],
+    () => toRecordPart(part, recordHref, parts),
+    [part, recordHref, parts],
   )
   const handleOpen = useCallback(
     (recordId: string, event: MouseEvent<HTMLAnchorElement>) => {
@@ -54,49 +65,49 @@ export function RecordScreen({
     return <PartFormScreen type="decision" superseded={part} parts={parts} />
   }
 
-  // A write of the status names the status that the person sees. When a
-  // second person changed it, the write does not happen.
-  const seen = { project, recordId: part.id, expected: { status: part.status } }
   const name = `${partTypes[part.type]} ${part.id}`
-  const change = (status: 'accepted' | null) => () =>
-    updatePart({ ...seen, change: { status } })
-  // A sunk Part keeps its record.
-  const sink = () =>
-    answerPart({ project, recordId: part.id, answer: { answer: 'sink' } })
+  // A Decision in review takes an answer in words. The server adds the name
+  // of the person and the date.
+  const takesWords = part.type === 'decision' && part.workState === 'review'
+  const said = takesWords && words.trim() !== '' ? { words: words.trim() } : {}
+  const answer = (given: Parameters<typeof answerPart>[0]['answer']) =>
+    void write(
+      'Saving',
+      () => answerPart({ project, recordId: part.id, answer: given }),
+      () => Promise.resolve(setWords('')),
+    )
 
+  // The answers that the Work state takes, the usual one first. A sunk Part
+  // keeps its record, but no answer brings it back: the person confirms.
+  const answers = part.answers.map((given): RecordAction =>
+    given === 'wait'
+      ? {
+          label: answerLabels.wait,
+          pick: {
+            label: 'Wait for',
+            onPick: (waitsOn) => answer({ answer: given, waitsOn }),
+          },
+        }
+      : {
+          label: answerLabels[given],
+          confirm:
+            given === 'sink'
+              ? { title: `Sink ${name}`, label: 'Sink it' }
+              : undefined,
+          onClick: () => answer({ answer: given, ...said }),
+        },
+  )
   const supersede: RecordAction = {
     label: 'Supersede',
     onClick: () => void changeSearch({ ...search, add: 'decision' }),
   }
-  const actions: ReadonlyArray<RecordAction> =
-    part.type === 'decision' && part.status === 'proposed'
-      ? [
-          {
-            label: 'Accept',
-            onClick: () => void write('Accepting', change('accepted')),
-          },
-          {
-            label: 'Reject',
-            confirm: { title: `Reject ${name}`, label: 'Reject it' },
-            onClick: () => void write('Rejecting', sink),
-          },
-          supersede,
-        ]
-      : supersedes
-        ? [supersede]
-        : part.type === 'insight' && part.status === 'draft'
-          ? [
-              {
-                label: 'Keep',
-                onClick: () => void write('Keeping', change(null)),
-              },
-              {
-                label: 'Discard',
-                confirm: { title: `Discard ${name}`, label: 'Discard it' },
-                onClick: () => void write('Discarding', sink),
-              },
-            ]
-          : []
+  // A published Decision has no usual answer: the next step is the Decision
+  // that supersedes it.
+  const actions = !supersedes
+    ? answers
+    : part.workState === 'published'
+      ? [supersede, ...answers]
+      : [...answers, supersede]
 
   return (
     <Record
@@ -105,6 +116,7 @@ export function RecordScreen({
       actions={actions}
       pending={pending}
       error={failure}
+      words={takesWords ? { value: words, onChange: setWords } : undefined}
       onEdit={() => void changeSearch({ ...search, edit: true })}
       jointParts={bodyParts}
       onAddJoint={(needed) =>

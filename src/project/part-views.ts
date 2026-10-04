@@ -32,8 +32,13 @@ function target({ measure, baseline }: NonNullable<Part['measure']>) {
 }
 
 // A Part as the record view shows it. `href` gives the address that opens a
-// Part from this record.
-export function toRecordPart(part: Part, href: PartHref): RecordPart {
+// Part from this record. `parts` are the Parts of the Project: the cause of
+// a flag is one of them.
+export function toRecordPart(
+  part: Part,
+  href: PartHref,
+  parts: ReadonlyArray<PartSummary> = [],
+): RecordPart {
   const { measure } = part
   const toEnds = (ends: Part['needs']) =>
     ends.map(({ jointId, link, part: end }) => ({
@@ -64,5 +69,9 @@ export function toRecordPart(part: Part, href: PartHref): RecordPart {
     needs: toEnds(part.needs),
     neededBy: toEnds(part.neededBy),
     signals: part.signals,
+    flags: part.flags.flatMap(({ cause, reason }) => {
+      const found = parts.find(({ id }) => id === cause.id)
+      return found ? { reason, part: toRecordSummary(found, href) } : []
+    }),
   }
 }

@@ -36,14 +36,14 @@ function isAdded(value: unknown): value is Added {
 // record to its home Concept.
 export const UNKNOWN_CONCEPT = 'concept'
 
-// The Part types of each section: the loop steps of a Part type in
-// docs/concept.md. Mine and People have no Parts yet.
+// The Part types of each section. Mine is no lens: it lists the Parts of
+// the Project that need the owner. People has no Parts yet.
 const lenses: Record<Section, ReadonlyArray<PartType>> = {
   Mine: [],
   Understand: ['insight'],
-  Decide: ['goal', 'decision', 'guardrail', 'flow', 'metric'],
-  Design: ['guardrail', 'entity', 'flow'],
-  Build: ['guardrail', 'entity'],
+  Decide: ['goal', 'decision'],
+  Design: ['flow', 'entity'],
+  Build: ['guardrail'],
   Use: ['metric'],
   People: [],
 }

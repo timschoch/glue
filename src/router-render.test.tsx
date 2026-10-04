@@ -15,7 +15,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Session } from './authentication/session.ts'
-import type { Part } from './db/parts.ts'
+import type { Part, PartSummary } from './db/parts.ts'
 import { createRouterContext } from './router-context.ts'
 import type { Server } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
@@ -87,6 +87,7 @@ async function renderPage(path: string, changed: Partial<Server> = {}) {
     fetchParts: vi.fn((project) =>
       Promise.resolve(project === 'glue' ? parts : []),
     ),
+    fetchMine: vi.fn(() => Promise.resolve<PartSummary[]>([])),
     fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
     fetchSignals: vi.fn(() => Promise.resolve({ signals, reason: null })),
     addSignalInsight: vi.fn(() => Promise.resolve(saved('I3'))),
@@ -643,39 +644,159 @@ async function chooseInDialog(title: string, label: string) {
   await userEvent.click(dialog.getByRole('button', { name: label }))
 }
 
-describe('the actions of a Decision', () => {
-  const proposed = {
-    fetchPart: vi.fn(changedPart('D4', { status: 'proposed' })),
-  }
-  const seen = {
-    project: 'glue',
-    recordId: 'D4',
-    expected: { status: 'proposed' },
-  }
-  const sink = { project: 'glue', recordId: 'D4', answer: { answer: 'sink' } }
+const answered = (recordId: string, answer: object) => ({
+  project: 'glue',
+  recordId,
+  answer,
+})
 
-  it('accepts a proposed Decision', async () => {
-    const { server } = await renderPage('/glue/part-model/D4', proposed)
+describe('the section Mine', () => {
+  const mine: PartSummary[] = [
+    { ...parts[2], trust: 'flagged', workState: 'to-check' },
+    { ...parts[0], trust: 'not-ready', workState: 'draft' },
+  ]
 
-    await act('Accept')
+  it('lists the Parts of the Project that need the owner, with the count of the Parts to check beside it', async () => {
+    const { expectAddress } = await renderPage('/glue/read-model', {
+      fetchMine: vi.fn(() => Promise.resolve(mine)),
+    })
+
+    await userEvent.click(section('Mine 1'))
+
+    await expectAddress('/glue/read-model', { section: 'Mine' })
+    expect(pageTitle()).toBe('Mine')
+    expect(card('D4').textContent).toContain('To check')
+    expect(card('I3').textContent).toContain('Draft')
+
+    await userEvent.click(card('D4'))
+
+    await expectAddress('/glue/part-model/D4', { section: 'Mine' })
+    expect(pageTitle()).toBe(D4)
+  })
+
+  it('shows no count and no card without a Part', async () => {
+    await renderPage('/glue?section=Mine')
+
+    expect(pageTitle()).toBe('Mine')
+    expect(section('Mine').getAttribute('aria-current')).toBe('page')
+    expect(within(screen.getByRole('main')).queryByRole('link')).toBeNull()
+  })
+})
+
+describe('a flagged record', () => {
+  const flagged = {
+    fetchPart: vi.fn(
+      changedPart('D4', {
+        trust: 'flagged',
+        workState: 'to-check',
+        answers: ['fine', 'wait', 'need-time', 'not-ready', 'sink'],
+        flags: [
+          {
+            cause: { id: 'I3', title: I3 },
+            reason: 'changed',
+            createdAt: '2026-10-03T08:00:00.000Z',
+          },
+        ],
+      }),
+    ),
+  }
+
+  it('lists the flag as its reason and the card of its cause, and opens the cause', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model/D4', flagged)
+
+    const flags = within(screen.getByRole('list', { name: 'Flags' }))
+
+    expect(flags.getByText('Changed')).toBeDefined()
+
+    await userEvent.click(flags.getByRole('link', { name: / I3 / }))
+
+    await expectAddress('/glue/part-model/I3', { trail: ['D4'] })
+  })
+
+  it('answers that it is fine with the one button', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', flagged)
+
+    await act('It is fine')
 
     await waitFor(() =>
-      expect(server.updatePart).toHaveBeenCalledWith({
-        ...seen,
-        change: { status: 'accepted' },
-      }),
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('D4', { answer: 'fine' }),
+      ),
     )
   })
 
-  it('rejects a proposed Decision after the person confirms: the answer is sink and the record stays', async () => {
+  it('waits for the Part that the person picks', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', flagged)
+
+    await act('Wait')
+    expect(server.answerPart).not.toHaveBeenCalled()
+    await userEvent.type(
+      screen.getByRole('combobox', { name: 'Wait for' }),
+      'r1',
+    )
+    await userEvent.click(await screen.findByRole('option', { name: /R1/ }))
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('D4', { answer: 'wait', waitsOn: 'R1' }),
+      ),
+    )
+  })
+})
+
+describe('the answers of a Decision', () => {
+  const review = {
+    fetchPart: vi.fn(
+      changedPart('D4', {
+        status: 'proposed',
+        trust: 'not-ready',
+        workState: 'review',
+        answers: ['supersede', 'not-ready', 'sink'],
+      }),
+    ),
+  }
+  const sink = answered('D4', { answer: 'sink' })
+
+  it('signs off a Decision in review with the one button', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', review)
+
+    await act('Sign off')
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('D4', { answer: 'supersede' }),
+      ),
+    )
+  })
+
+  it('gives the answer in words with the sign-off', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', review)
+
+    await userEvent.type(field('Answer'), 'Yes, go')
+    await act('Sign off')
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('D4', { answer: 'supersede', words: 'Yes, go' }),
+      ),
+    )
+  })
+
+  it('takes no answer in words on a Decision that is not in review', async () => {
+    await renderPage('/glue/part-model/D4')
+
+    expect(screen.queryByRole('textbox', { name: 'Answer' })).toBeNull()
+  })
+
+  it('sinks a Decision after the person confirms, and the record stays', async () => {
     const { expectAddress, server } = await renderPage(
       '/glue/part-model/D4',
-      proposed,
+      review,
     )
 
-    await act('Reject')
+    await act('Sink it')
     expect(server.answerPart).not.toHaveBeenCalled()
-    await chooseInDialog('Reject Decision D4', 'Reject it')
+    await chooseInDialog('Sink Decision D4', 'Sink it')
 
     await waitFor(() => expect(server.answerPart).toHaveBeenCalledWith(sink))
     await expectAddress('/glue/part-model/D4')
@@ -685,12 +806,12 @@ describe('the actions of a Decision', () => {
   it('tells the person why the Decision did not sink', async () => {
     const changed = '"D4" changed at the same time: read it and answer again'
     await renderPage('/glue/part-model/D4', {
-      ...proposed,
+      ...review,
       answerPart: vi.fn(() => Promise.resolve({ message: changed })),
     })
 
-    await act('Reject')
-    await chooseInDialog('Reject Decision D4', 'Reject it')
+    await act('Sink it')
+    await chooseInDialog('Sink Decision D4', 'Sink it')
 
     await waitFor(() => expect(alerts()).toEqual([changed]))
   })
@@ -702,6 +823,7 @@ describe('the actions of a Decision', () => {
           status: 'superseded',
           trust: 'wrong',
           workState: 'sunk',
+          answers: [],
         }),
       ),
     })
@@ -710,18 +832,7 @@ describe('the actions of a Decision', () => {
 
     expect(main.getByText('Wrong')).toBeDefined()
     expect(main.getByText('Sunk')).toBeDefined()
-  })
-
-  it('tells the person that a second person changed the Decision', async () => {
-    const changed = '"D4" changed since you opened it'
-    await renderPage('/glue/part-model/D4', {
-      ...proposed,
-      updatePart: vi.fn(() => Promise.resolve({ message: changed })),
-    })
-
-    await act('Accept')
-
-    await waitFor(() => expect(alerts()).toEqual([changed]))
+    expect(main.queryByRole('region', { name: 'Next' })).toBeNull()
   })
 
   it('opens the Part form for the Decision that supersedes', async () => {
@@ -748,7 +859,7 @@ describe('the actions of a Decision', () => {
     )
   })
 
-  it('has no action on a superseded Decision', async () => {
+  it('does not offer to supersede a superseded Decision', async () => {
     await renderPage('/glue/part-model/D4', {
       fetchPart: vi.fn(changedPart('D4', { status: 'superseded' })),
     })
@@ -756,57 +867,50 @@ describe('the actions of a Decision', () => {
     const main = within(screen.getByRole('main'))
 
     expect(main.queryByRole('button', { name: 'Supersede' })).toBeNull()
-    expect(main.queryByRole('button', { name: 'Accept' })).toBeNull()
+    expect(main.getByRole('button', { name: 'Not ready' })).toBeDefined()
   })
 })
 
-describe('the actions of an Insight in draft', () => {
-  const draft = { fetchPart: vi.fn(changedPart('I3', { status: 'draft' })) }
-  const seen = {
-    project: 'glue',
-    recordId: 'I3',
-    expected: { status: 'draft' },
+describe('the answers of an Insight in draft', () => {
+  const draft = {
+    fetchPart: vi.fn(
+      changedPart('I3', {
+        status: 'draft',
+        trust: 'not-ready',
+        workState: 'draft',
+        answers: ['supersede', 'not-ready', 'sink'],
+      }),
+    ),
   }
 
-  it('keeps the Insight', async () => {
+  it('signs off the Insight', async () => {
     const { server } = await renderPage('/glue/part-model/I3', draft)
 
-    await act('Keep')
+    await act('Sign off')
 
     await waitFor(() =>
-      expect(server.updatePart).toHaveBeenCalledWith({
-        ...seen,
-        change: { status: null },
-      }),
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('I3', { answer: 'supersede' }),
+      ),
     )
   })
 
-  it('discards the Insight after the person confirms: the answer is sink and the record stays', async () => {
+  it('sinks the Insight after the person confirms, and the record stays', async () => {
     const { expectAddress, server } = await renderPage(
       '/glue/part-model/I3',
       draft,
     )
 
-    await act('Discard')
-    await chooseInDialog('Discard Insight I3', 'Discard it')
+    await act('Sink it')
+    await chooseInDialog('Sink Insight I3', 'Sink it')
 
     await waitFor(() =>
-      expect(server.answerPart).toHaveBeenCalledWith({
-        project: 'glue',
-        recordId: 'I3',
-        answer: { answer: 'sink' },
-      }),
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('I3', { answer: 'sink' }),
+      ),
     )
     await expectAddress('/glue/part-model/I3')
     expect(pageTitle()).toBe(I3)
-  })
-
-  it('has no action on an Insight that is not in draft', async () => {
-    await renderPage('/glue/part-model/I3')
-
-    expect(
-      within(screen.getByRole('main')).queryByRole('button', { name: 'Keep' }),
-    ).toBeNull()
   })
 })
 
