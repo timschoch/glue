@@ -22,8 +22,10 @@ import {
   InvalidRecordError,
   isUniqueViolation,
   JointNotFoundError,
+  PartNotFoundError,
+  toNotFoundMessage,
 } from './record-errors.ts'
-import { RECORD_LETTERS, typeOfRecordId } from './record-id.ts'
+import { RECORD_LETTERS } from './record-id.ts'
 import * as schema from './schema.ts'
 
 // The write side of the Part model.
@@ -289,22 +291,10 @@ export function parsePartChange(
   return parseInput(changeSchemas[type], input)
 }
 
-// The letter of a record id names the type, so the error names it too.
-function toNotFoundError(recordId: string) {
-  const type = typeOfRecordId(recordId)
-  return new InvalidRecordError(
-    type ? `${type} "${recordId}" not found` : `"${recordId}" not found`,
-  )
-}
-
-// The Parts of the record ids in the Project, in the order of the ids.
-async function findParts(
-  db: ConceptDb,
-  projectId: number,
-  recordIds: string[],
-) {
+// The Parts of the record ids that the Project has.
+function selectParts(db: ConceptDb, projectId: number, recordIds: string[]) {
   const { parts } = schema
-  const found = await db
+  return db
     .select({
       id: parts.id,
       recordId: parts.recordId,
@@ -320,28 +310,50 @@ async function findParts(
     .where(
       and(eq(parts.projectId, projectId), inArray(parts.recordId, recordIds)),
     )
+}
+
+type FoundPart = Awaited<ReturnType<typeof selectParts>>[number]
+
+// The Parts that a write links to, in the order of the ids.
+async function findParts(
+  db: ConceptDb,
+  projectId: number,
+  recordIds: string[],
+) {
+  const found = await selectParts(db, projectId, recordIds)
   return recordIds.map((recordId) => {
     const part = found.find((row) => row.recordId === recordId)
-    if (!part) throw toNotFoundError(recordId)
+    if (!part) throw new InvalidRecordError(toNotFoundMessage(recordId))
     return part
   })
 }
 
-async function getPart(db: ConceptDb, projectSlug: string, recordId: string) {
-  const projectId = await getProjectId(db, projectSlug)
-  const [part] = await findParts(db, projectId, [recordId])
+// The Part that a read or a write is for.
+async function getPart(db: ConceptDb, projectId: number, recordId: string) {
+  const part = (await selectParts(db, projectId, [recordId])).at(0)
+  if (!part) throw new PartNotFoundError(recordId)
   return part
 }
 
+function toDecision(part: FoundPart) {
+  if (part.type !== 'decision')
+    throw new InvalidRecordError(`"${part.recordId}" is not a Decision`)
+  return part
+}
+
+// The Decision that a write links to.
 async function findDecision(
   db: ConceptDb,
   projectId: number,
   recordId: string,
 ) {
   const [part] = await findParts(db, projectId, [recordId])
-  if (part.type !== 'decision')
-    throw new InvalidRecordError(`"${recordId}" is not a Decision`)
-  return part
+  return toDecision(part)
+}
+
+// The Decision that a write is for.
+async function getDecision(db: ConceptDb, projectId: number, recordId: string) {
+  return toDecision(await getPart(db, projectId, recordId))
 }
 
 const evidenceTypes: readonly schema.PartType[] = schema.evidenceTypes
@@ -771,7 +783,7 @@ export async function updatePart(
   expected: ExpectedPart = {},
 ): Promise<boolean> {
   const projectId = await getProjectId(db, projectSlug)
-  const [part] = await findParts(db, projectId, [recordId])
+  const part = await getPart(db, projectId, recordId)
   const { measure: nextMeasure, ...columns } = parseInput(
     partChangeSchemas[part.type],
     change,
@@ -887,7 +899,7 @@ export async function setIssueUrl(
   issueUrl: string,
 ): Promise<boolean> {
   const projectId = await getProjectId(db, projectSlug)
-  const decision = await findDecision(db, projectId, recordId)
+  const decision = await getDecision(db, projectId, recordId)
   const { parts } = schema
   const changed = await db
     .update(parts)
@@ -907,7 +919,8 @@ export async function removePart(
   recordId: string,
   expected: ExpectedPart = {},
 ): Promise<boolean> {
-  const part = await getPart(db, projectSlug, recordId)
+  const projectId = await getProjectId(db, projectSlug)
+  const part = await getPart(db, projectId, recordId)
   const { parts } = schema
   const removed = db
     .delete(parts)
@@ -1089,7 +1102,7 @@ export async function supersedeDecision(
   if (recordId === supersededByRecordId)
     throw new InvalidRecordError('a Decision cannot supersede itself')
   const projectId = await getProjectId(db, projectSlug)
-  const decision = await findDecision(db, projectId, recordId)
+  const decision = await getDecision(db, projectId, recordId)
   const successor = await findDecision(db, projectId, supersededByRecordId)
   const toNotAcceptedError = () =>
     new InvalidRecordError(`"${supersededByRecordId}" is not accepted`)
@@ -1118,7 +1131,7 @@ export async function supersedeDecision(
   `)
   if (idRowsSchema.parse(result).rows.length > 0) return
 
-  const now = await findDecision(db, projectId, recordId)
+  const now = await getDecision(db, projectId, recordId)
   throw now.status === 'superseded'
     ? new InvalidRecordError(`"${recordId}" is superseded already`)
     : toNotAcceptedError()
@@ -1176,7 +1189,7 @@ export async function answerPart(
 ): Promise<void> {
   const given = parseInput(partAnswerSchema, input)
   const projectId = await getProjectId(db, projectSlug)
-  const [part] = await findParts(db, projectId, [recordId])
+  const part = await getPart(db, projectId, recordId)
   await writeAnswer(db, projectId, part, given)
 }
 
@@ -1294,7 +1307,7 @@ export async function answerQuestion(
       '"by" is required: the name of the person who answers',
     )
   const projectId = await getProjectId(db, projectSlug)
-  const decision = await findDecision(db, projectId, recordId)
+  const decision = await getDecision(db, projectId, recordId)
   if (decision.status !== 'proposed')
     throw new InvalidRecordError(`"${recordId}" is not proposed`)
   const { options = [], pick = null } = decision.question ?? {}
@@ -1338,7 +1351,8 @@ export async function setReading(
   recordId: string,
   reading: Reading,
 ): Promise<void> {
-  const part = await getPart(db, projectSlug, recordId)
+  const projectId = await getProjectId(db, projectSlug)
+  const part = await getPart(db, projectId, recordId)
   const { measures } = schema
   const found = await db
     .select()

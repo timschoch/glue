@@ -3,15 +3,12 @@
 // schemas here document the answers in openapi.ts.
 import { z } from 'zod'
 
-import { findPart } from '../db/parts.ts'
-import {
-  addSignalInsight,
-  listSignals,
-  signalInsightSchema,
-} from '../db/signals.ts'
+import { createPartOperations } from '../db/part-operations.ts'
+import { listSignals, signalInsightSchema } from '../db/signals.ts'
 import type { ProjectSignals } from '../db/signals.ts'
 import { handleApiRequest, parseJson } from './concept-api.ts'
 import type { ChangeRequest } from './concept-api.ts'
+import { toChangedPartResponse } from './part-api.ts'
 
 export const projectSignalsSchema = z
   .object({
@@ -47,11 +44,11 @@ export function handleListSignals(input: ChangeRequest) {
 
 export function handleAddSignalInsight(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
-    const { db, github, request, params } = input
-    const insight = signalInsightSchema.parse(await parseJson(request))
-    const recordId = await addSignalInsight(db, github, params.project, insight)
-    return Response.json(await findPart(db, params.project, recordId), {
-      status: 201,
-    })
+    const insight = signalInsightSchema.parse(await parseJson(input.request))
+    const added = await createPartOperations(input).addSignalInsight(
+      input.params.project,
+      insight,
+    )
+    return toChangedPartResponse(added, 201)
   })
 }

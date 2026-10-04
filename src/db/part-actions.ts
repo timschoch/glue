@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 import type { Failure } from '../authentication/session.ts'
-import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import { listBuilds } from './builds.ts'
 import {
   addMember,
@@ -16,18 +15,14 @@ import {
   unassign,
 } from './members.ts'
 import type { People } from './members.ts'
-import {
-  addSignalInsight,
-  listSignals,
-  signalInsightSchema,
-} from './signals.ts'
+import { listSignals, signalInsightSchema } from './signals.ts'
+import type { ConceptDb } from './client.ts'
+import { createPartOperations } from './part-operations.ts'
+import type { ChangedPart } from './part-operations.ts'
 import {
   addConcept,
   addJoint,
-  addPart,
   addProject,
-  answerPart,
-  answerQuestion,
   expectedPartSchema,
   newConceptSchema,
   newJointSchema,
@@ -36,9 +31,7 @@ import {
   partChangeSchema,
   questionAnswerSchema,
   removeJoint,
-  updatePart,
 } from './part-records.ts'
-import { InvalidRecordError } from './record-errors.ts'
 import {
   findConcept,
   findPart,
@@ -147,23 +140,20 @@ export type JointRemoveInput = z.infer<typeof jointRemoveInputSchema>
 // the downstream issue of the Decision is missing.
 export type SavedPart = { id: string; issueMissing: boolean }
 
-// A guarded write found the Part in another state than the person saw.
-function toChangedError(recordId: string) {
-  return new InvalidRecordError(`"${recordId}" changed since you opened it`)
+function toSavedPart({ part, issue }: ChangedPart): SavedPart {
+  return { id: part.id, issueMissing: issue.kind === 'failed' }
 }
 
 // What the server functions of the Part model do. Each action looks for the
 // session first. The server functions parse the input. The reads and the
 // writes are the ones of the CLI and the HTTP API.
 export function createPartActions(request: ActionRequest) {
-  const { getDb, getGithub } = request
+  const { getGithub } = request
   const { withSession, withReader, withMember, withUser } =
     createSessionGuard(request)
 
-  async function toSavedPart(project: string, id: string): Promise<SavedPart> {
-    const issue = await createDownstreamIssue(getDb(), getGithub(), project, id)
-    return { id, issueMissing: issue.kind === 'failed' }
-  }
+  const toOperations = (db: ConceptDb) =>
+    createPartOperations({ db, github: getGithub() })
 
   return {
     listProjects: withSession((db) => listProjects(db)),
@@ -189,35 +179,30 @@ export function createPartActions(request: ActionRequest) {
     ),
 
     addPart: withMember((db, { project, part }: PartAddInput) =>
-      addPart(db, project, part)
-        .then((id) => toSavedPart(project, id))
-        .catch(toFailure),
+      toOperations(db).addPart(project, part).then(toSavedPart, toFailure),
     ),
 
     updatePart: withMember(
       (db, { project, recordId, change, expected }: PartUpdateInput) =>
-        updatePart(db, project, recordId, change, expected)
-          .then((changed) => {
-            if (!changed) throw toChangedError(recordId)
-            return toSavedPart(project, recordId)
-          })
-          .catch(toFailure),
+        toOperations(db)
+          .updatePart(project, recordId, change, expected)
+          .then(toSavedPart, toFailure),
     ),
 
     // An answer in words carries the name of the member.
     answerPart: withMember(
       (db, { project, recordId, answer }: AnswerInput, member) =>
-        answerPart(db, project, recordId, { ...answer, by: member.name })
-          .then(() => toSavedPart(project, recordId))
-          .catch(toFailure),
+        toOperations(db)
+          .answerPart(project, recordId, { ...answer, by: member.name })
+          .then(toSavedPart, toFailure),
     ),
 
     // The answer to a question carries the name of the person of the session.
     answerQuestion: withMember(
       (db, { project, recordId, answer }: QuestionAnswerInput, member) =>
-        answerQuestion(db, project, recordId, { ...answer, by: member.name })
-          .then(() => toSavedPart(project, recordId))
-          .catch(toFailure),
+        toOperations(db)
+          .answerQuestion(project, recordId, { ...answer, by: member.name })
+          .then(toSavedPart, toFailure),
     ),
 
     listMine: withReader((db, { project }: ProjectInput, member) =>
@@ -253,10 +238,9 @@ export function createPartActions(request: ActionRequest) {
 
     addSignalInsight: withMember(
       (db, { project, insight }: SignalInsightAddInput) =>
-        addSignalInsight(db, getGithub(), project, insight).then(
-          (id): SavedPart => ({ id, issueMissing: false }),
-          toFailure,
-        ),
+        toOperations(db)
+          .addSignalInsight(project, insight)
+          .then(toSavedPart, toFailure),
     ),
 
     addJoint: withMember((db, { project, joint }: JointAddInput) =>

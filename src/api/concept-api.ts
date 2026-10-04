@@ -20,9 +20,11 @@ import { proposalSchema } from '../db/decision-proposal.ts'
 import { goalMeasureSchema } from '../db/goal-measure.ts'
 import { findConcept, findRecord } from '../db/legacy-records.ts'
 import {
+  ConceptNotFoundError,
   InvalidRecordError,
   isUniqueViolation,
   JointNotFoundError,
+  PartNotFoundError,
   ProductNotFoundError,
 } from '../db/record-errors.ts'
 import { typeOfRecordId } from '../db/record-id.ts'
@@ -171,9 +173,13 @@ function toApiError(error: unknown): ApiError {
   if (error instanceof z.ZodError) {
     return new ApiError('invalid-request', z.prettifyError(error))
   }
+  if (error instanceof PartNotFoundError) {
+    return new ApiError('not-found', `part "${error.recordId}" not found`)
+  }
   if (
     error instanceof ProductNotFoundError ||
-    error instanceof JointNotFoundError
+    error instanceof JointNotFoundError ||
+    error instanceof ConceptNotFoundError
   ) {
     return new ApiError('not-found', error.message)
   }
