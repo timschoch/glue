@@ -526,4 +526,45 @@ describe('ConceptView', () => {
     expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
     expect(screen.queryByRole('button')).toBeNull()
   })
+
+  it('has no switch when the view cannot change', () => {
+    renderView()
+
+    expect(screen.queryByRole('tablist')).toBeNull()
+  })
+
+  it('switches from the list to the map', async () => {
+    const onViewChange = vi.fn()
+    renderView({ onViewChange })
+
+    expect(
+      screen.getByRole('tab', { name: 'List' }).getAttribute('aria-selected'),
+    ).toBe('true')
+    await userEvent.click(screen.getByRole('tab', { name: 'Map' }))
+
+    expect(onViewChange).toHaveBeenCalledExactlyOnceWith('map')
+  })
+
+  it('shows the Parts as the nodes of the map, with the head of the Concept', () => {
+    renderView({
+      concept: {
+        ...CONCEPT,
+        joints: [{ id: 1, part: 'D12', needs: 'G2', twoWay: false }],
+      },
+      view: 'map',
+      onViewChange: () => {},
+    })
+
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      'Technique videos',
+    )
+    expect(
+      screen.getByRole('tab', { name: 'Map' }).getAttribute('aria-selected'),
+    ).toBe('true')
+    expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
+    expect(screen.getAllByRole('listitem')).toHaveLength(8)
+    expect(
+      screen.getByRole('link', { name: /D12/ }).closest('li')?.style.top,
+    ).not.toBe('0rem')
+  })
 })

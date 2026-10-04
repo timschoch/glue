@@ -17,6 +17,8 @@ export type ProjectSearch = {
   add?: Added
   // The form with the values of the open record.
   edit?: true
+  // The map of the Concept in place of its list.
+  view?: 'map'
 }
 
 const nameForms = ['concept', 'project'] as const
@@ -76,6 +78,7 @@ export function parseProjectSearch(
     trail: parseRecordIds(search.trail),
     add: isAdded(search.add) ? search.add : undefined,
     edit: search.edit === true ? true : undefined,
+    view: search.view === 'map' ? 'map' : undefined,
   }
 }
 

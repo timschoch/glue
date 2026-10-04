@@ -1,10 +1,12 @@
 import { Add } from '@carbon/icons-react'
-import { Button, ClickableTile } from '@carbon/react'
+import { Button, ClickableTile, ContentSwitcher, Switch } from '@carbon/react'
 import { useState } from 'react'
 import type { MouseEvent, ReactElement, ReactNode, SyntheticEvent } from 'react'
 
 import { Card, partTypes } from './card.tsx'
 import type { PartType, Trust } from './card.tsx'
+import type { MapJoint } from './concept-map-layout.ts'
+import { ConceptMap } from './concept-map.tsx'
 import styles from './concept-view.module.scss'
 
 // The Part types in the order of the loop, each with its word for many Parts.
@@ -136,7 +138,13 @@ export type ConceptViewProps = {
     linkedParts: ReadonlyArray<ConceptViewPart>
     // One slot per Part type of the Kind.
     slots: ReadonlyArray<{ type: PartType; filled: boolean }>
+    // The lines of the map. `part` needs `needs`: two record ids.
+    joints?: ReadonlyArray<MapJoint>
   }
+  // The list of the Parts in their type groups, or the map of the Parts.
+  view?: 'list' | 'map'
+  // With the callback the head holds the switch between the list and the map.
+  onViewChange?: (view: 'list' | 'map') => void
   // The lens: the Part types to show. Without it the view shows all types.
   types?: ReadonlyArray<PartType>
   partHref: (part: ConceptViewPart) => string
@@ -165,9 +173,12 @@ export type ConceptViewProps = {
 // its card. A slot of the Kind with no Part shows as an empty slot at the
 // place of its type. A type with no Part and no slot shows only while a Part
 // can be added. A lens with no Part type, such as People, shows no Parts and
-// no words about them.
+// no words about them. The map view shows the Concepts inside, the Parts and
+// the empty slots as the nodes of the map.
 export function ConceptView({
   concept,
+  view = 'list',
+  onViewChange,
   types,
   partHref,
   conceptHref,
@@ -212,14 +223,40 @@ export function ConceptView({
 
   return (
     <div className={styles.view}>
-      <header className={styles.group}>
-        {concept.kind && (
-          <span className={styles.label}>{kinds[concept.kind]}</span>
+      <header className={styles.head}>
+        <div className={styles.group}>
+          {concept.kind && (
+            <span className={styles.label}>{kinds[concept.kind]}</span>
+          )}
+          <h1 className={styles.title}>{concept.title}</h1>
+        </div>
+        {onViewChange && (
+          <ContentSwitcher
+            size="sm"
+            selectedIndex={view === 'map' ? 1 : 0}
+            onChange={({ name }) =>
+              onViewChange(name === 'map' ? 'map' : 'list')
+            }
+            className={styles.switch}
+          >
+            <Switch name="list" text="List" />
+            <Switch name="map" text="Map" />
+          </ContentSwitcher>
         )}
-        <h1 className={styles.title}>{concept.title}</h1>
       </header>
       {contract}
-      {(concept.concepts.length > 0 || onAddConcept) && (
+      {view === 'map' && (
+        <ConceptMap
+          concept={{ ...concept, joints: concept.joints ?? [] }}
+          types={types}
+          partHref={partHref}
+          conceptHref={conceptHref}
+          onOpenPart={onOpenPart}
+          onOpenConcept={onOpenConcept}
+          onAddPart={onAddPart}
+        />
+      )}
+      {view === 'list' && (concept.concepts.length > 0 || onAddConcept) && (
         <nav aria-label="Concepts" className={styles.group}>
           {concept.concepts.length > 0 && (
             <ul className={styles.items}>
@@ -245,22 +282,23 @@ export function ConceptView({
           {onAddConcept && <AddButton thing="Concept" onClick={onAddConcept} />}
         </nav>
       )}
-      {groups.length === 0 && types?.length !== 0 && (
+      {view === 'list' && groups.length === 0 && types?.length !== 0 && (
         <p className={styles.label}>No Parts</p>
       )}
-      {groups.map(({ type, many, parts, linkedParts, empty }) => (
-        <TypeGroup
-          key={type}
-          type={type}
-          many={many}
-          cards={[
-            ...parts.map((part) => card(part)),
-            ...linkedParts.map((part) => card(part, true)),
-          ]}
-          empty={empty}
-          onAdd={onAddPart && (() => onAddPart(type))}
-        />
-      ))}
+      {view === 'list' &&
+        groups.map(({ type, many, parts, linkedParts, empty }) => (
+          <TypeGroup
+            key={type}
+            type={type}
+            many={many}
+            cards={[
+              ...parts.map((part) => card(part)),
+              ...linkedParts.map((part) => card(part, true)),
+            ]}
+            empty={empty}
+            onAdd={onAddPart && (() => onAddPart(type))}
+          />
+        ))}
       {children}
     </div>
   )

@@ -27,11 +27,11 @@ export function useProjectLinks() {
   const { project } = projectRoute.useParams()
   const search = projectRoute.useSearch()
   const { concept, recordId } = useParams({ strict: false })
-  const { section, pins, trail } = search
+  const { section, pins, trail, view } = search
 
-  // A Concept opens with the lens and the pins. The trail ends.
+  // A Concept opens with the lens, the pins and the view. The trail ends.
   const conceptHref = useCallback(
-    (slug: string, conceptSearch: ProjectSearch = { section, pins }) =>
+    (slug: string, conceptSearch: ProjectSearch = { section, pins, view }) =>
       // The root Concept is the start of the Project.
       slug === project
         ? router.buildLocation({
@@ -44,7 +44,7 @@ export function useProjectLinks() {
             params: { project, concept: slug },
             search: conceptSearch,
           }).href,
-    [router, project, section, pins],
+    [router, project, section, pins, view],
   )
 
   // A record opens in its home Concept. The open record joins the trail.
