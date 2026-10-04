@@ -83,9 +83,13 @@ export function RecordScreen({
     return <PartFormScreen type={search.add} needed={part} parts={parts} />
   }
 
-  const named = builds.filter(({ decisions }) =>
-    decisions.some(({ id }) => id === part.id),
-  )
+  // The record is the Decision: a build shows only the other Decisions.
+  const named = builds
+    .filter(({ decisions }) => decisions.some(({ id }) => id === part.id))
+    .map((build) => ({
+      ...build,
+      decisions: build.decisions.filter(({ id }) => id !== part.id),
+    }))
   const name = `${partTypes[part.type]} ${part.id}`
   // A Decision in review takes an answer in words. The server adds the name
   // of the person and the date.
