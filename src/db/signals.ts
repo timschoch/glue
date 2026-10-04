@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
 import { findProduct } from './concept.ts'
-import { addPart } from './part-records.ts'
+import { addInsightOfSignals } from './part-records.ts'
 import { InvalidRecordError, ProductNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
 import type { GithubClient } from '../github/client.ts'
@@ -125,25 +125,15 @@ export async function addSignalInsight(
       `"${grown[0].url}" grew into ${grown[0].id} already`,
     )
 
-  const recordId = await addPart(db, projectSlug, {
-    ...insight,
-    type: 'insight',
-    source:
-      insight.source ??
-      `https://github.com/${repository}/labels/${SIGNAL_LABEL}`,
-    status: 'draft',
-  })
-  const [part] = await db
-    .select({ id: parts.id })
-    .from(parts)
-    .where(and(eq(parts.projectId, projectId), eq(parts.recordId, recordId)))
-  await db.insert(signals).values(
-    picked.map(({ url, title }) => ({
-      projectId,
-      url,
-      title,
-      partId: part.id,
-    })),
+  return addInsightOfSignals(
+    db,
+    projectSlug,
+    {
+      ...insight,
+      source:
+        insight.source ??
+        `https://github.com/${repository}/labels/${SIGNAL_LABEL}`,
+    },
+    picked.map(({ url, title }) => ({ url, title })),
   )
-  return recordId
 }
