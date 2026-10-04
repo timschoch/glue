@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.9.0](https://github.com/timschoch/glue/compare/v1.8.0...v1.9.0) (2026-10-04)
+
+
+### Features
+
+* **api:** add the API, server functions and CLI of the Part model ([#181](https://github.com/timschoch/glue/issues/181)) ([dcc957c](https://github.com/timschoch/glue/commit/dcc957c24bbd8a10ef97463430fb15acc4ea2ec6))
+* **app:** show the Concept view and the record in the Carbon frame ([#183](https://github.com/timschoch/glue/issues/183)) ([80b0948](https://github.com/timschoch/glue/commit/80b0948a614b5ae675a6b8ed6f172b6d0169f29f))
+* **app:** write to the Concept on Carbon and remove Mantine ([#187](https://github.com/timschoch/glue/issues/187)) ([ad8c614](https://github.com/timschoch/glue/commit/ad8c614f8cf05c6bef6f03c233572c1b9f6cbc9d))
+* **db:** add Trust, the Work state, flags and the answers of the owner ([#186](https://github.com/timschoch/glue/issues/186)) ([60024eb](https://github.com/timschoch/glue/commit/60024eb80b38bb867bf503464c6ec0fc9c999093))
+* **db:** glue a Part to the Parts that its body names ([#182](https://github.com/timschoch/glue/issues/182)) ([f87175c](https://github.com/timschoch/glue/commit/f87175c70ba34237b7de24689170a18acc421bc9)), closes [#140](https://github.com/timschoch/glue/issues/140)
+* **design-system:** add the Part form ([#179](https://github.com/timschoch/glue/issues/179)) ([c26355f](https://github.com/timschoch/glue/commit/c26355f8e2f1032ba04162f2142d2fb5818f4d53))
+* **design-system:** draw a pin in the frame as the minimal card ([#172](https://github.com/timschoch/glue/issues/172)) ([310ac56](https://github.com/timschoch/glue/commit/310ac5632251c398d0847cd6cc72f604a4a346a3)), closes [#170](https://github.com/timschoch/glue/issues/170)
+* **design-system:** put the home Concept and the icon action on the card ([#180](https://github.com/timschoch/glue/issues/180)) ([2fd7725](https://github.com/timschoch/glue/commit/2fd7725f6d62d1789a3ce411223fc436b526d4bb))
+
 ## [1.8.0](https://github.com/timschoch/glue/compare/v1.7.0...v1.8.0) (2026-10-03)
 
 
