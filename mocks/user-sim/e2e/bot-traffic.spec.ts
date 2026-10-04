@@ -101,6 +101,48 @@ test('a 429 counts as an error on the step that sent the request @smoke', async 
   }
 })
 
+test('a 429 on a request that starts late counts on the step that sent it @smoke', async () => {
+  const product = await serve((request, response) => {
+    if (request.method === 'POST') {
+      response.statusCode = 429
+      response.end()
+      return
+    }
+    response.setHeader('content-type', 'text/html')
+    // The request starts when the bot waits for the next step already.
+    response.end(
+      request.url === '/'
+        ? '<a href="/sign-up">Start</a>'
+        : `<button onclick="setTimeout(() => {
+             fetch('/account', { method: 'POST' }).then(() => {
+               document.body.innerHTML = '<a href=&quot;/plan&quot;>Pick a recipe</a>'
+             })
+           }, 300)">Create account</button>`,
+    )
+  })
+  try {
+    const summary = await simulate({
+      target: `${product.origin}/`,
+      journey: {
+        ...journey,
+        steps: [
+          ...journey.steps,
+          {
+            intent: 'pick a recipe',
+            actions: [{ kind: 'click', role: 'link', name: 'Pick a recipe' }],
+          },
+        ],
+      },
+      users: USERS,
+      seed: SEED,
+    })
+    expect(summary.steps[1]).toMatchObject({ errors: USERS })
+    expect(summary.steps[2]).toMatchObject({ reached: 0, errors: 0 })
+  } finally {
+    product.close()
+  }
+})
+
 test('bots send x-glue-bot to the product only, so its cross-origin calls still work @smoke', async () => {
   const productHeaders: Array<string | Array<string> | undefined> = []
   const otherMethods: Array<string | undefined> = []

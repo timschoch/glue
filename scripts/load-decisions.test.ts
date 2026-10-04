@@ -1,5 +1,13 @@
+import { PGlite } from '@electric-sql/pglite'
+import { drizzle } from 'drizzle-orm/pglite'
+import { migrate } from 'drizzle-orm/pglite/migrator'
 import { describe, expect, it, vi } from 'vitest'
 
+import { handleGetRecord, handleListRecords } from '../src/api/concept-api.ts'
+import { addPart, addProject } from '../src/db/part-records.ts'
+import type { NewPart } from '../src/db/part-records.ts'
+import * as schema from '../src/db/schema.ts'
+import { createToken } from '../src/db/tokens.ts'
 import { loadDecisions } from './load-decisions.ts'
 import { problems } from './check-pr-workflow.mjs'
 
@@ -19,6 +27,54 @@ function fakeFetch(answers: Record<string, unknown>) {
 }
 
 describe('loadDecisions', () => {
+  it('reads the Decisions that are Parts, through the real API', async () => {
+    const client = new PGlite()
+    const db = drizzle(client, { schema })
+    await migrate(db, { migrationsFolder: './drizzle' })
+    await addProject(db, 'glue')
+    await addPart(db, 'glue', {
+      type: 'goal',
+      title: 'Ship faster',
+      metric: 'lead time',
+      source: 'okr',
+    })
+    await addPart(db, 'glue', {
+      type: 'guardrail',
+      title: 'CI takes ten minutes at most',
+      enforcedBy: 'verify ci',
+    })
+    const decision: NewPart = {
+      type: 'decision',
+      title: 'Check the types before the push',
+      owner: 'Ada',
+      status: 'accepted',
+      needs: ['G1', 'R1'],
+    }
+    await addPart(db, 'glue', decision)
+    await addPart(db, 'glue', { ...decision, supersedes: 'D1' })
+    await addPart(db, 'glue', { ...decision, status: 'proposed' })
+    const { token } = await createToken(db, 'glue', 'ci')
+    // The API of the deployment, with the handlers that its routes call.
+    const fetchApi = vi.fn<typeof fetch>(async (url, options) => {
+      const [, recordId] = new URL(String(url)).pathname.split('/decisions/')
+      const handle = recordId ? handleGetRecord : handleListRecords
+      return handle({
+        db,
+        request: new Request(String(url), { headers: options?.headers }),
+        params: { project: 'glue', folder: 'decisions', recordId },
+      })
+    })
+
+    const decisions = await loadDecisions({ GLUE_API_TOKEN: token }, fetchApi)
+    await client.close()
+
+    expect(Object.fromEntries(decisions)).toEqual({
+      D1: { status: 'superseded', superseded_by: 'D2' },
+      D2: { status: 'accepted' },
+      D3: { status: 'proposed' },
+    })
+  })
+
   it('reads an accepted Decision over the API, with the token as Bearer', async () => {
     const fetchApi = fakeFetch({
       [DECISIONS_URL]: [{ id: 'D1', status: 'accepted' }],

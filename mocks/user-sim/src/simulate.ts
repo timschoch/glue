@@ -124,7 +124,6 @@ async function fetchOutcome(
     for (const [index, current] of steps.entries()) {
       if (network.rateLimitedStep !== undefined) break
       step = index
-      network.step = index
       if (
         current.optional &&
         !(await isShown(page, current, steps[index + 1]))
@@ -146,6 +145,9 @@ async function fetchOutcome(
         return { end: 'left', step, skipped }
       }
       visit.struggle = addStruggle(visit.struggle, struggle)
+      // Only an action sends requests. Until this one starts, a request is
+      // still of the step before, also when the bot waits for this step.
+      network.step = index
       for (const action of current.actions) {
         await handleAction(page, action, visit)
       }
@@ -176,7 +178,7 @@ async function fetchOutcome(
 
 /** What the bot sees of the traffic between its browser context and the product. */
 type Network = {
-  /** The step the bot is on. */
+  /** The step whose actions the bot did last. */
   step: number
   /** Each open request, with the step that sent it. */
   pending: Map<Request, number>
