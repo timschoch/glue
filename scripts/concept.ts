@@ -28,13 +28,21 @@ import {
   addJoint,
   addPart,
   addProject,
+  answerPart,
   parseNewPart,
+  parsePartAnswer,
   parsePartChange,
   removeJoint,
   updatePart,
 } from '../src/db/part-records.ts'
-import { evidenceLevels, findPart, listParts } from '../src/db/parts.ts'
-import type { Part, PartType } from '../src/db/parts.ts'
+import {
+  evidenceLevels,
+  findPart,
+  listMine,
+  listParts,
+} from '../src/db/parts.ts'
+import type { Part, PartSummary, PartType } from '../src/db/parts.ts'
+import { answers } from '../src/db/part-trust.ts'
 import { typeOfRecordId } from '../src/db/record-id.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 import { createGithubClient } from '../src/github/client.ts'
@@ -47,6 +55,7 @@ const FLAG_TO_FIELD: Record<string, string> = {
   'social-handle': 'social_handle',
   'enforced-by': 'enforced_by',
   'superseded-by': 'superseded_by',
+  'waits-on': 'waits_on',
   level: 'evidence_level',
 }
 
@@ -88,6 +97,7 @@ const KNOWN_FIELDS = new Set(
       'analytics_project',
       'repository',
       'social_handle',
+      'waits_on',
     ]),
 )
 
@@ -190,7 +200,36 @@ function formatFieldValue(value: unknown) {
   return String(value)
 }
 
-function printRecord(record: Awaited<ReturnType<typeof showConceptRecord>>) {
+// One line of `list` and of `mine`.
+function formatRow({
+  id,
+  status,
+  trust,
+  workState,
+  title,
+}: Pick<PartSummary, 'id' | 'status' | 'title'> &
+  Partial<Pick<PartSummary, 'trust' | 'workState'>>) {
+  return [id, status, trust, workState, title].filter(Boolean).join('  ')
+}
+
+// The Trust and the Work state of the Part, its open flags and the Part
+// that it waits on.
+function printTrust(part: Part) {
+  console.log(`trust: ${part.trust}`)
+  console.log(`work_state: ${part.workState}`)
+  for (const { cause, reason, createdAt } of part.flags) {
+    const date = createdAt.slice(0, 10)
+    console.log(`flag: ${cause.id} ${reason} ${date} ${cause.title}`)
+  }
+  if (part.waitsOn) {
+    console.log(`waits_on: ${part.waitsOn.id} ${part.waitsOn.title}`)
+  }
+}
+
+function printRecord(
+  record: Awaited<ReturnType<typeof showConceptRecord>>,
+  part: Part | undefined,
+) {
   console.log(record.id)
   for (const [key, value] of Object.entries(record.fields)) {
     console.log(`${key}: ${formatFieldValue(value)}`)
@@ -204,6 +243,7 @@ function printRecord(record: Awaited<ReturnType<typeof showConceptRecord>>) {
   }
   if (record.supersededBy) console.log(`superseded_by: ${record.supersededBy}`)
   for (const id of record.supersedes ?? []) console.log(`supersedes: ${id}`)
+  if (part) printTrust(part)
   if (record.body) console.log(`\n${record.body}`)
 }
 
@@ -221,6 +261,7 @@ function printPart(part: Part) {
   for (const { part: needed } of part.needs) {
     console.log(`needs: ${needed.id} ${needed.title}`)
   }
+  printTrust(part)
   if (part.body) console.log(`\n${part.body}`)
 }
 
@@ -244,6 +285,8 @@ function formatHelp() {
     'pnpm concept add <type> <flags of the type> [--body <text>, or - for stdin]',
     'pnpm concept set <id> <flags of the type>',
     'pnpm concept downstream <id>',
+    'pnpm concept answer <id> <answer> [--waits-on <id>]',
+    'pnpm concept mine',
     'pnpm concept concept add <slug> --title <title> [--kind <kind>] [--parent <slug>]',
     'pnpm concept joint add <id> <needed id> [--two-way]',
     'pnpm concept joint remove <id> <needed id>',
@@ -253,7 +296,7 @@ function formatHelp() {
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set, downstream, concept and joint take --project <slug>. The default is glue.',
+    'list, show, add, set, downstream, answer, mine, concept and joint take --project <slug>. The default is glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -268,6 +311,10 @@ function formatHelp() {
     '',
     'set on a Goal takes --status and --measure, on a Decision --status and --superseded-by.',
     'On each other type it takes the flags of the type.',
+    '',
+    `answer takes ${answers.join(', ')}. The Work state of the record says which ones.`,
+    'wait needs --waits-on: the record that it waits on.',
+    'mine lists what needs the owner: the records in to-check, draft or review.',
   ].join('\n')
 }
 
@@ -309,8 +356,36 @@ export async function runConcept(
               folder ? [PART_FOLDERS[folder]] : Object.values(PART_FOLDERS),
             )),
       ]
+      const states = new Map(
+        (await listParts(db, product)).map((part) => [part.id, part]),
+      )
       for (const row of rows) {
-        console.log([row.id, row.status, row.title].filter(Boolean).join('  '))
+        console.log(formatRow({ ...row, ...states.get(row.id) }))
+      }
+      return
+    }
+    case 'mine': {
+      const flags = parseFlags(rest)
+      const product = (flags.project as string | undefined) ?? 'glue'
+      for (const part of await listMine(db, product)) {
+        console.log(formatRow(part))
+      }
+      return
+    }
+    case 'answer': {
+      const [id, answer, ...flagArgs] = rest
+      const flags = parseFlags(flagArgs)
+      const product = (flags.project as string | undefined) ?? 'glue'
+      const waitsOn = flags.waits_on
+      await answerPart(
+        db,
+        product,
+        id,
+        parsePartAnswer({ answer, ...(waitsOn !== undefined && { waitsOn }) }),
+      )
+      if (typeOfRecordId(id) === 'decision') {
+        const issue = await createDownstreamIssue(db, getGithub(), product, id)
+        console.error(formatDownstreamIssue(product, id, issue))
       }
       return
     }
@@ -320,7 +395,8 @@ export async function runConcept(
       const product = (flags.project as string | undefined) ?? 'glue'
       const type = typeOfRecordId(id)
       if (!type || !PART_TYPES.includes(type)) {
-        printRecord(await showConceptRecord(db, product, id))
+        const record = await showConceptRecord(db, product, id)
+        printRecord(record, await findPart(db, product, id))
         return
       }
       const part = await findPart(db, product, id)

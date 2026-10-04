@@ -49,8 +49,11 @@ export function problems({ body, files, decisions }) {
             `Decision "${id}" does not exist. List them with \`pnpm concept list decisions\`.`,
           )
         } else if (decision.status === 'superseded') {
+          // The owner can sink a Decision: it is superseded with no successor.
           found.push(
-            `Decision "${id}" is superseded by "${decision.superseded_by}". Cite that Decision instead.`,
+            decision.superseded_by
+              ? `Decision "${id}" is superseded by "${decision.superseded_by}". Cite that Decision instead.`
+              : `Decision "${id}" is sunk and has no successor. Cite an accepted Decision instead.`,
           )
         }
       }

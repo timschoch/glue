@@ -9,10 +9,12 @@ import {
   addConcept,
   addJoint,
   addPart,
+  answerPart,
   newConceptSchema,
   newJointSchema,
   newPartSchema,
   parsePartChange,
+  partAnswerSchema,
   partChangeSchema,
   removeJoint,
   updatePart,
@@ -22,8 +24,12 @@ import {
   findConcept,
   findPart,
   findProject,
+  flagReasons,
+  listMine,
   listParts,
   partTypes,
+  trusts,
+  workStates,
 } from '../db/parts.ts'
 import type { Concept, Part, PartSummary, Project } from '../db/parts.ts'
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
@@ -39,6 +45,10 @@ export const partSummarySchema = z
     type: partType,
     title: z.string(),
     status: z.string().nullable(),
+    trust: z.enum(trusts).meta({ description: 'Can you rely on the Part' }),
+    workState: z
+      .enum(workStates)
+      .meta({ description: 'Whose move it is on the Part' }),
     concept: z.string().meta({ description: 'The slug of the home Concept' }),
     conceptTitle: z
       .string()
@@ -140,6 +150,20 @@ export const partSchema = z
       description: 'A two-way Joint shows here on both sides',
     }),
     neededBy: z.array(jointEndSchema),
+    flags: z
+      .array(
+        z.object({
+          cause: z
+            .object({ id: z.string(), title: z.string() })
+            .meta({ description: 'The Part that caused the flag' }),
+          reason: z.enum(flagReasons),
+          createdAt: z.iso.datetime(),
+        }),
+      )
+      .meta({ description: 'The open flags, oldest first' }),
+    waitsOn: partSummarySchema.nullable().meta({
+      description: 'The Part that a waiting Part waits on',
+    }),
   })
   .meta({ id: 'Part' }) satisfies z.ZodType<Part>
 
@@ -164,6 +188,11 @@ export const partUpdateSchema = partChangeSchema.meta({
   description: 'One field or more, of the fields that the type of the Part has',
 })
 export const jointInputSchema = newJointSchema.meta({ id: 'JointInput' })
+export const answerInputSchema = partAnswerSchema.meta({
+  id: 'AnswerInput',
+  description:
+    'The answer of the owner. The Work state of the Part says which answers it takes',
+})
 
 export const partTypesQuerySchema = z.array(partType)
 
@@ -260,6 +289,22 @@ export function handleUpdatePart(input: ChangeRequest) {
     await updatePart(db, params.project, part.id, change)
     return Response.json(await findChangedPart(input, part.id))
   })
+}
+
+export function handleAnswerPart(input: ChangeRequest) {
+  return handleApiRequest(input, async () => {
+    const { db, request, params } = input
+    const part = await getPart(input)
+    const answer = partAnswerSchema.parse(await parseJson(request))
+    await answerPart(db, params.project, part.id, answer)
+    return Response.json(await findChangedPart(input, part.id))
+  })
+}
+
+export function handleListMine(input: ApiRequest) {
+  return handleApiRequest(input, async () =>
+    Response.json(await listMine(input.db, input.params.project)),
+  )
 }
 
 export function handleAddJoint(input: ApiRequest) {

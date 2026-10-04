@@ -51,6 +51,8 @@ function summary(
     type,
     title,
     status,
+    trust: 'solid',
+    workState: 'published',
     concept: home.slug,
     conceptTitle: home.title,
   }
@@ -158,6 +160,8 @@ function part(
     supersedes: [],
     needs: toEnds(needs, 1),
     neededBy: toEnds(neededBy, 10),
+    flags: [],
+    waitsOn: null,
   }
 }
 

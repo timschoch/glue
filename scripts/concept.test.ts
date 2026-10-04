@@ -229,7 +229,10 @@ describe('runConcept', () => {
 
     await run('list', 'insights', '--project', 'flexibeck')
 
-    expect(logged()).toEqual(['I1', 'I1  draft  Lists load in 3 seconds'])
+    expect(logged()).toEqual([
+      'I1',
+      'I1  draft  not-ready  draft  Lists load in 3 seconds',
+    ])
   })
 
   it('shows the source of a Guardrail', async () => {
@@ -321,12 +324,14 @@ describe('runConcept', () => {
 
     expect(logged()).toEqual([
       recordId,
-      `${recordId}  Build time`,
+      `${recordId}  not-ready  draft  Build time`,
       recordId,
       'title: Build time',
       'owner: Ada',
       'concept: flexibeck',
       'needs: R1 CI takes ten minutes at most',
+      'trust: not-ready',
+      'work_state: draft',
       '\nFrom the push to the green check.',
     ])
   })
@@ -337,9 +342,9 @@ describe('runConcept', () => {
     await run('list', '--project', 'flexibeck')
 
     expect(logged().slice(1)).toEqual([
-      'G1  open  Ship faster',
-      'R1  CI takes ten minutes at most',
-      'F1  Push',
+      'G1  open  not-ready  draft  Ship faster',
+      'R1  not-ready  draft  CI takes ten minutes at most',
+      'F1  not-ready  draft  Push',
     ])
   })
 
@@ -430,7 +435,13 @@ describe('runConcept', () => {
     await run('show', 'F1', '--project', 'flexibeck')
 
     expect(glued).toContain('needs: R1 CI takes ten minutes at most')
-    expect(logged()).toEqual(['F1', 'title: Push', 'concept: flexibeck'])
+    expect(logged()).toEqual([
+      'F1',
+      'title: Push',
+      'concept: flexibeck',
+      'trust: not-ready',
+      'work_state: draft',
+    ])
   })
 
   it('glues two Parts that need each other', async () => {
@@ -463,6 +474,64 @@ describe('runConcept', () => {
     await run('show', 'E1', '--project', 'design-system')
 
     expect(logged()).toContain('concept: design-system')
+  })
+
+  it('shows the Trust and the Work state of a Goal', async () => {
+    await run('show', 'G1', '--project', 'flexibeck')
+
+    expect(logged()).toEqual(
+      expect.arrayContaining(['trust: not-ready', 'work_state: draft']),
+    )
+  })
+
+  it('answers a Part, and lists what needs the owner', async () => {
+    await run('answer', 'R1', 'supersede', '--project', 'flexibeck')
+
+    await run('mine', '--project', 'flexibeck')
+
+    expect(logged()).toEqual(['G1  open  not-ready  draft  Ship faster'])
+  })
+
+  it('makes a flagged Part wait, and shows its flag and the Part that it waits on', async () => {
+    const project = ['--project', 'flexibeck']
+    await run('answer', 'R1', 'supersede', ...project)
+    await run('add', 'flows', ...project, '--title', 'Push', '--needs', 'R1')
+    await run('answer', 'F1', 'supersede', ...project)
+    await run('set', 'R1', ...project, '--title', 'CI takes five minutes')
+
+    await run('answer', 'F1', 'wait', '--waits-on', 'R1', ...project)
+    vi.mocked(console.log).mockClear()
+    await run('show', 'F1', ...project)
+
+    expect(logged()).toEqual([
+      'F1',
+      'title: Push',
+      'concept: flexibeck',
+      'needs: R1 CI takes five minutes',
+      'trust: flagged',
+      'work_state: waiting',
+      expect.stringMatching(
+        /^flag: R1 changed \d{4}-\d{2}-\d{2} CI takes five minutes$/,
+      ),
+      'waits_on: R1 CI takes five minutes',
+    ])
+  })
+
+  it('refuses an answer that the Work state does not take, and names the ones that it takes', async () => {
+    await expect(
+      run('answer', 'G1', 'fine', '--project', 'flexibeck'),
+    ).rejects.toThrow(
+      '"G1" is draft: it takes the answers not-ready, supersede, sink',
+    )
+  })
+
+  it('opens the downstream issue when the answer accepts a Decision', async () => {
+    await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
+
+    await run('answer', 'D1', 'supersede', '--project', 'flexibeck')
+
+    expect(fake.issues).toHaveLength(1)
+    expect(await showIssueUrl('D1')).not.toBeNull()
   })
 
   it('rejects an unknown command and points to the help', async () => {

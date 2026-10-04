@@ -1,11 +1,17 @@
 import type { SQL } from 'drizzle-orm'
-import { and, count, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import type { ConceptDb } from './client.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import type { Kind } from './kinds.ts'
-import type { EvidenceLevel, PartType } from './schema.ts'
+import type {
+  EvidenceLevel,
+  FlagReason,
+  PartType,
+  Trust,
+  WorkState,
+} from './schema.ts'
 import { kinds } from './kinds.ts'
 import { sortById } from './record-id.ts'
 import * as schema from './schema.ts'
@@ -14,8 +20,20 @@ import * as schema from './schema.ts'
 // Part as Glue shows them.
 
 // The words of the Part model, for the code outside src/db.
-export { evidenceLevels, partTypes } from './schema.ts'
-export type { EvidenceLevel, PartType } from './schema.ts'
+export {
+  evidenceLevels,
+  flagReasons,
+  partTypes,
+  trusts,
+  workStates,
+} from './schema.ts'
+export type {
+  EvidenceLevel,
+  FlagReason,
+  PartType,
+  Trust,
+  WorkState,
+} from './schema.ts'
 
 export type PartSummary = {
   // The record id, for example D12.
@@ -23,9 +41,18 @@ export type PartSummary = {
   type: PartType
   title: string
   status: string | null
+  trust: Trust
+  workState: WorkState
   // The slug of the home Concept.
   concept: string
   conceptTitle: string
+}
+
+// An open flag of a Part: the Part that caused it, and why.
+export type Flag = {
+  cause: { id: string; title: string }
+  reason: FlagReason
+  createdAt: string
 }
 
 export type ConceptNode = {
@@ -99,9 +126,13 @@ export type Part = PartSummary & {
   // A two-way Joint shows in `needs` on both sides.
   needs: JointEnd[]
   neededBy: JointEnd[]
+  // The open flags, oldest first.
+  flags: Flag[]
+  // The Part that a waiting Part waits on.
+  waitsOn: PartSummary | null
 }
 
-const { projects, concepts, parts, joints, measures, partTypes } = schema
+const { projects, concepts, parts, joints, measures, flags, partTypes } = schema
 
 // The Part that a Joint needs, and the home Concept of that Part.
 const neededParts = alias(parts, 'needed_parts')
@@ -112,6 +143,8 @@ const summary = {
   type: parts.type,
   title: parts.title,
   status: parts.status,
+  trust: parts.trust,
+  workState: parts.workState,
   concept: concepts.slug,
   conceptTitle: concepts.title,
 }
@@ -121,6 +154,8 @@ const neededSummary = {
   type: neededParts.type,
   title: neededParts.title,
   status: neededParts.status,
+  trust: neededParts.trust,
+  workState: neededParts.workState,
   concept: neededConcepts.slug,
   conceptTitle: neededConcepts.title,
 }
@@ -310,6 +345,44 @@ export function listParts(
   )
 }
 
+// What needs the owner now: the Parts of the Project in to-check, draft or
+// review, the newest change first. An unknown Project has none.
+export function listMine(
+  db: ConceptDb,
+  projectSlug: string,
+): Promise<PartSummary[]> {
+  return db
+    .select(summary)
+    .from(parts)
+    .innerJoin(concepts, eq(parts.conceptId, concepts.id))
+    .innerJoin(projects, eq(parts.projectId, projects.id))
+    .where(
+      and(
+        eq(projects.slug, projectSlug),
+        inArray(parts.workState, ['to-check', 'draft', 'review']),
+      ),
+    )
+    .orderBy(desc(parts.changedAt), desc(parts.id))
+}
+
+// The open flags of the Part, oldest first.
+async function listFlags(db: ConceptDb, partId: number): Promise<Flag[]> {
+  const found = await db
+    .select({
+      cause: { id: parts.recordId, title: parts.title },
+      reason: flags.reason,
+      createdAt: flags.createdAt,
+    })
+    .from(flags)
+    .innerJoin(parts, eq(flags.causePartId, parts.id))
+    .where(and(eq(flags.partId, partId), isNull(flags.closedAt)))
+    .orderBy(flags.id)
+  return found.map(({ createdAt, ...flag }) => ({
+    ...flag,
+    createdAt: createdAt.toISOString(),
+  }))
+}
+
 export async function findPart(
   db: ConceptDb,
   projectSlug: string,
@@ -326,16 +399,21 @@ export async function findPart(
   if (!row) return undefined
   const { part, concept, measure } = row
 
-  const [supersededBy, supersedes, jointRows] = await Promise.all([
-    part.supersededById === null
-      ? []
-      : listSummaries(db, eq(parts.id, part.supersededById)),
-    listSummaries(db, eq(parts.supersededById, part.id)),
-    listJoints(
-      db,
-      or(eq(joints.partId, part.id), eq(joints.neededPartId, part.id)),
-    ),
-  ])
+  const [supersededBy, waitsOn, openFlags, supersedes, jointRows] =
+    await Promise.all([
+      part.supersededById === null
+        ? []
+        : listSummaries(db, eq(parts.id, part.supersededById)),
+      part.awaitedPartId === null
+        ? []
+        : listSummaries(db, eq(parts.id, part.awaitedPartId)),
+      listFlags(db, part.id),
+      listSummaries(db, eq(parts.supersededById, part.id)),
+      listJoints(
+        db,
+        or(eq(joints.partId, part.id), eq(joints.neededPartId, part.id)),
+      ),
+    ])
 
   const needs: JointEnd[] = []
   const neededBy: JointEnd[] = []
@@ -356,6 +434,8 @@ export async function findPart(
     type: part.type,
     title: part.title,
     status: part.status,
+    trust: part.trust,
+    workState: part.workState,
     concept: concept.slug,
     conceptTitle: concept.title,
     body: part.body,
@@ -377,5 +457,7 @@ export async function findPart(
     supersedes,
     needs,
     neededBy,
+    flags: openFlags,
+    waitsOn: waitsOn.at(0) ?? null,
   }
 }

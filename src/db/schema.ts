@@ -263,6 +263,21 @@ export const evidenceTypes = ['insight', 'guardrail'] as const
 export const evidenceLevels = ['hunch', 'pattern', 'confirmed'] as const
 export type EvidenceLevel = (typeof evidenceLevels)[number]
 
+// Trust is for the reader of a Part (D27, D39).
+export const trusts = ['solid', 'flagged', 'not-ready', 'wrong'] as const
+export type Trust = (typeof trusts)[number]
+
+// The Work state is for the owner of a Part. A sunk Part is at its end.
+export const workStates = [
+  'to-check',
+  'waiting',
+  'draft',
+  'review',
+  'published',
+  'sunk',
+] as const
+export type WorkState = (typeof workStates)[number]
+
 // A Part is one record of one type. Its home is one Concept.
 export const parts = pgTable(
   'parts',
@@ -290,6 +305,22 @@ export const parts = pgTable(
     supersededById: integer('superseded_by_id').references(
       (): AnyPgColumn => parts.id,
     ),
+    // A Part starts as a draft that nobody relies on. The status of a
+    // Decision and of an Insight moves with these two in the same write.
+    trust: text('trust').notNull().default('not-ready').$type<Trust>(),
+    workState: text('work_state').notNull().default('draft').$type<WorkState>(),
+    // The Part that a waiting Part waits on.
+    awaitedPartId: integer('awaited_part_id').references(
+      (): AnyPgColumn => parts.id,
+      { onDelete: 'set null' },
+    ),
+    // The last write to the Part. Mine shows the newest change first.
+    changedAt: timestamp('changed_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // The first time that the Part was published. A Part that is published
+    // again tells the Parts that need it.
+    publishedAt: timestamp('published_at', { withTimezone: true }),
   },
   (table) => [
     foreignKey({
@@ -297,6 +328,14 @@ export const parts = pgTable(
       foreignColumns: [concepts.projectId, concepts.id],
     }),
     unique().on(table.projectId, table.recordId),
+    check(
+      'parts_trust_check',
+      sql`${table.trust} in ('solid', 'flagged', 'not-ready', 'wrong')`,
+    ),
+    check(
+      'parts_work_state_check',
+      sql`${table.workState} in ('to-check', 'waiting', 'draft', 'review', 'published', 'sunk')`,
+    ),
     index('parts_concept_id_type_index').on(table.conceptId, table.type),
     // The measure run writes one Insight per query, also when two runs
     // overlap. Other sources are free text and may repeat.
@@ -359,6 +398,39 @@ export const joints = pgTable(
     ),
     index('joints_part_id_index').on(table.partId),
     index('joints_needed_part_id_index').on(table.neededPartId),
+  ],
+)
+
+export const flagReasons = ['changed', 'not-ready', 'wrong'] as const
+export type FlagReason = (typeof flagReasons)[number]
+
+// A flag tells the owner of `partId` to look: `causePartId`, a Part that it
+// needs, changed, or is not ready, or is wrong. An answer closes the flag.
+export const flags = pgTable(
+  'flags',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    partId: integer('part_id')
+      .notNull()
+      .references(() => parts.id, { onDelete: 'cascade' }),
+    causePartId: integer('cause_part_id')
+      .notNull()
+      .references(() => parts.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull().$type<FlagReason>(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      'flags_reason_check',
+      sql`${table.reason} in ('changed', 'not-ready', 'wrong')`,
+    ),
+    // One open flag per cause and reason. A second reason is a second flag.
+    uniqueIndex('flags_open_unique')
+      .on(table.partId, table.causePartId, table.reason)
+      .where(sql`${table.closedAt} is null`),
   ],
 )
 

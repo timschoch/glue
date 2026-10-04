@@ -18,9 +18,11 @@ import {
   handleAddConcept,
   handleAddJoint,
   handleAddPart,
+  handleAnswerPart,
   handleGetPart,
   handleGetProject,
   handleGetProjectConcept,
+  handleListMine,
   handleListParts,
   handleRemoveJoint,
   handleUpdatePart,
@@ -74,6 +76,14 @@ export const partsHandlers = {
 export const partHandlers = {
   GET: (route: RouteRequest) => handleGetPart(toApiRequest(route)),
   PATCH: (route: RouteRequest) => handleUpdatePart(toChangeRequest(route)),
+}
+
+export const answersHandlers = {
+  POST: (route: RouteRequest) => handleAnswerPart(toChangeRequest(route)),
+}
+
+export const mineHandlers = {
+  GET: (route: RouteRequest) => handleListMine(toApiRequest(route)),
 }
 
 export const jointsHandlers = {

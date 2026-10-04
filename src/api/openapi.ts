@@ -22,6 +22,7 @@ import {
 } from './concept-api.ts'
 import {
   addedJointSchema,
+  answerInputSchema,
   changedPartSchema,
   conceptInputSchema,
   jointInputSchema,
@@ -313,6 +314,38 @@ function listPartPaths() {
             ...jsonContent(changedPartSchema),
           },
           400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/parts/{recordId}/answers`]: {
+      post: {
+        operationId: 'answerPart',
+        summary:
+          'Answer a Part as its owner: fine, wait, need time, not ready, supersede or sink',
+        requestParams: { path: path.extend({ recordId }) },
+        requestBody: jsonContent(answerInputSchema),
+        responses: {
+          200: {
+            description: 'The Part after the answer',
+            ...jsonContent(changedPartSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/mine`]: {
+      get: {
+        operationId: 'listMine',
+        summary:
+          'List what needs the owner: the Parts in to-check, draft or review',
+        requestParams: { path },
+        responses: {
+          200: {
+            description: 'The Parts, the newest change first',
+            ...jsonContent(z.array(partSummarySchema)),
+          },
           ...readErrorResponses,
         },
       },

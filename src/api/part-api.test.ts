@@ -14,9 +14,11 @@ import {
   handleAddConcept,
   handleAddJoint,
   handleAddPart,
+  handleAnswerPart,
   handleGetPart,
   handleGetProject,
   handleGetProjectConcept,
+  handleListMine,
   handleListParts,
   handleRemoveJoint,
   handleUpdatePart,
@@ -142,6 +144,12 @@ describe('every endpoint of the Part model', () => {
       'DELETE',
       { params: { jointId: '1' } },
     ],
+    'POST an answer': [
+      handleAnswerPart,
+      'POST',
+      { params: { recordId: 'G1' }, body: { answer: 'sink' } },
+    ],
+    'GET what needs the owner': [handleListMine, 'GET', {}],
   }
 
   it.each(Object.keys(calls))(
@@ -299,6 +307,8 @@ describe('GET the Parts', () => {
         type: 'insight',
         title: 'Users churn on slow loads',
         status: null,
+        trust: 'solid',
+        workState: 'published',
         concept: 'flexibeck',
         conceptTitle: 'flexibeck',
       },
@@ -307,6 +317,8 @@ describe('GET the Parts', () => {
         type: 'goal',
         title: 'Ship faster',
         status: 'open',
+        trust: 'not-ready',
+        workState: 'draft',
         concept: 'flexibeck',
         conceptTitle: 'flexibeck',
       },
@@ -315,6 +327,8 @@ describe('GET the Parts', () => {
         type: 'guardrail',
         title: 'No query over 200ms',
         status: null,
+        trust: 'not-ready',
+        workState: 'draft',
         concept: 'flexibeck',
         conceptTitle: 'flexibeck',
       },
@@ -354,6 +368,8 @@ describe('GET a Part', () => {
       type: 'insight',
       title: 'Users churn on slow loads',
       status: null,
+      trust: 'solid',
+      workState: 'published',
       concept: 'flexibeck',
       conceptTitle: 'flexibeck',
       body: '',
@@ -369,6 +385,8 @@ describe('GET a Part', () => {
       supersedes: [],
       needs: [],
       neededBy: [],
+      flags: [],
+      waitsOn: null,
     })
   })
 
@@ -642,6 +660,126 @@ describe('PATCH a Part', () => {
       expect(fake.issues).toHaveLength(1)
     },
   )
+})
+
+describe('Trust and the Work state', () => {
+  it('returns them with a Part, and with each Part of the list', async () => {
+    const part = await call(handleGetPart, 'GET', {
+      params: { recordId: 'I1' },
+    })
+    const parts = await call(handleListParts, 'GET', { query: '?type=goal' })
+
+    expect(part.body).toMatchObject({
+      trust: 'solid',
+      workState: 'published',
+      flags: [],
+      waitsOn: null,
+    })
+    expect(parts.body).toMatchObject([
+      { id: 'G1', trust: 'not-ready', workState: 'draft' },
+    ])
+  })
+
+  it('returns the open flags of a Part and the Part that it waits on', async () => {
+    await addJoint(db, 'flexibeck', { part: 'R1', needs: 'I1' })
+    await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'R1' },
+      body: { answer: 'supersede' },
+    })
+    await call(handleUpdatePart, 'PATCH', {
+      params: { recordId: 'I1' },
+      body: { title: 'Users leave on slow loads' },
+    })
+
+    const response = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'R1' },
+      body: { answer: 'wait', waitsOn: 'I1' },
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      trust: 'flagged',
+      workState: 'waiting',
+      flags: [
+        {
+          cause: { id: 'I1', title: 'Users leave on slow loads' },
+          reason: 'changed',
+          createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
+        },
+      ],
+      waitsOn: { id: 'I1', trust: 'solid', workState: 'published' },
+    })
+  })
+
+  it('answers 400 for an answer that the Work state does not take, and names the ones that it takes', async () => {
+    const response = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'I1' },
+      body: { answer: 'fine' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe(
+      '"I1" is published: it takes the answers not-ready, sink',
+    )
+  })
+
+  it('answers 400 for an answer that is not one of the six, and for "wait" without a Part', async () => {
+    const unknown = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'I1' },
+      body: { answer: 'ok' },
+    })
+    const alone = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'I1' },
+      body: { answer: 'wait' },
+    })
+
+    expect(unknown.status).toBe(400)
+    expect(alone.status).toBe(400)
+    expect(alone.body.error.message).toContain('waitsOn')
+  })
+
+  it('answers 404 for an answer to a Part that does not exist', async () => {
+    const response = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'I9' },
+      body: { answer: 'sink' },
+    })
+
+    expect(response.status).toBe(404)
+  })
+
+  it('opens the downstream issue when the answer accepts a Decision', async () => {
+    await call(handleAddPart, 'POST', { body: decision })
+
+    const response = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'D1' },
+      body: { answer: 'supersede' },
+    })
+
+    expect(response.body).toMatchObject({
+      status: 'accepted',
+      trust: 'solid',
+      workState: 'published',
+    })
+    expect(fake.issues).toHaveLength(1)
+  })
+
+  it('lists what needs the owner: the Parts in to-check, draft and review', async () => {
+    await call(handleAddPart, 'POST', { body: decision })
+
+    const response = await call(handleListMine, 'GET')
+
+    expect(response.status).toBe(200)
+    expect(
+      response.body.map((part: { id: string; workState: string }) => [
+        part.id,
+        part.workState,
+      ]),
+    ).toEqual([
+      ['D1', 'review'],
+      ['R1', 'draft'],
+      ['G1', 'draft'],
+    ])
+  })
 })
 
 describe('Joints', () => {

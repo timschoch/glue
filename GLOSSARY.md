@@ -38,7 +38,7 @@ The target model. Diagrams and rules: [docs/concept.md](docs/concept.md). The ap
 | Signal         | One raw observation from an outside tool. Many Signals become few Insights.                                                                     |
 | Evidence level | How sure an Insight is: Signal, Hunch, Pattern, Confirmed.                                                                                      |
 | Trust          | What a reader can rely on, shown as a light: Solid (green), Flagged (yellow), Not ready (red), Wrong (black). Only Trust travels along a Joint. |
-| Work state     | What the owner of a Part has to do: To check, Waiting, Draft, Review, Published. Not the Draft in [Cycle](#cycle).                              |
+| Work state     | What the owner of a Part has to do: To check, Waiting, Draft, Review, Published, Sunk. Not the Draft in [Cycle](#cycle).                        |
 | Tier           | Tier 1 Parts are what a coding agent reads: Flow, Entity, Guardrail. Tier 2 Parts are the why.                                                  |
 | Lens           | A filter over all Parts. It changes what you see first, never where a Part lives or who may open it.                                            |
 | Flight level   | How much a view shows: Strategic (a summary) or Operational (raw details).                                                                      |

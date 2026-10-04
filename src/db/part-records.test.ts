@@ -63,13 +63,15 @@ function listConcepts() {
     .orderBy(schema.concepts.id)
 }
 
-// The Part of the record id in the Project 1, without its row ids.
+// The Part of the record id in the Project 1, without its row ids and the
+// time of its last change.
 async function showPart(recordId: string) {
-  const [{ id: _id, projectId: _projectId, ...part }] = await db
-    .select()
-    .from(schema.parts)
-    .where(eq(schema.parts.recordId, recordId))
-    .orderBy(schema.parts.projectId)
+  const [{ id: _id, projectId: _projectId, changedAt: _changedAt, ...part }] =
+    await db
+      .select()
+      .from(schema.parts)
+      .where(eq(schema.parts.recordId, recordId))
+      .orderBy(schema.parts.projectId)
   return part
 }
 
@@ -291,6 +293,10 @@ describe('addPart', () => {
       issueUrl: null,
       evidenceLevel: null,
       supersededById: null,
+      trust: 'not-ready',
+      workState: 'draft',
+      awaitedPartId: null,
+      publishedAt: null,
     })
     expect(await showPart('D1')).toMatchObject({
       type: 'decision',
