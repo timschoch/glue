@@ -2,10 +2,10 @@ import type { MouseEvent } from 'react'
 
 import { Card } from './card.tsx'
 import type { PartType, Trust, WorkState } from './card.tsx'
-import styles from './part-list.module.scss'
+import styles from './part-cards.module.scss'
 
 // What the card of a Part in the list shows.
-export type PartListPart = {
+export type PartCardsPart = {
   // The record id, for example D12.
   id: string
   type: PartType
@@ -17,16 +17,16 @@ export type PartListPart = {
   href: string
 }
 
-export type PartListProps = {
+export type PartCardsProps = {
   title: string
-  parts: ReadonlyArray<PartListPart>
-  onOpen?: (part: PartListPart, event: MouseEvent<HTMLAnchorElement>) => void
+  parts: ReadonlyArray<PartCardsPart>
+  onOpen?: (part: PartCardsPart, event: MouseEvent<HTMLAnchorElement>) => void
 }
 
 // Parts of mixed types from the whole Project in the main window: the title
 // and one card per Part, with its Work state and its home Concept. Each card
 // opens its record.
-export function PartList({ title, parts, onOpen }: PartListProps) {
+export function PartCards({ title, parts, onOpen }: PartCardsProps) {
   return (
     <div className={styles.list}>
       <h1 className={styles.title}>{title}</h1>

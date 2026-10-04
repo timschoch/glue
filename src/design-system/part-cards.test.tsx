@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import './theme.scss'
-import { PartList } from './part-list.tsx'
-import type { PartListPart } from './part-list.tsx'
+import { PartCards } from './part-cards.tsx'
+import type { PartCardsPart } from './part-cards.tsx'
 
-const GOAL: PartListPart = {
+const GOAL: PartCardsPart = {
   id: 'G2',
   type: 'goal',
   title: 'First bake feels easy',
@@ -17,7 +17,7 @@ const GOAL: PartListPart = {
   href: '#G2',
 }
 
-const DECISION: PartListPart = {
+const DECISION: PartCardsPart = {
   id: 'D12',
   type: 'decision',
   title: 'Show the video of the creator',
@@ -29,9 +29,9 @@ const DECISION: PartListPart = {
 
 afterEach(cleanup)
 
-describe('PartList', () => {
+describe('PartCards', () => {
   it('shows the title and one card per Part, with the Work state and the home Concept', () => {
-    render(<PartList title="Mine" parts={[GOAL, DECISION]} />)
+    render(<PartCards title="Mine" parts={[GOAL, DECISION]} />)
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Mine')
     expect(screen.getAllByRole('link').map((card) => card.textContent)).toEqual(
@@ -47,7 +47,7 @@ describe('PartList', () => {
 
   it('opens the record of a card', async () => {
     const onOpen = vi.fn()
-    render(<PartList title="Mine" parts={[GOAL, DECISION]} onOpen={onOpen} />)
+    render(<PartCards title="Mine" parts={[GOAL, DECISION]} onOpen={onOpen} />)
 
     await userEvent.click(screen.getByRole('link', { name: / D12 / }))
 
@@ -55,7 +55,7 @@ describe('PartList', () => {
   })
 
   it('shows the title alone without a Part', () => {
-    render(<PartList title="Mine" parts={[]} />)
+    render(<PartCards title="Mine" parts={[]} />)
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Mine')
     expect(screen.queryByRole('list')).toBeNull()

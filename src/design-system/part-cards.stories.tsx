@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
 import { PlainFrame } from './frame.tsx'
-import { PartList } from './part-list.tsx'
+import { PartCards } from './part-cards.tsx'
 
 const meta = {
   title: 'Part list',
-  component: PartList,
+  component: PartCards,
   parameters: { layout: 'fullscreen' },
   decorators: [
     (Story) => (
@@ -46,7 +46,7 @@ const meta = {
       },
     ],
   },
-} satisfies Meta<typeof PartList>
+} satisfies Meta<typeof PartCards>
 
 export default meta
 

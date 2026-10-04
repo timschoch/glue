@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { Concept } from '../db/parts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
-import { PartList } from '../design-system/part-list.tsx'
+import { PartCards } from '../design-system/part-cards.tsx'
 import { Signals } from '../design-system/signals.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
@@ -58,9 +58,10 @@ export function ConceptScreen({
       }),
     },
   }))
+
   if (search.section === 'Mine') {
     return (
-      <PartList
+      <PartCards
         title="Mine"
         parts={mine.map((part) => ({
           id: part.id,
