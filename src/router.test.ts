@@ -7,69 +7,17 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 
 import { createRouterContext } from './router-context.ts'
-import type { RouterContext, Server, SessionMemory } from './router-context.ts'
+import type { RouterContext, SessionMemory } from './router-context.ts'
+import type { Server } from './router-server.ts'
 import { routeTree } from './routeTree.gen'
-import {
-  findConcept,
-  findContract,
-  findContractState,
-  findPart,
-  findProject,
-  parts,
-  people,
-  projects,
-} from './test/project.ts'
+import { createMemoryServer, session } from './test/server.ts'
 
-const session = {
-  user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' },
-}
-
+// A server for a person who is not signed in.
 function context(overrides: Partial<Server> = {}): Server {
-  return {
+  return createMemoryServer({
     fetchSession: vi.fn(() => Promise.resolve(undefined)),
-    fetchProjects: vi.fn(() => Promise.resolve(projects)),
-    fetchProject: vi.fn((project) => Promise.resolve(findProject(project))),
-    fetchConcept: vi.fn((input) => Promise.resolve(findConcept(input))),
-    fetchParts: vi.fn((project) =>
-      Promise.resolve(findProject(project) ? parts : []),
-    ),
-    fetchMine: vi.fn(() => Promise.resolve([])),
-    fetchMeasured: vi.fn(() => Promise.resolve([])),
-    fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
-    fetchSignals: vi.fn(() => Promise.resolve({ signals: [], reason: null })),
-    fetchBuilds: vi.fn(() => Promise.resolve({ builds: [], reason: null })),
-    addSignalInsight: vi.fn(() =>
-      Promise.resolve({ id: 'I1', issueMissing: false }),
-    ),
-    fetchContractState: vi.fn((input) =>
-      Promise.resolve(findContractState(input)),
-    ),
-    fetchContract: vi.fn((input) => Promise.resolve(findContract(input))),
-    signContract: vi.fn(() => Promise.resolve({ version: 2 })),
-    addProject: vi.fn(({ slug }) => Promise.resolve({ slug })),
-    addConcept: vi.fn(({ concept }) => Promise.resolve({ slug: concept.slug })),
-    addPart: vi.fn(() => Promise.resolve({ id: 'D5', issueMissing: false })),
-    updatePart: vi.fn(({ recordId }) =>
-      Promise.resolve({ id: recordId, issueMissing: false }),
-    ),
-    answerPart: vi.fn(({ recordId }) =>
-      Promise.resolve({ id: recordId, issueMissing: false }),
-    ),
-    answerQuestion: vi.fn(({ recordId }) =>
-      Promise.resolve({ id: recordId, issueMissing: false }),
-    ),
-    addJoint: vi.fn(() => Promise.resolve({ id: 1 })),
-    removeJoint: vi.fn(() => Promise.resolve(undefined)),
-    fetchPeople: vi.fn(() => Promise.resolve(people)),
-    addMember: vi.fn(() => Promise.resolve(people.members[1])),
-    setLoopSteps: vi.fn(() => Promise.resolve(undefined)),
-    assign: vi.fn(() => Promise.resolve(undefined)),
-    unassign: vi.fn(() => Promise.resolve(undefined)),
-    signIn: vi.fn(() => Promise.resolve(undefined)),
-    signUp: vi.fn(() => Promise.resolve(undefined)),
-    signOut: vi.fn(() => Promise.resolve()),
     ...overrides,
-  }
+  })
 }
 
 async function open(path: string, server: Server, memory?: SessionMemory) {

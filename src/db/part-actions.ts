@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { Failure } from '../authentication/session.ts'
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import { listBuilds } from './builds.ts'
 import {
@@ -228,13 +229,19 @@ export function createPartActions(request: ActionRequest) {
     ),
 
     // The person who adds a Project is its first member.
-    addProject: withUser(async (db, { slug, name }: ProjectAddInput, user) => {
-      if (await findProject(db, slug))
-        return { message: `project "${slug}" exists already` }
-      await addProject(db, slug, name)
-      await joinProject(db, slug, user)
-      return { slug }
-    }),
+    addProject: withUser(
+      async (
+        db,
+        { slug, name }: ProjectAddInput,
+        user,
+      ): Promise<{ slug: string } | Failure> => {
+        if (await findProject(db, slug))
+          return { message: `project "${slug}" exists already` }
+        await addProject(db, slug, name)
+        await joinProject(db, slug, user)
+        return { slug }
+      },
+    ),
 
     listSignals: withSession((db, { project }: ProjectInput) =>
       listSignals(db, getGithub(), project),
