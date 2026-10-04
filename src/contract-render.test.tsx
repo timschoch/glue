@@ -86,7 +86,7 @@ describe('the Contract on the Concept screen', () => {
     expect(contract().getByRole('link').textContent).toBe(
       'Version 1 9f2c4e7a1b3d Ada 2026-10-01',
     )
-    expect(contract().getByText('Ahead')).toBeTruthy()
+    contract().getByText('Ahead')
   })
 
   it('signs off the Concept, then reads the Contract again', async () => {
@@ -159,17 +159,13 @@ describe('the screen of a Contract Version', () => {
     expect(main.getByRole('heading', { level: 1 }).textContent).toBe(
       'Part model',
     )
-    expect(main.getByText('Contract Version 1')).toBeTruthy()
+    main.getByText('Contract Version 1')
     expect(
       main
         .getAllByRole('heading', { level: 3 })
         .map((heading) => heading.textContent),
     ).toEqual(['Agents read files', 'The Concept lives in the database'])
-    expect(
-      within(main.getByRole('list', { name: 'Empty slots' })).getByText(
-        'Metric',
-      ),
-    ).toBeTruthy()
+    within(main.getByRole('list', { name: 'Empty slots' })).getByText('Metric')
     expect(document.title).toBe('Part model Version 1 | Glue')
   })
 

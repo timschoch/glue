@@ -149,7 +149,7 @@ describe('ConceptView', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
       'Technique videos',
     )
-    expect(screen.getByText('Brief')).toBeDefined()
+    screen.getByText('Brief')
   })
 
   it('shows no Kind for a Concept without one', () => {
@@ -287,7 +287,7 @@ describe('ConceptView', () => {
 
     const card = within(group('Goals')).getByRole('link')
 
-    expect(within(card).getByRole('img', { name: 'Solid' })).toBeDefined()
+    within(card).getByRole('img', { name: 'Solid' })
     expect(
       [...card.querySelectorAll('span, p')]
         .filter((element) => element.children.length === 0)
@@ -354,7 +354,7 @@ describe('ConceptView', () => {
       '#I7',
       '#I21',
     ])
-    expect(within(linked).getByText('UX study')).toBeDefined()
+    within(linked).getByText('UX study')
     expect(within(home).queryByText('Technique videos')).toBeNull()
     expect(
       insights.getAllByRole('listitem').map((item) => item.children.length),

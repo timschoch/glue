@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/pglite'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   acceptDecision,
@@ -193,19 +193,25 @@ describe('addConceptRecord', () => {
   })
 
   it('defaults date to today (UTC) for an Insight without one', async () => {
-    const id = await addConceptRecord(
-      db,
-      'glue',
-      'insights',
-      {
-        title: 'Users bounce on the pricing page',
-        source: 'https://example.com/i2',
-      },
-      '',
-    )
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-03T12:00Z') })
+    let id: string
+    try {
+      id = await addConceptRecord(
+        db,
+        'glue',
+        'insights',
+        {
+          title: 'Users bounce on the pricing page',
+          source: 'https://example.com/i2',
+        },
+        '',
+      )
+    } finally {
+      vi.useRealTimers()
+    }
 
     const record = await showConceptRecord(db, 'glue', id)
-    expect(record.fields.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(record.fields.date).toBe('2026-10-03')
   })
 
   it('keeps a given date for an Insight instead of defaulting', async () => {

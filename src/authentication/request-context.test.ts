@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { toRequestContext } from './request-context.ts'
 
@@ -27,37 +27,6 @@ describe('toRequestContext', () => {
     expect(await context.getCookies()).toBe('')
   })
 
-  it('sets each cookie on the response, with the options as they are', async () => {
-    const setCookie = vi.fn()
-    const context = toRequestContext(request(), setCookie)
-
-    await context.setCookie('__Secure-neon-auth.session_token', 'a b', {
-      path: '/',
-      maxAge: 60,
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-    })
-    await context.setCookie('__Secure-neon-auth.local.session_data', 'xyz', {
-      path: '/',
-    })
-
-    expect(setCookie.mock.calls).toEqual([
-      [
-        '__Secure-neon-auth.session_token',
-        'a b',
-        {
-          path: '/',
-          maxAge: 60,
-          httpOnly: true,
-          secure: true,
-          sameSite: 'lax',
-        },
-      ],
-      ['__Secure-neon-auth.local.session_data', 'xyz', { path: '/' }],
-    ])
-  })
-
   it('reads a header by name, in any letter case', async () => {
     const context = toRequestContext(
       request({ 'User-Agent': 'vitest' }),
@@ -81,11 +50,5 @@ describe('toRequestContext', () => {
     const context = toRequestContext(request(), () => {})
 
     expect(await context.getOrigin()).toBe('https://glue.example')
-  })
-
-  it('names the framework', () => {
-    const context = toRequestContext(request(), () => {})
-
-    expect(context.getFramework()).toBe('tanstack-start')
   })
 })

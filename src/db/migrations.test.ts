@@ -3,7 +3,15 @@ import { readFile, readdir } from 'node:fs/promises'
 
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 import { addConceptRecord } from './concept-records.ts'
 import { kinds } from './kinds.ts'
@@ -537,10 +545,13 @@ describe('the migration that copies the records into the Part model', () => {
         (1, 'facts', 10),
         (2, 'facts', 10);
     `)
-    await runMigration(cutoverMigration)
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-03T12:00Z') })
+    try {
+      await runMigration(cutoverMigration)
+    } finally {
+      vi.useRealTimers()
+    }
   })
-
-  const today = () => new Date().toISOString().slice(0, 10)
 
   it('gives each Project one root Concept that holds its Parts', async () => {
     const db = drizzle(client, { schema })
@@ -596,7 +607,7 @@ describe('the migration that copies the records into the Part model', () => {
       status: null,
       source: 'README',
       body: 'Since ring 1.',
-      date: today(),
+      date: '2026-10-03',
       evidenceLevel: 'confirmed',
     })
     expect(await findPart(db, 'glue', 'I6')).toMatchObject({

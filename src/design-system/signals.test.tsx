@@ -58,9 +58,9 @@ describe('Signals', () => {
       name: SLOW.title,
     })
 
-    expect(screen.getByRole('heading', { name: 'Signals' })).toBeTruthy()
+    screen.getByRole('heading', { name: 'Signals' })
     expect(link.getAttribute('href')).toBe(SLOW.url)
-    expect(within(row(SLOW.title)).getByText('2026-10-02')).toBeTruthy()
+    within(row(SLOW.title)).getByText('2026-10-02')
   })
 
   it('shows the Insight that a Signal grew into, in place of its checkbox', async () => {
@@ -100,13 +100,13 @@ describe('Signals', () => {
   it('says that there are no Signals, with no button', () => {
     renderSignals({ signals: [] })
 
-    expect(screen.getByText('No Signals')).toBeTruthy()
+    screen.getByText('No Signals')
     expect(screen.queryByRole('button')).toBeNull()
   })
 
   it('says why there are no Signals', () => {
     renderSignals({ signals: [], reason: 'The Project has no repository' })
 
-    expect(screen.getByText('The Project has no repository')).toBeTruthy()
+    screen.getByText('The Project has no repository')
   })
 })
