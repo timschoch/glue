@@ -1,11 +1,25 @@
-import type { GithubClient, Issue, IssueInput } from '../github/client.ts'
+import type {
+  GithubClient,
+  Issue,
+  IssueInput,
+  PullRequest,
+} from '../github/client.ts'
 
 // Records every issue it opens and answers with its address, like GitHub.
-// It lists `labelled` for each label, and records what it was asked for.
-export function createFakeGithub(labelled: Issue[] = []) {
+// It lists `labelled` for each label and `pullRequests` for each repository,
+// and records what it was asked for.
+export function createFakeGithub(
+  labelled: Issue[] = [],
+  pullRequests: PullRequest[] = [],
+) {
   const issues: { repository: string; issue: IssueInput }[] = []
   const listed: { repository: string; label: string }[] = []
+  const pullRequestsListed: string[] = []
   const github: GithubClient = {
+    listPullRequests: async (repository) => {
+      pullRequestsListed.push(repository)
+      return pullRequests
+    },
     listIssues: async (repository, label) => {
       listed.push({ repository, label })
       return labelled
@@ -15,10 +29,11 @@ export function createFakeGithub(labelled: Issue[] = []) {
       return `https://github.com/${repository}/issues/${issues.length}`
     },
   }
-  return { github, issues, listed }
+  return { github, issues, listed, pullRequestsListed }
 }
 
 export const failingGithub: GithubClient = {
   createIssue: () => Promise.reject(new Error('GitHub answered 503')),
   listIssues: () => Promise.reject(new Error('GitHub answered 503')),
+  listPullRequests: () => Promise.reject(new Error('GitHub answered 503')),
 }

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
+import { listBuilds } from './builds.ts'
 import {
   addSignalInsight,
   listSignals,
@@ -180,6 +181,10 @@ export function createPartActions(request: ActionRequest) {
 
     listSignals: withSession((db, { project }: ProjectInput) =>
       listSignals(db, getGithub(), project),
+    ),
+
+    listBuilds: withSession((db, { project }: ProjectInput) =>
+      listBuilds(db, getGithub(), project),
     ),
 
     addSignalInsight: withSession(

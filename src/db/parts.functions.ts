@@ -81,6 +81,10 @@ export const fetchSignals = createServerFn({ method: 'GET' })
   .validator(projectInputSchema)
   .handler(({ data }) => actions.listSignals(data))
 
+export const fetchBuilds = createServerFn({ method: 'GET' })
+  .validator(projectInputSchema)
+  .handler(({ data }) => actions.listBuilds(data))
+
 export const submitAddSignalInsight = createServerFn({ method: 'POST' })
   .validator(signalInsightAddInputSchema)
   .handler(({ data }) => actions.addSignalInsight(data))

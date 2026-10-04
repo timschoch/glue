@@ -29,6 +29,7 @@ import {
   handleUpdatePart,
 } from './part-api.ts'
 import { handleAddSignalInsight, handleListSignals } from './signal-api.ts'
+import { handleListBuilds } from './build-api.ts'
 
 type PathParams = {
   folder?: string
@@ -103,6 +104,10 @@ export const jointHandlers = {
 
 export const signalsHandlers = {
   GET: (route: RouteRequest) => handleListSignals(toChangeRequest(route)),
+}
+
+export const buildsHandlers = {
+  GET: (route: RouteRequest) => handleListBuilds(toChangeRequest(route)),
 }
 
 export const signalInsightsHandlers = {

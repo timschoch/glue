@@ -1,11 +1,13 @@
 import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
+import type { Build } from '../db/builds.ts'
 import type { Contract, ContractState } from '../db/contracts.ts'
 import {
   ContractPanel,
   ContractVersionView,
 } from '../design-system/contract.tsx'
+import { BuildList } from './build-list.tsx'
 import { useProjectLinks } from './use-project-links.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
@@ -27,12 +29,21 @@ function useVersionHref() {
 
 // The Contract of the open Concept, with the sign-off. After a sign-off the
 // screen reads the Concept again.
-export function ContractSection({ contract }: { contract: ContractState }) {
+// `builds` are the builds of the Project: the Contract shows the ones that
+// name it.
+export function ContractSection({
+  contract,
+  builds = [],
+}: {
+  contract: ContractState
+  builds?: ReadonlyArray<Build>
+}) {
   const router = useRouter()
   const { signContract } = projectRoute.useRouteContext()
   const { project, concept, recordHref, open } = useProjectLinks()
   const versionHref = useVersionHref()
   const [failure, setFailure] = useState<string>()
+  const named = builds.filter((build) => build.contract?.concept === concept)
 
   async function signOff() {
     const signed = await signContract({ project, concept })
@@ -53,7 +64,9 @@ export function ContractSection({ contract }: { contract: ContractState }) {
       onOpenPart={(part, event) => open(part.href, event)}
       onSignOff={() => void signOff()}
       failure={failure}
-    />
+    >
+      {named.length > 0 && <BuildList builds={named} />}
+    </ContractPanel>
   )
 }
 

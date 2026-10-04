@@ -30,7 +30,13 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
           replace: true,
         })
       }
-      return part
+      // The builds come live from GitHub. Only a Decision has builds that
+      // name it.
+      const builds =
+        part.type === 'decision'
+          ? await context.fetchBuilds(project)
+          : undefined
+      return { part, builds }
     },
     head: ({ loaderData, match, params }) => ({
       meta: [
@@ -41,7 +47,7 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
               : match.status === 'error'
                 ? 'Unable to load the record | Glue'
                 : loaderData
-                  ? `${loaderData.id} ${loaderData.title} | Glue`
+                  ? `${loaderData.part.id} ${loaderData.part.title} | Glue`
                   : 'Glue',
         },
       ],
@@ -54,8 +60,9 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
 
 function OpenRecord() {
   const { parts } = projectRoute.useLoaderData()
+  const { part, builds } = Route.useLoaderData()
 
-  return <RecordScreen part={Route.useLoaderData()} parts={parts} />
+  return <RecordScreen part={part} parts={parts} builds={builds?.builds} />
 }
 
 function MissingRecord() {

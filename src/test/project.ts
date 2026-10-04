@@ -1,3 +1,4 @@
+import type { Build } from '../db/builds.ts'
 import type { Contract, ContractState } from '../db/contracts.ts'
 import type {
   Concept,
@@ -83,6 +84,34 @@ const guardrail = summary('R1', 'guardrail', 'No query over 200ms', readModel)
 
 // The Parts of Glue, in the order of the read model.
 export const parts = [insight, goal, accepted, guardrail]
+
+// The builds of Glue: one names the Decision D4, one names an old Contract
+// Version of the Part model.
+export const builds: Build[] = [
+  {
+    number: 12,
+    url: 'https://github.com/timschoch/glue/pull/12',
+    title: 'Read the Concept from the database',
+    state: 'open',
+    decisions: [accepted],
+    contract: null,
+    stale: false,
+  },
+  {
+    number: 11,
+    url: 'https://github.com/timschoch/glue/pull/11',
+    title: 'Add the Part tables',
+    state: 'merged',
+    decisions: [],
+    contract: {
+      concept: partModel.slug,
+      title: partModel.title,
+      version: 1,
+      newestVersion: 2,
+    },
+    stale: true,
+  },
+]
 
 export function findProject(slug: string): Project | undefined {
   const project = projects.find((known) => known.slug === slug)

@@ -13,6 +13,7 @@ import {
   updateDecision,
 } from '../src/db/concept-records.ts'
 import type { ConceptFields, ConceptFolder } from '../src/db/concept-records.ts'
+import { listBuilds } from '../src/db/builds.ts'
 import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
 import type { DecisionStatus } from '../src/db/concept-fields.ts'
 import { findContract, signContract } from '../src/db/contracts.ts'
@@ -298,6 +299,7 @@ function formatHelp() {
     'pnpm concept mine',
     'pnpm concept signals',
     'pnpm concept signals insight <address> [<address> ...] --title <title> [--concept <slug>] [--body <text>]',
+    'pnpm concept builds',
     'pnpm concept concept add <slug> --title <title> [--kind <kind>] [--parent <slug>]',
     'pnpm concept contract show <concept> [--version <number>]',
     'pnpm concept contract sign <concept> --owner <name>',
@@ -309,7 +311,7 @@ function formatHelp() {
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set, downstream, answer, mine, signals, concept, contract and joint take --project <slug>. The default is glue.',
+    'list, show, add, set, downstream, answer, mine, signals, builds, concept, contract and joint take --project <slug>. The default is glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -332,6 +334,7 @@ function formatHelp() {
     'mine lists what needs the owner: the records in to-check, draft or review.',
     'signals lists the issues with the label user-feedback in the repository of the Project.',
     'signals insight adds a draft Insight at the level hunch that grows from the Signals.',
+    'builds lists the pull requests of the repository of the Project, each with the Decisions or the Contract Version that it names. stale: the Contract Version is old, or a Decision is sunk.',
     'contract sign freezes the records of a Concept as its next Contract Version. Each record needs Trust solid.',
     'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
   ].join('\n')
@@ -504,6 +507,9 @@ export async function runConcept(
     case 'signals':
       await handleSignalsCommand(db, getGithub, rest)
       return
+    case 'builds':
+      await handleBuildsCommand(db, getGithub, rest)
+      return
     case 'concept':
       await handleConceptCommand(db, rest)
       return
@@ -552,6 +558,32 @@ async function handleSignalsCommand(
   if (reason !== null) console.error(`no Signals: ${reason}`)
   for (const { date, url, insight, title } of signals) {
     console.log([date, url, insight?.id, title].filter(Boolean).join('  '))
+  }
+}
+
+// `builds` lists the builds of the Project: the number, the state, the
+// Decisions and the Contract Version that it names, the stale mark, the title.
+async function handleBuildsCommand(
+  db: ConceptDb,
+  getGithub: () => GithubClient,
+  args: string[],
+) {
+  const project = (parseFlags(args).project as string | undefined) ?? 'glue'
+  const { builds, reason } = await listBuilds(db, getGithub(), project)
+  if (reason !== null) console.error(`no builds: ${reason}`)
+  for (const { number, state, decisions, contract, stale, title } of builds) {
+    console.log(
+      [
+        `#${number}`,
+        state,
+        ...decisions.map(({ id }) => id),
+        contract && `${contract.concept}@${contract.version}`,
+        stale && 'stale',
+        title,
+      ]
+        .filter(Boolean)
+        .join('  '),
+    )
   }
 }
 

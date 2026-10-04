@@ -13,6 +13,7 @@ import {
   insightSchema,
 } from '../db/concept.ts'
 import type { ConceptFolder } from '../db/concept-records.ts'
+import { projectBuildsSchema } from './build-api.ts'
 import {
   changedDecisionSchema,
   errorSchema,
@@ -412,6 +413,22 @@ function listPartPaths() {
         responses: {
           201: { description: 'The new Insight', ...jsonContent(partSchema) },
           400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/builds`]: {
+      get: {
+        operationId: 'listBuilds',
+        summary:
+          'List the builds of the Project: the pull requests of its repository',
+        requestParams: { path },
+        responses: {
+          200: {
+            description:
+              'The open builds and the newest merged ones, each with the Decisions and the Contract Version that it names',
+            ...jsonContent(projectBuildsSchema),
+          },
           ...readErrorResponses,
         },
       },

@@ -27,6 +27,7 @@ import { Route as ApiV1ProductsProductConceptRouteImport } from './routes/api/v1
 import { Route as ApiV1ProductsProductMeasureRouteImport } from './routes/api/v1.products.$product.measure'
 import { Route as ApiV1ProjectsProjectIndexRouteImport } from './routes/api/v1.projects.$project.index'
 import { Route as ApiV1ProjectsProjectFolderRouteImport } from './routes/api/v1.projects.$project.$folder'
+import { Route as ApiV1ProjectsProjectBuildsRouteImport } from './routes/api/v1.projects.$project.builds'
 import { Route as ApiV1ProjectsProjectConceptRouteImport } from './routes/api/v1.projects.$project.concept'
 import { Route as ApiV1ProjectsProjectConceptsRouteImport } from './routes/api/v1.projects.$project.concepts'
 import { Route as ApiV1ProjectsProjectJointsRouteImport } from './routes/api/v1.projects.$project.joints'
@@ -140,6 +141,12 @@ const ApiV1ProjectsProjectFolderRoute =
     path: '/api/v1/projects/$project/$folder',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1ProjectsProjectBuildsRoute =
+  ApiV1ProjectsProjectBuildsRouteImport.update({
+    id: '/api/v1/projects/$project/builds',
+    path: '/api/v1/projects/$project/builds',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1ProjectsProjectConceptRoute =
   ApiV1ProjectsProjectConceptRouteImport.update({
     id: '/api/v1/projects/$project/concept',
@@ -248,6 +255,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
   '/api/v1/projects/$project/$folder': typeof ApiV1ProjectsProjectFolderRouteWithChildren
+  '/api/v1/projects/$project/builds': typeof ApiV1ProjectsProjectBuildsRoute
   '/api/v1/projects/$project/concept': typeof ApiV1ProjectsProjectConceptRoute
   '/api/v1/projects/$project/concepts': typeof ApiV1ProjectsProjectConceptsRouteWithChildren
   '/api/v1/projects/$project/joints': typeof ApiV1ProjectsProjectJointsRouteWithChildren
@@ -281,6 +289,7 @@ export interface FileRoutesByTo {
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
   '/api/v1/projects/$project/$folder': typeof ApiV1ProjectsProjectFolderRouteWithChildren
+  '/api/v1/projects/$project/builds': typeof ApiV1ProjectsProjectBuildsRoute
   '/api/v1/projects/$project/concept': typeof ApiV1ProjectsProjectConceptRoute
   '/api/v1/projects/$project/concepts': typeof ApiV1ProjectsProjectConceptsRouteWithChildren
   '/api/v1/projects/$project/joints': typeof ApiV1ProjectsProjectJointsRouteWithChildren
@@ -317,6 +326,7 @@ export interface FileRoutesById {
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
   '/api/v1/projects/$project/$folder': typeof ApiV1ProjectsProjectFolderRouteWithChildren
+  '/api/v1/projects/$project/builds': typeof ApiV1ProjectsProjectBuildsRoute
   '/api/v1/projects/$project/concept': typeof ApiV1ProjectsProjectConceptRoute
   '/api/v1/projects/$project/concepts': typeof ApiV1ProjectsProjectConceptsRouteWithChildren
   '/api/v1/projects/$project/joints': typeof ApiV1ProjectsProjectJointsRouteWithChildren
@@ -353,6 +363,7 @@ export interface FileRouteTypes {
     | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
     | '/api/v1/projects/$project/$folder'
+    | '/api/v1/projects/$project/builds'
     | '/api/v1/projects/$project/concept'
     | '/api/v1/projects/$project/concepts'
     | '/api/v1/projects/$project/joints'
@@ -386,6 +397,7 @@ export interface FileRouteTypes {
     | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
     | '/api/v1/projects/$project/$folder'
+    | '/api/v1/projects/$project/builds'
     | '/api/v1/projects/$project/concept'
     | '/api/v1/projects/$project/concepts'
     | '/api/v1/projects/$project/joints'
@@ -421,6 +433,7 @@ export interface FileRouteTypes {
     | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
     | '/api/v1/projects/$project/$folder'
+    | '/api/v1/projects/$project/builds'
     | '/api/v1/projects/$project/concept'
     | '/api/v1/projects/$project/concepts'
     | '/api/v1/projects/$project/joints'
@@ -450,6 +463,7 @@ export interface RootRouteChildren {
   ApiV1ProductsProductConceptRoute: typeof ApiV1ProductsProductConceptRoute
   ApiV1ProductsProductMeasureRoute: typeof ApiV1ProductsProductMeasureRoute
   ApiV1ProjectsProjectFolderRoute: typeof ApiV1ProjectsProjectFolderRouteWithChildren
+  ApiV1ProjectsProjectBuildsRoute: typeof ApiV1ProjectsProjectBuildsRoute
   ApiV1ProjectsProjectConceptRoute: typeof ApiV1ProjectsProjectConceptRoute
   ApiV1ProjectsProjectConceptsRoute: typeof ApiV1ProjectsProjectConceptsRouteWithChildren
   ApiV1ProjectsProjectJointsRoute: typeof ApiV1ProjectsProjectJointsRouteWithChildren
@@ -586,6 +600,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/projects/$project/$folder'
       fullPath: '/api/v1/projects/$project/$folder'
       preLoaderRoute: typeof ApiV1ProjectsProjectFolderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/projects/$project/builds': {
+      id: '/api/v1/projects/$project/builds'
+      path: '/api/v1/projects/$project/builds'
+      fullPath: '/api/v1/projects/$project/builds'
+      preLoaderRoute: typeof ApiV1ProjectsProjectBuildsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/projects/$project/concept': {
@@ -862,6 +883,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1ProductsProductConceptRoute: ApiV1ProductsProductConceptRoute,
   ApiV1ProductsProductMeasureRoute: ApiV1ProductsProductMeasureRoute,
   ApiV1ProjectsProjectFolderRoute: ApiV1ProjectsProjectFolderRouteWithChildren,
+  ApiV1ProjectsProjectBuildsRoute: ApiV1ProjectsProjectBuildsRoute,
   ApiV1ProjectsProjectConceptRoute: ApiV1ProjectsProjectConceptRoute,
   ApiV1ProjectsProjectConceptsRoute:
     ApiV1ProjectsProjectConceptsRouteWithChildren,

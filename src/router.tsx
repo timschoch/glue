@@ -12,6 +12,7 @@ import {
   submitSignContract,
 } from './db/contracts.functions.ts'
 import {
+  fetchBuilds,
   fetchConcept,
   fetchMine,
   fetchPart,
@@ -42,6 +43,7 @@ const server: Server = {
   fetchMine: (project) => fetchMine({ data: { project } }),
   fetchPart: (part) => fetchPart({ data: part }),
   fetchSignals: (project) => fetchSignals({ data: { project } }),
+  fetchBuilds: (project) => fetchBuilds({ data: { project } }),
   addSignalInsight: (insight) => submitAddSignalInsight({ data: insight }),
   addProject: (project) => submitAddProject({ data: project }),
   addConcept: (concept) => submitAddConcept({ data: concept }),

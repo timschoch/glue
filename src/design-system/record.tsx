@@ -382,6 +382,9 @@ export type RecordProps = {
   // Adds a Joint from this Part to the Part of the record id.
   onAddJoint?: (recordId: string) => void
   onRemoveJoint?: (jointId: number) => void
+  // What the tools outside Glue have on the Part. It comes before the
+  // activity.
+  children?: ReactNode
 }
 
 // One Part in the main window: the head, the step bar of its flow, the box
@@ -403,6 +406,7 @@ export function Record({
   jointParts = [],
   onAddJoint,
   onRemoveJoint,
+  children,
 }: RecordProps) {
   const titleId = useId()
   const signalsId = useId()
@@ -657,6 +661,7 @@ export function Record({
         ends={partEnds(part.supersedes)}
         onOpen={onOpen}
       />
+      {children}
       {part.activity.length > 0 && (
         <section aria-labelledby={activityId} className={styles.group}>
           <h2 id={activityId} className={styles.groupTitle}>

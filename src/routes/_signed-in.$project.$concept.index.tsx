@@ -7,16 +7,24 @@ import { LoadError } from '../project/load-error.tsx'
 export const Route = createFileRoute('/_signed-in/$project/$concept/')({
   loaderDeps: ({ search }) => ({ section: search.section }),
   loader: async ({ context, params, deps }) => {
-    const [concept, contract, signals] = await Promise.all([
+    const state = context.fetchContractState(params)
+    const [concept, contract, builds, signals] = await Promise.all([
       context.fetchConcept(params),
-      context.fetchContractState(params),
+      state,
+      // The builds come live from GitHub. The section Build lists them, and
+      // a Contract shows the ones that name it.
+      state.then((found) =>
+        deps.section === 'Build' || found?.versions.length
+          ? context.fetchBuilds(params.project)
+          : undefined,
+      ),
       // The Signals come live from their tool, so only their section reads them.
       deps.section === 'Understand'
         ? context.fetchSignals(params.project)
         : undefined,
     ])
     if (!concept || !contract) throw notFound()
-    return { concept, contract, signals }
+    return { concept, contract, signals, builds }
   },
   head: ({ loaderData, match, params }) => ({
     meta: [
