@@ -2,10 +2,12 @@ import { getRouteApi } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import type { Concept } from '../db/parts.ts'
+import type { ContractState } from '../db/contracts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
 import { PartCards } from '../design-system/part-cards.tsx'
 import { Signals } from '../design-system/signals.tsx'
+import { ContractSection } from './contract-screen.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
 import { UNKNOWN_CONCEPT, isPartType, lensTypes } from './project-search.ts'
@@ -21,9 +23,11 @@ const projectRoute = getRouteApi('/_signed-in/$project')
 // whole Project that need the owner.
 export function ConceptScreen({
   concept,
+  contract,
   signals,
 }: {
   concept: Concept
+  contract: ContractState
   signals?: ProjectSignals
 }) {
   const { parts, mine } = projectRoute.useLoaderData()
@@ -77,6 +81,12 @@ export function ConceptScreen({
     )
   }
 
+  // A Concept with no Part and no Version has nothing to sign.
+  const hasContract =
+    contract.versions.length > 0 ||
+    concept.parts.length > 0 ||
+    concept.concepts.length > 0
+
   return (
     <ConceptView
       concept={concept}
@@ -87,6 +97,7 @@ export function ConceptScreen({
       onOpenConcept={({ slug }, event) => open(conceptHref(slug), event)}
       onAddPart={(type) => void changeSearch({ ...search, add: type })}
       onAddConcept={() => void changeSearch({ ...search, add: 'concept' })}
+      contract={hasContract && <ContractSection contract={contract} />}
     >
       {signals && listed && (
         <Signals

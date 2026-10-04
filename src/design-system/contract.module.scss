@@ -1,0 +1,166 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+@use '@carbon/react/scss/utilities/focus-outline' as *;
+
+// The width of a card: the width of the pinned column.
+$card-width: $spacing-13 * 2;
+
+// The longest line of a frozen text.
+$text-width: $card-width * 2;
+
+// The head and the tiers of a Contract Version are separate groups.
+.view {
+  display: flex;
+  flex-direction: column;
+  color: $text-primary;
+  gap: $spacing-07;
+}
+
+// The things of one group belong together.
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+// The title of the Contract, and the mark of a Concept that is ahead.
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-05;
+}
+
+.title {
+  @include type-style('heading-03');
+
+  overflow-wrap: anywhere;
+}
+
+.groupTitle {
+  @include type-style('heading-compact-02');
+
+  color: $text-primary;
+}
+
+.label {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}
+
+.ahead {
+  @include type-style('label-01');
+
+  color: $text-primary;
+}
+
+// The Contract Versions: one row each, the whole row opens the Version.
+.versions {
+  display: flex;
+  flex-direction: column;
+  max-inline-size: $text-width;
+}
+
+.row {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  border-block-end: 1px solid $border-subtle-01;
+  color: $text-secondary;
+  gap: $spacing-03 $spacing-05;
+  padding: $spacing-03 $spacing-05;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $layer-hover;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
+}
+
+.version {
+  @include type-style('heading-compact-01');
+
+  color: $text-primary;
+}
+
+.checksum {
+  @include type-style('code-01');
+
+  overflow-wrap: anywhere;
+}
+
+// The Parts that block, in columns of the width of a card.
+.cards {
+  display: grid;
+  align-items: start;
+  gap: $spacing-03;
+  grid-template-columns: repeat(auto-fill, minmax(min($card-width, 100%), 1fr));
+}
+
+.action {
+  align-self: flex-start;
+}
+
+// The line below the title of a Version: the checksum, who signed and when.
+.state {
+  @include type-style('label-01');
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  color: $text-secondary;
+  gap: $spacing-03 $spacing-05;
+}
+
+.emptySlots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+// An empty slot: the dashed border says missing.
+.emptySlot {
+  @include type-style('label-01');
+
+  border: 1px dashed $border-strong-01;
+  color: $text-secondary;
+  padding-inline: $spacing-03;
+}
+
+// A frozen Part is text on a layer: full contrast, no hover, no edges of a
+// field.
+.part {
+  display: flex;
+  flex-direction: column;
+  padding: $spacing-05;
+  background-color: $layer;
+  gap: $spacing-03;
+  max-inline-size: $text-width;
+}
+
+.signs {
+  @include type-style('label-01');
+
+  display: flex;
+  color: $text-secondary;
+  gap: $spacing-03;
+}
+
+.partTitle {
+  @include type-style('heading-compact-01');
+
+  overflow-wrap: anywhere;
+}
+
+.body {
+  @include type-style('body-01');
+
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

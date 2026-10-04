@@ -7,6 +7,11 @@ import {
   submitSignUp,
 } from './authentication/session.functions.ts'
 import {
+  fetchContract,
+  fetchContractState,
+  submitSignContract,
+} from './db/contracts.functions.ts'
+import {
   fetchConcept,
   fetchMine,
   fetchPart,
@@ -45,6 +50,9 @@ const server: Server = {
   answerPart: (answer) => submitAnswer({ data: answer }),
   addJoint: (joint) => submitAddJoint({ data: joint }),
   removeJoint: (joint) => submitRemoveJoint({ data: joint }),
+  fetchContractState: (concept) => fetchContractState({ data: concept }),
+  fetchContract: (contract) => fetchContract({ data: contract }),
+  signContract: (concept) => submitSignContract({ data: concept }),
   signIn: (credentials) => submitSignIn({ data: credentials }),
   signUp: (account) => submitSignUp({ data: account }),
   signOut: () => submitSignOut(),

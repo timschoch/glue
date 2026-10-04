@@ -156,6 +156,8 @@ export type ConceptViewProps = {
   onAddConcept?: () => void
   // One more group, after the Parts.
   children?: ReactNode
+  // The Contract of the Concept, below the head.
+  contract?: ReactNode
 }
 
 // One Concept in the main window: its head, the Concepts inside it, and its
@@ -173,6 +175,7 @@ export function ConceptView({
   onAddPart,
   onAddConcept,
   children,
+  contract,
 }: ConceptViewProps) {
   const groups = typeGroups
     .filter(({ type }) => types === undefined || types.includes(type))
@@ -214,6 +217,7 @@ export function ConceptView({
         )}
         <h1 className={styles.title}>{concept.title}</h1>
       </header>
+      {contract}
       {(concept.concepts.length > 0 || onAddConcept) && (
         <nav aria-label="Concepts" className={styles.group}>
           {concept.concepts.length > 0 && (

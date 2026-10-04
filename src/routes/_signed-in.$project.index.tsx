@@ -8,13 +8,15 @@ import { LoadError } from '../project/load-error.tsx'
 export const Route = createFileRoute('/_signed-in/$project/')({
   loaderDeps: ({ search }) => ({ section: search.section }),
   loader: async ({ context, params: { project }, deps }) => {
-    const [concept, signals] = await Promise.all([
-      context.fetchConcept({ project, concept: project }),
+    const root = { project, concept: project }
+    const [concept, contract, signals] = await Promise.all([
+      context.fetchConcept(root),
+      context.fetchContractState(root),
       // The Signals come live from their tool, so only their section reads them.
       deps.section === 'Understand' ? context.fetchSignals(project) : undefined,
     ])
-    if (!concept) throw notFound()
-    return { concept, signals }
+    if (!concept || !contract) throw notFound()
+    return { concept, contract, signals }
   },
   head: ({ match }) => ({
     meta:

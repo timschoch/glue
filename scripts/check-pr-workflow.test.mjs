@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { isBotBranch, problems } from './check-pr-workflow.mjs'
+import {
+  findContractLine,
+  isBotBranch,
+  problems,
+} from './check-pr-workflow.mjs'
 
 const decisions = new Map([
   ['D2', { status: 'proposed' }],
@@ -83,6 +87,57 @@ test('a PR may cite a Decision it adds itself', () => {
     }),
     [],
   )
+})
+
+test('a Contract line with the newest Version passes in place of a Decision line', () => {
+  assert.deepEqual(
+    problems({
+      body: 'Closes #12\n\nContract: videos@2',
+      files: [],
+      decisions,
+      contract: { concept: 'videos', newestVersion: 2 },
+    }),
+    [],
+  )
+})
+
+test('a Contract line with an older Version fails and names the newest one', () => {
+  const [found] = problems({
+    body: 'Closes #12\nContract: videos@1',
+    files: [],
+    decisions,
+    contract: { concept: 'videos', newestVersion: 2 },
+  })
+  assert.match(found, /videos@1/)
+  assert.match(found, /videos@2/)
+})
+
+test('a Contract line of a Concept without a Contract Version fails', () => {
+  const [found] = problems({
+    body: 'Closes #12\nContract: videos@1',
+    files: [],
+    decisions,
+    contract: { concept: 'videos', newestVersion: undefined },
+  })
+  assert.match(found, /"videos" has no Contract Version/)
+})
+
+test('a Contract line without <concept>@<version> fails', () => {
+  const [found] = problems({
+    body: 'Closes #12\nContract: videos',
+    files: [],
+    decisions,
+  })
+  assert.match(found, /Contract: <concept>@<version>/)
+})
+
+test('findContractLine reads the Concept and the Version of the line', () => {
+  assert.deepEqual(findContractLine('Closes #1\nContract: part-model@12'), {
+    concept: 'part-model',
+    version: 12,
+  })
+  assert.equal(findContractLine('Closes #1\nDecision: D2'), undefined)
+  assert.equal(findContractLine('Contract: videos'), null)
 })
 
 test('source changes need tests or a reason', () => {

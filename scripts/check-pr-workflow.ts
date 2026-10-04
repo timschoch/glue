@@ -1,10 +1,16 @@
 // CI entrypoint for the PR gate (scripts/check-pr-workflow.mjs holds the
-// pure `problems` check). Reads Decisions over Glue's HTTP API: GLUE_API_TOKEN
+// pure `problems` check). Reads Decisions, and the Contract Version that the
+// PR names, over Glue's HTTP API: GLUE_API_TOKEN
 // (a read token), GLUE_API_URL (default: the main deployment).
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
-import { isBotBranch, problems } from './check-pr-workflow.mjs'
+import {
+  findContractLine,
+  isBotBranch,
+  problems,
+} from './check-pr-workflow.mjs'
+import { loadNewestContract } from './load-contract.ts'
 import { loadDecisions } from './load-decisions.ts'
 
 async function main() {
@@ -25,8 +31,11 @@ async function main() {
   )
     .split('\n')
     .filter(Boolean)
+  const body: string = pr.body ?? ''
   const decisions = await loadDecisions()
-  const found = problems({ body: pr.body ?? '', files, decisions })
+  const named = findContractLine(body)
+  const contract = named ? await loadNewestContract(named.concept) : undefined
+  const found = problems({ body, files, decisions, contract })
   if (found.length === 0) return
   console.error(
     [

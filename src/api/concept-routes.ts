@@ -14,6 +14,7 @@ import {
   handleUpdateRecord,
 } from './concept-api.ts'
 import type { ApiRequest } from './concept-api.ts'
+import { handleGetContract, handleSignContract } from './contract-api.ts'
 import {
   handleAddConcept,
   handleAddJoint,
@@ -67,6 +68,11 @@ export const projectConceptsHandlers = {
 
 export const projectConceptHandlers = {
   GET: (route: RouteRequest) => handleGetProjectConcept(toApiRequest(route)),
+}
+
+export const contractHandlers = {
+  GET: (route: RouteRequest) => handleGetContract(toApiRequest(route)),
+  POST: (route: RouteRequest) => handleSignContract(toApiRequest(route)),
 }
 
 export const partsHandlers = {

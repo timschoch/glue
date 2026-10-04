@@ -21,6 +21,11 @@ import {
   updateSchemas,
 } from './concept-api.ts'
 import {
+  contractSchema,
+  contractSignInputSchema,
+  contractVersionQuerySchema,
+} from './contract-api.ts'
+import {
   addedJointSchema,
   answerInputSchema,
   changedPartSchema,
@@ -215,6 +220,9 @@ function listPaths(parameter: PathParameter) {
 function listPartPaths() {
   const root = '/api/v1/projects/{project}'
   const path = z.object({ project: slug })
+  const conceptSlug = z
+    .string()
+    .meta({ description: 'The slug of the Concept' })
   return {
     [root]: {
       get: {
@@ -247,19 +255,46 @@ function listPartPaths() {
       get: {
         operationId: 'getProjectConcept',
         summary: 'Read one Concept with its Parts, Joints and slots',
-        requestParams: {
-          path: path.extend({
-            concept: z
-              .string()
-              .meta({ description: 'The slug of the Concept' }),
-          }),
-        },
+        requestParams: { path: path.extend({ concept: conceptSlug }) },
         responses: {
           200: {
             description: 'The Concept',
             ...jsonContent(projectConceptSchema),
           },
           ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/concepts/{concept}/contract`]: {
+      get: {
+        operationId: 'getContract',
+        summary:
+          'Read the newest Contract Version of a Concept, or the one of the number',
+        requestParams: {
+          path: path.extend({ concept: conceptSlug }),
+          query: z.object({ version: contractVersionQuerySchema.optional() }),
+        },
+        responses: {
+          200: {
+            description: 'The Contract Version, tier 1 before tier 2',
+            ...jsonContent(contractSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+      post: {
+        operationId: 'signContract',
+        summary:
+          'Sign off a Concept: freeze its Parts as the next Contract Version. Each Part needs Trust solid',
+        requestParams: { path: path.extend({ concept: conceptSlug }) },
+        requestBody: jsonContent(contractSignInputSchema),
+        responses: {
+          201: {
+            description: 'The new Contract Version',
+            ...jsonContent(contractSchema),
+          },
+          ...errorResponses,
         },
       },
     },
