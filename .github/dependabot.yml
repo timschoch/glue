@@ -1,3 +1,12 @@
 version: 2
+# cooldown: a version must be this old before Dependabot proposes it.
 updates:
-  [{ package-ecosystem: npm, directory: /, schedule: { interval: weekly } }]
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+  # Keeps the commit pins of the actions in .github/workflows/ fresh.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
