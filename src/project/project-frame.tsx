@@ -31,12 +31,15 @@ export function ProjectFrame({
   project,
   projects,
   parts,
+  toCheckCount,
   children,
 }: {
   project: Project
   projects: ReadonlyArray<Pick<Project, 'slug' | 'name'>>
   // The Parts of the Project: the trail and the pins take their titles here.
   parts: ReadonlyArray<PartSummary>
+  // The count of the Parts of the Project in to-check.
+  toCheckCount: number
   children: ReactNode
 }) {
   const navigate = useNavigate()
@@ -68,6 +71,7 @@ export function ProjectFrame({
           void navigate({ to: '/$project', params: { project: next.slug } })
       }}
       section={search.section}
+      toCheckCount={toCheckCount}
       // A second click on the section takes the lens away.
       sectionHref={(section) =>
         conceptHref(concept, {

@@ -8,6 +8,7 @@ import {
 } from './authentication/session.functions.ts'
 import {
   fetchConcept,
+  fetchMine,
   fetchPart,
   fetchParts,
   fetchProject,
@@ -33,6 +34,7 @@ const server: Server = {
   fetchProject: (project) => fetchProject({ data: { project } }),
   fetchConcept: (concept) => fetchConcept({ data: concept }),
   fetchParts: (project) => fetchParts({ data: { project } }),
+  fetchMine: (project) => fetchMine({ data: { project } }),
   fetchPart: (part) => fetchPart({ data: part }),
   fetchSignals: (project) => fetchSignals({ data: { project } }),
   addSignalInsight: (insight) => submitAddSignalInsight({ data: insight }),

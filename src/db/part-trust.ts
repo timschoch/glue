@@ -40,12 +40,14 @@ export function stateOfStatus(
   return undefined
 }
 
+// The usual answer of a Work state comes first: `fine` on a flag, and the
+// sign-off `supersede` on a draft and on a Part in review.
 export const answers = [
   'fine',
+  'supersede',
   'wait',
   'need-time',
   'not-ready',
-  'supersede',
   'sink',
 ] as const
 export type Answer = (typeof answers)[number]

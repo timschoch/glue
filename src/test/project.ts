@@ -162,6 +162,7 @@ function part(
     flags: [],
     waitsOn: null,
     signals: [],
+    answers: ['not-ready', 'sink'],
   }
 }
 

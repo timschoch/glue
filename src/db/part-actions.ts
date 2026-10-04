@@ -113,7 +113,7 @@ function toChangedError(recordId: string) {
 // writes are the ones of the CLI and the HTTP API.
 export function createPartActions(request: ActionRequest) {
   const { getDb, getGithub } = request
-  const withSession = createSessionGuard(request)
+  const { withSession, withMember } = createSessionGuard(request)
 
   async function toSavedPart(project: string, id: string): Promise<SavedPart> {
     const issue = await createDownstreamIssue(getDb(), getGithub(), project, id)
@@ -159,10 +159,12 @@ export function createPartActions(request: ActionRequest) {
           .catch(toFailure),
     ),
 
-    answerPart: withSession((db, { project, recordId, answer }: AnswerInput) =>
-      answerPart(db, project, recordId, answer)
-        .then(() => toSavedPart(project, recordId))
-        .catch(toFailure),
+    // An answer in words carries the name of the person of the session.
+    answerPart: withMember(
+      (db, { user }, { project, recordId, answer }: AnswerInput) =>
+        answerPart(db, project, recordId, { ...answer, by: user.name })
+          .then(() => toSavedPart(project, recordId))
+          .catch(toFailure),
     ),
 
     listMine: withSession((db, { project }: ProjectInput) =>

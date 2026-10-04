@@ -14,17 +14,18 @@ import { parseProjectSearch } from '../project/project-search.ts'
 const signedIn = getRouteApi('/_signed-in')
 
 // Each screen of a Project is below this route. It reads the tree of the
-// Concepts for the left panel, and the Parts for the titles of the trail,
-// of the pins and of the record ids in a text.
+// Concepts for the left panel, the Parts for the titles of the trail, of
+// the pins and of the record ids in a text, and the Parts of Mine.
 export const Route = createFileRoute('/_signed-in/$project')({
   validateSearch: parseProjectSearch,
   loader: async ({ context, params }) => {
-    const [project, parts] = await Promise.all([
+    const [project, parts, mine] = await Promise.all([
       context.fetchProject(params.project),
       context.fetchParts(params.project),
+      context.fetchMine(params.project),
     ])
     if (!project) throw notFound()
-    return { project, parts }
+    return { project, parts, mine }
   },
   head: ({ match, params, loaderData }) => ({
     meta: [
@@ -50,13 +51,16 @@ export const Route = createFileRoute('/_signed-in/$project')({
 })
 
 function ProjectScreens() {
-  const { project, parts } = Route.useLoaderData()
+  const { project, parts, mine } = Route.useLoaderData()
 
   return (
     <ProjectFrame
       project={project}
       projects={signedIn.useLoaderData()}
       parts={parts}
+      toCheckCount={
+        mine.filter(({ workState }) => workState === 'to-check').length
+      }
     >
       <Outlet />
     </ProjectFrame>

@@ -1,0 +1,28 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The width of a card: the width of the pinned column.
+$card-width: $spacing-13 * 2;
+
+// The title and the cards are separate groups.
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-07;
+}
+
+.title {
+  @include type-style('heading-03');
+
+  color: $text-primary;
+  overflow-wrap: anywhere;
+}
+
+// The cards, in columns of one width.
+.items {
+  display: grid;
+  align-items: start;
+  gap: $spacing-03;
+  grid-template-columns: repeat(auto-fill, minmax(min($card-width, 100%), 1fr));
+}

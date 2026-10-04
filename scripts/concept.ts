@@ -99,6 +99,8 @@ const KNOWN_FIELDS = new Set(
       'repository',
       'social_handle',
       'waits_on',
+      'words',
+      'by',
     ]),
 )
 
@@ -286,7 +288,7 @@ function formatHelp() {
     'pnpm concept add <type> <flags of the type> [--body <text>, or - for stdin]',
     'pnpm concept set <id> <flags of the type>',
     'pnpm concept downstream <id>',
-    'pnpm concept answer <id> <answer> [--waits-on <id>]',
+    'pnpm concept answer <id> <answer> [--waits-on <id>] [--words <text> --by <name>]',
     'pnpm concept mine',
     'pnpm concept signals',
     'pnpm concept signals insight <address> [<address> ...] --title <title> [--concept <slug>] [--body <text>]',
@@ -317,6 +319,7 @@ function formatHelp() {
     '',
     `answer takes ${answers.join(', ')}. The Work state of the record says which ones.`,
     'wait needs --waits-on: the record that it waits on.',
+    '--words is an answer in words: it goes to the end of the body with the name of --by and the date.',
     'mine lists what needs the owner: the records in to-check, draft or review.',
     'signals lists the issues with the label user-feedback in the repository of the Project.',
     'signals insight adds a draft Insight at the level hunch that grows from the Signals.',
@@ -381,12 +384,17 @@ export async function runConcept(
       const [id, answer, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
       const product = (flags.project as string | undefined) ?? 'glue'
-      const waitsOn = flags.waits_on
+      const { waits_on: waitsOn, words, by } = flags
       await answerPart(
         db,
         product,
         id,
-        parsePartAnswer({ answer, ...(waitsOn !== undefined && { waitsOn }) }),
+        parsePartAnswer({
+          answer,
+          ...(waitsOn !== undefined && { waitsOn }),
+          ...(words !== undefined && { words }),
+          ...(by !== undefined && { by }),
+        }),
       )
       if (typeOfRecordId(id) === 'decision') {
         const issue = await createDownstreamIssue(db, getGithub(), product, id)

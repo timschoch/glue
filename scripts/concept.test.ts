@@ -521,7 +521,7 @@ describe('runConcept', () => {
     await expect(
       run('answer', 'G1', 'fine', '--project', 'flexibeck'),
     ).rejects.toThrow(
-      '"G1" is draft: it takes the answers not-ready, supersede, sink',
+      '"G1" is draft: it takes the answers supersede, not-ready, sink',
     )
   })
 
@@ -532,6 +532,25 @@ describe('runConcept', () => {
 
     expect(fake.issues).toHaveLength(1)
     expect(await showIssueUrl('D1')).not.toBeNull()
+  })
+
+  it('puts an answer in words at the end of the body, with the name', async () => {
+    await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
+
+    await run(
+      'answer',
+      'D1',
+      'sink',
+      '--words',
+      'Too slow',
+      '--by',
+      'Ada',
+      '--project',
+      'flexibeck',
+    )
+
+    const record = await showConceptRecord(db, 'flexibeck', 'D1')
+    expect(record.body).toMatch(/^Ada, \d{4}-\d{2}-\d{2}: Too slow$/)
   })
 
   it('rejects an unknown command and points to the help', async () => {

@@ -28,6 +28,8 @@ export type Server = {
     concept: string
   }) => Promise<Concept | undefined>
   fetchParts: (project: string) => Promise<PartSummary[]>
+  // The Parts of the Project that need the owner, the newest change first.
+  fetchMine: (project: string) => Promise<PartSummary[]>
   fetchPart: (part: {
     project: string
     recordId: string
@@ -110,6 +112,8 @@ export function createRouterContext(
       keepSignInTarget(server.fetchProject(project), `/${project}`),
     fetchParts: (project) =>
       keepSignInTarget(server.fetchParts(project), `/${project}`),
+    fetchMine: (project) =>
+      keepSignInTarget(server.fetchMine(project), `/${project}`),
     fetchConcept: (concept) =>
       keepSignInTarget(
         server.fetchConcept(concept),

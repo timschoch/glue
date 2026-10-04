@@ -298,6 +298,7 @@ async function findParts(
       type: parts.type,
       status: parts.status,
       workState: parts.workState,
+      body: parts.body,
       // As text: a Date drops the microseconds.
       changedAt: sql<string>`${parts.changedAt}::text`,
     })
@@ -1055,13 +1056,29 @@ export async function supersedeDecision(
 
 // An answer of the owner to a Part, as a request sends it. `wait` names the
 // Part that it waits on.
+// `words` is an answer in words: it goes to the end of the body, with the
+// name `by` and the date (D27).
+const answerWords = {
+  words: text.optional().meta({
+    description:
+      'An answer in words. It goes to the end of the body with the name and the date',
+  }),
+  by: text
+    .optional()
+    .meta({ description: 'The name of the person who answers in words' }),
+}
+
 export const partAnswerSchema = z.discriminatedUnion('answer', [
-  z.strictObject({ answer: z.enum(answers).exclude(['wait']) }),
+  z.strictObject({
+    answer: z.enum(answers).exclude(['wait']),
+    ...answerWords,
+  }),
   z.strictObject({
     answer: z.literal('wait'),
     waitsOn: z
       .string()
       .meta({ description: 'The record id of the awaited Part' }),
+    ...answerWords,
   }),
 ])
 
@@ -1075,9 +1092,10 @@ export function parsePartAnswer(input: unknown): PartAnswer {
 // Answers a Part as its owner: one write that sets its Trust, its Work state
 // and its status as the answer says (D39, and the table in docs/concept.md),
 // closes its open flags, and tells the Parts that need it. `wait` keeps the
-// flags. The Work state of the Part must take the answer. The statement
-// asks for the Part as it was read: an answer to a Part that another write
-// changed in between writes nothing, so it closes no flag that the owner did
+// flags. An answer in words goes to the end of the body in the same write.
+// The Work state of the Part must take the answer. The statement asks for
+// the Part as it was read: an answer to a Part that another write changed
+// in between writes nothing, so it closes no flag that the owner did
 // not see, and of two answers at the same time only the first one writes.
 // `wait` locks the awaited Part and asks that it is not sunk.
 export async function answerPart(
@@ -1096,6 +1114,17 @@ export async function answerPart(
         ? `"${recordId}" is ${part.workState}: it takes no answer`
         : `"${recordId}" is ${part.workState}: it takes the answers ${allowed.join(', ')}`,
     )
+
+  if (given.words !== undefined && given.by === undefined)
+    throw new InvalidRecordError(
+      '"words" needs "by": the name of the person who answers',
+    )
+  const body =
+    given.words === undefined
+      ? undefined
+      : [part.body, `${given.by}, ${todayUtc()}: ${given.words}`]
+          .filter(Boolean)
+          .join('\n\n')
 
   const waitsOn = given.answer === 'wait' ? given.waitsOn : undefined
   if (waitsOn === recordId)
@@ -1123,6 +1152,7 @@ export async function answerPart(
         "work_state" = ${rule.workState}::text,
         "awaited_part_id" = (select "id" from awaited),
         ${status === undefined ? sql`` : sql`"status" = ${status}::text,`}
+        ${body === undefined ? sql`` : sql`"body" = ${body}::text,`}
         "published_at" = ${toPublishedAt(rule.workState)},
         "changed_at" = now()
       where "id" = ${part.id}::integer

@@ -10,6 +10,7 @@ import {
   Modal,
   Popover,
   PopoverContent,
+  TextArea,
 } from '@carbon/react'
 import { useEffect, useId, useMemo, useState } from 'react'
 import Markdown from 'react-markdown'
@@ -54,6 +55,19 @@ export type RecordJointEnd = {
   part: RecordPartSummary
 }
 
+// Why a Part has a flag: what happened to the Part that it needs.
+const flagReasons = {
+  changed: 'Changed',
+  'not-ready': 'Not ready',
+  wrong: 'Wrong',
+} as const
+
+// An open flag: its reason and the Part that caused it.
+export type RecordFlag = {
+  reason: keyof typeof flagReasons
+  part: RecordPartSummary
+}
+
 // One Part with all the record view shows: `Part` of the read model.
 export type RecordPart = RecordPartSummary & {
   body: string
@@ -76,6 +90,8 @@ export type RecordPart = RecordPartSummary & {
   neededBy: ReadonlyArray<RecordJointEnd>
   // The Signals that an Insight grew from, each with its address in its tool.
   signals: ReadonlyArray<{ url: string; title: string }>
+  // The open flags, oldest first.
+  flags: ReadonlyArray<RecordFlag>
 }
 
 type OpenHandler = (
@@ -303,13 +319,20 @@ function Group({
 const partEnds = (parts: ReadonlyArray<RecordPartSummary>) =>
   parts.map((part) => ({ part }))
 
-// One action on the record. An action that cannot be undone names the dialog
-// that asks first: its title and the words of its button.
-export type RecordAction = {
+// An action that runs with a click. An action that cannot be undone names
+// the dialog that asks first: its title and the words of its button.
+type ClickAction = {
   label: string
   onClick: () => void
   confirm?: { title: string; label: string }
 }
+
+// The search for the Part that an action needs: its label, and the run with
+// the record id of the pick.
+type PartPick = { label: string; onPick: (recordId: string) => void }
+
+// One action on the record. An action with a pick asks for a Part first.
+export type RecordAction = ClickAction | { label: string; pick: PartPick }
 
 export type RecordProps = {
   part: RecordPart
@@ -325,16 +348,19 @@ export type RecordProps = {
   pending?: string
   // Why the last action failed.
   error?: string
+  // With it the box Next takes an answer in words, above the button.
+  words?: { value: string; onChange: (value: string) => void }
   onEdit?: () => void
-  // The Parts that a new Joint can go to.
+  // The Parts that a new Joint or the pick of an action can go to.
   jointParts?: ReadonlyArray<RecordPartSummary>
   // Adds a Joint from this Part to the Part of the record id.
   onAddJoint?: (recordId: string) => void
   onRemoveJoint?: (jointId: number) => void
 }
 
-// One Part in the main window: the head, the body, the type fields that have
-// a value, and the Parts it is glued to as groups of cards.
+// One Part in the main window: the head, the box Next with the one button,
+// the open flags, the body, the type fields that have a value, and the Parts
+// it is glued to as groups of cards.
 export function Record({
   part,
   bodyParts = [],
@@ -344,6 +370,7 @@ export function Record({
   actions = [],
   pending,
   error,
+  words,
   onEdit,
   jointParts = [],
   onAddJoint,
@@ -352,10 +379,18 @@ export function Record({
   const titleId = useId()
   const signalsId = useId()
   const searchId = useId()
+  const nextId = useId()
+  const wordsId = useId()
+  const pickId = useId()
   // The action that waits for the answer of its dialog.
-  const [confirming, setConfirming] = useState<RecordAction>()
-  const run = (action: RecordAction) =>
-    action.confirm ? setConfirming(action) : action.onClick()
+  const [confirming, setConfirming] = useState<ClickAction>()
+  // The pick that waits for its Part.
+  const [picking, setPicking] = useState<PartPick>()
+  const run = (action: RecordAction) => {
+    if ('pick' in action) setPicking(action.pick)
+    else if (action.confirm) setConfirming(action)
+    else action.onClick()
+  }
   const action = actions.at(0)
   const otherActions = actions.slice(1)
   // A Part has one Joint to another Part at most, and none to itself.
@@ -433,7 +468,21 @@ export function Record({
         )}
       </header>
       {(action || pending !== undefined || error !== undefined) && (
-        <div className={styles.action}>
+        <section aria-labelledby={nextId} className={styles.action}>
+          <h2 id={nextId} className={styles.groupTitle}>
+            Next
+          </h2>
+          {words && (
+            <div className={styles.words}>
+              <TextArea
+                id={wordsId}
+                labelText="Answer"
+                rows={2}
+                value={words.value}
+                onChange={({ target }) => words.onChange(target.value)}
+              />
+            </div>
+          )}
           {pending !== undefined ? (
             <InlineLoading description={pending} />
           ) : action && otherActions.length > 0 ? (
@@ -451,6 +500,19 @@ export function Record({
               <Button onClick={() => run(action)}>{action.label}</Button>
             )
           )}
+          {picking && pending === undefined && (
+            <div className={styles.search}>
+              <PartSearch
+                id={pickId}
+                label={picking.label}
+                parts={jointParts.filter(({ id }) => id !== part.id)}
+                onPick={(recordId) => {
+                  setPicking(undefined)
+                  picking.onPick(recordId)
+                }}
+              />
+            </div>
+          )}
           {error !== undefined && (
             <InlineNotification
               kind="error"
@@ -460,7 +522,25 @@ export function Record({
               title={error}
             />
           )}
-        </div>
+        </section>
+      )}
+      {part.flags.length > 0 && (
+        <ul aria-label="Flags" className={styles.flags}>
+          {part.flags.map(({ reason, part: cause }) => (
+            <li key={`${cause.id} ${reason}`} className={styles.flag}>
+              <span className={styles.reason}>{flagReasons[reason]}</span>
+              <Card
+                type={cause.type}
+                recordId={cause.id}
+                title={cause.title}
+                trust={cause.trust}
+                minimal
+                href={cause.href}
+                onOpen={onOpen && ((event) => onOpen(cause.id, event))}
+              />
+            </li>
+          ))}
+        </ul>
       )}
       {confirming?.confirm && (
         <Modal
