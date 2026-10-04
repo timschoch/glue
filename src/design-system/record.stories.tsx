@@ -268,6 +268,7 @@ export const Superseded: Story = {
       id: 'D9',
       title: 'Show a video of Bakeday',
       trust: 'wrong',
+      workState: 'sunk',
       body: 'Each technique shows one video that Bakeday makes.',
       supersededBy: decision,
       supersedes: [
@@ -276,6 +277,7 @@ export const Superseded: Story = {
           id: 'D4',
           title: 'Show a drawing of each technique',
           trust: 'wrong',
+          workState: 'sunk',
         },
       ],
     },

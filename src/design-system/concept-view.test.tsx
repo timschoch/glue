@@ -519,10 +519,10 @@ describe('ConceptView', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 
-  it('shows an empty lens the same way', () => {
+  it('shows no words for a lens with no Part type: no Part is missing', () => {
     renderView({ types: [] })
 
-    expect(screen.getByText('No Parts')).toBeDefined()
+    expect(screen.queryByText('No Parts')).toBeNull()
     expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
     expect(screen.queryByRole('button')).toBeNull()
   })
