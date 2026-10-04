@@ -23,6 +23,7 @@ import { replaceMentions } from '../mention.ts'
 import { Card, evidenceLevels, partTypes, signs, workStates } from './card.tsx'
 import { PartSearch } from './part-search.tsx'
 import { StepBar } from './step-bar.tsx'
+import { useHydrated } from './use-hydrated.ts'
 import styles from './record.module.scss'
 import type {
   CardProps,
@@ -410,6 +411,9 @@ export function Record({
   const wordsId = useId()
   const pickId = useId()
   const activityId = useId()
+  // Carbon renders the closed menu of the button on the server and not in
+  // the browser. So the menu comes after the page is hydrated.
+  const hydrated = useHydrated()
   // The action that waits for the answer of its dialog.
   const [confirming, setConfirming] = useState<ClickAction>()
   // The pick that waits for its Part.
@@ -514,7 +518,7 @@ export function Record({
           )}
           {pending !== undefined ? (
             <InlineLoading description={pending} />
-          ) : action && otherActions.length > 0 ? (
+          ) : action && otherActions.length > 0 && hydrated ? (
             <ComboButton label={action.label} onClick={() => run(action)}>
               {otherActions.map((other) => (
                 <MenuItem

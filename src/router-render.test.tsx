@@ -291,14 +291,15 @@ describe('a section', () => {
   it('shows only its Part types, and all types again after a second click', async () => {
     const { expectAddress } = await renderPage('/glue/part-model')
 
-    // The Contract is not a Part type: each lens shows it.
     const groups = () =>
       screen
         .getAllByRole('heading', { level: 2 })
         .map((heading) => heading.textContent)
-        .filter((title) => title !== 'Contract')
 
+    // The Contract is of the whole Concept: only the view with no lens
+    // shows it.
     const all = [
+      'Contract',
       'Insights',
       'Goals',
       'Decisions',
@@ -665,15 +666,18 @@ describe('the section Mine', () => {
     { ...parts[0], trust: 'not-ready', workState: 'draft' },
   ]
 
-  it('lists the Parts of the Project that need the owner, with the count of the Parts to check beside it', async () => {
+  it('lists the Parts of the Project that need the owner, with their count beside it', async () => {
     const { expectAddress } = await renderPage('/glue/read-model', {
       fetchMine: vi.fn(() => Promise.resolve(mine)),
     })
 
-    await userEvent.click(section('Mine 1'))
+    await userEvent.click(section('Mine 2'))
 
     await expectAddress('/glue/read-model', { section: 'Mine' })
     expect(pageTitle()).toBe('Mine')
+    expect(within(screen.getByRole('main')).getAllByRole('link')).toHaveLength(
+      2,
+    )
     expect(card('D4').textContent).toContain('To check')
     expect(card('I3').textContent).toContain('Draft')
 

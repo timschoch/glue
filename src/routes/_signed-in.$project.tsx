@@ -58,9 +58,7 @@ function ProjectScreens() {
       project={project}
       projects={signedIn.useLoaderData()}
       parts={parts}
-      toCheckCount={
-        mine.filter(({ workState }) => workState === 'to-check').length
-      }
+      mineCount={mine.length}
     >
       <Outlet />
     </ProjectFrame>

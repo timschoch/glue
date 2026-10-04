@@ -81,11 +81,13 @@ export function ConceptScreen({
     )
   }
 
-  // A Concept with no Part and no Version has nothing to sign.
+  // A Concept with no Part and no Version has nothing to sign. The Contract
+  // is of the whole Concept: a lens shows a part of it, so no Contract.
   const hasContract =
-    contract.versions.length > 0 ||
-    concept.parts.length > 0 ||
-    concept.concepts.length > 0
+    search.section === undefined &&
+    (contract.versions.length > 0 ||
+      concept.parts.length > 0 ||
+      concept.concepts.length > 0)
 
   return (
     <ConceptView

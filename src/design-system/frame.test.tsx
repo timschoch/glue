@@ -596,6 +596,15 @@ describe('Frame', () => {
     })
   })
 
+  it('keeps the left panel at the full height of the window while a long page scrolls', () => {
+    renderFrame()
+
+    expect(
+      getComputedStyle(screen.getByRole('navigation', { name: 'Main' }))
+        .position,
+    ).toBe('fixed')
+  })
+
   it('shows the pinned card as a light card on the canvas in the stack too', () => {
     renderFrame(PINNED)
 
@@ -757,8 +766,8 @@ describe('Frame', () => {
     ).toEqual(['Step videos'])
   })
 
-  it('shows the count of the Parts to check as a plain number beside Mine', () => {
-    renderFrame([], undefined, undefined, { toCheckCount: 3 })
+  it('shows the count of the Parts of Mine as a plain number beside it', () => {
+    renderFrame([], undefined, undefined, { mineCount: 3 })
 
     const panel = within(screen.getByRole('navigation', { name: 'Main' }))
 
@@ -767,7 +776,7 @@ describe('Frame', () => {
   })
 
   it('shows no count beside Mine at zero', () => {
-    renderFrame([], undefined, undefined, { toCheckCount: 0 })
+    renderFrame([], undefined, undefined, { mineCount: 0 })
 
     expect(
       within(screen.getByRole('navigation', { name: 'Main' })).getByRole(

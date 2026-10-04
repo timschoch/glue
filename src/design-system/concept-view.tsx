@@ -164,7 +164,8 @@ export type ConceptViewProps = {
 // Parts in one group per Part type. A linked Part names its home Concept on
 // its card. A slot of the Kind with no Part shows as an empty slot at the
 // place of its type. A type with no Part and no slot shows only while a Part
-// can be added.
+// can be added. A lens with no Part type, such as People, shows no Parts and
+// no words about them.
 export function ConceptView({
   concept,
   types,
@@ -244,7 +245,9 @@ export function ConceptView({
           {onAddConcept && <AddButton thing="Concept" onClick={onAddConcept} />}
         </nav>
       )}
-      {groups.length === 0 && <p className={styles.label}>No Parts</p>}
+      {groups.length === 0 && types?.length !== 0 && (
+        <p className={styles.label}>No Parts</p>
+      )}
       {groups.map(({ type, many, parts, linkedParts, empty }) => (
         <TypeGroup
           key={type}
