@@ -25,6 +25,11 @@ allowBuilds:
   esbuild: true
   lightningcss: true
   unrs-resolver: false
+# Supply chain: no version younger than 7 days (in minutes), no git or tarball
+# dependency below a dependency, no version with weaker publish proof than the one before.
+minimumReleaseAge: 10080
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm

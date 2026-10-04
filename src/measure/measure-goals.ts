@@ -554,7 +554,7 @@ export async function measureGoals(
       if (result && 'reason' in result) skipped.push(result)
       else if (result) written.push(result)
     } catch (error) {
-      console.error(`measure ${goal.productSlug} ${goal.goalRecordId}`, error)
+      console.error('measure', goal.productSlug, goal.goalRecordId, error)
       const message = error instanceof Error ? error.message : String(error)
       skipped.push({
         product: goal.productSlug,

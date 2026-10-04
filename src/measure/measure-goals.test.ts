@@ -822,7 +822,12 @@ describe('measureGoals with a mean measure', () => {
         reason: 'the measure run failed: mock analytics answered 502',
       },
     ])
-    expect(logError).toHaveBeenCalled()
+    expect(logError).toHaveBeenCalledWith(
+      'measure',
+      'flexibeck',
+      'G1',
+      new Error('mock analytics answered 502'),
+    )
     logError.mockRestore()
   })
 
