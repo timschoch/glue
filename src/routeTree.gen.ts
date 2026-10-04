@@ -17,6 +17,7 @@ import { Route as SignedInSplatRouteImport } from './routes/_signed-in.$'
 import { Route as SignedInProjectRouteImport } from './routes/_signed-in.$project'
 import { Route as SignedInProjectIndexRouteImport } from './routes/_signed-in.$project.index'
 import { Route as ApiCronMeasureRouteImport } from './routes/api/cron.measure'
+import { Route as ApiMailInboundRouteImport } from './routes/api/mail.inbound'
 import { Route as ApiV1OpenapiDotjsonRouteImport } from './routes/api/v1.openapi[.]json'
 import { Route as SignedInProjectConceptIndexRouteImport } from './routes/_signed-in.$project.$concept.index'
 import { Route as SignedInProjectConceptRecordIdRouteImport } from './routes/_signed-in.$project.$concept.$recordId'
@@ -79,6 +80,11 @@ const SignedInProjectIndexRoute = SignedInProjectIndexRouteImport.update({
 const ApiCronMeasureRoute = ApiCronMeasureRouteImport.update({
   id: '/api/cron/measure',
   path: '/api/cron/measure',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMailInboundRoute = ApiMailInboundRouteImport.update({
+  id: '/api/mail/inbound',
+  path: '/api/mail/inbound',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1OpenapiDotjsonRoute = ApiV1OpenapiDotjsonRouteImport.update({
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SignedInSplatRoute
   '/$project': typeof SignedInProjectRouteWithChildren
   '/api/cron/measure': typeof ApiCronMeasureRoute
+  '/api/mail/inbound': typeof ApiMailInboundRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
   '/$project/': typeof SignedInProjectIndexRoute
   '/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
@@ -264,6 +271,7 @@ export interface FileRoutesByTo {
   '/$': typeof SignedInSplatRoute
   '/': typeof SignedInIndexRoute
   '/api/cron/measure': typeof ApiCronMeasureRoute
+  '/api/mail/inbound': typeof ApiMailInboundRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
   '/$project': typeof SignedInProjectIndexRoute
   '/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
@@ -299,6 +307,7 @@ export interface FileRoutesById {
   '/_signed-in/$project': typeof SignedInProjectRouteWithChildren
   '/_signed-in/': typeof SignedInIndexRoute
   '/api/cron/measure': typeof ApiCronMeasureRoute
+  '/api/mail/inbound': typeof ApiMailInboundRoute
   '/api/v1/openapi.json': typeof ApiV1OpenapiDotjsonRoute
   '/_signed-in/$project/': typeof SignedInProjectIndexRoute
   '/_signed-in/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
@@ -334,6 +343,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/$project'
     | '/api/cron/measure'
+    | '/api/mail/inbound'
     | '/api/v1/openapi.json'
     | '/$project/'
     | '/$project/$concept/$recordId'
@@ -366,6 +376,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/'
     | '/api/cron/measure'
+    | '/api/mail/inbound'
     | '/api/v1/openapi.json'
     | '/$project'
     | '/$project/$concept/$recordId'
@@ -400,6 +411,7 @@ export interface FileRouteTypes {
     | '/_signed-in/$project'
     | '/_signed-in/'
     | '/api/cron/measure'
+    | '/api/mail/inbound'
     | '/api/v1/openapi.json'
     | '/_signed-in/$project/'
     | '/_signed-in/$project/$concept/$recordId'
@@ -432,6 +444,7 @@ export interface RootRouteChildren {
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
   ApiCronMeasureRoute: typeof ApiCronMeasureRoute
+  ApiMailInboundRoute: typeof ApiMailInboundRoute
   ApiV1OpenapiDotjsonRoute: typeof ApiV1OpenapiDotjsonRoute
   ApiV1ProductsProductFolderRoute: typeof ApiV1ProductsProductFolderRouteWithChildren
   ApiV1ProductsProductConceptRoute: typeof ApiV1ProductsProductConceptRoute
@@ -503,6 +516,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cron/measure'
       fullPath: '/api/cron/measure'
       preLoaderRoute: typeof ApiCronMeasureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mail/inbound': {
+      id: '/api/mail/inbound'
+      path: '/api/mail/inbound'
+      fullPath: '/api/mail/inbound'
+      preLoaderRoute: typeof ApiMailInboundRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/openapi.json': {
@@ -836,6 +856,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
   ApiCronMeasureRoute: ApiCronMeasureRoute,
+  ApiMailInboundRoute: ApiMailInboundRoute,
   ApiV1OpenapiDotjsonRoute: ApiV1OpenapiDotjsonRoute,
   ApiV1ProductsProductFolderRoute: ApiV1ProductsProductFolderRouteWithChildren,
   ApiV1ProductsProductConceptRoute: ApiV1ProductsProductConceptRoute,
