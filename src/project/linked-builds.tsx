@@ -6,7 +6,7 @@ import { useProjectLinks } from './use-project-links.ts'
 
 // The builds with the addresses of what they name. `reason` says why the
 // list is empty.
-export function BuildList({
+export function LinkedBuilds({
   builds,
   reason,
 }: {

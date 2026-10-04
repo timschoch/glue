@@ -8,7 +8,7 @@ import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
 import { PartCards } from '../design-system/part-cards.tsx'
 import { Signals } from '../design-system/signals.tsx'
-import { BuildList } from './build-list.tsx'
+import { LinkedBuilds } from './linked-builds.tsx'
 import { ContractSection } from './contract-screen.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
@@ -111,7 +111,7 @@ export function ConceptScreen({
       }
     >
       {builds && search.section === 'Build' && (
-        <BuildList builds={builds.builds} reason={builds.reason} />
+        <LinkedBuilds builds={builds.builds} reason={builds.reason} />
       )}
       {signals && listed && (
         <Signals

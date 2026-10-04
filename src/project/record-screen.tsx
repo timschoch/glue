@@ -7,7 +7,7 @@ import type { Answer, Part, PartSummary } from '../db/parts.ts'
 import { partTypes } from '../design-system/card.tsx'
 import { Record } from '../design-system/record.tsx'
 import type { RecordAction } from '../design-system/record.tsx'
-import { BuildList } from './build-list.tsx'
+import { LinkedBuilds } from './linked-builds.tsx'
 import { findCommonFlow } from './common-flow.ts'
 import { PartFormScreen } from './part-form-screen.tsx'
 import { toRecordPart, toRecordSummaries } from './part-views.ts'
@@ -173,7 +173,7 @@ export function RecordScreen({
       }
       onOpen={handleOpen}
     >
-      {named.length > 0 && <BuildList builds={named} />}
+      {named.length > 0 && <LinkedBuilds builds={named} />}
     </Record>
   )
 }

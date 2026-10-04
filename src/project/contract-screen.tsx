@@ -7,7 +7,7 @@ import {
   ContractPanel,
   ContractVersionView,
 } from '../design-system/contract.tsx'
-import { BuildList } from './build-list.tsx'
+import { LinkedBuilds } from './linked-builds.tsx'
 import { useProjectLinks } from './use-project-links.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
@@ -65,7 +65,7 @@ export function ContractSection({
       onSignOff={() => void signOff()}
       failure={failure}
     >
-      {named.length > 0 && <BuildList builds={named} />}
+      {named.length > 0 && <LinkedBuilds builds={named} />}
     </ContractPanel>
   )
 }
