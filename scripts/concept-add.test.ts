@@ -96,7 +96,7 @@ describe('pnpm concept add and set', () => {
         '--status',
         'superseded',
       ),
-    ).rejects.toThrow('a superseded Decision needs "superseded_by"')
+    ).rejects.toThrow('the status "superseded" and "supersededBy" go together')
   })
 
   it('refuses a Goal of a new Decision that is not a Goal', async () => {
@@ -173,7 +173,7 @@ describe('pnpm concept add and set', () => {
 
     it('refuses the status superseded without a successor, and keeps the status', async () => {
       await expect(run('set', 'D1', '--status', 'superseded')).rejects.toThrow(
-        'a superseded Decision needs "superseded_by"',
+        'the status "superseded" and "supersededBy" go together',
       )
 
       expect(await findPart(db, 'glue', 'D1')).toMatchObject({
@@ -184,7 +184,9 @@ describe('pnpm concept add and set', () => {
     it('refuses a successor with a status other than superseded', async () => {
       await expect(
         run('set', 'D1', '--status', 'accepted', '--superseded-by', 'D2'),
-      ).rejects.toThrow('"superseded_by" only applies to a superseded Decision')
+      ).rejects.toThrow(
+        'the status "superseded" and "supersededBy" go together',
+      )
 
       expect(await findPart(db, 'glue', 'D1')).toMatchObject({
         status: 'accepted',
