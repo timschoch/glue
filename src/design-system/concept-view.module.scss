@@ -53,34 +53,12 @@ $card-width: $spacing-13 * 2;
   overflow-wrap: anywhere;
 }
 
-// The link sign and the home Concept of a linked Part.
-.home {
-  @include type-style('label-01');
-
-  display: flex;
-  align-items: center;
-  color: $text-secondary;
-  gap: $spacing-03;
-}
-
-.glyph {
-  flex-shrink: 0;
-  fill: $icon-secondary;
-}
-
-// An empty slot: the dashed border says missing. Its button lies below the
-// type word at the start edge, as on a card.
+// An empty slot: the dashed border says missing. It holds its one button, at
+// the start edge.
 .emptySlot {
   display: flex;
   flex-direction: column;
   border: 1px dashed $border-strong-01;
-}
-
-.slotType {
-  @include type-style('label-01');
-
-  padding: $spacing-05;
-  color: $text-secondary;
 }
 
 .add {

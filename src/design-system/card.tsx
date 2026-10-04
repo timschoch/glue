@@ -6,11 +6,12 @@ import {
 } from '@carbon/icons-react'
 import type { CarbonIconType } from '@carbon/icons-react'
 import { Button } from '@carbon/react'
+import { Fragment } from 'react'
 import type { MouseEvent } from 'react'
 
 import styles from './card.module.scss'
 
-const partTypes = {
+export const partTypes = {
   insight: 'Insight',
   goal: 'Goal',
   decision: 'Decision',
@@ -22,17 +23,25 @@ const partTypes = {
 
 export type PartType = keyof typeof partTypes
 
-// Trust: its word, and the glyph of the sign slot.
-const signs = {
-  solid: { word: 'Solid', Glyph: CheckmarkFilled },
-  flagged: { word: 'Flagged', Glyph: WarningAltFilled },
-  'not-ready': { word: 'Not ready', Glyph: ErrorFilled },
-  wrong: { word: 'Wrong', Glyph: Misuse },
+// Trust: its word, and the glyph of the sign slot with its style.
+export const signs = {
+  solid: { word: 'Solid', Glyph: CheckmarkFilled, className: styles.solid },
+  flagged: {
+    word: 'Flagged',
+    Glyph: WarningAltFilled,
+    className: styles.flagged,
+  },
+  'not-ready': {
+    word: 'Not ready',
+    Glyph: ErrorFilled,
+    className: styles['not-ready'],
+  },
+  wrong: { word: 'Wrong', Glyph: Misuse, className: styles.wrong },
 } as const
 
 export type Trust = keyof typeof signs
 
-const evidenceLevels = {
+export const evidenceLevels = {
   signal: 'Signal',
   hunch: 'Hunch',
   pattern: 'Pattern',
@@ -41,7 +50,7 @@ const evidenceLevels = {
 
 export type EvidenceLevel = keyof typeof evidenceLevels
 
-const workStates = {
+export const workStates = {
   'to-check': 'To check',
   waiting: 'Waiting',
   draft: 'Draft',
@@ -63,16 +72,23 @@ export type CardProps = {
   emptySlots?: ReadonlyArray<PartType>
   workState?: WorkState
   owner?: string
+  // The name of the home Concept, of a linked Part only.
+  concept?: string
   // The minimal card: the sign, the type line and the title.
   minimal?: boolean
   href: string
+  // -1 on a card that repeats a link beside it.
+  tabIndex?: number
   onOpen?: (event: MouseEvent<HTMLAnchorElement>) => void
-  // With an icon, the button shows the icon and the label names it.
+  // With a label, the button lies below the last line. With an icon, it shows
+  // the icon at the end of the first line and the label names it.
   action?: { label: string; icon?: CarbonIconType; onClick: () => void }
 }
 
 // The card of one Part. The whole card is one click target that opens the
 // record. The one action button lies on the card, beside the click target.
+// The spaces between the slots are for the name of the link: the layout does
+// not draw them.
 export function Card({
   type,
   recordId,
@@ -83,67 +99,89 @@ export function Card({
   emptySlots = [],
   workState,
   owner,
+  concept,
   minimal = false,
   href,
+  tabIndex,
   onOpen,
   action,
 }: CardProps) {
-  const { word, Glyph } = signs[trust]
+  const { word, Glyph, className } = signs[trust]
+  const room = action?.icon ? styles.besideAction : styles.aboveAction
 
   return (
     <div className={styles.card}>
       <a
         href={href}
+        tabIndex={tabIndex}
         onClick={onOpen}
-        className={
-          action ? `${styles.target} ${styles.aboveAction}` : styles.target
-        }
+        className={action ? `${styles.target} ${room}` : styles.target}
       >
         <span className={styles.signs}>
-          <Glyph aria-label={word} className={styles[trust]}>
+          <Glyph aria-label={word} className={className}>
             <title>{word}</title>
-          </Glyph>
-          <span>{partTypes[type]}</span>
-          <span>{recordId}</span>
-          {evidenceLevel && <span>{evidenceLevels[evidenceLevel]}</span>}
-        </span>
+          </Glyph>{' '}
+          <span>{partTypes[type]}</span> <span>{recordId}</span>
+          {evidenceLevel && (
+            <>
+              {' '}
+              <span>{evidenceLevels[evidenceLevel]}</span>
+            </>
+          )}
+        </span>{' '}
         <p className={styles.title}>{title}</p>
         {!minimal && (
           <>
-            {summary && <p className={styles.summary}>{summary}</p>}
+            {summary && (
+              <>
+                {' '}
+                <p className={styles.summary}>{summary}</p>
+              </>
+            )}
             {emptySlots.length > 0 && (
               <span className={styles.emptySlots}>
                 {emptySlots.map((slot) => (
-                  <span key={slot} className={styles.emptySlot}>
-                    {partTypes[slot]}
-                  </span>
+                  <Fragment key={slot}>
+                    {' '}
+                    <span className={styles.emptySlot}>{partTypes[slot]}</span>
+                  </Fragment>
                 ))}
               </span>
             )}
             {(workState || owner) && (
               <span className={styles.state}>
-                {workState && <span>{workStates[workState]}</span>}
-                {owner && <span className={styles.owner}>{owner}</span>}
+                {workState && (
+                  <>
+                    {' '}
+                    <span>{workStates[workState]}</span>
+                  </>
+                )}
+                {owner && (
+                  <>
+                    {' '}
+                    <span className={styles.owner}>{owner}</span>
+                  </>
+                )}
               </span>
+            )}
+            {concept && (
+              <>
+                {' '}
+                <span className={styles.concept}>{concept}</span>
+              </>
             )}
           </>
         )}
       </a>
       {action && (
-        <div
-          className={
-            action.icon
-              ? `${styles.action} ${styles.iconAction}`
-              : styles.action
-          }
-        >
+        <div className={action.icon ? styles.iconAction : styles.action}>
           <Button
             kind="ghost"
             size="sm"
             hasIconOnly={Boolean(action.icon)}
             renderIcon={action.icon}
             iconDescription={action.label}
-            tooltipAlignment="start"
+            tooltipAlignment={action.icon ? 'end' : 'start'}
             onClick={action.onClick}
           >
             {action.icon ? undefined : action.label}

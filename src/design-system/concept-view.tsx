@@ -1,26 +1,21 @@
-import { Add, Link } from '@carbon/icons-react'
+import { Add } from '@carbon/icons-react'
 import { Button, ClickableTile } from '@carbon/react'
 import type { MouseEvent, SyntheticEvent } from 'react'
 
-import { Card } from './card.tsx'
+import { Card, partTypes } from './card.tsx'
 import type { PartType, Trust } from './card.tsx'
 import styles from './concept-view.module.scss'
 
-// The Part types in the order of the loop, each with its word for one Part
-// and for many.
-const partTypes = [
-  { type: 'insight', one: 'Insight', many: 'Insights' },
-  { type: 'goal', one: 'Goal', many: 'Goals' },
-  { type: 'decision', one: 'Decision', many: 'Decisions' },
-  { type: 'entity', one: 'Entity', many: 'Entities' },
-  { type: 'flow', one: 'Flow', many: 'Flows' },
-  { type: 'guardrail', one: 'Guardrail', many: 'Guardrails' },
-  { type: 'metric', one: 'Metric', many: 'Metrics' },
-] as const satisfies ReadonlyArray<{
-  type: PartType
-  one: string
-  many: string
-}>
+// The Part types in the order of the loop, each with its word for many Parts.
+const typeGroups = [
+  { type: 'insight', many: 'Insights' },
+  { type: 'goal', many: 'Goals' },
+  { type: 'decision', many: 'Decisions' },
+  { type: 'entity', many: 'Entities' },
+  { type: 'flow', many: 'Flows' },
+  { type: 'guardrail', many: 'Guardrails' },
+  { type: 'metric', many: 'Metrics' },
+] as const satisfies ReadonlyArray<{ type: PartType; many: string }>
 
 const kinds = { brief: 'Brief' } as const
 
@@ -33,6 +28,8 @@ export type ConceptViewPart = {
   status: string | null
   // The slug of the home Concept.
   concept: string
+  // The title of the home Concept. The read model does not have it yet.
+  conceptTitle: string
   trust: Trust
 }
 
@@ -73,8 +70,9 @@ export type ConceptViewProps = {
 }
 
 // One Concept in the main window: its head, the Concepts inside it, and its
-// Parts in one group per Part type. A slot of the Kind with no Part shows as
-// an empty slot at the place of its type.
+// Parts in one group per Part type. A linked Part names its home Concept on
+// its card. A slot of the Kind with no Part shows as an empty slot at the
+// place of its type.
 export function ConceptView({
   concept,
   types,
@@ -84,7 +82,7 @@ export function ConceptView({
   onOpenConcept,
   onAddPart,
 }: ConceptViewProps) {
-  const groups = partTypes
+  const groups = typeGroups
     .filter(({ type }) => types === undefined || types.includes(type))
     .map((words) => ({
       ...words,
@@ -101,13 +99,14 @@ export function ConceptView({
         parts.length > 0 || linkedParts.length > 0 || empty,
     )
 
-  function card(part: ConceptViewPart) {
+  function card(part: ConceptViewPart, linked = false) {
     return (
       <Card
         type={part.type}
         recordId={part.id}
         title={part.title}
         trust={part.trust}
+        concept={linked ? part.conceptTitle : undefined}
         href={partHref(part)}
         onOpen={onOpenPart && ((event) => onOpenPart(part, event))}
       />
@@ -146,7 +145,7 @@ export function ConceptView({
       )}
       {groups.length === 0 && (
         <div className={styles.group}>
-          <h2 className={styles.groupTitle}>No Parts</h2>
+          <p className={styles.label}>No Parts</p>
           <Button
             kind="ghost"
             size="sm"
@@ -158,7 +157,7 @@ export function ConceptView({
           </Button>
         </div>
       )}
-      {groups.map(({ type, one, many, parts, linkedParts, empty }) => (
+      {groups.map(({ type, many, parts, linkedParts, empty }) => (
         <section key={type} aria-labelledby={type} className={styles.group}>
           <h2 id={type} className={styles.groupTitle}>
             {many}
@@ -168,17 +167,10 @@ export function ConceptView({
               <li key={part.id}>{card(part)}</li>
             ))}
             {linkedParts.map((part) => (
-              <li key={part.id} className={styles.group}>
-                {card(part)}
-                <span className={styles.home}>
-                  <Link aria-label="Link" className={styles.glyph} />
-                  {part.concept}
-                </span>
-              </li>
+              <li key={part.id}>{card(part, true)}</li>
             ))}
             {empty && (
               <li className={styles.emptySlot}>
-                <span className={styles.slotType}>{one}</span>
                 <Button
                   kind="ghost"
                   size="sm"
@@ -186,7 +178,7 @@ export function ConceptView({
                   className={styles.add}
                   onClick={() => onAddPart(type)}
                 >
-                  Add {one}
+                  Add {partTypes[type]}
                 </Button>
               </li>
             )}

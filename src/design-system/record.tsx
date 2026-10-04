@@ -1,11 +1,4 @@
-import {
-  CheckmarkFilled,
-  ErrorFilled,
-  Misuse,
-  Pin,
-  PinFilled,
-  WarningAltFilled,
-} from '@carbon/icons-react'
+import { Pin, PinFilled } from '@carbon/icons-react'
 import {
   Button,
   IconButton,
@@ -19,42 +12,12 @@ import remarkGfm from 'remark-gfm'
 import type { MouseEvent, ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 
-import { Card } from './card.tsx'
+import { Card, evidenceLevels, partTypes, signs, workStates } from './card.tsx'
 import styles from './record.module.scss'
 import type { EvidenceLevel, PartType, Trust, WorkState } from './card.tsx'
 
-const partTypes = {
-  insight: 'Insight',
-  goal: 'Goal',
-  decision: 'Decision',
-  guardrail: 'Guardrail',
-  entity: 'Entity',
-  flow: 'Flow',
-  metric: 'Metric',
-} as const
-
-// Trust: its word, and the glyph of the sign slot.
-const signs = {
-  solid: { word: 'Solid', Glyph: CheckmarkFilled },
-  flagged: { word: 'Flagged', Glyph: WarningAltFilled },
-  'not-ready': { word: 'Not ready', Glyph: ErrorFilled },
-  wrong: { word: 'Wrong', Glyph: Misuse },
-} as const
-
-const evidenceLevels = {
-  signal: 'Signal',
-  hunch: 'Hunch',
-  pattern: 'Pattern',
-  confirmed: 'Confirmed',
-} as const
-
-const workStates = {
-  'to-check': 'To check',
-  waiting: 'Waiting',
-  draft: 'Draft',
-  review: 'Review',
-  published: 'Published',
-} as const
+// The number at the end of an issue address.
+const ISSUE_NUMBER = /\d+$/
 
 // What a card shows of a Part: `PartSummary` of the read model, with its
 // Trust, its Work state and the place that opens it.
@@ -63,7 +26,7 @@ export type RecordPartSummary = {
   id: string
   type: PartType
   title: string
-  // The home Concept.
+  // The name of the home Concept.
   concept: string
   trust: Trust
   workState?: WorkState
@@ -149,12 +112,16 @@ function linkRecordIds(node: MarkdownNode, hrefs: Map<string, string>) {
   })
 }
 
+// The card of a Part. A Part that a link joins shows its home Concept. The
+// minimal card is the one of a record id, whose link is the tab stop.
 function PartCard({
   part,
-  minimal,
+  link = false,
+  minimal = false,
   onOpen,
 }: {
   part: RecordPartSummary
+  link?: boolean
   minimal?: boolean
   onOpen?: OpenHandler
 }) {
@@ -165,8 +132,10 @@ function PartCard({
       title={part.title}
       trust={part.trust}
       workState={part.workState}
+      concept={link ? part.concept : undefined}
       minimal={minimal}
       href={part.href}
+      tabIndex={minimal ? -1 : undefined}
       onOpen={onOpen && ((event) => onOpen(part.id, event))}
     />
   )
@@ -306,9 +275,8 @@ function Group({
       </h2>
       <ul className={styles.cards}>
         {ends.map(({ key, link, part }) => (
-          <li key={key} className={styles.end}>
-            <PartCard part={part} onOpen={onOpen} />
-            {link && <span className={styles.concept}>{part.concept}</span>}
+          <li key={key}>
+            <PartCard part={part} link={link} onOpen={onOpen} />
           </li>
         ))}
       </ul>
@@ -345,8 +313,9 @@ export function Record({
   action,
 }: RecordProps) {
   const titleId = useId()
-  const { word, Glyph } = signs[part.trust]
-  const { measure } = part
+  const { word, Glyph, className } = signs[part.trust]
+  const { measure, issueUrl } = part
+  const issueNumber = issueUrl && ISSUE_NUMBER.exec(issueUrl)?.[0]
   const fields: Array<[string, ReactNode]> = [
     ['Metric', part.metric],
     ['Baseline', measure?.baseline],
@@ -361,7 +330,11 @@ export function Record({
     ['Source', part.source],
     [
       'Issue',
-      part.issueUrl && <Link href={part.issueUrl}>{part.issueUrl}</Link>,
+      issueUrl && (
+        <Link href={issueUrl}>
+          {issueNumber ? `#${issueNumber}` : issueUrl}
+        </Link>
+      ),
     ],
   ]
   const shownFields = fields.filter(([, value]) => value != null)
@@ -370,7 +343,7 @@ export function Record({
     <article aria-labelledby={titleId} className={styles.record}>
       <header className={styles.head}>
         <div className={styles.signs}>
-          <Glyph className={styles[part.trust]} />
+          <Glyph className={className} />
           <span>{word}</span>
           <span>{partTypes[part.type]}</span>
           <span>{part.id}</span>

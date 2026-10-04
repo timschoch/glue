@@ -104,6 +104,11 @@ export const WithAction: Story = {
   },
 }
 
+// A Part with its home in another Concept, joined by a link.
+export const LinkedPart: Story = {
+  args: { ...Goal.args, concept: 'First bake' },
+}
+
 export const Minimal: Story = {
   args: { ...Decision.args, minimal: true },
 }

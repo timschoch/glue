@@ -41,9 +41,17 @@ $action-height: $spacing-07;
   inset-inline-start: 0;
 }
 
-// The glyph of an icon button starts at the edge of the content.
+// The room of the icon button, at the end of line 1.
+.besideAction .signs {
+  padding-inline-end: $action-height;
+}
+
+// The icon button has the middle of line 1, and its glyph ends at the edge
+// of the content.
 .iconAction {
-  inset-inline-start: $spacing-03;
+  position: absolute;
+  inset-block-start: $spacing-03;
+  inset-inline-end: $spacing-03;
 }
 
 // Line 1: the sign and the type line are one group.
@@ -129,4 +137,12 @@ $action-height: $spacing-07;
 
 .owner {
   margin-inline-start: auto;
+}
+
+// The home Concept of a linked Part.
+.concept {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+  overflow-wrap: anywhere;
 }
