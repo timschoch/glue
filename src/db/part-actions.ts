@@ -213,8 +213,8 @@ export function createPartActions(request: ActionRequest) {
 
     // The answer to a question carries the name of the person of the session.
     answerQuestion: withMember(
-      (db, { user }, { project, recordId, answer }: QuestionAnswerInput) =>
-        answerQuestion(db, project, recordId, { ...answer, by: user.name })
+      (db, { project, recordId, answer }: QuestionAnswerInput, member) =>
+        answerQuestion(db, project, recordId, { ...answer, by: member.name })
           .then(() => toSavedPart(project, recordId))
           .catch(toFailure),
     ),
