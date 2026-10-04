@@ -68,6 +68,26 @@ $text-width: $card-width * 2;
   max-inline-size: $text-width;
 }
 
+// The options of a question, one per line. The bar marks the chosen one, as in the side nav.
+.options {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  max-inline-size: $text-width;
+
+  li {
+    overflow-wrap: anywhere;
+    border-inline-start: 3px solid transparent;
+    padding-inline-start: $spacing-05;
+  }
+
+  .chosen {
+    border-inline-start-color: $border-interactive;
+  }
+}
+
 // The open flags: each one is its reason above the card of its cause.
 .flags {
   display: flex;

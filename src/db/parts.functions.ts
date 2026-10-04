@@ -11,6 +11,7 @@ import { createDb } from './client.ts'
 import {
   answerInputSchema,
   assignInputSchema,
+  questionAnswerInputSchema,
   conceptAddInputSchema,
   conceptReadInputSchema,
   createPartActions,
@@ -80,6 +81,10 @@ export const submitUpdatePart = createServerFn({ method: 'POST' })
 export const submitAnswer = createServerFn({ method: 'POST' })
   .validator(answerInputSchema)
   .handler(({ data }) => actions.answerPart(data))
+
+export const submitQuestionAnswer = createServerFn({ method: 'POST' })
+  .validator(questionAnswerInputSchema)
+  .handler(({ data }) => actions.answerQuestion(data))
 
 export const submitAddProject = createServerFn({ method: 'POST' })
   .validator(projectAddInputSchema)

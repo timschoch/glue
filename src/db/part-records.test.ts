@@ -304,6 +304,7 @@ describe('addPart', () => {
       metric: null,
       enforcedBy: 'lint',
       issueUrl: null,
+      question: null,
       evidenceLevel: null,
       supersededById: null,
       trust: 'not-ready',

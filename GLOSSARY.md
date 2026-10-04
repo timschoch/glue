@@ -62,6 +62,10 @@ The target model. Diagrams and rules: [docs/concept.md](docs/concept.md). The ap
 | Triage            | Deciding on a draft: keep it, discard it (only when no Decision cites it), or propose a Decision from it.                                                                        |
 | Supersede         | Replace an accepted Decision with a new accepted one. The old one keeps its record id and points to its successor.                                                               |
 | Downstream issue  | The GitHub issue Glue opens in a Product's repository when a Decision becomes accepted. Names the Decision id.                                                                   |
+| Question          | What a proposed Decision asks: its options, the pick of its author and the answer. The answer is one option or words, with the person and the time. It accepts the Decision.     |
+| Option            | One possible answer to a question. Options keep their order and count from 1.                                                                                                    |
+| Pick              | The option that the author of a question would take.                                                                                                                             |
+| Not chosen        | A superseded Decision that was never accepted.                                                                                                                                   |
 
 ## User simulator
 

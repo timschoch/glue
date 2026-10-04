@@ -20,6 +20,7 @@ import {
   handleAddJoint,
   handleAddPart,
   handleAnswerPart,
+  handleAnswerQuestion,
   handleGetPart,
   handleGetProject,
   handleGetProjectConcept,
@@ -95,6 +96,10 @@ export const partHandlers = {
 
 export const answersHandlers = {
   POST: (route: RouteRequest) => handleAnswerPart(toChangeRequest(route)),
+}
+
+export const questionAnswersHandlers = {
+  POST: (route: RouteRequest) => handleAnswerQuestion(toChangeRequest(route)),
 }
 
 export const mineHandlers = {

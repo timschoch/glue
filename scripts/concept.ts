@@ -38,9 +38,11 @@ import {
   addPart,
   addProject,
   answerPart,
+  answerQuestion,
   parseNewPart,
   parsePartAnswer,
   parsePartChange,
+  parseQuestionAnswer,
   removeJoint,
   updatePart,
 } from '../src/db/part-records.ts'
@@ -115,6 +117,9 @@ const KNOWN_FIELDS = new Set(
       'member',
       'responsible',
       'co_author',
+      'option',
+      'pick',
+      'text',
     ]),
 )
 
@@ -174,7 +179,11 @@ export function parseFlags(args: string[]): ConceptFields {
     }
     const value = args[index + 1]
     index += 1
-    flags[key] = parseFlagValue(key, value)
+    // `--option` repeats: one flag per option, in their order.
+    flags[key] =
+      key === 'option'
+        ? [...((flags.option as string[] | undefined) ?? []), value]
+        : parseFlagValue(key, value)
   }
   return flags
 }
@@ -254,6 +263,22 @@ function printTrust(part: Part) {
   }
 }
 
+// The options of a Decision with the pick of its author, and the answer
+// that it got. A superseded Decision that was never accepted was not chosen.
+function printQuestion({ question, unchosen }: Part) {
+  question?.options.forEach((option, index) => {
+    const pick = question.pick === index + 1 ? ' (pick)' : ''
+    console.log(`option: ${index + 1} ${option}${pick}`)
+  })
+  const answer = question?.answer
+  if (answer) {
+    const given =
+      answer.option === null ? answer.text : `option ${answer.option}`
+    console.log(`answer: ${given}, ${answer.by}, ${answer.at.slice(0, 10)}`)
+  }
+  if (unchosen) console.log('outcome: not chosen')
+}
+
 function printRecord(
   record: Awaited<ReturnType<typeof showConceptRecord>>,
   part: Part | undefined,
@@ -271,7 +296,10 @@ function printRecord(
   }
   if (record.supersededBy) console.log(`superseded_by: ${record.supersededBy}`)
   for (const id of record.supersedes ?? []) console.log(`supersedes: ${id}`)
-  if (part) printTrust(part)
+  if (part) {
+    printQuestion(part)
+    printTrust(part)
+  }
   if (record.body) console.log(`\n${record.body}`)
 }
 
@@ -314,6 +342,8 @@ function formatHelp() {
     'pnpm concept set <id> <flags of the type>',
     'pnpm concept downstream <id>',
     'pnpm concept answer <id> <answer> [--waits-on <id>] [--words <text> --by <name>]',
+    'pnpm concept answer <id> --option <number> --by <name>',
+    'pnpm concept answer <id> --text <answer> --by <name>',
     'pnpm concept signals',
     'pnpm concept signals insight <address> [<address> ...] --title <title> [--concept <slug>] [--body <text>]',
     'pnpm concept builds',
@@ -339,6 +369,7 @@ function formatHelp() {
     ...types,
     `  ${Object.keys(PART_FOLDERS).join(', ')}: --title`,
     '  goals and metrics also take --measure <json>, decisions --supersedes <id>',
+    '  decisions also take --option <text>, once per option, and --pick <number>: the option that the author would take',
     `  insights also take --level ${evidenceLevels.join('|')} and --status draft`,
     '  guardrails, entities, flows and metrics also take --source',
     '  entities, flows and metrics also take --owner',
@@ -353,6 +384,7 @@ function formatHelp() {
     `answer takes ${answers.join(', ')}. The Work state of the record says which ones.`,
     'wait needs --waits-on: the record that it waits on.',
     '--words is an answer in words: it goes to the end of the body with the name of --by and the date.',
+    'answer with --option or --text answers the question of a proposed Decision: the Decision keeps the answer and becomes accepted.',
     'mine lists what needs the owner: the records in to-check, draft or review.',
     'signals lists the issues with the label user-feedback in the repository of the Project.',
     'signals insight adds a draft Insight at the level hunch that grows from the Signals.',
@@ -421,20 +453,37 @@ export async function runConcept(
     }
     case 'answer': {
       const [id, answer, ...flagArgs] = rest
-      const flags = parseFlags(flagArgs)
+      // A flag in the place of the answer: the answer to a question.
+      const asksQuestion = rest.length > 1 && answer.startsWith('--')
+      const flags = parseFlags(asksQuestion ? rest.slice(1) : flagArgs)
       const product = (flags.project as string | undefined) ?? 'glue'
       const { waits_on: waitsOn, words, by } = flags
-      await answerPart(
-        db,
-        product,
-        id,
-        parsePartAnswer({
-          answer,
-          ...(waitsOn !== undefined && { waitsOn }),
-          ...(words !== undefined && { words }),
-          ...(by !== undefined && { by }),
-        }),
-      )
+      if (asksQuestion) {
+        const options = flags.option as string[] | undefined
+        await answerQuestion(
+          db,
+          product,
+          id,
+          parseQuestionAnswer({
+            ...(options
+              ? { option: Number(options[0]) }
+              : { text: flags.text }),
+            ...(by !== undefined && { by }),
+          }),
+        )
+      } else {
+        await answerPart(
+          db,
+          product,
+          id,
+          parsePartAnswer({
+            answer,
+            ...(waitsOn !== undefined && { waitsOn }),
+            ...(words !== undefined && { words }),
+            ...(by !== undefined && { by }),
+          }),
+        )
+      }
       if (typeOfRecordId(id) === 'decision') {
         const issue = await createDownstreamIssue(db, getGithub(), product, id)
         console.error(formatDownstreamIssue(product, id, issue))

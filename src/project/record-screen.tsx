@@ -42,12 +42,16 @@ export function RecordScreen({
   builds?: ReadonlyArray<Build>
 }) {
   const router = useRouter()
-  const { answerPart, addJoint, removeJoint } = projectRoute.useRouteContext()
+  const { answerPart, answerQuestion, addJoint, removeJoint } =
+    projectRoute.useRouteContext()
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
   const { pending, failure, write } = useWrite()
   // The answer in words to a Decision in review.
   const [words, setWords] = useState('')
+  // The option of the question that the answer takes: the pick of the author
+  // until the person picks.
+  const [option, setOption] = useState(part.question?.pick ?? null)
   const bodyParts = useMemo(
     () => toRecordSummaries(parts, recordHref),
     [parts, recordHref],
@@ -94,25 +98,49 @@ export function RecordScreen({
       () => Promise.resolve(setWords('')),
     )
 
+  // A proposed Decision with options asks a question. Its answer is an
+  // option, or the words of the person in place of one. It signs the
+  // Decision off.
+  const asks =
+    part.status === 'proposed' &&
+    part.question !== null &&
+    part.question.answer === null &&
+    part.question.options.length > 0
+  const text = words.trim()
+  const chosen = text !== '' ? { text } : option !== null && { option }
+  const answerQuestionAction: RecordAction = {
+    label: 'Answer',
+    onClick: () => {
+      if (!chosen) return
+      void write(
+        'Saving',
+        () => answerQuestion({ project, recordId: part.id, answer: chosen }),
+        () => Promise.resolve(setWords('')),
+      )
+    },
+  }
+
   // The answers that the Work state takes, the usual one first. A sunk Part
   // keeps its record, but no answer brings it back: the person confirms.
   const answers = part.answers.map((given): RecordAction =>
-    given === 'wait'
-      ? {
-          label: answerLabels.wait,
-          pick: {
-            label: 'Wait for',
-            onPick: (waitsOn) => answer({ answer: given, waitsOn }),
+    asks && given === 'supersede'
+      ? answerQuestionAction
+      : given === 'wait'
+        ? {
+            label: answerLabels.wait,
+            pick: {
+              label: 'Wait for',
+              onPick: (waitsOn) => answer({ answer: given, waitsOn }),
+            },
+          }
+        : {
+            label: answerLabels[given],
+            confirm:
+              given === 'sink'
+                ? { title: `Sink ${name}`, label: 'Sink it' }
+                : undefined,
+            onClick: () => answer({ answer: given, ...said }),
           },
-        }
-      : {
-          label: answerLabels[given],
-          confirm:
-            given === 'sink'
-              ? { title: `Sink ${name}`, label: 'Sink it' }
-              : undefined,
-          onClick: () => answer({ answer: given, ...said }),
-        },
   )
   const supersede: RecordAction = {
     label: 'Supersede',
@@ -158,6 +186,7 @@ export function RecordScreen({
       pending={pending}
       error={failure}
       words={takesWords ? { value: words, onChange: setWords } : undefined}
+      choice={asks ? { value: option, onChange: setOption } : undefined}
       onEdit={() => void changeSearch({ ...search, edit: true })}
       jointParts={bodyParts}
       onAddJoint={(needed) =>

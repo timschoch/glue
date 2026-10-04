@@ -35,6 +35,8 @@ const published: Part = {
   signals: [],
   answers: ['not-ready', 'sink'],
   activity: [],
+  question: null,
+  unchosen: false,
 }
 
 const draft = {

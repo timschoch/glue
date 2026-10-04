@@ -10,12 +10,14 @@ import {
   addJoint,
   addPart,
   answerPart,
+  answerQuestion,
   newConceptSchema,
   newJointSchema,
   newPartSchema,
   parsePartChange,
   partAnswerSchema,
   partChangeSchema,
+  questionAnswerSchema,
   removeJoint,
   updatePart,
 } from '../db/part-records.ts'
@@ -161,6 +163,30 @@ export const partSchema = z
     enforcedBy: z.string().nullable(),
     evidenceLevel: z.enum(evidenceLevels).nullable(),
     issueUrl: z.string().nullable(),
+    question: z
+      .object({
+        options: z.array(z.string()),
+        pick: z.number().nullable().meta({
+          description: 'The option that the author would take, from 1',
+        }),
+        answer: z
+          .object({
+            option: z.number().nullable().meta({
+              description: 'The option that the person chose, from 1',
+            }),
+            text: z.string().nullable(),
+            by: z.string(),
+            at: z.iso.datetime(),
+          })
+          .nullable(),
+      })
+      .nullable()
+      .meta({
+        description: 'What a Decision asks, and the answer that it got',
+      }),
+    unchosen: z.boolean().meta({
+      description: 'A superseded Decision that was never accepted',
+    }),
     measure: partMeasureSchema.nullable(),
     measured: z
       .array(
@@ -241,6 +267,11 @@ export const answerInputSchema = partAnswerSchema.meta({
   id: 'AnswerInput',
   description:
     'The answer of the owner. The Work state of the Part says which answers it takes',
+})
+export const questionAnswerInputSchema = questionAnswerSchema.meta({
+  id: 'QuestionAnswerInput',
+  description:
+    'The answer to the question of a proposed Decision: one of its options, or an answer in words',
 })
 
 export const partTypesQuerySchema = z.array(partType)
@@ -346,6 +377,16 @@ export function handleAnswerPart(input: ChangeRequest) {
     const part = await getPart(input)
     const answer = partAnswerSchema.parse(await parseJson(request))
     await answerPart(db, params.project, part.id, answer)
+    return Response.json(await findChangedPart(input, part.id))
+  })
+}
+
+export function handleAnswerQuestion(input: ChangeRequest) {
+  return handleApiRequest(input, async () => {
+    const { db, request, params } = input
+    const part = await getPart(input)
+    const answer = questionAnswerSchema.parse(await parseJson(request))
+    await answerQuestion(db, params.project, part.id, answer)
     return Response.json(await findChangedPart(input, part.id))
   })
 }

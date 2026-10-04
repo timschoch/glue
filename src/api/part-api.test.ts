@@ -21,6 +21,7 @@ import {
   handleAddJoint,
   handleAddPart,
   handleAnswerPart,
+  handleAnswerQuestion,
   handleGetPart,
   handleGetProject,
   handleGetProjectConcept,
@@ -154,6 +155,11 @@ describe('every endpoint of the Part model', () => {
       handleAnswerPart,
       'POST',
       { params: { recordId: 'G1' }, body: { answer: 'sink' } },
+    ],
+    'POST the answer to a question': [
+      handleAnswerQuestion,
+      'POST',
+      { params: { recordId: 'G1' }, body: { text: 'Yes', by: 'Ada' } },
     ],
     'GET what needs the owner': [handleListMine, 'GET', {}],
   }
@@ -386,6 +392,8 @@ describe('GET a Part', () => {
       enforcedBy: null,
       evidenceLevel: 'pattern',
       issueUrl: null,
+      question: null,
+      unchosen: false,
       measure: null,
       measured: [],
       supersededBy: null,
@@ -718,6 +726,70 @@ describe('PATCH a Part', () => {
       expect(fake.issues).toHaveLength(1)
     },
   )
+})
+
+describe('The question of a Decision', () => {
+  const options = ['Cache it', 'Render on the edge', 'Do nothing']
+
+  it('adds a Decision with options, and takes one of them as the answer', async () => {
+    const added = await call(handleAddPart, 'POST', {
+      body: { ...decision, options, pick: 1 },
+    })
+
+    const response = await call(handleAnswerQuestion, 'POST', {
+      params: { recordId: added.body.id },
+      body: { option: 2, by: 'Ada' },
+    })
+
+    expect(added.status).toBe(201)
+    expect(added.body.question).toEqual({ options, pick: 1, answer: null })
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      status: 'accepted',
+      workState: 'published',
+      question: {
+        options,
+        pick: 1,
+        answer: {
+          option: 2,
+          text: null,
+          by: 'Ada',
+          at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
+        },
+      },
+    })
+    expect(fake.issues).toHaveLength(1)
+  })
+
+  it('takes an answer in words', async () => {
+    const added = await call(handleAddPart, 'POST', {
+      body: { ...decision, options },
+    })
+
+    const response = await call(handleAnswerQuestion, 'POST', {
+      params: { recordId: added.body.id },
+      body: { text: 'Buy a CDN', by: 'Ada' },
+    })
+
+    expect(response.body.question.answer).toMatchObject({
+      option: null,
+      text: 'Buy a CDN',
+    })
+  })
+
+  it('answers 400 for an option that the Decision does not have', async () => {
+    const added = await call(handleAddPart, 'POST', {
+      body: { ...decision, options },
+    })
+
+    const response = await call(handleAnswerQuestion, 'POST', {
+      params: { recordId: added.body.id },
+      body: { option: 9, by: 'Ada' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('"D1" has no option 9')
+  })
 })
 
 describe('Trust and the Work state', () => {

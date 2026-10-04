@@ -278,6 +278,21 @@ export const workStates = [
 ] as const
 export type WorkState = (typeof workStates)[number]
 
+// What a Decision asks, and the answer that it got (D27). `pick` and
+// `option` count the options from 1.
+export type Question = {
+  options: string[]
+  // The option that the author would take.
+  pick: number | null
+  // The option that the person chose, or the answer in words.
+  answer: {
+    option: number | null
+    text: string | null
+    by: string
+    at: string
+  } | null
+}
+
 // A Part is one record of one type. Its home is one Concept.
 export const parts = pgTable(
   'parts',
@@ -299,6 +314,8 @@ export const parts = pgTable(
     enforcedBy: text('enforced_by'),
     // Decision: the issue in the Project repository that builds it.
     issueUrl: text('issue_url'),
+    // Decision: its options and its answer.
+    question: jsonb('question').$type<Question>(),
     // Insight
     evidenceLevel: text('evidence_level').$type<EvidenceLevel>(),
     // Supersede replaces, it does not need. So it is not a Joint.

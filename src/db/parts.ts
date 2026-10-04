@@ -10,6 +10,7 @@ import type {
   EvidenceLevel,
   FlagReason,
   PartType,
+  Question,
   Trust,
   WorkState,
 } from './schema.ts'
@@ -34,6 +35,7 @@ export type {
   EvidenceLevel,
   FlagReason,
   PartType,
+  Question,
   Trust,
   WorkState,
 } from './schema.ts'
@@ -148,6 +150,10 @@ export type Part = PartSummary & {
   enforcedBy: string | null
   evidenceLevel: EvidenceLevel | null
   issueUrl: string | null
+  // What a Decision asks, and the answer that it got.
+  question: Question | null
+  // A superseded Decision that was never accepted: it was not chosen.
+  unchosen: boolean
   measure: PartMeasure | null
   // The Metrics and the measured Goals at the other end of its Joints.
   measured: MeasuredPart[]
@@ -602,6 +608,8 @@ export async function findPart(
     enforcedBy: part.enforcedBy,
     evidenceLevel: part.evidenceLevel,
     issueUrl: part.issueUrl,
+    question: part.question,
+    unchosen: part.status === 'superseded' && part.publishedAt === null,
     measure: measure && toPartMeasure(measure),
     measured,
     supersededBy: supersededBy.at(0) ?? null,

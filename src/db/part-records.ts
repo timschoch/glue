@@ -170,6 +170,12 @@ const fieldSchemas = {
     owner: text,
     date: date.optional(),
     status: z.enum(schema.decisionStatuses),
+    options: z.array(text).min(1).optional().meta({
+      description: 'What the Decision asks the person to choose from, in order',
+    }),
+    pick: z.int().min(1).optional().meta({
+      description: 'The option that the author would take, from 1',
+    }),
   }),
   guardrail: z.strictObject({ ...commonFields, enforcedBy: text }),
   entity: plainSchema,
@@ -178,11 +184,12 @@ const fieldSchemas = {
 }
 
 // A Decision that exists becomes superseded through supersedeDecision, so
-// that status is not a value of a change.
+// that status is not a value of a change. Its options stay as they went in.
 const changeSchemas = {
   insight: fieldSchemas.insight.partial(),
   goal: fieldSchemas.goal.partial().extend(measureChange),
   decision: fieldSchemas.decision
+    .omit({ options: true, pick: true })
     .partial()
     .extend({ status: z.enum(['proposed', 'accepted']).optional() }),
   guardrail: fieldSchemas.guardrail.partial(),
@@ -206,7 +213,13 @@ type PartFields = {
   measure?: GoalMeasure | null
 }
 
-const partSchemas: Record<schema.PartType, z.ZodType<PartFields>> = fieldSchemas
+// What a new Decision asks: see `Question` in schema.ts.
+type QuestionFields = { options?: string[]; pick?: number }
+
+const partSchemas: Record<
+  schema.PartType,
+  z.ZodType<PartFields & QuestionFields>
+> = fieldSchemas
 const partChangeSchemas: Record<
   schema.PartType,
   z.ZodType<Partial<PartFields>>
@@ -299,6 +312,7 @@ async function findParts(
       status: parts.status,
       workState: parts.workState,
       body: parts.body,
+      question: parts.question,
       // As text: a Date drops the microseconds.
       changedAt: sql<string>`${parts.changedAt}::text`,
     })
@@ -382,6 +396,7 @@ type PartRow = {
   conceptId: number
   type: schema.PartType
   fields: PartFields
+  question?: schema.Question
   // The row ids of the Parts that it needs, in the order of their Joints.
   neededPartIds?: number[]
   // The record ids that its body names: see findMentionedRecordIds.
@@ -405,6 +420,7 @@ async function addPartRow(
   const { projectId, conceptId, type, fields, neededPartIds = [] } = row
   const { mentionedRecordIds = [], supersedesId, supersededById } = row
   const { signals = [] } = row
+  const question = row.question ? JSON.stringify(row.question) : null
   const status = fields.status ?? (type === 'goal' ? 'open' : null)
   const { trust, workState } = stateOfStatus(type, status) ?? NEW_PART_STATE
   const isDated = type === 'decision' || type === 'insight'
@@ -466,7 +482,7 @@ async function addPartRow(
         "project_id", "concept_id", "type", "record_id", "title", "body",
         "owner", "status", "date", "source", "metric", "enforced_by",
         "evidence_level", "superseded_by_id", "trust", "work_state",
-        "published_at"
+        "published_at", "question"
       )
       select
         ${projectId}::integer,
@@ -485,7 +501,8 @@ async function addPartRow(
         ${supersededById ?? null}::integer,
         ${trust}::text,
         ${workState}::text,
-        ${workState === 'published' ? sql`now()` : sql`null::timestamptz`}
+        ${workState === 'published' ? sql`now()` : sql`null::timestamptz`},
+        ${question}::jsonb
       from counter
       returning "id", "record_id"
     )
@@ -574,7 +591,12 @@ export async function addPart(
     supersededBy: _supersededBy,
     ...inputFields
   } = part
-  const fields = parseInput(partSchemas[type], inputFields)
+  const { options, pick, ...fields } = parseInput(
+    partSchemas[type],
+    inputFields,
+  )
+  if (pick !== undefined && pick > (options?.length ?? 0))
+    throw new InvalidRecordError(`"pick" ${pick} is not an option`)
   if ((supersedes ?? supersededBy) !== undefined && type !== 'decision')
     throw new InvalidRecordError('only a Decision supersedes')
   if (supersedes !== undefined && fields.status !== 'accepted')
@@ -614,6 +636,7 @@ export async function addPart(
     conceptId,
     type,
     fields,
+    question: options && { options, pick: pick ?? null, answer: null },
     neededPartIds: neededParts.map((needed) => needed.id),
     mentionedRecordIds: findMentionedRecordIds(projectSlug, fields.body),
     supersedesId,
@@ -1154,6 +1177,19 @@ export async function answerPart(
   const given = parseInput(partAnswerSchema, input)
   const projectId = await getProjectId(db, projectSlug)
   const [part] = await findParts(db, projectId, [recordId])
+  await writeAnswer(db, projectId, part, given)
+}
+
+// The write of answerPart and of answerQuestion. With a question, the same
+// statement keeps it on the Part.
+async function writeAnswer(
+  db: ConceptDb,
+  projectId: number,
+  part: Awaited<ReturnType<typeof findParts>>[number],
+  given: z.output<typeof partAnswerSchema>,
+  question?: schema.Question,
+): Promise<void> {
+  const { recordId } = part
   const allowed = listAnswers(part.workState)
   if (!allowed.includes(given.answer))
     throw new InvalidRecordError(
@@ -1200,6 +1236,7 @@ export async function answerPart(
         "awaited_part_id" = (select "id" from awaited),
         ${status === undefined ? sql`` : sql`"status" = ${status}::text,`}
         ${body === undefined ? sql`` : sql`"body" = ${body}::text,`}
+        ${question === undefined ? sql`` : sql`"question" = ${JSON.stringify(question)}::jsonb,`}
         "published_at" = ${toPublishedAt(rule.workState)},
         "changed_at" = now()
       where "id" = ${part.id}::integer
@@ -1218,6 +1255,68 @@ export async function answerPart(
   }
   throw new InvalidRecordError(
     `"${recordId}" changed at the same time: read it and answer again`,
+  )
+}
+
+// The answer to the question of a Decision, as a request sends it: one of
+// its options, counted from 1, or an answer in words.
+const answeredBy = {
+  by: text
+    .optional()
+    .meta({ description: 'The name of the person who answers' }),
+}
+
+export const questionAnswerSchema = z.union([
+  z.strictObject({ option: z.int().min(1), ...answeredBy }),
+  z.strictObject({ text, ...answeredBy }),
+])
+
+export type QuestionAnswer = z.input<typeof questionAnswerSchema>
+
+// Reads the answer to a question from the arguments of the CLI.
+export function parseQuestionAnswer(input: unknown): QuestionAnswer {
+  return parseInput(questionAnswerSchema, input)
+}
+
+// Answers the question of a proposed Decision (D27): one write that keeps
+// the chosen option or the answer in words on the Decision, with the person
+// and the time, and signs the Decision off as accepted. A proposed Decision
+// without options takes an answer in words.
+export async function answerQuestion(
+  db: ConceptDb,
+  projectSlug: string,
+  recordId: string,
+  input: QuestionAnswer,
+): Promise<void> {
+  const given = parseInput(questionAnswerSchema, input)
+  if (given.by === undefined)
+    throw new InvalidRecordError(
+      '"by" is required: the name of the person who answers',
+    )
+  const projectId = await getProjectId(db, projectSlug)
+  const decision = await findDecision(db, projectId, recordId)
+  if (decision.status !== 'proposed')
+    throw new InvalidRecordError(`"${recordId}" is not proposed`)
+  const { options = [], pick = null } = decision.question ?? {}
+  const option = 'option' in given ? given.option : null
+  if (option !== null && option > options.length)
+    throw new InvalidRecordError(`"${recordId}" has no option ${option}`)
+
+  await writeAnswer(
+    db,
+    projectId,
+    decision,
+    { answer: 'supersede' },
+    {
+      options,
+      pick,
+      answer: {
+        option,
+        text: 'text' in given ? given.text : null,
+        by: given.by,
+        at: new Date().toISOString(),
+      },
+    },
   )
 }
 
