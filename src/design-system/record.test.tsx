@@ -56,6 +56,7 @@ const DECISION: RecordPart = {
   supersedes: [],
   needs: [],
   neededBy: [],
+  signals: [],
 }
 
 // Carbon's dialog watches its size, which jsdom can not do.
@@ -415,6 +416,30 @@ describe('Record', () => {
     expect(
       screen.getByRole('link', { name: 'https://example.com/issues' }),
     ).toBeDefined()
+  })
+
+  it('shows the Signals that an Insight grew from, each as a link out', () => {
+    renderRecord({
+      signals: [
+        {
+          url: 'https://github.com/timschoch/glue/issues/7',
+          title: 'The list is slow',
+        },
+      ],
+    })
+
+    const group = screen.getByRole('region', { name: 'Signals' })
+    const link = within(group).getByRole('link', { name: 'The list is slow' })
+
+    expect(link.getAttribute('href')).toBe(
+      'https://github.com/timschoch/glue/issues/7',
+    )
+  })
+
+  it('has no group of Signals for a Part that grew from none', () => {
+    renderRecord()
+
+    expect(screen.queryByRole('region', { name: 'Signals' })).toBeNull()
   })
 
   it('shows the Joints as two groups of cards: needs and needed by', async () => {

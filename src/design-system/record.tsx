@@ -1,4 +1,4 @@
-import { Edit, Pin, PinFilled, Subtract } from '@carbon/icons-react'
+import { Edit, Launch, Pin, PinFilled, Subtract } from '@carbon/icons-react'
 import {
   Button,
   ComboButton,
@@ -74,6 +74,8 @@ export type RecordPart = RecordPartSummary & {
   supersedes: ReadonlyArray<RecordPartSummary>
   needs: ReadonlyArray<RecordJointEnd>
   neededBy: ReadonlyArray<RecordJointEnd>
+  // The Signals that an Insight grew from, each with its address in its tool.
+  signals: ReadonlyArray<{ url: string; title: string }>
 }
 
 type OpenHandler = (
@@ -348,6 +350,7 @@ export function Record({
   onRemoveJoint,
 }: RecordProps) {
   const titleId = useId()
+  const signalsId = useId()
   const searchId = useId()
   // The action that waits for the answer of its dialog.
   const [confirming, setConfirming] = useState<RecordAction>()
@@ -486,6 +489,27 @@ export function Record({
             </div>
           ))}
         </dl>
+      )}
+      {part.signals.length > 0 && (
+        <section aria-labelledby={signalsId} className={styles.group}>
+          <h2 id={signalsId} className={styles.groupTitle}>
+            Signals
+          </h2>
+          <ul className={styles.group}>
+            {part.signals.map(({ url, title }) => (
+              <li key={url}>
+                <Link
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  renderIcon={Launch}
+                >
+                  {title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       <Group
         title="Needs"

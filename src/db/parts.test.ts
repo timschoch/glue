@@ -321,6 +321,7 @@ describe('findPart', () => {
       neededBy: [{ jointId: 4, twoWay: false, link: true, part: flow }],
       flags: [],
       waitsOn: null,
+      signals: [],
     })
   })
 

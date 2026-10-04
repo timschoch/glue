@@ -164,6 +164,9 @@ export const partSchema = z
     waitsOn: partSummarySchema.nullable().meta({
       description: 'The Part that a waiting Part waits on',
     }),
+    signals: z
+      .array(z.object({ url: z.string(), title: z.string() }))
+      .meta({ description: 'The Signals that an Insight grew from' }),
   })
   .meta({ id: 'Part' }) satisfies z.ZodType<Part>
 

@@ -130,9 +130,12 @@ export type Part = PartSummary & {
   flags: Flag[]
   // The Part that a waiting Part waits on.
   waitsOn: PartSummary | null
+  // The Signals that an Insight grew from, in the order they were picked.
+  signals: { url: string; title: string }[]
 }
 
-const { projects, concepts, parts, joints, measures, flags, partTypes } = schema
+const { projects, concepts, parts, joints, measures, flags, signals } = schema
+const { partTypes } = schema
 
 // The Part that a Joint needs, and the home Concept of that Part.
 const neededParts = alias(parts, 'needed_parts')
@@ -399,7 +402,7 @@ export async function findPart(
   if (!row) return undefined
   const { part, concept, measure } = row
 
-  const [supersededBy, waitsOn, openFlags, supersedes, jointRows] =
+  const [supersededBy, waitsOn, openFlags, supersedes, jointRows, grownFrom] =
     await Promise.all([
       part.supersededById === null
         ? []
@@ -413,6 +416,11 @@ export async function findPart(
         db,
         or(eq(joints.partId, part.id), eq(joints.neededPartId, part.id)),
       ),
+      db
+        .select({ url: signals.url, title: signals.title })
+        .from(signals)
+        .where(eq(signals.partId, part.id))
+        .orderBy(signals.id),
     ])
 
   const needs: JointEnd[] = []
@@ -459,5 +467,6 @@ export async function findPart(
     neededBy,
     flags: openFlags,
     waitsOn: waitsOn.at(0) ?? null,
+    signals: grownFrom,
   }
 }

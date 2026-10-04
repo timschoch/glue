@@ -40,6 +40,8 @@ describe('GET /api/v1/openapi.json', () => {
             'patch /parts/{recordId}',
             'post /parts/{recordId}/answers',
             'get /mine',
+            'get /signals',
+            'post /signals/insights',
             'post /joints',
             'delete /joints/{jointId}',
           ].map((route) => route.replace(' ', ' /api/v1/projects/{project}')),

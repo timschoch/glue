@@ -34,6 +34,7 @@ import {
   projectConceptSchema,
   projectSchema,
 } from './part-api.ts'
+import { projectSignalsSchema, signalInsightInputSchema } from './signal-api.ts'
 
 // `/api/v1/projects/{project}`, and the deprecated `/api/v1/products/{product}`.
 type PathParameter = 'project' | 'product'
@@ -346,6 +347,36 @@ function listPartPaths() {
             description: 'The Parts, the newest change first',
             ...jsonContent(z.array(partSummarySchema)),
           },
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/signals`]: {
+      get: {
+        operationId: 'listSignals',
+        summary:
+          'List the Signals of the Project: the issues with the label user-feedback in its repository',
+        requestParams: { path },
+        responses: {
+          200: {
+            description:
+              'The Signals, the newest first, each with the Insight that grew from it',
+            ...jsonContent(projectSignalsSchema),
+          },
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/signals/insights`]: {
+      post: {
+        operationId: 'addSignalInsight',
+        summary:
+          'Add a draft Insight at the level hunch that grows from the Signals',
+        requestParams: { path },
+        requestBody: jsonContent(signalInsightInputSchema),
+        responses: {
+          201: { description: 'The new Insight', ...jsonContent(partSchema) },
+          400: errorResponses[400],
           ...readErrorResponses,
         },
       },

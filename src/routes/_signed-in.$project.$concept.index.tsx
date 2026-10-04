@@ -5,10 +5,17 @@ import { ConceptScreen } from '../project/concept-screen.tsx'
 import { LoadError } from '../project/load-error.tsx'
 
 export const Route = createFileRoute('/_signed-in/$project/$concept/')({
-  loader: async ({ context, params }) => {
-    const concept = await context.fetchConcept(params)
+  loaderDeps: ({ search }) => ({ section: search.section }),
+  loader: async ({ context, params, deps }) => {
+    const [concept, signals] = await Promise.all([
+      context.fetchConcept(params),
+      // The Signals come live from their tool, so only their section reads them.
+      deps.section === 'Understand'
+        ? context.fetchSignals(params.project)
+        : undefined,
+    ])
     if (!concept) throw notFound()
-    return concept
+    return { concept, signals }
   },
   head: ({ loaderData, match, params }) => ({
     meta: [
@@ -19,12 +26,12 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/')({
             : match.status === 'error'
               ? 'Unable to load the Concept | Glue'
               : loaderData
-                ? `${loaderData.title} | Glue`
+                ? `${loaderData.concept.title} | Glue`
                 : 'Glue',
       },
     ],
   }),
-  component: () => <ConceptScreen concept={Route.useLoaderData()} />,
+  component: () => <ConceptScreen {...Route.useLoaderData()} />,
   errorComponent: () => <LoadError name="the Concept" />,
   notFoundComponent: MissingConcept,
 })

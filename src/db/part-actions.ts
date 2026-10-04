@@ -2,6 +2,11 @@ import { z } from 'zod'
 
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import {
+  addSignalInsight,
+  listSignals,
+  signalInsightSchema,
+} from './signals.ts'
+import {
   addConcept,
   addJoint,
   addPart,
@@ -77,7 +82,12 @@ export const jointRemoveInputSchema = projectInputSchema.extend({
   jointId: z.int(),
 })
 
+export const signalInsightAddInputSchema = projectInputSchema.extend({
+  insight: signalInsightSchema,
+})
+
 type ProjectInput = z.infer<typeof projectInputSchema>
+export type SignalInsightAddInput = z.input<typeof signalInsightAddInputSchema>
 type ConceptReadInput = z.infer<typeof conceptReadInputSchema>
 type PartListInput = z.infer<typeof partListInputSchema>
 type PartReadInput = z.infer<typeof partReadInputSchema>
@@ -165,6 +175,18 @@ export function createPartActions(request: ActionRequest) {
       await addProject(db, slug, name)
       return { slug }
     }),
+
+    listSignals: withSession((db, { project }: ProjectInput) =>
+      listSignals(db, getGithub(), project),
+    ),
+
+    addSignalInsight: withSession(
+      (db, { project, insight }: SignalInsightAddInput) =>
+        addSignalInsight(db, getGithub(), project, insight).then(
+          (id): SavedPart => ({ id, issueMissing: false }),
+          toFailure,
+        ),
+    ),
 
     addJoint: withSession((db, { project, joint }: JointAddInput) =>
       addJoint(db, project, joint).then((id) => ({ id }), toFailure),

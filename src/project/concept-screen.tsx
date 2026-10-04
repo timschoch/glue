@@ -1,26 +1,61 @@
 import { getRouteApi } from '@tanstack/react-router'
+import { useState } from 'react'
 
 import type { Concept } from '../db/parts.ts'
+import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
+import { Signals } from '../design-system/signals.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
-import { isPartType, lensTypes } from './project-search.ts'
+import { UNKNOWN_CONCEPT, isPartType, lensTypes } from './project-search.ts'
+import { SignalInsightScreen } from './signal-insight-screen.tsx'
 import { useProjectLinks } from './use-project-links.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
 
-// One Concept in the main window, with the lens of the section. The form
-// that the address names takes its place.
-export function ConceptScreen({ concept }: { concept: Concept }) {
+// One Concept in the main window, with the lens of the section. The section
+// Understand shows the Signals of the Project too. The form that the address
+// names takes the place of the Concept. So does the form of the Insight that
+// grows from the picked Signals.
+export function ConceptScreen({
+  concept,
+  signals,
+}: {
+  concept: Concept
+  signals?: ProjectSignals
+}) {
   const { parts } = projectRoute.useLoaderData()
   const { search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
+  const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
 
   if (isPartType(search.add)) {
     // The key gives each Part type its own form with its own values.
     return <PartFormScreen key={search.add} type={search.add} parts={parts} />
   }
   if (search.add) return <NameFormScreen key={search.add} added={search.add} />
+  if (picked) {
+    return (
+      <SignalInsightScreen
+        signals={picked}
+        parts={parts}
+        onClose={() => setPicked(undefined)}
+      />
+    )
+  }
+
+  const listed = signals?.signals.map((signal) => ({
+    ...signal,
+    insight: signal.insight && {
+      ...signal.insight,
+      href: recordHref({
+        id: signal.insight.id,
+        concept:
+          parts.find(({ id }) => id === signal.insight?.id)?.concept ??
+          UNKNOWN_CONCEPT,
+      }),
+    },
+  }))
 
   return (
     <ConceptView
@@ -32,6 +67,22 @@ export function ConceptScreen({ concept }: { concept: Concept }) {
       onOpenConcept={({ slug }, event) => open(conceptHref(slug), event)}
       onAddPart={(type) => void changeSearch({ ...search, add: type })}
       onAddConcept={() => void changeSearch({ ...search, add: 'concept' })}
-    />
+    >
+      {signals && listed && (
+        <Signals
+          signals={listed}
+          reason={signals.reason}
+          onMakeInsight={(urls) =>
+            setPicked(signals.signals.filter(({ url }) => urls.includes(url)))
+          }
+          onOpenInsight={(recordId, event) => {
+            const opened = listed.find(
+              ({ insight }) => insight?.id === recordId,
+            )
+            if (opened?.insight) open(opened.insight.href, event)
+          }}
+        />
+      )}
+    </ConceptView>
   )
 }

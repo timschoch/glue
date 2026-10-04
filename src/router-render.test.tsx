@@ -35,6 +35,22 @@ const session = {
   user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' },
 }
 
+// The Signals of Glue: one grew into I3, one grew into nothing yet.
+const signals = [
+  {
+    url: 'https://github.com/timschoch/glue/issues/7',
+    title: 'The list is slow',
+    date: '2026-10-02',
+    insight: null,
+  },
+  {
+    url: 'https://github.com/timschoch/glue/issues/5',
+    title: 'Agents open each file',
+    date: '2026-10-01',
+    insight: { id: 'I3', title: 'Agents read files' },
+  },
+]
+
 const D4 = 'The Concept lives in the database'
 const I3 = 'Agents read files'
 const R1 = 'No query over 200ms'
@@ -72,6 +88,8 @@ async function renderPage(path: string, changed: Partial<Server> = {}) {
       Promise.resolve(project === 'glue' ? parts : []),
     ),
     fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
+    fetchSignals: vi.fn(() => Promise.resolve({ signals, reason: null })),
+    addSignalInsight: vi.fn(() => Promise.resolve(saved('I3'))),
     addProject: vi.fn(({ slug }) => Promise.resolve({ slug })),
     addConcept: vi.fn(({ concept }) => Promise.resolve({ slug: concept.slug })),
     addPart: vi.fn(() => Promise.resolve(saved('D4'))),
@@ -285,13 +303,77 @@ describe('a section', () => {
     await userEvent.click(section('Understand'))
 
     await expectAddress('/glue/part-model', { section: 'Understand' })
-    expect(groups()).toEqual(['Insights'])
+    expect(groups()).toEqual(['Insights', 'Signals'])
     expect(section('Understand').getAttribute('aria-current')).toBe('page')
 
     await userEvent.click(section('Understand'))
 
     await expectAddress('/glue/part-model')
     expect(groups()).toEqual(all)
+  })
+
+  it('reads the Signals only in the section Understand', async () => {
+    const { server } = await renderPage('/glue/part-model?section=Decide')
+
+    expect(server.fetchSignals).not.toHaveBeenCalled()
+    expect(screen.queryByRole('heading', { name: 'Signals' })).toBeNull()
+  })
+
+  it('opens the Insight that a Signal grew into', async () => {
+    const { expectAddress } = await renderPage('/glue?section=Understand')
+
+    await userEvent.click(
+      screen.getByRole('link', { name: 'I3 Agents read files' }),
+    )
+
+    await expectAddress('/glue/part-model/I3', { section: 'Understand' })
+  })
+
+  it('makes an Insight from the picked Signal in the Part form, then opens its record', async () => {
+    const { expectAddress, server } = await renderPage(
+      '/glue/part-model?section=Understand',
+    )
+
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: 'The list is slow' }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Make Insight' }))
+
+    expect(pageTitle()).toBe('Insight')
+    const title = screen.getByRole<HTMLInputElement>('textbox', {
+      name: 'Title',
+    })
+    expect(title.value).toBe('The list is slow')
+
+    await userEvent.clear(title)
+    await userEvent.type(title, 'Long lists are slow')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await expectAddress('/glue/part-model/I3', { section: 'Understand' })
+    expect(server.addSignalInsight).toHaveBeenCalledWith({
+      project: 'glue',
+      insight: {
+        signals: ['https://github.com/timschoch/glue/issues/7'],
+        title: 'Long lists are slow',
+        body: '',
+        source: 'https://github.com/timschoch/glue/issues/7',
+        date: new Date().toISOString().slice(0, 10),
+        evidenceLevel: 'hunch',
+        concept: 'part-model',
+      },
+    })
+  })
+
+  it('goes back to the Signals when the form is cancelled', async () => {
+    await renderPage('/glue?section=Understand')
+
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: 'The list is slow' }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Make Insight' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.getByRole('heading', { name: 'Signals' })).toBeDefined()
   })
 
   it('goes from a record to its Concept, keeps the pins and ends the trail', async () => {

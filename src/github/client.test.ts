@@ -33,6 +33,52 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
+describe('listIssues', () => {
+  const LIST_URL = `${REPOSITORY_URL}/issues?labels=user-feedback&state=all&per_page=100`
+
+  it('reads the issues with the label, without the pull requests', async () => {
+    stubGithub({
+      [`GET ${LIST_URL}`]: [
+        200,
+        [
+          {
+            html_url: 'https://github.com/timschoch/glue/issues/7',
+            title: 'The list is slow',
+            created_at: '2026-10-02T08:00:00Z',
+          },
+          {
+            html_url: 'https://github.com/timschoch/glue/pull/8',
+            title: 'Make the list fast',
+            created_at: '2026-10-03T08:00:00Z',
+            pull_request: {},
+          },
+        ],
+      ],
+    })
+
+    const issues = await createGithubClient().listIssues(
+      'timschoch/glue',
+      'user-feedback',
+    )
+
+    expect(issues).toEqual([
+      {
+        url: 'https://github.com/timschoch/glue/issues/7',
+        title: 'The list is slow',
+        createdAt: '2026-10-02T08:00:00Z',
+      },
+    ])
+  })
+
+  it('throws with the status when GitHub refuses', async () => {
+    stubGithub({ [`GET ${LIST_URL}`]: [404, { message: 'Not Found' }] })
+
+    await expect(
+      createGithubClient().listIssues('timschoch/glue', 'user-feedback'),
+    ).rejects.toThrow(/GitHub list issues: 404/)
+  })
+})
+
 describe('createIssue', () => {
   it('creates a missing label, then the issue, and returns its address', async () => {
     stubGithub({

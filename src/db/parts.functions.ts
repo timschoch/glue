@@ -21,6 +21,7 @@ import {
   partUpdateInputSchema,
   projectAddInputSchema,
   projectInputSchema,
+  signalInsightAddInputSchema,
 } from './part-actions.ts'
 
 // The server functions of the Part model. The validators parse the input.
@@ -75,6 +76,14 @@ export const submitAnswer = createServerFn({ method: 'POST' })
 export const submitAddProject = createServerFn({ method: 'POST' })
   .validator(projectAddInputSchema)
   .handler(({ data }) => actions.addProject(data))
+
+export const fetchSignals = createServerFn({ method: 'GET' })
+  .validator(projectInputSchema)
+  .handler(({ data }) => actions.listSignals(data))
+
+export const submitAddSignalInsight = createServerFn({ method: 'POST' })
+  .validator(signalInsightAddInputSchema)
+  .handler(({ data }) => actions.addSignalInsight(data))
 
 export const submitAddJoint = createServerFn({ method: 'POST' })
   .validator(jointAddInputSchema)
