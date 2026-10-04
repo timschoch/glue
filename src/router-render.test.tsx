@@ -126,7 +126,7 @@ function items(name: string): Array<string | null> {
 // The card of a record in the main window.
 function card(recordId: string): HTMLElement {
   return within(screen.getByRole('main')).getByRole('link', {
-    name: new RegExp(` ${recordId} `),
+    name: (name) => name.includes(` ${recordId} `),
   })
 }
 
