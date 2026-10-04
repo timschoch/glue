@@ -68,10 +68,7 @@ $text-width: $card-width * 2;
   max-inline-size: $text-width;
 }
 
-// The width of the bar that marks the current item, as in the side nav.
-$current-bar: 3px;
-
-// The options of a question, one per line. The bar marks the chosen one.
+// The options of a question, one per line. The bar marks the chosen one, as in the side nav.
 .options {
   @include type-style('body-compact-01');
 
@@ -82,12 +79,12 @@ $current-bar: 3px;
 
   li {
     overflow-wrap: anywhere;
-    padding-inline-start: calc(#{$spacing-05} + #{$current-bar});
+    border-inline-start: 3px solid transparent;
+    padding-inline-start: $spacing-05;
   }
 
   .chosen {
-    border-inline-start: $current-bar solid $border-interactive;
-    padding-inline-start: $spacing-05;
+    border-inline-start-color: $border-interactive;
   }
 }
 
