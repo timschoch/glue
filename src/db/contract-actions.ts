@@ -18,7 +18,7 @@ type ContractStateInput = z.infer<typeof contractStateInputSchema>
 type ContractReadInput = z.infer<typeof contractReadInputSchema>
 
 // What the server functions of the Contract do. Each action looks for the
-// session first. The person of the session signs.
+// session first. A member of the Project signs.
 export function createContractActions(
   request: Pick<ActionRequest, 'findSession' | 'getDb'>,
 ) {
@@ -36,8 +36,8 @@ export function createContractActions(
     ),
 
     signContract: withMember(
-      (db, session, { project, concept }: ContractStateInput) =>
-        signContract(db, project, concept, session.user.name).then(
+      (db, { project, concept }: ContractStateInput, member) =>
+        signContract(db, project, concept, member.name).then(
           (version) => ({ version }),
           toFailure,
         ),

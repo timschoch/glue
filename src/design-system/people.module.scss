@@ -1,0 +1,51 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The width of a card: a field is as wide as one card.
+$card-width: $spacing-13 * 2;
+
+// The form that adds a member: its one field and its one button.
+.form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-05;
+  max-inline-size: $card-width;
+}
+
+.field {
+  inline-size: 100%;
+}
+
+// The Responsible and the Co-Authors of a Concept or a Part, side by side.
+.assignees {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: $spacing-05 $spacing-07;
+}
+
+.responsible {
+  inline-size: $card-width;
+  max-inline-size: 100%;
+}
+
+// A label with its value, for a person who reads only.
+.value {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+
+  dt {
+    @include type-style('label-01');
+
+    color: $text-secondary;
+  }
+
+  dd {
+    @include type-style('body-compact-01');
+
+    color: $text-primary;
+  }
+}

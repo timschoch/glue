@@ -18,6 +18,7 @@ import {
   findPart,
   findProject,
   parts,
+  people,
   projects,
 } from './test/project.ts'
 import './test/render.tsx'
@@ -56,6 +57,11 @@ async function renderPage(path: string, overrides: Partial<Server> = {}) {
     answerPart: vi.fn(() => Promise.resolve(saved)),
     addJoint: vi.fn(() => Promise.resolve({ id: 20 })),
     removeJoint: vi.fn(() => Promise.resolve(undefined)),
+    fetchPeople: vi.fn(() => Promise.resolve(people)),
+    addMember: vi.fn(() => Promise.resolve(people.members[0])),
+    setLoopSteps: vi.fn(() => Promise.resolve(undefined)),
+    assign: vi.fn(() => Promise.resolve(undefined)),
+    unassign: vi.fn(() => Promise.resolve(undefined)),
     signIn: vi.fn(() => Promise.resolve(undefined)),
     signUp: vi.fn(() => Promise.resolve(undefined)),
     signOut: vi.fn(() => Promise.resolve()),

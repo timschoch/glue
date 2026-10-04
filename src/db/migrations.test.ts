@@ -27,6 +27,7 @@ const projectsMigration = '0009_projects.sql'
 const partTablesMigration = '0010_part_tables.sql'
 const cutoverMigration = '0011_part_model_cutover.sql'
 const trustMigration = '0013_trust_and_work_state.sql'
+const peopleMigration = '0015_people.sql'
 
 let client: PGlite
 
@@ -934,5 +935,56 @@ describe('the migration that adds Trust and the Work state', () => {
       trust: 'not-ready',
       work_state: 'draft',
     })
+  })
+})
+
+describe('the migration that adds the members of a Project', () => {
+  setStartState(async () => {
+    await runMigrationsBefore(peopleMigration)
+    await client.exec(`
+      insert into projects (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
+    `)
+  })
+
+  const listMembers = () =>
+    client.query(
+      'select project_id, user_id, name, email, loop_steps from members order by project_id, name',
+    )
+
+  it('makes each user of today a member of each Project of today', async () => {
+    await client.exec(`
+      create schema neon_auth;
+      create table neon_auth."user" (id uuid primary key, name text not null, email text not null);
+      insert into neon_auth."user" (id, name, email) values
+        ('00000000-0000-0000-0000-000000000001', 'Tim', 'tim@example.com'),
+        ('00000000-0000-0000-0000-000000000002', 'Ada', 'ada@example.com');
+    `)
+
+    await runMigration(peopleMigration)
+
+    const ada = {
+      user_id: '00000000-0000-0000-0000-000000000002',
+      name: 'Ada',
+      email: 'ada@example.com',
+      loop_steps: [],
+    }
+    const tim = {
+      user_id: '00000000-0000-0000-0000-000000000001',
+      name: 'Tim',
+      email: 'tim@example.com',
+      loop_steps: [],
+    }
+    expect((await listMembers()).rows).toEqual([
+      { project_id: 1, ...ada },
+      { project_id: 1, ...tim },
+      { project_id: 2, ...ada },
+      { project_id: 2, ...tim },
+    ])
+  })
+
+  it('runs on a database without accounts', async () => {
+    await runMigration(peopleMigration)
+
+    expect((await listMembers()).rows).toEqual([])
   })
 })

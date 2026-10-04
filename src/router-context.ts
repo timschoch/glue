@@ -5,16 +5,21 @@ import { parseRedirect } from './authentication/redirect.ts'
 import type { Failure, Session } from './authentication/session.ts'
 import type { ProjectBuilds } from './db/builds.ts'
 import type { Contract, ContractState } from './db/contracts.ts'
+import type { Member, People } from './db/members.ts'
 import type {
   AnswerInput,
+  AssignInput,
   ConceptAddInput,
   JointAddInput,
   JointRemoveInput,
+  LoopStepsInput,
+  MemberAddInput,
   PartAddInput,
   PartUpdateInput,
   ProjectAddInput,
   SavedPart,
   SignalInsightAddInput,
+  UnassignInput,
 } from './db/part-actions.ts'
 import type { Concept, Part, PartSummary, Project } from './db/parts.ts'
 import type { ProjectSignals } from './db/signals.ts'
@@ -38,6 +43,7 @@ export type Server = {
   }) => Promise<Part | undefined>
   fetchSignals: (project: string) => Promise<ProjectSignals>
   fetchBuilds: (project: string) => Promise<ProjectBuilds>
+  fetchPeople: (project: string) => Promise<People>
   // The writes. A Failure is an answer for the person: the write did not
   // happen and the message says why.
   addProject: (project: ProjectAddInput) => Promise<{ slug: string } | Failure>
@@ -65,6 +71,10 @@ export type Server = {
     project: string
     concept: string
   }) => Promise<{ version: number } | Failure>
+  addMember: (member: MemberAddInput) => Promise<Member | Failure>
+  setLoopSteps: (loopSteps: LoopStepsInput) => Promise<Failure | undefined>
+  assign: (assignment: AssignInput) => Promise<Failure | undefined>
+  unassign: (assignment: UnassignInput) => Promise<Failure | undefined>
   signIn: (credentials: SignIn) => Promise<Failure | undefined>
   signUp: (account: SignUp) => Promise<Failure | undefined>
   signOut: () => Promise<void>
@@ -142,6 +152,8 @@ export function createRouterContext(
       keepSignInTarget(server.fetchParts(project), `/${project}`),
     fetchMine: (project) =>
       keepSignInTarget(server.fetchMine(project), `/${project}`),
+    fetchPeople: (project) =>
+      keepSignInTarget(server.fetchPeople(project), `/${project}`),
     fetchConcept: (concept) =>
       keepSignInTarget(server.fetchConcept(concept), conceptPath(concept)),
     fetchContractState: (concept) =>

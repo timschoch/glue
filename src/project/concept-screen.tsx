@@ -8,10 +8,12 @@ import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
 import { PartCards } from '../design-system/part-cards.tsx'
 import { Signals } from '../design-system/signals.tsx'
-import { LinkedBuilds } from './linked-builds.tsx'
+import { AssigneesControl } from './assignees-control.tsx'
 import { ContractSection } from './contract-screen.tsx'
+import { LinkedBuilds } from './linked-builds.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
+import { PeopleScreen } from './people-screen.tsx'
 import { UNKNOWN_CONCEPT, isPartType, lensTypes } from './project-search.ts'
 import { SignalInsightScreen } from './signal-insight-screen.tsx'
 import { useProjectLinks } from './use-project-links.ts'
@@ -23,7 +25,8 @@ const projectRoute = getRouteApi('/_signed-in/$project')
 // builds. The form that the address
 // names takes the place of the Concept. So does the form of the Insight that
 // grows from the picked Signals. The section Mine shows the Parts of the
-// whole Project that need the owner.
+// whole Project that need the owner. The section People shows the members of
+// the Project in place of a Concept.
 export function ConceptScreen({
   concept,
   contract,
@@ -54,6 +57,7 @@ export function ConceptScreen({
       />
     )
   }
+  if (search.section === 'People') return <PeopleScreen />
 
   const listed = signals?.signals.map((signal) => ({
     ...signal,
@@ -116,6 +120,7 @@ export function ConceptScreen({
           <ContractSection contract={contract} builds={builds?.builds} />
         )
       }
+      assignees={<AssigneesControl target={{ concept: concept.slug }} />}
     >
       {builds && search.section === 'Build' && (
         <LinkedBuilds builds={builds.builds} reason={builds.reason} />

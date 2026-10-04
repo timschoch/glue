@@ -26,6 +26,7 @@ import {
   findPart,
   findProject,
   parts,
+  people,
   projects,
 } from './test/project.ts'
 import './test/render.tsx'
@@ -106,6 +107,11 @@ async function renderPage(path: string, changed: Partial<Server> = {}) {
     answerPart: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),
     addJoint: vi.fn(() => Promise.resolve({ id: 20 })),
     removeJoint: vi.fn(() => Promise.resolve(undefined)),
+    fetchPeople: vi.fn(() => Promise.resolve(people)),
+    addMember: vi.fn(() => Promise.resolve(people.members[1])),
+    setLoopSteps: vi.fn(() => Promise.resolve(undefined)),
+    assign: vi.fn(() => Promise.resolve(undefined)),
+    unassign: vi.fn(() => Promise.resolve(undefined)),
     signIn: vi.fn(() => Promise.resolve(undefined)),
     signUp: vi.fn(() => Promise.resolve(undefined)),
     signOut: vi.fn(() => Promise.resolve()),
@@ -1124,6 +1130,111 @@ describe('the Joints of a record', () => {
         jointId: 2,
       }),
     )
+  })
+})
+
+describe('the people of a Project', () => {
+  it('shows each member with the loop steps and with what the member holds', async () => {
+    await renderPage('/glue?section=People')
+
+    const ada = within(screen.getByRole('region', { name: 'Ada' }))
+    const bo = within(screen.getByRole('region', { name: 'Bo' }))
+
+    expect(pageTitle()).toBe('People')
+    expect(
+      within(ada.getByRole('list', { name: 'Responsible' }))
+        .getByRole('link')
+        .getAttribute('href'),
+    ).toBe('/glue/part-model/D4?section=People')
+    expect(bo.getByText('Build, Use')).toBeDefined()
+    expect(
+      within(bo.getByRole('list', { name: 'Co-Author' }))
+        .getByRole('link', { name: 'Part model' })
+        .getAttribute('href'),
+    ).toBe('/glue/part-model')
+  })
+
+  it('sets the loop steps of the person who reads', async () => {
+    const { server } = await renderPage('/glue?section=People')
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Build' }))
+
+    await waitFor(() =>
+      expect(server.setLoopSteps).toHaveBeenCalledWith({
+        project: 'glue',
+        loopSteps: ['decide', 'build'],
+      }),
+    )
+  })
+
+  it('adds a member by the e-mail address, and says why it did not work', async () => {
+    const { server } = await renderPage('/glue?section=People', {
+      addMember: vi.fn(() =>
+        Promise.resolve({
+          message: 'No account has the e-mail address cy@example.com.',
+        }),
+      ),
+    })
+
+    await userEvent.type(field('E-mail'), 'cy@example.com')
+    await userEvent.click(button('Add member'))
+
+    await waitFor(() =>
+      expect(alerts()).toEqual([
+        'No account has the e-mail address cy@example.com.',
+      ]),
+    )
+    expect(server.addMember).toHaveBeenCalledWith({
+      project: 'glue',
+      email: 'cy@example.com',
+    })
+  })
+
+  it('gives a record another Responsible', async () => {
+    const { server } = await renderPage('/glue/part-model/D4')
+    const responsible = screen.getByRole<HTMLSelectElement>('combobox', {
+      name: 'Responsible',
+    })
+
+    expect(responsible.value).toBe('1')
+
+    await userEvent.selectOptions(responsible, 'Bo')
+
+    await waitFor(() =>
+      expect(server.assign).toHaveBeenCalledWith({
+        project: 'glue',
+        assignment: {
+          member: 'bo@example.com',
+          part: 'D4',
+          role: 'responsible',
+        },
+      }),
+    )
+  })
+
+  it('takes a Co-Author away from a Concept', async () => {
+    const { server } = await renderPage('/glue/part-model')
+    const bo = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Bo' })
+
+    expect(bo.checked).toBe(true)
+
+    await userEvent.click(bo)
+
+    await waitFor(() =>
+      expect(server.unassign).toHaveBeenCalledWith({
+        project: 'glue',
+        assignment: { member: 'bo@example.com', concept: 'part-model' },
+      }),
+    )
+  })
+
+  it('shows the people to a person who is no member, with no control', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchPeople: vi.fn(() => Promise.resolve({ ...people, me: null })),
+    })
+
+    expect(screen.getByText('Responsible').nextSibling?.textContent).toBe('Ada')
+    expect(screen.queryByRole('combobox', { name: 'Responsible' })).toBeNull()
   })
 })
 

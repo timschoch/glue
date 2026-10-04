@@ -40,6 +40,12 @@ import {
   projectConceptSchema,
   projectSchema,
 } from './part-api.ts'
+import {
+  assignmentInputSchema,
+  assignmentSchema,
+  memberInputSchema,
+  memberSchema,
+} from './people-api.ts'
 import { projectSignalsSchema, signalInsightInputSchema } from './signal-api.ts'
 
 // `/api/v1/projects/{project}`, and the deprecated `/api/v1/products/{product}`.
@@ -377,7 +383,15 @@ function listPartPaths() {
         operationId: 'listMine',
         summary:
           'List what needs the owner: the Parts in to-check, draft or review',
-        requestParams: { path },
+        requestParams: {
+          path,
+          query: z.object({
+            member: z.string().optional().meta({
+              description:
+                'The e-mail address of a member: only the Parts where the member is Responsible or Co-Author, and the Parts that nobody has',
+            }),
+          }),
+        },
         responses: {
           200: {
             description: 'The Parts, the newest change first',
@@ -461,6 +475,79 @@ function listPartPaths() {
         },
         responses: {
           204: { description: 'The Joint is gone' },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/members`]: {
+      get: {
+        operationId: 'listMembers',
+        summary: 'List the members of the Project with their loop steps',
+        requestParams: { path },
+        responses: {
+          200: {
+            description: 'The members, by name',
+            ...jsonContent(z.array(memberSchema)),
+          },
+          ...readErrorResponses,
+        },
+      },
+      post: {
+        operationId: 'addMember',
+        summary: 'Make the account of an e-mail address a member',
+        requestParams: { path },
+        requestBody: jsonContent(memberInputSchema),
+        responses: {
+          201: { description: 'The member', ...jsonContent(memberSchema) },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/assignments`]: {
+      get: {
+        operationId: 'listAssignments',
+        summary: 'List who is Responsible or Co-Author of a Concept or a Part',
+        requestParams: { path },
+        responses: {
+          200: {
+            description: 'The assignments of the Project',
+            ...jsonContent(z.array(assignmentSchema)),
+          },
+          ...readErrorResponses,
+        },
+      },
+      post: {
+        operationId: 'assign',
+        summary:
+          'Make a member Responsible or Co-Author. A new Responsible takes the place of the old one',
+        requestParams: { path },
+        requestBody: jsonContent(assignmentInputSchema),
+        responses: {
+          201: {
+            description: 'The assignments of the Project',
+            ...jsonContent(z.array(assignmentSchema)),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+      delete: {
+        operationId: 'unassign',
+        summary: 'Take a Concept or a Part from a member',
+        requestParams: {
+          path,
+          query: z.object({
+            member: z
+              .string()
+              .meta({ description: 'The e-mail address of the member' }),
+            concept: z.string().optional(),
+            part: z.string().optional(),
+          }),
+        },
+        responses: {
+          204: { description: 'The assignment is gone' },
           400: errorResponses[400],
           ...readErrorResponses,
         },

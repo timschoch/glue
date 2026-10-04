@@ -3,6 +3,19 @@ import { z } from 'zod'
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import { listBuilds } from './builds.ts'
 import {
+  addMember,
+  assign,
+  assignmentTargetSchema,
+  joinProject,
+  listAssignments,
+  listMembers,
+  loopStepsSchema,
+  newAssignmentSchema,
+  setLoopSteps,
+  unassign,
+} from './members.ts'
+import type { People } from './members.ts'
+import {
   addSignalInsight,
   listSignals,
   signalInsightSchema,
@@ -87,6 +100,27 @@ export const signalInsightAddInputSchema = projectInputSchema.extend({
   insight: signalInsightSchema,
 })
 
+export const memberAddInputSchema = projectInputSchema.extend({
+  email: z.string().trim().min(1),
+})
+
+export const loopStepsInputSchema = projectInputSchema.extend({
+  loopSteps: loopStepsSchema,
+})
+
+export const assignInputSchema = projectInputSchema.extend({
+  assignment: newAssignmentSchema,
+})
+
+export const unassignInputSchema = projectInputSchema.extend({
+  assignment: assignmentTargetSchema,
+})
+
+export type MemberAddInput = z.infer<typeof memberAddInputSchema>
+export type LoopStepsInput = z.infer<typeof loopStepsInputSchema>
+export type AssignInput = z.infer<typeof assignInputSchema>
+export type UnassignInput = z.infer<typeof unassignInputSchema>
+
 type ProjectInput = z.infer<typeof projectInputSchema>
 export type SignalInsightAddInput = z.input<typeof signalInsightAddInputSchema>
 type ConceptReadInput = z.infer<typeof conceptReadInputSchema>
@@ -114,7 +148,8 @@ function toChangedError(recordId: string) {
 // writes are the ones of the CLI and the HTTP API.
 export function createPartActions(request: ActionRequest) {
   const { getDb, getGithub } = request
-  const { withSession, withMember } = createSessionGuard(request)
+  const { withSession, withReader, withMember, withUser } =
+    createSessionGuard(request)
 
   async function toSavedPart(project: string, id: string): Promise<SavedPart> {
     const issue = await createDownstreamIssue(getDb(), getGithub(), project, id)
@@ -140,17 +175,17 @@ export function createPartActions(request: ActionRequest) {
       findPart(db, project, recordId),
     ),
 
-    addConcept: withSession((db, { project, concept }: ConceptAddInput) =>
+    addConcept: withMember((db, { project, concept }: ConceptAddInput) =>
       addConcept(db, project, concept).then((slug) => ({ slug }), toFailure),
     ),
 
-    addPart: withSession((db, { project, part }: PartAddInput) =>
+    addPart: withMember((db, { project, part }: PartAddInput) =>
       addPart(db, project, part)
         .then((id) => toSavedPart(project, id))
         .catch(toFailure),
     ),
 
-    updatePart: withSession(
+    updatePart: withMember(
       (db, { project, recordId, change, expected }: PartUpdateInput) =>
         updatePart(db, project, recordId, change, expected)
           .then((changed) => {
@@ -160,22 +195,24 @@ export function createPartActions(request: ActionRequest) {
           .catch(toFailure),
     ),
 
-    // An answer in words carries the name of the person of the session.
+    // An answer in words carries the name of the member.
     answerPart: withMember(
-      (db, { user }, { project, recordId, answer }: AnswerInput) =>
-        answerPart(db, project, recordId, { ...answer, by: user.name })
+      (db, { project, recordId, answer }: AnswerInput, member) =>
+        answerPart(db, project, recordId, { ...answer, by: member.name })
           .then(() => toSavedPart(project, recordId))
           .catch(toFailure),
     ),
 
-    listMine: withSession((db, { project }: ProjectInput) =>
-      listMine(db, project),
+    listMine: withReader((db, { project }: ProjectInput, member) =>
+      listMine(db, project, member?.email),
     ),
 
-    addProject: withSession(async (db, { slug, name }: ProjectAddInput) => {
+    // The person who adds a Project is its first member.
+    addProject: withUser(async (db, { slug, name }: ProjectAddInput, user) => {
       if (await findProject(db, slug))
         return { message: `project "${slug}" exists already` }
       await addProject(db, slug, name)
+      await joinProject(db, slug, user)
       return { slug }
     }),
 
@@ -187,7 +224,7 @@ export function createPartActions(request: ActionRequest) {
       listBuilds(db, getGithub(), project),
     ),
 
-    addSignalInsight: withSession(
+    addSignalInsight: withMember(
       (db, { project, insight }: SignalInsightAddInput) =>
         addSignalInsight(db, getGithub(), project, insight).then(
           (id): SavedPart => ({ id, issueMissing: false }),
@@ -195,12 +232,43 @@ export function createPartActions(request: ActionRequest) {
         ),
     ),
 
-    addJoint: withSession((db, { project, joint }: JointAddInput) =>
+    addJoint: withMember((db, { project, joint }: JointAddInput) =>
       addJoint(db, project, joint).then((id) => ({ id }), toFailure),
     ),
 
-    removeJoint: withSession((db, { project, jointId }: JointRemoveInput) =>
+    removeJoint: withMember((db, { project, jointId }: JointRemoveInput) =>
       removeJoint(db, project, jointId).then(() => undefined, toFailure),
+    ),
+
+    findPeople: withReader(
+      async (db, { project }: ProjectInput, member): Promise<People> => {
+        const [members, assignments] = await Promise.all([
+          listMembers(db, project),
+          listAssignments(db, project),
+        ])
+        return { members, assignments, me: member?.id ?? null }
+      },
+    ),
+
+    addMember: withMember((db, { project, email }: MemberAddInput) =>
+      addMember(db, project, email).catch(toFailure),
+    ),
+
+    // A member sets the own loop steps.
+    setLoopSteps: withMember(
+      (db, { project, loopSteps }: LoopStepsInput, member) =>
+        setLoopSteps(db, project, member.id, loopSteps).then(
+          () => undefined,
+          toFailure,
+        ),
+    ),
+
+    assign: withMember((db, { project, assignment }: AssignInput) =>
+      assign(db, project, assignment).then(() => undefined, toFailure),
+    ),
+
+    unassign: withMember((db, { project, assignment }: UnassignInput) =>
+      unassign(db, project, assignment).then(() => undefined, toFailure),
     ),
   }
 }

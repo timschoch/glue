@@ -1,5 +1,5 @@
 import { isRedirect } from '@tanstack/react-router'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import type { Session } from '../authentication/session.ts'
 import type { GithubClient } from '../github/client.ts'
@@ -13,12 +13,13 @@ import {
   partListInputSchema,
   partUpdateInputSchema,
 } from './part-actions.ts'
+import { joinProject, listAssignments, listMembers } from './members.ts'
 import { addJoint, addPart, addProject } from './part-records.ts'
 import { findPart, findProject, listParts } from './parts.ts'
 import * as schema from './schema.ts'
 import { createTestDatabase } from './test-database.ts'
 
-const { db } = createTestDatabase(schema)
+const { client, db } = createTestDatabase(schema)
 
 // The session and the GitHub of the request in the test.
 let session: Session | undefined
@@ -59,8 +60,17 @@ beforeEach(async () => {
   })
 })
 
-function signIn() {
-  session = { user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' } }
+const ada = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
+
+// Ada is a member of the Project.
+async function signIn() {
+  session = { user: ada }
+  await joinProject(db, project, ada)
+}
+
+// Bo has an account and is no member of the Project.
+function signInBo() {
+  session = { user: { id: 'user-2', name: 'Bo', email: 'bo@example.com' } }
 }
 
 const decision = {
@@ -107,6 +117,19 @@ const requests = {
     actions.addJoint({ project, joint: { part: 'I1', needs: 'G1' } }),
   removeJoint: () => actions.removeJoint({ project, jointId: 1 }),
   addProject: () => actions.addProject({ slug: 'bakeday', name: 'Bake day' }),
+  findPeople: () => actions.findPeople({ project }),
+  addMember: () => actions.addMember({ project, email: 'bo@example.com' }),
+  setLoopSteps: () => actions.setLoopSteps({ project, loopSteps: ['build'] }),
+  assign: () =>
+    actions.assign({
+      project,
+      assignment: { member: ada.email, role: 'responsible', part: 'G1' },
+    }),
+  unassign: () =>
+    actions.unassign({
+      project,
+      assignment: { member: ada.email, part: 'G1' },
+    }),
 } satisfies Record<keyof typeof actions, () => Promise<unknown>>
 
 async function readProject() {
@@ -648,6 +671,127 @@ describe('a server function of the Part model with a session', () => {
       message: expect.stringContaining('issueUrl'),
     })
     expect(fake.issues).toHaveLength(1)
+  })
+})
+
+const writes = [
+  'addConcept',
+  'addPart',
+  'updatePart',
+  'answerPart',
+  'addJoint',
+  'removeJoint',
+  'addMember',
+  'setLoopSteps',
+  'assign',
+  'unassign',
+] as const
+
+describe('a write of a person who is no member of the Project', () => {
+  beforeEach(async () => {
+    await addJoint(db, project, { part: 'I1', needs: 'G1' })
+    signInBo()
+  })
+
+  it.each(writes)(
+    '%s answers with a failure and writes nothing',
+    async (name) => {
+      expect(await requests[name]()).toEqual({
+        message: 'Only a member of the Project can change it.',
+      })
+      expect(await readProject()).toEqual({
+        concepts: [],
+        parts: ['I1', 'G1'],
+        goal: ['Ship faster', 1, 'draft'],
+      })
+      expect(await listMembers(db, project)).toEqual([])
+    },
+  )
+
+  it('reads the Project', async () => {
+    expect((await actions.listParts({ project })).length).toBe(2)
+    expect(await actions.findPeople({ project })).toEqual({
+      members: [],
+      assignments: [],
+      me: null,
+    })
+  })
+})
+
+describe('the people of a Project', () => {
+  beforeAll(async () => {
+    await client.exec(`
+      create schema neon_auth;
+      create table neon_auth."user" (id uuid primary key, name text not null, email text not null);
+      insert into neon_auth."user" (id, name, email) values
+        ('00000000-0000-0000-0000-000000000002', 'Bo', 'bo@example.com');
+    `)
+  })
+
+  beforeEach(signIn)
+
+  it('makes the person who adds a Project its first member', async () => {
+    await requests.addProject()
+
+    expect(await listMembers(db, 'bakeday')).toMatchObject([
+      { userId: 'user-1', name: 'Ada', email: 'ada@example.com' },
+    ])
+  })
+
+  it('adds a member by the e-mail address of an account', async () => {
+    expect(await requests.addMember()).toMatchObject({ name: 'Bo' })
+    expect(
+      await actions.addMember({ project, email: 'nobody@example.com' }),
+    ).toEqual({
+      message: 'No account has the e-mail address nobody@example.com.',
+    })
+  })
+
+  it('sets the loop steps of the member who asks', async () => {
+    await requests.addMember()
+
+    await requests.setLoopSteps()
+
+    expect(await actions.findPeople({ project })).toMatchObject({
+      members: [
+        { name: 'Ada', loopSteps: ['build'] },
+        { name: 'Bo', loopSteps: [] },
+      ],
+      me: 1,
+    })
+  })
+
+  it('assigns a Part to a member and takes it back', async () => {
+    await requests.assign()
+
+    expect((await actions.findPeople({ project })).assignments).toEqual([
+      { id: 1, memberId: 1, role: 'responsible', concept: null, part: 'G1' },
+    ])
+
+    await requests.unassign()
+
+    expect(await listAssignments(db, project)).toEqual([])
+  })
+
+  it('answers with a failure for a Part that does not exist', async () => {
+    expect(
+      await actions.assign({
+        project,
+        assignment: { member: ada.email, role: 'co-author', part: 'G9' },
+      }),
+    ).toEqual({ message: 'G9 not found' })
+  })
+
+  it('lists for a member the Parts of the member and the Parts of nobody', async () => {
+    await requests.addMember()
+    await actions.assign({
+      project,
+      assignment: { member: 'bo@example.com', role: 'responsible', part: 'I1' },
+    })
+
+    const mine = await actions.listMine({ project })
+
+    expect(mine.map(({ id }) => id)).toEqual(['G1'])
   })
 })
 

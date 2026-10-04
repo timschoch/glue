@@ -1,5 +1,6 @@
 import type { Build } from '../db/builds.ts'
 import type { Contract, ContractState } from '../db/contracts.ts'
+import type { People } from '../db/members.ts'
 import type {
   Concept,
   ConceptNode,
@@ -112,6 +113,38 @@ export const builds: Build[] = [
     stale: true,
   },
 ]
+
+// The people of Glue. Ada reads: she is Responsible of D4. Bo is Co-Author
+// of the Concept `Part model`.
+export const people: People = {
+  members: [
+    {
+      id: 1,
+      userId: 'user-1',
+      name: 'Ada',
+      email: 'ada@example.com',
+      loopSteps: ['decide'],
+    },
+    {
+      id: 2,
+      userId: 'user-2',
+      name: 'Bo',
+      email: 'bo@example.com',
+      loopSteps: ['build', 'use'],
+    },
+  ],
+  assignments: [
+    { id: 1, memberId: 1, role: 'responsible', concept: null, part: 'D4' },
+    {
+      id: 2,
+      memberId: 2,
+      role: 'co-author',
+      concept: 'part-model',
+      part: null,
+    },
+  ],
+  me: 1,
+}
 
 export function findProject(slug: string): Project | undefined {
   const project = projects.find((known) => known.slug === slug)

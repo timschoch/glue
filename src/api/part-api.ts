@@ -327,9 +327,12 @@ export function handleAnswerPart(input: ChangeRequest) {
 }
 
 export function handleListMine(input: ApiRequest) {
-  return handleApiRequest(input, async () =>
-    Response.json(await listMine(input.db, input.params.project)),
-  )
+  return handleApiRequest(input, async () => {
+    const member = new URL(input.request.url).searchParams.get('member')
+    return Response.json(
+      await listMine(input.db, input.params.project, member ?? undefined),
+    )
+  })
 }
 
 export function handleAddJoint(input: ApiRequest) {

@@ -368,10 +368,13 @@ export function listParts(
 }
 
 // What needs the owner now: the Parts of the Project in to-check, draft or
-// review, the newest change first. An unknown Project has none.
+// review, the newest change first. An unknown Project has none. With the
+// e-mail address of a member: the Parts where the member is Responsible or
+// Co-Author, and the Parts that nobody has.
 export function listMine(
   db: ConceptDb,
   projectSlug: string,
+  memberEmail?: string,
 ): Promise<PartSummary[]> {
   return db
     .select(summary)
@@ -382,6 +385,20 @@ export function listMine(
       and(
         eq(projects.slug, projectSlug),
         inArray(parts.workState, ['to-check', 'draft', 'review']),
+        memberEmail === undefined
+          ? undefined
+          : sql`(
+              not exists (
+                select 1 from "assignments"
+                where "assignments"."part_id" = ${parts.id}
+              )
+              or exists (
+                select 1 from "assignments"
+                inner join "members" on "members"."id" = "assignments"."member_id"
+                where "assignments"."part_id" = ${parts.id}
+                  and lower("members"."email") = lower(${memberEmail}::text)
+              )
+            )`,
       ),
     )
     .orderBy(desc(parts.changedAt), desc(parts.id))
