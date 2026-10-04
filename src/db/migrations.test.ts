@@ -27,7 +27,7 @@ const projectsMigration = '0009_projects.sql'
 const partTablesMigration = '0010_part_tables.sql'
 const cutoverMigration = '0011_part_model_cutover.sql'
 const trustMigration = '0013_trust_and_work_state.sql'
-const peopleMigration = '0015_people.sql'
+const peopleMigration = '0016_people.sql'
 
 let client: PGlite
 
