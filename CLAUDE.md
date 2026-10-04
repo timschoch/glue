@@ -10,7 +10,7 @@ Concept hub: why a product is built the way it is. See [README.md](README.md).
 
 ## Rules
 
-- UI: Carbon (`@carbon/react`) with its tokens, and CSS Modules. No Tailwind. A Mantine screen stays until its Carbon screen ships. No screen mixes both kits.
+- UI: Carbon (`@carbon/react`) with its tokens, and CSS Modules. No Tailwind, no second UI kit.
 - Branches `<type>/<description>`, conventional commits. Never push to `main`; open a PR.
 - Skills in [skills-lock.json](skills-lock.json) are synced by skilly: change them in the hub, https://github.com/timschoch/skilly. Repo-owned skills (not in the lock) live in `.agents/skills/` too, for example [t3-threads](.agents/skills/t3-threads/SKILL.md).
 - A skill with `disable-model-invocation` refuses the Skill tool: read its `SKILL.md` in full and apply it. Examples: `ask-matt`, `interface-review`, `break`, `variant`.
