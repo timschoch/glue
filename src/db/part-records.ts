@@ -390,6 +390,8 @@ type PartRow = {
   supersedesId?: number
   // The row id of the Decision that superseded it.
   supersededById?: number
+  // The Signals that it grew from, in their order.
+  signals?: { url: string; title: string }[]
 }
 
 // Adds the Part, and gives back its record id. `gate` is a common table
@@ -402,6 +404,7 @@ async function addPartRow(
 ): Promise<string | null> {
   const { projectId, conceptId, type, fields, neededPartIds = [] } = row
   const { mentionedRecordIds = [], supersedesId, supersededById } = row
+  const { signals = [] } = row
   const status = fields.status ?? (type === 'goal' ? 'open' : null)
   const { trust, workState } = stateOfStatus(type, status) ?? NEW_PART_STATE
   const isDated = type === 'decision' || type === 'insight'
@@ -506,6 +509,23 @@ async function addPartRow(
             from added_part
           )`
         : sql``
+    }
+    ${
+      signals.length === 0
+        ? sql``
+        : sql`, added_signals as (
+            insert into "signals" ("project_id", "url", "title", "part_id")
+            select ${projectId}::integer, grown."url", grown."title", added_part."id"
+            from added_part,
+              (${sql.join(
+                signals.map(
+                  ({ url, title }, position) =>
+                    sql`select ${position}::integer, ${url}::text, ${title}::text`,
+                ),
+                sql` union all `,
+              )}) as grown ("position", "url", "title")
+            order by grown."position"
+          )`
     }
     ${
       supersedesId === undefined
@@ -639,6 +659,33 @@ export async function addCommentInsight(
       returning "id"
     )`,
   )
+}
+
+// Adds the draft Insight that grows from the Signals, and the Signals with
+// it, as one statement: a failure must not leave the Insight without its
+// Signals. Gives back its record id.
+export async function addInsightOfSignals(
+  db: ConceptDb,
+  projectSlug: string,
+  insight: z.input<typeof fieldSchemas.insight> & { concept?: string },
+  signals: { url: string; title: string }[],
+): Promise<string> {
+  const { concept, ...inputFields } = insight
+  const fields = parseInput(partSchemas.insight, {
+    ...inputFields,
+    status: 'draft',
+  })
+  const projectId = await getProjectId(db, projectSlug)
+  const conceptId = await findConceptId(db, projectId, concept)
+  const recordId = await addPartRow(db, {
+    projectId,
+    conceptId,
+    type: 'insight',
+    fields,
+    mentionedRecordIds: findMentionedRecordIds(projectSlug, fields.body),
+    signals,
+  })
+  return z.string().parse(recordId)
 }
 
 // The state that a guarded write expects of the Part. The statement holds

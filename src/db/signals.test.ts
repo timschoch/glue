@@ -155,6 +155,31 @@ describe('addSignalInsight', () => {
     expect(await findPart(db, 'glue', 'I2')).toBeUndefined()
   })
 
+  it('adds no Insight when the write of its Signals fails', async () => {
+    // Two requests at the same time grow the same Signal. The second one
+    // breaks the rule that a Signal grows into one Insight.
+    const results = await Promise.allSettled([
+      addSignalInsight(db, fake.github, 'glue', {
+        signals: [slow.url],
+        title: 'The list is slow',
+      }),
+      addSignalInsight(db, fake.github, 'glue', {
+        signals: [slow.url],
+        title: 'The list is slow again',
+      }),
+    ])
+
+    expect(results.map(({ status }) => status)).toEqual([
+      'fulfilled',
+      'rejected',
+    ])
+    expect(await findPart(db, 'glue', 'I1')).toMatchObject({
+      title: 'The list is slow',
+      signals: [{ url: slow.url, title: slow.title }],
+    })
+    expect(await findPart(db, 'glue', 'I2')).toBeUndefined()
+  })
+
   it('refuses a Project without a repository', async () => {
     await expect(
       addSignalInsight(db, fake.github, 'flexibeck', {
