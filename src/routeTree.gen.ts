@@ -20,6 +20,7 @@ import { Route as ApiCronMeasureRouteImport } from './routes/api/cron.measure'
 import { Route as ApiV1OpenapiDotjsonRouteImport } from './routes/api/v1.openapi[.]json'
 import { Route as SignedInProjectConceptIndexRouteImport } from './routes/_signed-in.$project.$concept.index'
 import { Route as SignedInProjectConceptRecordIdRouteImport } from './routes/_signed-in.$project.$concept.$recordId'
+import { Route as SignedInProjectConceptContractVersionRouteImport } from './routes/_signed-in.$project.$concept.contract.$version'
 import { Route as ApiV1ProductsProductFolderRouteImport } from './routes/api/v1.products.$product.$folder'
 import { Route as ApiV1ProductsProductConceptRouteImport } from './routes/api/v1.products.$product.concept'
 import { Route as ApiV1ProductsProductMeasureRouteImport } from './routes/api/v1.products.$product.measure'
@@ -95,6 +96,12 @@ const SignedInProjectConceptRecordIdRoute =
   SignedInProjectConceptRecordIdRouteImport.update({
     id: '/$concept/$recordId',
     path: '/$concept/$recordId',
+    getParentRoute: () => SignedInProjectRoute,
+  } as any)
+const SignedInProjectConceptContractVersionRoute =
+  SignedInProjectConceptContractVersionRouteImport.update({
+    id: '/$concept/contract/$version',
+    path: '/$concept/contract/$version',
     getParentRoute: () => SignedInProjectRoute,
   } as any)
 const ApiV1ProductsProductFolderRoute =
@@ -229,6 +236,7 @@ export interface FileRoutesByFullPath {
   '/$project/': typeof SignedInProjectIndexRoute
   '/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
   '/$project/$concept/': typeof SignedInProjectConceptIndexRoute
+  '/$project/$concept/contract/$version': typeof SignedInProjectConceptContractVersionRoute
   '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
@@ -260,6 +268,7 @@ export interface FileRoutesByTo {
   '/$project': typeof SignedInProjectIndexRoute
   '/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
   '/$project/$concept': typeof SignedInProjectConceptIndexRoute
+  '/$project/$concept/contract/$version': typeof SignedInProjectConceptContractVersionRoute
   '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
@@ -294,6 +303,7 @@ export interface FileRoutesById {
   '/_signed-in/$project/': typeof SignedInProjectIndexRoute
   '/_signed-in/$project/$concept/$recordId': typeof SignedInProjectConceptRecordIdRoute
   '/_signed-in/$project/$concept/': typeof SignedInProjectConceptIndexRoute
+  '/_signed-in/$project/$concept/contract/$version': typeof SignedInProjectConceptContractVersionRoute
   '/api/v1/products/$product/$folder': typeof ApiV1ProductsProductFolderRouteWithChildren
   '/api/v1/products/$product/concept': typeof ApiV1ProductsProductConceptRoute
   '/api/v1/products/$product/measure': typeof ApiV1ProductsProductMeasureRoute
@@ -328,6 +338,7 @@ export interface FileRouteTypes {
     | '/$project/'
     | '/$project/$concept/$recordId'
     | '/$project/$concept/'
+    | '/$project/$concept/contract/$version'
     | '/api/v1/products/$product/$folder'
     | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
@@ -359,6 +370,7 @@ export interface FileRouteTypes {
     | '/$project'
     | '/$project/$concept/$recordId'
     | '/$project/$concept'
+    | '/$project/$concept/contract/$version'
     | '/api/v1/products/$product/$folder'
     | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
@@ -392,6 +404,7 @@ export interface FileRouteTypes {
     | '/_signed-in/$project/'
     | '/_signed-in/$project/$concept/$recordId'
     | '/_signed-in/$project/$concept/'
+    | '/_signed-in/$project/$concept/contract/$version'
     | '/api/v1/products/$product/$folder'
     | '/api/v1/products/$product/concept'
     | '/api/v1/products/$product/measure'
@@ -511,6 +524,13 @@ declare module '@tanstack/react-router' {
       path: '/$concept/$recordId'
       fullPath: '/$project/$concept/$recordId'
       preLoaderRoute: typeof SignedInProjectConceptRecordIdRouteImport
+      parentRoute: typeof SignedInProjectRoute
+    }
+    '/_signed-in/$project/$concept/contract/$version': {
+      id: '/_signed-in/$project/$concept/contract/$version'
+      path: '/$concept/contract/$version'
+      fullPath: '/$project/$concept/contract/$version'
+      preLoaderRoute: typeof SignedInProjectConceptContractVersionRouteImport
       parentRoute: typeof SignedInProjectRoute
     }
     '/api/v1/products/$product/$folder': {
@@ -660,12 +680,15 @@ interface SignedInProjectRouteChildren {
   SignedInProjectIndexRoute: typeof SignedInProjectIndexRoute
   SignedInProjectConceptRecordIdRoute: typeof SignedInProjectConceptRecordIdRoute
   SignedInProjectConceptIndexRoute: typeof SignedInProjectConceptIndexRoute
+  SignedInProjectConceptContractVersionRoute: typeof SignedInProjectConceptContractVersionRoute
 }
 
 const SignedInProjectRouteChildren: SignedInProjectRouteChildren = {
   SignedInProjectIndexRoute: SignedInProjectIndexRoute,
   SignedInProjectConceptRecordIdRoute: SignedInProjectConceptRecordIdRoute,
   SignedInProjectConceptIndexRoute: SignedInProjectConceptIndexRoute,
+  SignedInProjectConceptContractVersionRoute:
+    SignedInProjectConceptContractVersionRoute,
 }
 
 const SignedInProjectRouteWithChildren = SignedInProjectRoute._addFileChildren(

@@ -21,6 +21,8 @@ import type { Server } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
 import {
   findConcept,
+  findContract,
+  findContractState,
   findPart,
   findProject,
   parts,
@@ -91,6 +93,11 @@ async function renderPage(path: string, changed: Partial<Server> = {}) {
     fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
     fetchSignals: vi.fn(() => Promise.resolve({ signals, reason: null })),
     addSignalInsight: vi.fn(() => Promise.resolve(saved('I3'))),
+    fetchContractState: vi.fn((input) =>
+      Promise.resolve(findContractState(input)),
+    ),
+    fetchContract: vi.fn((input) => Promise.resolve(findContract(input))),
+    signContract: vi.fn(() => Promise.resolve({ version: 2 })),
     addProject: vi.fn(({ slug }) => Promise.resolve({ slug })),
     addConcept: vi.fn(({ concept }) => Promise.resolve({ slug: concept.slug })),
     addPart: vi.fn(() => Promise.resolve(saved('D4'))),
@@ -284,10 +291,12 @@ describe('a section', () => {
   it('shows only its Part types, and all types again after a second click', async () => {
     const { expectAddress } = await renderPage('/glue/part-model')
 
+    // The Contract is not a Part type: each lens shows it.
     const groups = () =>
       screen
         .getAllByRole('heading', { level: 2 })
         .map((heading) => heading.textContent)
+        .filter((title) => title !== 'Contract')
 
     const all = [
       'Insights',
