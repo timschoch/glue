@@ -106,7 +106,7 @@ describe('the Contract of a Concept', () => {
 
     await userEvent.click(panel.getByRole('button', { name: 'Sign off' }))
 
-    expect(panel.getByText('Ahead')).toBeTruthy()
+    panel.getByText('Ahead')
     expect(onSignOff).toHaveBeenCalledOnce()
   })
 
@@ -114,7 +114,7 @@ describe('the Contract of a Concept', () => {
     const { panel } = renderPanel({ versions: [] })
 
     expect(panel.queryAllByRole('link')).toEqual([])
-    expect(panel.getByRole('button', { name: 'Sign off' })).toBeTruthy()
+    panel.getByRole('button', { name: 'Sign off' })
   })
 
   it('shows the Parts that block above a sign-off that is not available', () => {
@@ -126,7 +126,7 @@ describe('the Contract of a Concept', () => {
       name: 'Sign off',
     })
 
-    expect(within(card).getByLabelText('Flagged')).toBeTruthy()
+    within(card).getByLabelText('Flagged')
     expect(action.disabled).toBe(true)
     expect(
       card.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -189,10 +189,10 @@ describe('a Contract Version', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
       'Technique videos',
     )
-    expect(head.getByText('Contract Version 1')).toBeTruthy()
-    expect(head.getByText(CHECKSUM_1)).toBeTruthy()
-    expect(head.getByText('Grace')).toBeTruthy()
-    expect(head.getByText('2026-10-01')).toBeTruthy()
+    head.getByText('Contract Version 1')
+    head.getByText(CHECKSUM_1)
+    head.getByText('Grace')
+    head.getByText('2026-10-01')
   })
 
   it('shows tier 1 before tier 2, each Part with its text', () => {
@@ -210,8 +210,8 @@ describe('a Contract Version', () => {
         .getAllByRole('heading', { level: 3 })
         .map((heading) => heading.textContent),
     ).toEqual(['Watch a technique while baking', 'Only creator videos'])
-    expect(within(tiers[0]).getByText(/The video loops\./)).toBeTruthy()
-    expect(within(tiers[1]).getByText('G2')).toBeTruthy()
+    within(tiers[0]).getByText(/The video loops\./)
+    within(tiers[1]).getByText('G2')
   })
 
   it('is read-only: no button and no field', () => {

@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  LAYER_GAP,
-  NODE_GAP,
-  NODE_HEIGHT,
-  NODE_WIDTH,
-  layoutLayers,
-  layoutMap,
-} from './concept-map-layout.ts'
+import { layoutLayers, layoutMap } from './concept-map-layout.ts'
 
 const GOAL = { id: 'G1', rank: 0 }
 const INSIGHT = { id: 'I1', rank: 0 }
@@ -84,31 +77,22 @@ describe('layoutLayers', () => {
 describe('layoutMap', () => {
   it('places the layers from top to bottom, each one in the middle', () => {
     const map = layoutMap([['G1', 'I1'], ['D1']], [])
-    const layerWidth = 2 * NODE_WIDTH + NODE_GAP
 
-    expect(map.width).toBe(layerWidth)
-    expect(map.height).toBe(2 * NODE_HEIGHT + LAYER_GAP)
+    expect(map.width).toBe(27)
+    expect(map.height).toBe(19)
     expect(map.places).toEqual({
       G1: { left: 0, top: 0 },
-      I1: { left: NODE_WIDTH + NODE_GAP, top: 0 },
-      D1: {
-        left: (layerWidth - NODE_WIDTH) / 2,
-        top: NODE_HEIGHT + LAYER_GAP,
-      },
+      I1: { left: 14, top: 0 },
+      D1: { left: 7, top: 11 },
     })
   })
 
   it('draws a Joint from the lower edge of the upper node to the upper edge of the lower node', () => {
     const needed = joint('D1', 'G1')
     const map = layoutMap([['G1'], ['D1']], [needed])
-    const middle = NODE_WIDTH / 2
-    const bend = NODE_HEIGHT + LAYER_GAP / 2
 
     expect(map.lines).toEqual([
-      {
-        id: needed.id,
-        path: `M ${middle} ${NODE_HEIGHT} C ${middle} ${bend}, ${middle} ${bend}, ${middle} ${NODE_HEIGHT + LAYER_GAP}`,
-      },
+      { id: needed.id, path: 'M 6.5 8 C 6.5 9.5, 6.5 9.5, 6.5 11' },
     ])
   })
 
@@ -116,12 +100,7 @@ describe('layoutMap', () => {
     const both = joint('F1', 'E1', true)
     const map = layoutMap([['F1', 'E1']], [both])
 
-    expect(map.lines).toEqual([
-      {
-        id: both.id,
-        path: `M ${NODE_WIDTH} ${NODE_HEIGHT / 2} L ${NODE_WIDTH + NODE_GAP} ${NODE_HEIGHT / 2}`,
-      },
-    ])
+    expect(map.lines).toEqual([{ id: both.id, path: 'M 13 4 L 14 4' }])
   })
 
   it('draws no Joint with an end that has no place', () => {

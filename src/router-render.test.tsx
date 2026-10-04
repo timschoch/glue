@@ -194,12 +194,12 @@ describe('the start of a Project', () => {
     expect(pageTitle()).toBe('Glue')
     expect(items('Breadcrumb')).toEqual(['Glue'])
     expect(items('Concepts')).toEqual(['Part model2 Parts', 'Flows0 Parts'])
-    expect(card('G1')).toBeDefined()
+    card('G1')
     expect(
       panel.getByRole('combobox', { name: 'Project' }).firstChild?.textContent,
     ).toBe('Glue')
-    expect(panel.getByRole('button', { name: 'Part model' })).toBeDefined()
-    expect(panel.getByRole('link', { name: 'Flows' })).toBeDefined()
+    panel.getByRole('button', { name: 'Part model' })
+    panel.getByRole('link', { name: 'Flows' })
     expect(panel.queryByRole('link', { current: 'page' })).toBeNull()
   })
 
@@ -208,12 +208,10 @@ describe('the start of a Project', () => {
 
     expect(screen.queryByRole('navigation', { name: 'Trail' })).toBeNull()
     expect(screen.queryByRole('complementary', { name: 'Pinned' })).toBeNull()
-    expect(
-      within(screen.getByRole('region', { name: 'Metrics' })).getByRole(
-        'button',
-        { name: 'Add Metric' },
-      ),
-    ).toBeDefined()
+    within(screen.getByRole('region', { name: 'Metrics' })).getByRole(
+      'button',
+      { name: 'Add Metric' },
+    )
   })
 
   it('switches a Concept to the map and back, and the address keeps the view', async () => {
@@ -223,7 +221,6 @@ describe('the start of a Project', () => {
 
     await expectAddress('/glue/part-model', { view: 'map' })
     expect(screen.queryByRole('region', { name: 'Decisions' })).toBeNull()
-    expect(card('D4').closest('li')?.style.top).toBeDefined()
     expect(
       screen.getByRole('tab', { name: 'Map' }).getAttribute('aria-selected'),
     ).toBe('true')
@@ -231,7 +228,7 @@ describe('the start of a Project', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'List' }))
 
     await expectAddress('/glue/part-model')
-    expect(screen.getByRole('region', { name: 'Decisions' })).toBeDefined()
+    screen.getByRole('region', { name: 'Decisions' })
   })
 
   it('opens a Concept with a click on its tile', async () => {
@@ -302,7 +299,7 @@ describe('the start of a Project', () => {
     await renderPage('/glue/nope')
 
     expect(pageTitle()).toBe('No Concept nope')
-    expect(screen.getByRole('navigation', { name: 'Main' })).toBeDefined()
+    screen.getByRole('navigation', { name: 'Main' })
   })
 })
 
@@ -364,20 +361,27 @@ describe('a section', () => {
       '/glue/part-model?section=Understand',
     )
 
-    await userEvent.click(
-      screen.getByRole('checkbox', { name: 'The list is slow' }),
-    )
-    await userEvent.click(screen.getByRole('button', { name: 'Make Insight' }))
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-03T12:00Z') })
+    try {
+      await userEvent.click(
+        screen.getByRole('checkbox', { name: 'The list is slow' }),
+      )
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Make Insight' }),
+      )
 
-    expect(pageTitle()).toBe('Insight')
-    const title = screen.getByRole<HTMLInputElement>('textbox', {
-      name: 'Title',
-    })
-    expect(title.value).toBe('The list is slow')
+      expect(pageTitle()).toBe('Insight')
+      const title = screen.getByRole<HTMLInputElement>('textbox', {
+        name: 'Title',
+      })
+      expect(title.value).toBe('The list is slow')
 
-    await userEvent.clear(title)
-    await userEvent.type(title, 'Long lists are slow')
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+      await userEvent.clear(title)
+      await userEvent.type(title, 'Long lists are slow')
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    } finally {
+      vi.useRealTimers()
+    }
 
     await expectAddress('/glue/part-model/I3', { section: 'Understand' })
     expect(server.addSignalInsight).toHaveBeenCalledWith({
@@ -387,7 +391,7 @@ describe('a section', () => {
         title: 'Long lists are slow',
         body: '',
         source: 'https://github.com/timschoch/glue/issues/7',
-        date: new Date().toISOString().slice(0, 10),
+        date: '2026-10-03',
         evidenceLevel: 'hunch',
         concept: 'part-model',
       },
@@ -403,7 +407,7 @@ describe('a section', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Make Insight' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    expect(screen.getByRole('heading', { name: 'Signals' })).toBeDefined()
+    screen.getByRole('heading', { name: 'Signals' })
   })
 
   it('goes from a record to its Concept, keeps the pins and ends the trail', async () => {
@@ -544,7 +548,7 @@ describe('a record', () => {
     await renderPage('/glue/part-model/D9')
 
     expect(pageTitle()).toBe('No record D9')
-    expect(screen.getByRole('navigation', { name: 'Main' })).toBeDefined()
+    screen.getByRole('navigation', { name: 'Main' })
   })
 })
 
@@ -614,7 +618,7 @@ describe('a new Part', () => {
     await userEvent.click(button('Save'))
 
     expect(field('Date').getAttribute('aria-invalid')).toBe('true')
-    expect(screen.getByText(/^Enter a date, such as /)).toBeDefined()
+    screen.getByText(/^Enter a date, such as /)
     expect(server.addPart).not.toHaveBeenCalled()
   })
 
@@ -763,7 +767,7 @@ describe('a flagged record', () => {
 
     const flags = within(screen.getByRole('list', { name: 'Flags' }))
 
-    expect(flags.getByText('Changed')).toBeDefined()
+    flags.getByText('Changed')
 
     await userEvent.click(flags.getByRole('link', { name: / I3 / }))
 
@@ -887,8 +891,8 @@ describe('the answers of a Decision', () => {
 
     const main = within(screen.getByRole('main'))
 
-    expect(main.getByText('Wrong')).toBeDefined()
-    expect(main.getByText('Sunk')).toBeDefined()
+    main.getByText('Wrong')
+    main.getByText('Sunk')
     expect(main.queryByRole('region', { name: 'Next' })).toBeNull()
   })
 
@@ -924,7 +928,7 @@ describe('the answers of a Decision', () => {
     const main = within(screen.getByRole('main'))
 
     expect(main.queryByRole('button', { name: 'Supersede' })).toBeNull()
-    expect(main.getByRole('button', { name: 'Add Flow' })).toBeDefined()
+    main.getByRole('button', { name: 'Add Flow' })
   })
 })
 
@@ -946,7 +950,7 @@ describe('the common flow of a record', () => {
     expect(next.previousElementSibling).toBe(
       screen.getByRole('list', { name: 'Decision to Brief' }),
     )
-    expect(within(next).getByRole('button', { name: 'Add Flow' })).toBeDefined()
+    within(next).getByRole('button', { name: 'Add Flow' })
   })
 
   it('adds the Flow that needs the Decision', async () => {
@@ -983,11 +987,7 @@ describe('the common flow of a record', () => {
 
     await expectAddress('/glue/glue/G1', { add: 'decision' })
     expect(pageTitle()).toBe('Decision')
-    expect(
-      within(screen.getByRole('main')).getByText(
-        'Agents build from the Concept',
-      ),
-    ).toBeDefined()
+    within(screen.getByRole('main')).getByText('Agents build from the Concept')
   })
 
   it('opens the form of an Insight to raise its level', async () => {
@@ -1185,7 +1185,7 @@ describe('a new Concept and a new Project', () => {
 
       await userEvent.click(button('Save'))
 
-      expect(screen.getByText(reason)).toBeDefined()
+      screen.getByText(reason)
       expect(server.addProject).not.toHaveBeenCalled()
       expect(server.addConcept).not.toHaveBeenCalled()
     },

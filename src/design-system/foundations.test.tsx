@@ -13,7 +13,7 @@ describe('Foundations', () => {
   it('names the main window as the place of a record title', () => {
     render(<TypeScale />)
 
-    expect(screen.getByText('Record title in the main window')).toBeDefined()
+    screen.getByText('Record title in the main window')
     expect(screen.queryByText(/detail panel/)).toBeNull()
   })
 })

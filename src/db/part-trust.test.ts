@@ -2,7 +2,15 @@ import { PGlite } from '@electric-sql/pglite'
 import type { SQL } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 import { keepInsight } from './concept-records.ts'
 import {
@@ -12,7 +20,6 @@ import {
   answerPart,
   removePart,
   supersedeDecision,
-  todayUtc,
   updatePart,
 } from './part-records.ts'
 import { findPart, listMine, listParts } from './parts.ts'
@@ -750,31 +757,41 @@ describe('an answer in words', () => {
     const id = await addProposedDecision()
     await updatePart(db, 'glue', id, { body: 'Option 1 or option 2?' })
 
-    await answerPart(db, 'glue', id, {
-      answer: 'supersede',
-      words: 'Take option 2',
-      by: 'Tim',
-    })
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-03T12:00Z') })
+    try {
+      await answerPart(db, 'glue', id, {
+        answer: 'supersede',
+        words: 'Take option 2',
+        by: 'Tim',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
 
     expect(await findPart(db, 'glue', id)).toMatchObject({
       ...solid,
       status: 'accepted',
-      body: `Option 1 or option 2?\n\nTim, ${todayUtc()}: Take option 2`,
+      body: 'Option 1 or option 2?\n\nTim, 2026-10-03: Take option 2',
     })
   })
 
   it('is the whole body of a Part without one, and the Decision is sunk', async () => {
     const id = await addProposedDecision()
 
-    await answerPart(db, 'glue', id, {
-      answer: 'sink',
-      words: 'Neither',
-      by: 'Tim',
-    })
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-03T12:00Z') })
+    try {
+      await answerPart(db, 'glue', id, {
+        answer: 'sink',
+        words: 'Neither',
+        by: 'Tim',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
 
     expect(await findPart(db, 'glue', id)).toMatchObject({
       workState: 'sunk',
-      body: `Tim, ${todayUtc()}: Neither`,
+      body: 'Tim, 2026-10-03: Neither',
     })
   })
 

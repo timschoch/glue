@@ -74,7 +74,7 @@ describe('CredentialsForm', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
       'Sign in to Glue',
     )
-    expect(screen.getByRole('form', { name: 'Sign in to Glue' })).toBeDefined()
+    screen.getByRole('form', { name: 'Sign in to Glue' })
   })
 
   it('labels each field and lets a password manager fill it', () => {
@@ -240,7 +240,7 @@ describe('CredentialsForm', () => {
   it('shows the words of the action in the place of the button while it is pending, and takes no second submit', async () => {
     const { onSubmit } = renderForm({ pending: true })
 
-    expect(screen.getByText('Signing in')).toBeDefined()
+    screen.getByText('Signing in')
     expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
 
     await fillSignIn()

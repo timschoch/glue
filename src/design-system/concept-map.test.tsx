@@ -87,7 +87,7 @@ describe('ConceptMap', () => {
     expect(card.textContent).toContain(
       'Decision D12 Show the video of the creator',
     )
-    expect(within(card).getByLabelText('Solid')).toBeTruthy()
+    within(card).getByLabelText('Solid')
   })
 
   it('has a Part below the Parts that it needs', () => {
@@ -173,7 +173,7 @@ describe('ConceptMap', () => {
     })
 
     expect(screen.queryByRole('button')).toBeNull()
-    expect(screen.getByText('Metric')).toBeTruthy()
+    screen.getByText('Metric')
   })
 
   it('shows a Concept inside as a surface with its name, below the Parts', async () => {
@@ -218,7 +218,7 @@ describe('ConceptMap', () => {
   it('says that a Concept has no Parts', () => {
     renderMap({ concept: { ...CONCEPT, parts: [], joints: [] } })
 
-    expect(screen.getByText('No Parts')).toBeTruthy()
+    screen.getByText('No Parts')
     expect(screen.queryByRole('list')).toBeNull()
   })
 

@@ -233,7 +233,7 @@ describe('Record', () => {
       body: '## Why\n\nA baker **sees** the hands.\n\n- one\n- two\n\n![](https://example.com/a.png)',
     })
 
-    expect(screen.getByRole('heading', { name: 'Why' })).toBeDefined()
+    screen.getByRole('heading', { name: 'Why' })
     expect(screen.getByText('sees').tagName).toBe('STRONG')
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
     expect(screen.queryByRole('img')).toBeNull()
@@ -249,7 +249,7 @@ describe('Record', () => {
     const link = screen.getByRole('link', { name: '#I7' })
 
     expect(link.getAttribute('href')).toBe('#I7')
-    expect(screen.getByRole('link', { name: '#G2' })).toBeDefined()
+    screen.getByRole('link', { name: '#G2' })
 
     await userEvent.click(link)
 
@@ -280,11 +280,11 @@ describe('Record', () => {
     const card = screen.getByText('Bakers want step videos').closest('a')
 
     expect(card && texts(card)).toEqual(['Insight', 'I7'])
-    expect(within(card!).getByRole('img', { name: 'Solid' })).toBeDefined()
+    within(card!).getByRole('img', { name: 'Solid' })
 
     await userEvent.hover(card!)
 
-    expect(screen.getByText('Bakers want step videos')).toBeDefined()
+    screen.getByText('Bakers want step videos')
 
     await userEvent.unhover(card!)
 
@@ -300,7 +300,7 @@ describe('Record', () => {
     expect(document.activeElement).toBe(
       screen.getByRole('link', { name: '#I7' }),
     )
-    expect(screen.getByText('Bakers want step videos')).toBeDefined()
+    screen.getByText('Bakers want step videos')
 
     await userEvent.keyboard('{Escape}')
 
@@ -316,7 +316,7 @@ describe('Record', () => {
     await userEvent.tab()
     await userEvent.tab()
 
-    expect(screen.getByText('Bakers want step videos')).toBeDefined()
+    screen.getByText('Bakers want step videos')
 
     await userEvent.tab()
 
@@ -324,7 +324,7 @@ describe('Record', () => {
       screen.getByRole('link', { name: '#G2' }),
     )
     expect(screen.queryByText('Bakers want step videos')).toBeNull()
-    expect(screen.getByText('First bake feels easy')).toBeDefined()
+    screen.getByText('First bake feels easy')
   })
 
   it('shows no type field when none has a value', () => {
@@ -415,9 +415,7 @@ describe('Record', () => {
   it('shows an issue address with no number as it is', () => {
     renderRecord({ issueUrl: 'https://example.com/issues' })
 
-    expect(
-      screen.getByRole('link', { name: 'https://example.com/issues' }),
-    ).toBeDefined()
+    screen.getByRole('link', { name: 'https://example.com/issues' })
   })
 
   it('shows the Signals that an Insight grew from, each as a link out', () => {
@@ -482,9 +480,7 @@ describe('Record', () => {
     ).getAllByRole('listitem')
 
     expect(within(local).queryByText('Technique videos')).toBeNull()
-    expect(
-      within(within(linked).getByRole('link')).getByText('First bake'),
-    ).toBeDefined()
+    within(within(linked).getByRole('link')).getByText('First bake')
     expect(linked.children).toHaveLength(1)
   })
 
@@ -631,7 +627,7 @@ describe('Record', () => {
       },
     )
 
-    expect(screen.getByText('Signing off')).toBeDefined()
+    screen.getByText('Signing off')
     expect(screen.queryByRole('button', { name: 'Sign off' })).toBeNull()
     expect(screen.getAllByRole('button')).toHaveLength(1)
   })
@@ -648,9 +644,7 @@ describe('Record', () => {
     const alert = screen.getByRole('alert')
     const button = screen.getByRole('button', { name: 'Sign off' })
 
-    expect(
-      within(alert).getByText('Not signed off: the Goal G2 is sunk'),
-    ).toBeDefined()
+    within(alert).getByText('Not signed off: the Goal G2 is sunk')
     expect(alert.className).toContain('--error')
     expect(alert.className).toContain('--low-contrast')
     expect(within(alert).queryByRole('button')).toBeNull()
@@ -721,7 +715,7 @@ describe('Record', () => {
 
     const needs = within(screen.getByRole('region', { name: 'Needs' }))
 
-    expect(needs.getByRole('combobox', { name: 'Add Joint' })).toBeDefined()
+    needs.getByRole('combobox', { name: 'Add Joint' })
     expect(needs.queryByRole('list')).toBeNull()
     expect(screen.getAllByRole('region')).toHaveLength(1)
   })

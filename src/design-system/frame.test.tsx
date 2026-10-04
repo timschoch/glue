@@ -295,7 +295,7 @@ describe('Frame', () => {
     const main = within(screen.getByRole('main'))
 
     expect(main.queryByRole('navigation', { name: 'Trail' })).toBeNull()
-    expect(main.getByRole('button', { name: '2 pinned' })).toBeDefined()
+    main.getByRole('button', { name: '2 pinned' })
   })
 
   it('shows the last Concept of the breadcrumb alone below md, on one line with an ellipsis', () => {
@@ -483,7 +483,7 @@ describe('Frame', () => {
     const switcher = within(panel).getByRole('combobox', { name: /Project/ })
 
     expect(panel.querySelector('a, button')).toBe(switcher)
-    expect(within(switcher).getByText('Bakeday')).toBeDefined()
+    within(switcher).getByText('Bakeday')
 
     await userEvent.click(switcher)
     await userEvent.click(screen.getByRole('option', { name: 'Flexibeck' }))
@@ -771,19 +771,16 @@ describe('Frame', () => {
 
     const panel = within(screen.getByRole('navigation', { name: 'Main' }))
 
-    expect(panel.getByRole('link', { name: 'Mine 3' })).toBeDefined()
-    expect(panel.getByRole('link', { name: 'Decide' })).toBeDefined()
+    panel.getByRole('link', { name: 'Mine 3' })
+    panel.getByRole('link', { name: 'Decide' })
   })
 
   it('shows no count beside Mine at zero', () => {
     renderFrame([], undefined, undefined, { mineCount: 0 })
 
-    expect(
-      within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
-        'link',
-        { name: 'Mine' },
-      ),
-    ).toBeDefined()
+    within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', {
+      name: 'Mine',
+    })
   })
 
   it.each([

@@ -91,12 +91,13 @@ describe('PartSearch', () => {
   it('shows the reason of a wrong pick', () => {
     renderSearch('I3 is sunk')
 
-    expect(screen.getByText('I3 is sunk')).toBeDefined()
+    screen.getByText('I3 is sunk')
+    expect(document.querySelector('[data-invalid]')).not.toBeNull()
   })
 
   it('shows no reason without one', () => {
     renderSearch()
 
-    expect(search().getAttribute('aria-invalid')).not.toBe('true')
+    expect(document.querySelector('[data-invalid]')).toBeNull()
   })
 })

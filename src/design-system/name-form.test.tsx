@@ -45,7 +45,7 @@ describe('NameForm', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
       'Project',
     )
-    expect(screen.getByRole('form', { name: 'Project' })).toBeDefined()
+    screen.getByRole('form', { name: 'Project' })
     expect(screen.getAllByRole('textbox')).toEqual([
       screen.getByLabelText('Name'),
     ])
@@ -139,9 +139,9 @@ describe('NameForm', () => {
   it('shows the words of the action in the place of the save button while it saves, and saves no second time', async () => {
     const { onSave } = renderForm({ pending: true })
 
-    expect(screen.getByText('Saving')).toBeDefined()
+    screen.getByText('Saving')
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDefined()
+    screen.getByRole('button', { name: 'Cancel' })
 
     await userEvent.type(field(), 'Step videos{Enter}')
 

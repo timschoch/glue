@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { PartFormValues } from '../design-system/part-form.tsx'
 import { findPart } from '../test/project.ts'
@@ -70,9 +70,14 @@ describe('the values of the Part form', () => {
   it.each(['insight', 'decision'] as const)(
     'names a date of the type %s that is no date',
     (type) => {
-      expect(findProblems(type, { ...values, date: '4.10.2026' })).toEqual({
-        date: 'Enter a date, such as 2026-10-04.',
-      })
+      vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-04T12:00Z') })
+      try {
+        expect(findProblems(type, { ...values, date: '4.10.2026' })).toEqual({
+          date: 'Enter a date, such as 2026-10-04.',
+        })
+      } finally {
+        vi.useRealTimers()
+      }
       expect(findProblems(type, values)).toEqual({})
     },
   )

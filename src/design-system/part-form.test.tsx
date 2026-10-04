@@ -168,14 +168,14 @@ describe('PartForm', () => {
   it('names the Part type as text, not as a field', () => {
     renderForm({ type: 'guardrail' })
 
-    expect(screen.getByRole('form', { name: 'Guardrail' })).toBeDefined()
+    screen.getByRole('form', { name: 'Guardrail' })
     expect(screen.queryByLabelText(/type/i)).toBeNull()
   })
 
   it('names the record id of the Part it edits', () => {
     renderForm({ recordId: 'D12' })
 
-    expect(screen.getByRole('form', { name: 'Decision D12' })).toBeDefined()
+    screen.getByRole('form', { name: 'Decision D12' })
   })
 
   it('shows no helper text', () => {
@@ -326,7 +326,7 @@ describe('PartForm', () => {
       pending: true,
     })
 
-    expect(screen.getByText('Saving')).toBeDefined()
+    screen.getByText('Saving')
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
     expect(document.querySelector('[class*="skeleton"]')).toBeNull()
 
@@ -408,7 +408,7 @@ describe('PartForm', () => {
     ).getAllByRole('link')
 
     expect(card.getAttribute('href')).toBe('#I7')
-    expect(within(card).getByRole('img', { name: 'Solid' })).toBeDefined()
+    within(card).getByRole('img', { name: 'Solid' })
     expect(card.textContent).toBe('Solid Insight I7 Bakers want step videos')
     expect(picker('Evidence')).toHaveProperty('value', '')
 
@@ -467,9 +467,7 @@ describe('PartForm', () => {
 
     expect(picks('Goal')).toEqual(['Bakers come back'])
     expect(screen.queryByRole('combobox', { name: 'Goal' })).toBeNull()
-    expect(
-      screen.getByText('Goal', { selector: '[class*="pickerLabel"]' }),
-    ).toBeDefined()
+    screen.getByText('Goal', { selector: '[class*="pickerLabel"]' })
 
     await userEvent.click(iconButton('Remove G3'))
 
@@ -539,9 +537,9 @@ describe('PartForm', () => {
     })
 
     expect(field('Date').getAttribute('aria-invalid')).toBe('true')
-    expect(screen.getByText('Not a date')).toBeDefined()
-    expect(screen.getByText('G9 is not a Goal')).toBeDefined()
-    expect(screen.getByText('I3 is sunk')).toBeDefined()
+    screen.getByText('Not a date')
+    screen.getByText('G9 is not a Goal')
+    screen.getByText('I3 is sunk')
     expect(field('Title').getAttribute('aria-invalid')).not.toBe('true')
   })
 

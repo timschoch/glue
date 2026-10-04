@@ -27,21 +27,28 @@ function findParts(value: unknown): Array<Record<string, unknown>> {
 }
 
 describe('the Parts of the stories', () => {
-  it.each(Object.keys(stories))(
-    'have the Trust of their Work state in %s',
-    (file) => {
-      const wrong = findParts(stories[file])
-        .filter(
-          ({ trust, workState }) =>
-            !trusts[String(workState)].includes(String(trust)),
-        )
-        .map(({ id, recordId, trust, workState }) => ({
-          id: id ?? recordId,
-          trust,
-          workState,
-        }))
+  it('have the Trust of their Work state', () => {
+    const found = Object.entries(stories).flatMap(([file, story]) =>
+      findParts(story).map((part) => ({ file, part })),
+    )
+    const wrong = found
+      .filter(
+        ({ part }) =>
+          !trusts[String(part.workState)].includes(String(part.trust)),
+      )
+      .map(({ file, part }) => ({
+        file,
+        id: part.id ?? part.recordId,
+        trust: part.trust,
+        workState: part.workState,
+      }))
 
-      expect(wrong).toEqual([])
-    },
-  )
+    // The stories that have Parts: a search that finds none proves nothing.
+    expect([...new Set(found.map(({ file }) => file))]).toEqual([
+      './card.stories.tsx',
+      './part-cards.stories.tsx',
+      './record.stories.tsx',
+    ])
+    expect(wrong).toEqual([])
+  })
 })

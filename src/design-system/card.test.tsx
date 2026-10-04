@@ -221,21 +221,17 @@ describe('Card', () => {
       />,
     )
 
-    expect(
-      screen.getByRole('link', {
-        name: 'Solid Insight I3 Pattern Show the video of the creator A baker sees the hands. Goal Metric To check Mara First bake',
-      }),
-    ).toBeDefined()
+    screen.getByRole('link', {
+      name: 'Solid Insight I3 Pattern Show the video of the creator A baker sees the hands. Goal Metric To check Mara First bake',
+    })
   })
 
   it('names the link of the minimal card with spaces too', () => {
     render(<Card {...DECISION} minimal />)
 
-    expect(
-      screen.getByRole('link', {
-        name: 'Solid Decision D12 Show the video of the creator',
-      }),
-    ).toBeDefined()
+    screen.getByRole('link', {
+      name: 'Solid Decision D12 Show the video of the creator',
+    })
   })
 
   it('leaves out a slot that has no content', () => {
@@ -369,7 +365,7 @@ describe('Card', () => {
 
     const card = screen.getByRole('link')
 
-    expect(within(card).getByRole('img', { name: 'Solid' })).toBeDefined()
+    within(card).getByRole('img', { name: 'Solid' })
     expect(texts(card)).toEqual([
       'Decision',
       'D12',
