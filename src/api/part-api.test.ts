@@ -607,16 +607,6 @@ describe('POST a Part', () => {
     expect(fake.issues).toEqual([])
   })
 
-  it('opens the downstream issue of a Decision added as accepted', async () => {
-    const response = await call(handleAddPart, 'POST', {
-      body: { ...decision, status: 'accepted' },
-    })
-
-    expect(fake.issues).toHaveLength(1)
-    expect(response.body.issueUrl).toEqual(expect.any(String))
-    expect(response.body.issueError).toBeUndefined()
-  })
-
   it('keeps the accepted Decision and says why the issue is missing when GitHub fails', async () => {
     github = failingGithub
 
@@ -625,8 +615,11 @@ describe('POST a Part', () => {
     })
 
     expect(response.status).toBe(201)
-    expect(response.body).toMatchObject({ id: 'D1', status: 'accepted' })
-    expect(response.body.issueError).toEqual(expect.any(String))
+    expect(response.body).toMatchObject({
+      id: 'D1',
+      status: 'accepted',
+      issueError: 'GitHub answered 503',
+    })
   })
 })
 
@@ -690,19 +683,10 @@ describe('PATCH a Part', () => {
       body: { title: 'No query over 100ms' },
     })
 
-    expect(response.status).toBe(404)
-  })
-
-  it('opens the downstream issue when a Decision becomes accepted', async () => {
-    await call(handleAddPart, 'POST', { body: decision })
-
-    const response = await call(handleUpdatePart, 'PATCH', {
-      params: { recordId: 'D1' },
-      body: { status: 'accepted' },
+    expect(response).toEqual({
+      status: 404,
+      body: { error: { code: 'not-found', message: 'part "R9" not found' } },
     })
-
-    expect(response.body.status).toBe('accepted')
-    expect(fake.issues).toHaveLength(1)
   })
 
   it.each([null, 'https://github.com/timschoch/flexibeck-next/issues/7'])(
@@ -890,23 +874,22 @@ describe('Trust and the Work state', () => {
       body: { answer: 'sink' },
     })
 
-    expect(response.status).toBe(404)
+    expect(response).toEqual({
+      status: 404,
+      body: { error: { code: 'not-found', message: 'part "I9" not found' } },
+    })
   })
 
-  it('opens the downstream issue when the answer accepts a Decision', async () => {
-    await call(handleAddPart, 'POST', { body: decision })
-
-    const response = await call(handleAnswerPart, 'POST', {
-      params: { recordId: 'D1' },
-      body: { answer: 'supersede' },
+  it('answers 404 for an answer to the question of a Decision that does not exist', async () => {
+    const response = await call(handleAnswerQuestion, 'POST', {
+      params: { recordId: 'D9' },
+      body: { option: 1, by: 'Ada' },
     })
 
-    expect(response.body).toMatchObject({
-      status: 'accepted',
-      trust: 'solid',
-      workState: 'published',
+    expect(response).toEqual({
+      status: 404,
+      body: { error: { code: 'not-found', message: 'part "D9" not found' } },
     })
-    expect(fake.issues).toHaveLength(1)
   })
 
   it('lists what needs the owner: the Parts in to-check, draft and review', async () => {

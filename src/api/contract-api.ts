@@ -3,11 +3,7 @@
 // here document the answers in openapi.ts.
 import { z } from 'zod'
 
-import {
-  findContract,
-  findContractState,
-  signContract,
-} from '../db/contracts.ts'
+import { findContract, signContract } from '../db/contracts.ts'
 import type { Contract, FrozenPart } from '../db/contracts.ts'
 import { newConceptSchema } from '../db/part-records.ts'
 import { evidenceLevels, partTypes } from '../db/parts.ts'
@@ -102,9 +98,6 @@ export function handleSignContract(input: ApiRequest) {
     const { db, request, params } = input
     const { project, concept = '' } = params
     const { signedBy } = contractSignInputSchema.parse(await parseJson(request))
-    if (!(await findContractState(db, project, concept))) {
-      throw new ApiError('not-found', `concept "${concept}" not found`)
-    }
     const version = await signContract(db, project, concept, signedBy)
     return Response.json(await findContract(db, project, concept, version), {
       status: 201,

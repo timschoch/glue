@@ -32,13 +32,12 @@ import {
   listAssignments,
   listMembers,
 } from '../src/db/members.ts'
+import { createPartOperations } from '../src/db/part-operations.ts'
 import {
   addConcept,
   addJoint,
   addPart,
   addProject,
-  answerPart,
-  answerQuestion,
   parseNewPart,
   parsePartAnswer,
   parsePartChange,
@@ -466,34 +465,30 @@ export async function runConcept(
       const flags = parseFlags(asksQuestion ? rest.slice(1) : flagArgs)
       const product = (flags.project as string | undefined) ?? 'glue'
       const { waits_on: waitsOn, words, by } = flags
-      if (asksQuestion) {
-        const options = flags.option as string[] | undefined
-        await answerQuestion(
-          db,
-          product,
-          id,
-          parseQuestionAnswer({
-            ...(options
-              ? { option: Number(options[0]) }
-              : { text: flags.text }),
-            ...(by !== undefined && { by }),
-          }),
-        )
-      } else {
-        await answerPart(
-          db,
-          product,
-          id,
-          parsePartAnswer({
-            answer,
-            ...(waitsOn !== undefined && { waitsOn }),
-            ...(words !== undefined && { words }),
-            ...(by !== undefined && { by }),
-          }),
-        )
-      }
+      const operations = createPartOperations({ db, github: getGithub() })
+      const options = flags.option as string[] | undefined
+      const { issue } = asksQuestion
+        ? await operations.answerQuestion(
+            product,
+            id,
+            parseQuestionAnswer({
+              ...(options
+                ? { option: Number(options[0]) }
+                : { text: flags.text }),
+              ...(by !== undefined && { by }),
+            }),
+          )
+        : await operations.answerPart(
+            product,
+            id,
+            parsePartAnswer({
+              answer,
+              ...(waitsOn !== undefined && { waitsOn }),
+              ...(words !== undefined && { words }),
+              ...(by !== undefined && { by }),
+            }),
+          )
       if (typeOfRecordId(id) === 'decision') {
-        const issue = await createDownstreamIssue(db, getGithub(), product, id)
         console.error(formatDownstreamIssue(product, id, issue))
       }
       return

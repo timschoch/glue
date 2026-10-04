@@ -90,7 +90,7 @@ export const partsHandlers = {
 }
 
 export const partHandlers = {
-  GET: (route: RouteRequest) => handleGetPart(toApiRequest(route)),
+  GET: (route: RouteRequest) => handleGetPart(toChangeRequest(route)),
   PATCH: (route: RouteRequest) => handleUpdatePart(toChangeRequest(route)),
 }
 

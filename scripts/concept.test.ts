@@ -633,13 +633,20 @@ describe('runConcept', () => {
     )
   })
 
-  it('opens the downstream issue when the answer accepts a Decision', async () => {
+  it('names the issue that the answer to a Decision opened', async () => {
     await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
 
     await run('answer', 'D1', 'supersede', '--project', 'flexibeck')
 
-    expect(fake.issues).toHaveLength(1)
-    expect(await showIssueUrl('D1')).not.toBeNull()
+    expect(console.error).toHaveBeenLastCalledWith(
+      'issue: https://github.com/timschoch/flexibeck-next/issues/1',
+    )
+  })
+
+  it('refuses an answer to a Part that does not exist, and names the Part', async () => {
+    await expect(
+      run('answer', 'I9', 'sink', '--project', 'flexibeck'),
+    ).rejects.toThrow('insight "I9" not found')
   })
 
   it('puts an answer in words at the end of the body, with the name', async () => {
