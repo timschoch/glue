@@ -3,9 +3,16 @@ import { isRedirect, redirect } from '@tanstack/react-router'
 import type { SignIn, SignUp } from './authentication/credentials.ts'
 import { parseRedirect } from './authentication/redirect.ts'
 import type { Failure, Session } from './authentication/session.ts'
-import type { SavedDecision } from './db/concept-actions.ts'
-import type { ProposalInput, RecordInput } from './db/decision-proposal.ts'
-import type { LinkedRecord, Concept as ProductConcept } from './db/concept.ts'
+import type {
+  ConceptAddInput,
+  JointAddInput,
+  JointRemoveInput,
+  PartAddInput,
+  PartRemoveInput,
+  PartUpdateInput,
+  ProjectAddInput,
+  SavedPart,
+} from './db/part-actions.ts'
 import type { Concept, Part, PartSummary, Project } from './db/parts.ts'
 import { UNKNOWN_CONCEPT } from './project/project-search.ts'
 
@@ -23,10 +30,15 @@ export type Server = {
     project: string
     recordId: string
   }) => Promise<Part | undefined>
-  // The Decision form reads the model before the Part model.
-  fetchProductConcept: (product: string) => Promise<ProductConcept | undefined>
-  fetchRecord: (record: RecordInput) => Promise<LinkedRecord | undefined>
-  proposeDecision: (proposal: ProposalInput) => Promise<SavedDecision | Failure>
+  // The writes. A Failure is an answer for the person: the write did not
+  // happen and the message says why.
+  addProject: (project: ProjectAddInput) => Promise<{ slug: string } | Failure>
+  addConcept: (concept: ConceptAddInput) => Promise<{ slug: string } | Failure>
+  addPart: (part: PartAddInput) => Promise<SavedPart | Failure>
+  updatePart: (part: PartUpdateInput) => Promise<SavedPart | Failure>
+  removePart: (part: PartRemoveInput) => Promise<Failure | undefined>
+  addJoint: (joint: JointAddInput) => Promise<{ id: number } | Failure>
+  removeJoint: (joint: JointRemoveInput) => Promise<Failure | undefined>
   signIn: (credentials: SignIn) => Promise<Failure | undefined>
   signUp: (account: SignUp) => Promise<Failure | undefined>
   signOut: () => Promise<void>

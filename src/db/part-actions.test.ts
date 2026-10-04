@@ -99,9 +99,11 @@ const requests = {
       answer: { answer: 'sink' },
     }),
   listMine: () => actions.listMine({ project }),
+  removePart: () => actions.removePart({ project, recordId: 'I1' }),
   addJoint: () =>
     actions.addJoint({ project, joint: { part: 'I1', needs: 'G1' } }),
   removeJoint: () => actions.removeJoint({ project, jointId: 1 }),
+  addProject: () => actions.addProject({ slug: 'bakeday' }),
 } satisfies Record<keyof typeof actions, () => Promise<unknown>>
 
 async function readProject() {
@@ -341,6 +343,194 @@ describe('a server function of the Part model with a session', () => {
 
     expect(refused).toEqual({
       message: '"I1" is published: it takes the answers not-ready, sink',
+    })
+  })
+
+  it('accepts a Decision that is still proposed', async () => {
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'proposed' },
+    })
+
+    const saved = await actions.updatePart({
+      project,
+      recordId: 'D1',
+      change: { status: 'accepted' },
+      expected: { status: 'proposed' },
+    })
+
+    expect(saved).toEqual({ id: 'D1', issueMissing: false })
+    expect((await findPart(db, project, 'D1'))?.status).toBe('accepted')
+  })
+
+  it('answers a change of a Part that a second person changed as a failure, and keeps their change', async () => {
+    const first = await actions.updatePart({
+      project,
+      recordId: 'G1',
+      change: { title: 'Ship safer' },
+      expected: { title: 'Ship faster', metric: 'lead time' },
+    })
+    const second = await actions.updatePart({
+      project,
+      recordId: 'G1',
+      change: { title: 'Ship slower' },
+      expected: { title: 'Ship faster', metric: 'lead time' },
+    })
+
+    expect(first).toEqual({ id: 'G1', issueMissing: false })
+    expect(second).toEqual({ message: '"G1" changed since you opened it' })
+    expect((await findPart(db, project, 'G1'))?.title).toBe('Ship safer')
+  })
+
+  it('answers the accept of a Decision that is accepted already as a failure, and opens no second issue', async () => {
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'accepted' },
+    })
+
+    const refused = await actions.updatePart({
+      project,
+      recordId: 'D1',
+      change: { status: 'accepted' },
+      expected: { status: 'proposed' },
+    })
+
+    expect(refused).toEqual({ message: '"D1" changed since you opened it' })
+    expect(fake.issues).toHaveLength(1)
+  })
+
+  it('supersedes a Decision with a new accepted Decision', async () => {
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'accepted' },
+    })
+
+    const saved = await actions.addPart({
+      project,
+      part: {
+        ...decision,
+        title: 'Check the types in the editor',
+        status: 'accepted',
+        supersedes: 'D1',
+      },
+    })
+
+    expect(saved).toEqual({ id: 'D2', issueMissing: false })
+    expect(await findPart(db, project, 'D1')).toMatchObject({
+      status: 'superseded',
+      supersededBy: { id: 'D2' },
+    })
+  })
+
+  it('answers the second Decision that supersedes the same Decision as a failure', async () => {
+    const successor = {
+      ...decision,
+      status: 'accepted' as const,
+      supersedes: 'D1',
+    }
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'accepted' },
+    })
+    await actions.addPart({ project, part: successor })
+
+    expect(await actions.addPart({ project, part: successor })).toEqual({
+      message: '"D1" is superseded already',
+    })
+    expect((await listParts(db, project, ['decision'])).length).toBe(2)
+  })
+
+  it('confirms a draft Insight', async () => {
+    await addPart(db, project, {
+      type: 'insight',
+      title: 'Bakers ask for videos',
+      source: 'comments',
+      status: 'draft',
+    })
+
+    await actions.updatePart({
+      project,
+      recordId: 'I2',
+      change: { status: null },
+      expected: { status: 'draft' },
+    })
+
+    expect((await findPart(db, project, 'I2'))?.status).toBeNull()
+  })
+
+  it('removes a Part that is in the expected state', async () => {
+    await addPart(db, project, {
+      type: 'insight',
+      title: 'Bakers ask for videos',
+      source: 'comments',
+      status: 'draft',
+    })
+
+    const removed = await actions.removePart({
+      project,
+      recordId: 'I2',
+      expected: { status: 'draft' },
+    })
+
+    expect(removed).toBeUndefined()
+    expect(await findPart(db, project, 'I2')).toBeUndefined()
+  })
+
+  it('answers the removal of a Part that a second person changed as a failure, and the Part stays', async () => {
+    const refused = await actions.removePart({
+      project,
+      recordId: 'I1',
+      expected: { status: 'draft' },
+    })
+
+    expect(refused).toEqual({ message: '"I1" changed since you opened it' })
+    expect(await findPart(db, project, 'I1')).toBeDefined()
+  })
+
+  it('answers the removal of a Part that another Part needs as a failure, and the Part stays', async () => {
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'proposed' },
+    })
+
+    const refused = await actions.removePart({ project, recordId: 'I1' })
+
+    expect(refused).toEqual({ message: '"I1" is needed by D1' })
+    expect(await findPart(db, project, 'I1')).toBeDefined()
+  })
+
+  it('rejects a proposed Decision: the Decision goes away with its Joints', async () => {
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'proposed' },
+    })
+
+    const removed = await actions.removePart({
+      project,
+      recordId: 'D1',
+      expected: { status: 'proposed' },
+    })
+
+    expect(removed).toBeUndefined()
+    expect(await readProject()).toMatchObject({
+      parts: ['I1', 'G1'],
+      goal: ['Ship faster', 0],
+    })
+  })
+
+  it('adds a Project with its root Concept', async () => {
+    expect(await actions.addProject({ slug: 'bakeday' })).toEqual({
+      slug: 'bakeday',
+    })
+    expect(await findProject(db, 'bakeday')).toMatchObject({
+      slug: 'bakeday',
+      concept: { slug: 'bakeday', concepts: [] },
+    })
+  })
+
+  it('answers a Project that exists already as a failure', async () => {
+    expect(await actions.addProject({ slug: project })).toEqual({
+      message: 'project "flexibeck" exists already',
     })
   })
 

@@ -34,6 +34,22 @@ describe('the search parameters of a Project', () => {
     expect(parseProjectSearch(search)).toEqual({})
   })
 
+  it.each([
+    [{ add: 'decision' }],
+    [{ add: 'concept' }],
+    [{ add: 'project' }],
+    [{ edit: true }],
+  ])('reads the form %o from the address', (search) => {
+    expect(parseProjectSearch(search)).toEqual(search)
+  })
+
+  it.each([[{ add: 'record' }], [{ add: true }], [{ edit: 'yes' }]])(
+    'drops %o, which names no form',
+    (search) => {
+      expect(parseProjectSearch(search)).toEqual({})
+    },
+  )
+
   it('keeps a record once in the pins and once in the trail', () => {
     expect(
       parseProjectSearch({ pins: ['D2', 'D2', 'G1'], trail: ['I3', 'I3'] }),

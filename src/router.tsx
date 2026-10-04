@@ -7,16 +7,18 @@ import {
   submitSignUp,
 } from './authentication/session.functions.ts'
 import {
-  fetchConcept as fetchProductConcept,
-  fetchRecord,
-  submitProposeDecision,
-} from './db/concept.functions.ts'
-import {
   fetchConcept,
   fetchPart,
   fetchParts,
   fetchProject,
   fetchProjects,
+  submitAddConcept,
+  submitAddJoint,
+  submitAddPart,
+  submitAddProject,
+  submitRemoveJoint,
+  submitRemovePart,
+  submitUpdatePart,
 } from './db/parts.functions.ts'
 import { createRouterContext } from './router-context.ts'
 import type { Server, SessionMemory } from './router-context.ts'
@@ -30,9 +32,13 @@ const server: Server = {
   fetchConcept: (concept) => fetchConcept({ data: concept }),
   fetchParts: (project) => fetchParts({ data: { project } }),
   fetchPart: (part) => fetchPart({ data: part }),
-  fetchProductConcept: (product) => fetchProductConcept({ data: product }),
-  fetchRecord: (record) => fetchRecord({ data: record }),
-  proposeDecision: (proposal) => submitProposeDecision({ data: proposal }),
+  addProject: (project) => submitAddProject({ data: project }),
+  addConcept: (concept) => submitAddConcept({ data: concept }),
+  addPart: (part) => submitAddPart({ data: part }),
+  updatePart: (part) => submitUpdatePart({ data: part }),
+  removePart: (part) => submitRemovePart({ data: part }),
+  addJoint: (joint) => submitAddJoint({ data: joint }),
+  removeJoint: (joint) => submitRemoveJoint({ data: joint }),
   signIn: (credentials) => submitSignIn({ data: credentials }),
   signUp: (account) => submitSignUp({ data: account }),
   signOut: () => submitSignOut(),

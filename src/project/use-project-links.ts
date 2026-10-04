@@ -8,7 +8,7 @@ import type { ProjectSearch } from './project-search.ts'
 const projectRoute = getRouteApi('/_signed-in/$project')
 
 // A click that the browser keeps: it opens a new tab or a new window.
-function isForBrowser({ nativeEvent }: SyntheticEvent): boolean {
+export function isForBrowser({ nativeEvent }: SyntheticEvent): boolean {
   return (
     nativeEvent instanceof MouseEvent &&
     (nativeEvent.button !== 0 ||
@@ -27,7 +27,7 @@ export function useProjectLinks() {
   const { project } = projectRoute.useParams()
   const search = projectRoute.useSearch()
   const { concept, recordId } = useParams({ strict: false })
-  const { section, pins } = search
+  const { section, pins, trail } = search
 
   // A Concept opens with the lens and the pins. The trail ends.
   const conceptHref = useCallback(
@@ -48,14 +48,15 @@ export function useProjectLinks() {
   )
 
   // A record opens in its home Concept. The open record joins the trail.
+  // A form that is open does not go with it.
   const recordHref = useCallback(
     (part: { id: string; concept: string }) =>
       router.buildLocation({
         to: '/$project/$concept/$recordId',
         params: { project, concept: part.concept, recordId: part.id },
-        search: openRecord(search, recordId, part.id),
+        search: openRecord({ section, pins, trail }, recordId, part.id),
       }).href,
-    [router, project, search, recordId],
+    [router, project, section, pins, trail, recordId],
   )
 
   const open = useCallback(
@@ -67,9 +68,10 @@ export function useProjectLinks() {
     [router],
   )
 
-  // The same page with another search: a pin more or a pin less.
+  // The same page with another search: a pin more or a pin less, a form
+  // that opens or closes.
   const changeSearch = useCallback(
-    (next: ProjectSearch) => void router.navigate({ to: '.', search: next }),
+    (next: ProjectSearch) => router.navigate({ to: '.', search: next }),
     [router],
   )
 

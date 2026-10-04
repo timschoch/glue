@@ -18,7 +18,9 @@ import {
   partAddInputSchema,
   partListInputSchema,
   partReadInputSchema,
+  partRemoveInputSchema,
   partUpdateInputSchema,
+  projectAddInputSchema,
   projectInputSchema,
 } from './part-actions.ts'
 
@@ -70,6 +72,14 @@ export const submitUpdatePart = createServerFn({ method: 'POST' })
 export const submitAnswer = createServerFn({ method: 'POST' })
   .validator(answerInputSchema)
   .handler(({ data }) => actions.answerPart(data))
+
+export const submitRemovePart = createServerFn({ method: 'POST' })
+  .validator(partRemoveInputSchema)
+  .handler(({ data }) => actions.removePart(data))
+
+export const submitAddProject = createServerFn({ method: 'POST' })
+  .validator(projectAddInputSchema)
+  .handler(({ data }) => actions.addProject(data))
 
 export const submitAddJoint = createServerFn({ method: 'POST' })
   .validator(jointAddInputSchema)

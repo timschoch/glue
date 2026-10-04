@@ -1,4 +1,4 @@
-import { useNavigate } from '@tanstack/react-router'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 import type { ConceptNode, PartSummary, Project } from '../db/parts.ts'
@@ -6,6 +6,8 @@ import { Frame } from '../design-system/frame.tsx'
 import { trustOf } from './part-views.ts'
 import { changePin } from './project-search.ts'
 import { useProjectLinks } from './use-project-links.ts'
+
+const projectRoute = getRouteApi('/_signed-in/$project')
 
 // The Concepts from the root Concept down to the Concept with the slug.
 // A slug that the tree does not have gives the root Concept alone.
@@ -39,6 +41,7 @@ export function ProjectFrame({
   children: ReactNode
 }) {
   const navigate = useNavigate()
+  const { signOut } = projectRoute.useRouteContext()
   const {
     concept,
     recordId,
@@ -89,8 +92,17 @@ export function ProjectFrame({
         trust: trustOf(part.status),
         href: recordHref(part),
       }))}
-      onUnpin={(pin) => changeSearch(changePin(search, pin, false))}
+      onUnpin={(pin) => void changeSearch(changePin(search, pin, false))}
       onOpen={open}
+      // The form opens in the root Concept of the Project.
+      onAddProject={() =>
+        void navigate({
+          to: '/$project',
+          params: { project: project.slug },
+          search: { add: 'project' },
+        })
+      }
+      onSignOut={() => void signOut().then(() => navigate({ to: '/sign-in' }))}
     >
       {children}
     </Frame>

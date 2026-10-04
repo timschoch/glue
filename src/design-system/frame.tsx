@@ -1,4 +1,4 @@
-import { ArrowRight, PinFilled } from '@carbon/icons-react'
+import { Add, ArrowRight, PinFilled } from '@carbon/icons-react'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -53,6 +53,10 @@ export type FrameProps = {
   project: string
   projects: ReadonlyArray<string>
   onProjectChange: (project: string) => void
+  // With the callback the switcher holds one button that adds a Project.
+  onAddProject?: () => void
+  // With the callback the left panel ends with one button that signs out.
+  onSignOut?: () => void
   // No section while the main window shows every Part type.
   section?: Section
   sectionHref: (section: Section) => string
@@ -79,14 +83,17 @@ function current(isCurrent: boolean) {
 }
 
 // The frame of every screen: the header with the breadcrumb, the left panel
-// with the Project switcher, the sections and the Concepts, the main window
-// with the trail, and the right column while a record is pinned. A window
-// too narrow for the column shows the count of pins in the trail row, and
-// keeps the left panel closed until the menu button of the header opens it.
+// with the Project switcher, the sections, the Concepts and the sign-out,
+// the main window with the trail, and the right column while a record is
+// pinned. A window too narrow for the column shows the count of pins in the
+// trail row, and keeps the left panel closed until the menu button of the
+// header opens it.
 export function Frame({
   project,
   projects,
   onProjectChange,
+  onAddProject,
+  onSignOut,
   section,
   sectionHref,
   concepts,
@@ -186,6 +193,20 @@ export function Frame({
                   setPanelOpen(false)
                 }}
               />
+              {onAddProject && (
+                <Button
+                  kind="ghost"
+                  size="sm"
+                  renderIcon={Add}
+                  className={styles.addProject}
+                  onClick={() => {
+                    onAddProject()
+                    setPanelOpen(false)
+                  }}
+                >
+                  Add Project
+                </Button>
+              )}
             </Layer>
             <SideNavItems>
               {sections.map((name) => (
@@ -225,6 +246,14 @@ export function Frame({
                     {concept.name}
                   </SideNavLink>
                 ),
+              )}
+              {onSignOut && <SideNavDivider />}
+              {onSignOut && (
+                <li>
+                  <Button kind="ghost" size="sm" onClick={onSignOut}>
+                    Sign out
+                  </Button>
+                </li>
               )}
             </SideNavItems>
           </SideNav>

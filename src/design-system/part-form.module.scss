@@ -31,5 +31,11 @@ $text-width: $spacing-13 * 4;
 
 .buttons {
   display: flex;
+  align-items: center;
   gap: $spacing-03;
+}
+
+// The words of the running action take the room of their text, not the row.
+.pending {
+  inline-size: auto;
 }

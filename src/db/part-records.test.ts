@@ -622,14 +622,14 @@ describe('updatePart', () => {
 
   it('changes the title, the body, the owner and the rule check of a Guardrail', async () => {
     await updatePart(db, 'glue', 'R1', {
-      title: 'UI is Carbon, not Mantine',
+      title: 'UI is Carbon',
       body: 'D32 moved the UI kit.',
       owner: 'tim',
       enforcedBy: 'interface-review',
     })
 
     expect(await showPart('R1')).toMatchObject({
-      title: 'UI is Carbon, not Mantine',
+      title: 'UI is Carbon',
       body: 'D32 moved the UI kit.',
       owner: 'tim',
       enforcedBy: 'interface-review',
@@ -1264,7 +1264,7 @@ describe('the Joints of the mentions in a body', () => {
   it('keeps the Joints of the mentions when a change has no body', async () => {
     await updatePart(db, 'glue', 'R1', { body: 'It serves #G1.' })
 
-    await updatePart(db, 'glue', 'R1', { title: 'UI is Carbon, not Mantine' })
+    await updatePart(db, 'glue', 'R1', { title: 'UI is Carbon' })
 
     expect(await listJointsFrom(3)).toHaveLength(1)
   })

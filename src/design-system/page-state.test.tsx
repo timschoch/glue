@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import './theme.scss'
-import { PageState } from './page-state.tsx'
+import { PageSkeleton, PageState } from './page-state.tsx'
 
 // The colour of the page title, as the style writes it.
 const TEXT_PRIMARY = 'var(--cds-text-primary, #161616)'
@@ -29,5 +29,22 @@ describe('PageState', () => {
     const link = screen.getByRole('link', { name: 'Glue' })
 
     expect(link.getAttribute('href')).toBe('/')
+  })
+})
+
+describe('PageSkeleton', () => {
+  it('shows a page that loads as busy, with skeletons of a title and of cards, and no text', () => {
+    const { container } = render(<PageSkeleton />)
+
+    const root = container.firstElementChild
+
+    expect(root?.getAttribute('aria-busy')).toBe('true')
+    expect(root?.textContent).toBe('')
+    expect(root?.querySelectorAll('[class*="skeleton__heading"]')).toHaveLength(
+      1,
+    )
+    expect(
+      root?.querySelectorAll('[class*="skeleton__placeholder"]').length,
+    ).toBeGreaterThan(1)
   })
 })

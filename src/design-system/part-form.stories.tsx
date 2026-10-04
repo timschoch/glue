@@ -40,6 +40,13 @@ const parts: Array<PartFormPart> = [
     trust: 'not-ready',
     href: '#',
   },
+  {
+    id: 'R4',
+    type: 'guardrail',
+    title: 'Only the videos of the creator',
+    trust: 'solid',
+    href: '#',
+  },
 ]
 
 const meta = {
@@ -78,10 +85,10 @@ export const AddFlow: Story = { args: { type: 'flow' } }
 
 export const AddMetric: Story = { args: { type: 'metric' } }
 
-export const EditDecision: Story = {
+// A Decision with its Goal and its evidence picked.
+export const AddDecisionWithPicks: Story = {
   args: {
     type: 'decision',
-    recordId: 'D12',
     values: {
       title: 'Show the video of the creator',
       body: [
@@ -91,16 +98,25 @@ export const EditDecision: Story = {
       owner: 'Mara',
       date: '2026-10-03',
       goal: 'G2',
-      evidence: ['I7', 'I9'],
+      evidence: ['I7', 'I9', 'R4'],
     },
   },
 }
 
+// A Decision that exists has no field for its Joints.
+export const EditDecision: Story = {
+  args: { ...AddDecisionWithPicks.args, recordId: 'D12' },
+}
+
+export const Saving: Story = {
+  args: { ...AddDecisionWithPicks.args, pending: true },
+}
+
 export const WithErrors: Story = {
   args: {
-    ...EditDecision.args,
+    ...AddDecisionWithPicks.args,
     values: {
-      ...EditDecision.args.values,
+      ...AddDecisionWithPicks.args.values,
       title:
         'Show the video of the creator beside each step of the recipe, and keep it on the screen while the baker works with wet hands',
       body: 'It builds on #I30 and serves #G2.',
@@ -112,12 +128,12 @@ export const WithErrors: Story = {
       date: 'Not a date',
       evidence: 'I9 is in review',
     },
-    serverError: 'Not saved: Mara changed D12 at 14:02',
+    serverError: 'Not saved: the Goal G2 is sunk',
   },
 }
 
 export const NarrowWindow: Story = {
-  args: EditDecision.args,
+  args: AddDecisionWithPicks.args,
   decorators: [
     (Story) => (
       <div className={styles.narrow}>

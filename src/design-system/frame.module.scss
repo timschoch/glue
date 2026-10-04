@@ -14,8 +14,17 @@ $pinned-breakpoint: 'lg';
   padding-inline: $spacing-05;
 }
 
+// The Project switcher and the button that adds a Project are one group.
 .switcher {
+  display: flex;
+  flex-direction: column;
   padding: $spacing-05 $spacing-05 0;
+  gap: $spacing-03;
+}
+
+// The button takes the room of its words, at the start edge.
+.addProject {
+  align-self: flex-start;
 }
 
 // The trail row: the trail at the start, the count of pins at the end.

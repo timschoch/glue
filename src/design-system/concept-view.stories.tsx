@@ -112,6 +112,7 @@ const meta = {
     partHref: () => '#',
     conceptHref: () => '#',
     onAddPart: () => {},
+    onAddConcept: () => {},
   },
 } satisfies Meta<typeof ConceptView>
 
@@ -127,9 +128,9 @@ export const Empty: Story = {
   args: { concept: { ...concept, parts: [], linkedParts: [] } },
 }
 
-// No Part can be added: the empty slots show their type alone.
+// Nothing can be added: the empty slots show their type alone.
 export const ReadOnly: Story = {
-  args: { concept: brief, onAddPart: undefined },
+  args: { concept: brief, onAddPart: undefined, onAddConcept: undefined },
 }
 
 export const WithConcepts: Story = {
@@ -146,6 +147,15 @@ export const NarrowWindow: Story = {
   globals: { viewport: { value: 'mobile1' } },
 }
 
+// A group of more than 6 cards is folded.
 export const FortyParts: Story = {
   args: { concept: { ...concept, parts: manyParts } },
+}
+
+export const FortyPartsUnfolded: Story = {
+  ...FortyParts,
+  play: async ({ canvas, userEvent }) => {
+    const [fold] = canvas.getAllByRole('button', { name: /^Show all/ })
+    await userEvent.click(fold)
+  },
 }

@@ -7,7 +7,7 @@ Humans and agents read and maintain it. It takes in real data and decisions, and
 ## Stack
 
 - TanStack Start, React, TypeScript
-- Mantine (UI, plain CSS / CSS Modules — no Tailwind)
+- Carbon (UI, SCSS Modules with the Carbon tokens, no Tailwind)
 - Neon Postgres + Drizzle
 - Better Auth
 - PostHog

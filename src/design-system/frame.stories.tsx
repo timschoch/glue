@@ -10,6 +10,8 @@ const meta = {
     project: 'Bakeday',
     projects: ['Bakeday', 'Flexibeck'],
     onProjectChange: () => {},
+    onAddProject: () => {},
+    onSignOut: () => {},
     onUnpin: () => {},
     onOpen: (_href, event) => event.preventDefault(),
     section: 'Decide',
@@ -65,6 +67,11 @@ export const Pinned: StoryObj<typeof meta> = {
 // No section is chosen: the main window shows every Part type.
 export const NoSection: StoryObj<typeof meta> = {
   args: { section: undefined },
+}
+
+// No Project can be added and nobody is signed in.
+export const ReadOnly: StoryObj<typeof meta> = {
+  args: { onAddProject: undefined, onSignOut: undefined },
 }
 
 // A screen that has no Project.

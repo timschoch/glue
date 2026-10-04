@@ -640,16 +640,45 @@ export async function addCommentInsight(
 
 // The state that a guarded write expects of the Part. The statement holds
 // it in its `where`. So of two requests at the same time, only the first
-// one writes.
-export type ExpectedPart = { status?: string | null }
+// one writes. The app sends the values that the person saw, so the change
+// of a second person is not overwritten.
+const expectedColumns = {
+  title: schema.parts.title,
+  body: schema.parts.body,
+  owner: schema.parts.owner,
+  status: schema.parts.status,
+  date: schema.parts.date,
+  source: schema.parts.source,
+  metric: schema.parts.metric,
+  enforcedBy: schema.parts.enforcedBy,
+  evidenceLevel: schema.parts.evidenceLevel,
+}
+
+export const expectedPartSchema = z
+  .strictObject({
+    title: z.string(),
+    body: z.string(),
+    owner: z.string().nullable(),
+    status: z.string().nullable(),
+    date: z.string().nullable(),
+    source: z.string().nullable(),
+    metric: z.string().nullable(),
+    enforcedBy: z.string().nullable(),
+    evidenceLevel: z.string().nullable(),
+  })
+  .partial()
+
+export type ExpectedPart = z.infer<typeof expectedPartSchema>
 
 function isExpected(partId: number, expected: ExpectedPart) {
-  const { parts } = schema
+  const fields = Object.keys(expectedColumns) as (keyof ExpectedPart)[]
   return and(
-    eq(parts.id, partId),
-    expected.status === undefined
-      ? undefined
-      : sql`${parts.status} is not distinct from ${expected.status}::text`,
+    eq(schema.parts.id, partId),
+    ...fields.map((field) =>
+      expected[field] === undefined
+        ? undefined
+        : sql`${expectedColumns[field]}::text is not distinct from ${expected[field]}::text`,
+    ),
   )
 }
 

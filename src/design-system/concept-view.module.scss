@@ -69,3 +69,10 @@ $card-width: $spacing-13 * 2;
 .add {
   align-self: flex-start;
 }
+
+// The buttons after the list of a group: the fold and the add control.
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}

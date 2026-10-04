@@ -1,6 +1,7 @@
 import { Add } from '@carbon/icons-react'
 import { Button, ClickableTile } from '@carbon/react'
-import type { MouseEvent, SyntheticEvent } from 'react'
+import { useState } from 'react'
+import type { MouseEvent, ReactElement, SyntheticEvent } from 'react'
 
 import { Card, partTypes } from './card.tsx'
 import type { PartType, Trust } from './card.tsx'
@@ -11,13 +12,94 @@ const typeGroups = [
   { type: 'insight', many: 'Insights' },
   { type: 'goal', many: 'Goals' },
   { type: 'decision', many: 'Decisions' },
+  { type: 'guardrail', many: 'Guardrails' },
   { type: 'entity', many: 'Entities' },
   { type: 'flow', many: 'Flows' },
-  { type: 'guardrail', many: 'Guardrails' },
   { type: 'metric', many: 'Metrics' },
 ] as const satisfies ReadonlyArray<{ type: PartType; many: string }>
 
 const kinds = { brief: 'Brief' } as const
+
+// The count of cards that a folded type group shows.
+const FOLDED_COUNT = 6
+
+// The ghost button that adds a thing, named with the thing.
+function AddButton({ thing, onClick }: { thing: string; onClick: () => void }) {
+  return (
+    <Button
+      kind="ghost"
+      size="sm"
+      renderIcon={Add}
+      className={styles.add}
+      onClick={onClick}
+    >
+      Add {thing}
+    </Button>
+  )
+}
+
+// The group of one Part type: its title, its cards, and its one add control.
+// A group with more cards than the folded count shows the first ones until
+// its button unfolds it. An empty slot of the Kind is the add control of its
+// group. Every other group has the control after its list.
+function TypeGroup({
+  type,
+  many,
+  cards,
+  empty,
+  onAdd,
+}: {
+  type: PartType
+  many: string
+  // Each card has the record id of its Part as its key.
+  cards: ReadonlyArray<ReactElement>
+  empty: boolean
+  onAdd?: () => void
+}) {
+  const [unfolded, setUnfolded] = useState(false)
+  const folds = cards.length > FOLDED_COUNT
+  const shownCards = folds && !unfolded ? cards.slice(0, FOLDED_COUNT) : cards
+  const add = onAdd && <AddButton thing={partTypes[type]} onClick={onAdd} />
+
+  return (
+    <section aria-labelledby={type} className={styles.group}>
+      <h2 id={type} className={styles.groupTitle}>
+        {many}
+      </h2>
+      {(shownCards.length > 0 || empty) && (
+        <ul className={styles.items}>
+          {shownCards.map((card) => (
+            <li key={card.key}>{card}</li>
+          ))}
+          {empty && (
+            <li className={styles.emptySlot}>
+              {add ?? (
+                <span className={`${styles.label} ${styles.slotType}`}>
+                  {partTypes[type]}
+                </span>
+              )}
+            </li>
+          )}
+        </ul>
+      )}
+      {(folds || (add && !empty)) && (
+        <div className={styles.buttons}>
+          {folds && (
+            <Button
+              kind="ghost"
+              size="sm"
+              aria-expanded={unfolded}
+              onClick={() => setUnfolded((current) => !current)}
+            >
+              {unfolded ? `Show ${FOLDED_COUNT}` : `Show all ${cards.length}`}
+            </Button>
+          )}
+          {!empty && add}
+        </div>
+      )}
+    </section>
+  )
+}
 
 // The read model shapes of a Concept, with the Trust of each Part.
 export type ConceptViewPart = {
@@ -65,15 +147,20 @@ export type ConceptViewProps = {
   ) => void
   // A tile opens with a click or with a key.
   onOpenConcept?: (concept: ConceptViewNode, event: SyntheticEvent) => void
-  // Without a type: the first Part of a Concept that has none. Without the
-  // callback the view has no button: an empty slot shows its type alone.
-  onAddPart?: (type?: PartType) => void
+  // With the callback each Part type of the lens shows its group, with one
+  // control that adds a Part of the type. Without it the view has no such
+  // control: an empty slot shows its type alone.
+  onAddPart?: (type: PartType) => void
+  // With the callback the row of Concepts holds one button that adds a
+  // Concept inside this one.
+  onAddConcept?: () => void
 }
 
 // One Concept in the main window: its head, the Concepts inside it, and its
 // Parts in one group per Part type. A linked Part names its home Concept on
 // its card. A slot of the Kind with no Part shows as an empty slot at the
-// place of its type.
+// place of its type. A type with no Part and no slot shows only while a Part
+// can be added.
 export function ConceptView({
   concept,
   types,
@@ -82,6 +169,7 @@ export function ConceptView({
   onOpenPart,
   onOpenConcept,
   onAddPart,
+  onAddConcept,
 }: ConceptViewProps) {
   const groups = typeGroups
     .filter(({ type }) => types === undefined || types.includes(type))
@@ -97,12 +185,13 @@ export function ConceptView({
     }))
     .filter(
       ({ parts, linkedParts, empty }) =>
-        parts.length > 0 || linkedParts.length > 0 || empty,
+        onAddPart || parts.length > 0 || linkedParts.length > 0 || empty,
     )
 
   function card(part: ConceptViewPart, linked = false) {
     return (
       <Card
+        key={part.id}
         type={part.type}
         recordId={part.id}
         title={part.title}
@@ -122,77 +211,45 @@ export function ConceptView({
         )}
         <h1 className={styles.title}>{concept.title}</h1>
       </header>
-      {concept.concepts.length > 0 && (
-        <nav aria-label="Concepts">
-          <ul className={styles.items}>
-            {concept.concepts.map((child) => (
-              <li key={child.slug}>
-                <ClickableTile
-                  href={conceptHref(child)}
-                  onClick={
-                    onOpenConcept && ((event) => onOpenConcept(child, event))
-                  }
-                  className={styles.group}
-                >
-                  <span className={styles.conceptTitle}>{child.title}</span>
-                  <span className={styles.label}>
-                    {child.partCount} {child.partCount === 1 ? 'Part' : 'Parts'}
-                  </span>
-                </ClickableTile>
-              </li>
-            ))}
-          </ul>
+      {(concept.concepts.length > 0 || onAddConcept) && (
+        <nav aria-label="Concepts" className={styles.group}>
+          {concept.concepts.length > 0 && (
+            <ul className={styles.items}>
+              {concept.concepts.map((child) => (
+                <li key={child.slug}>
+                  <ClickableTile
+                    href={conceptHref(child)}
+                    onClick={
+                      onOpenConcept && ((event) => onOpenConcept(child, event))
+                    }
+                    className={styles.group}
+                  >
+                    <span className={styles.conceptTitle}>{child.title}</span>
+                    <span className={styles.label}>
+                      {child.partCount}{' '}
+                      {child.partCount === 1 ? 'Part' : 'Parts'}
+                    </span>
+                  </ClickableTile>
+                </li>
+              ))}
+            </ul>
+          )}
+          {onAddConcept && <AddButton thing="Concept" onClick={onAddConcept} />}
         </nav>
       )}
-      {groups.length === 0 && (
-        <div className={styles.group}>
-          <p className={styles.label}>No Parts</p>
-          {onAddPart && (
-            <Button
-              kind="ghost"
-              size="sm"
-              renderIcon={Add}
-              className={styles.add}
-              onClick={() => onAddPart()}
-            >
-              Add Part
-            </Button>
-          )}
-        </div>
-      )}
+      {groups.length === 0 && <p className={styles.label}>No Parts</p>}
       {groups.map(({ type, many, parts, linkedParts, empty }) => (
-        <section key={type} aria-labelledby={type} className={styles.group}>
-          <h2 id={type} className={styles.groupTitle}>
-            {many}
-          </h2>
-          <ul className={styles.items}>
-            {parts.map((part) => (
-              <li key={part.id}>{card(part)}</li>
-            ))}
-            {linkedParts.map((part) => (
-              <li key={part.id}>{card(part, true)}</li>
-            ))}
-            {empty && (
-              <li className={styles.emptySlot}>
-                {onAddPart ? (
-                  <Button
-                    kind="ghost"
-                    size="sm"
-                    renderIcon={Add}
-                    className={styles.add}
-                    onClick={() => onAddPart(type)}
-                  >
-                    Add {partTypes[type]}
-                  </Button>
-                ) : (
-                  <span className={`${styles.label} ${styles.slotType}`}>
-                    {partTypes[type]}
-                  </span>
-                )}
-              </li>
-            )}
-          </ul>
-        </section>
+        <TypeGroup
+          key={type}
+          type={type}
+          many={many}
+          cards={[
+            ...parts.map((part) => card(part)),
+            ...linkedParts.map((part) => card(part, true)),
+          ]}
+          empty={empty}
+          onAdd={onAddPart && (() => onAddPart(type))}
+        />
       ))}
     </div>
   )

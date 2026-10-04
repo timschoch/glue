@@ -451,6 +451,89 @@ describe('Frame', () => {
     expect(onProjectChange).toHaveBeenCalledWith('Flexibeck')
   })
 
+  it('has no button to add a Project and none to sign out without their callbacks', () => {
+    renderFrame()
+
+    const panel = within(screen.getByRole('navigation', { name: 'Main' }))
+
+    expect(panel.queryByRole('button', { name: 'Add Project' })).toBeNull()
+    expect(panel.queryByRole('button', { name: 'Sign out' })).toBeNull()
+    expect(panel.getAllByRole('separator', { hidden: true })).toHaveLength(1)
+  })
+
+  it('adds a Project with the one ghost button below the Project switcher, and closes the left panel', async () => {
+    const onAddProject = vi.fn()
+    renderFrame([], undefined, undefined, { onAddProject })
+
+    const menu = screen.getByRole('button', { name: 'Menu' })
+    const panel = screen.getByRole('navigation', { name: 'Main' })
+    const switcher = within(panel).getByRole('combobox', { name: /Project/ })
+    await userEvent.click(menu)
+    const add = within(panel).getByRole('button', { name: 'Add Project' })
+
+    // The first controls of the panel: the switcher, then the button.
+    expect([...panel.querySelectorAll('a, button')].slice(0, 2)).toEqual([
+      switcher,
+      add,
+    ])
+    expect(add.className).toContain('btn--ghost')
+    expect(add.className).toContain('btn--sm')
+    expect(add.querySelectorAll('svg')).toHaveLength(1)
+
+    await userEvent.click(add)
+
+    expect(onAddProject).toHaveBeenCalledOnce()
+    expect(menu.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('signs out with the one ghost button at the end of the left panel, after a divider', async () => {
+    const onSignOut = vi.fn()
+    renderFrame([], undefined, undefined, { onSignOut })
+
+    const panel = screen.getByRole('navigation', { name: 'Main' })
+    await userEvent.click(screen.getByRole('button', { name: 'Menu' }))
+    // The one button of this name is in the panel, not in the header row.
+    const signOut = screen.getByRole('button', { name: 'Sign out' })
+
+    expect([...panel.querySelectorAll('a, button')].at(-1)).toBe(signOut)
+    expect(signOut.className).toContain('btn--ghost')
+    expect(signOut.closest('li')?.previousElementSibling?.className).toContain(
+      'side-nav__divider',
+    )
+
+    await userEvent.click(signOut)
+
+    expect(onSignOut).toHaveBeenCalledOnce()
+  })
+
+  it.each(['Add Project', 'Sign out'])(
+    'reaches the button %s with the keyboard in the open left panel',
+    async (name) => {
+      const onPress = vi.fn()
+      renderFrame([], undefined, undefined, {
+        onAddProject: onPress,
+        onSignOut: onPress,
+      })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Menu' }))
+      const button = screen.getByRole('button', { name })
+
+      // Tab goes through the breadcrumb and the panel, in document order.
+      while (document.activeElement !== button) {
+        const before = document.activeElement
+        await userEvent.tab()
+        if (document.activeElement === before) break
+        if (document.activeElement === document.body) break
+      }
+
+      expect(document.activeElement).toBe(button)
+
+      await userEvent.keyboard('{Enter}')
+
+      expect(onPress).toHaveBeenCalledOnce()
+    },
+  )
+
   it('puts the menu button at the left of the header, below the lg breakpoint only', () => {
     renderFrame()
 

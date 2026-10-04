@@ -57,6 +57,27 @@ const BRIEF: Concept = {
   ],
 }
 
+// The titles of the type groups, in the order of the loop.
+const LOOP_ORDER = [
+  'Insights',
+  'Goals',
+  'Decisions',
+  'Guardrails',
+  'Entities',
+  'Flows',
+  'Metrics',
+]
+
+// A Concept with as many Insights as the count: I1, I2 and so on.
+function withInsights(count: number): Concept {
+  return {
+    ...CONCEPT,
+    parts: Array.from({ length: count }, (_, index) =>
+      part(`I${index + 1}`, 'insight', `Insight ${index + 1}`),
+    ),
+  }
+}
+
 // The colour of a label or a state, as the style writes it.
 const TEXT_SECONDARY = 'var(--cds-text-secondary, #525252)'
 
@@ -107,6 +128,20 @@ function group(name: string): HTMLElement {
   return screen.getByRole('region', { name })
 }
 
+// The record ids of the cards of a group, from their addresses.
+function cardIds(name: string): Array<string | null> {
+  return within(group(name))
+    .queryAllByRole('link')
+    .map((card) => card.getAttribute('href'))
+}
+
+// The names of the buttons of a group, in the order of the document.
+function buttons(name: string): Array<string | null> {
+  return within(group(name))
+    .queryAllByRole('button')
+    .map((button) => button.textContent)
+}
+
 describe('ConceptView', () => {
   it('shows the title of the Concept as the page title, with its Kind', () => {
     renderView({ concept: BRIEF })
@@ -126,15 +161,7 @@ describe('ConceptView', () => {
   it('groups the Parts by type in the order of the loop', () => {
     renderView()
 
-    expect(groups()).toEqual([
-      'Insights',
-      'Goals',
-      'Decisions',
-      'Entities',
-      'Flows',
-      'Guardrails',
-      'Metrics',
-    ])
+    expect(groups()).toEqual(LOOP_ORDER)
     expect(
       within(group('Decisions'))
         .getAllByRole('link')
@@ -142,10 +169,117 @@ describe('ConceptView', () => {
     ).toEqual(['#D12', '#D13'])
   })
 
-  it('leaves out a type with no Part', () => {
-    renderView({ concept: { ...CONCEPT, parts: CONCEPT.parts.slice(0, 2) } })
+  it('leaves out a type with no Part when no Part can be added', () => {
+    renderView({
+      concept: { ...CONCEPT, parts: CONCEPT.parts.slice(0, 2) },
+      onAddPart: undefined,
+    })
 
     expect(groups()).toEqual(['Insights', 'Goals'])
+  })
+
+  it('shows a type with no Part as its title and its one add control', async () => {
+    const onAddPart = vi.fn()
+    renderView({
+      concept: { ...CONCEPT, parts: CONCEPT.parts.slice(0, 2) },
+      onAddPart,
+    })
+
+    expect(groups()).toEqual(LOOP_ORDER)
+    expect(within(group('Flows')).queryByRole('list')).toBeNull()
+    expect(buttons('Flows')).toEqual(['Add Flow'])
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add Flow' }))
+
+    expect(onAddPart).toHaveBeenCalledExactlyOnceWith('flow')
+  })
+
+  it('has one ghost add control in each group, after the list of its cards', () => {
+    renderView()
+
+    expect(LOOP_ORDER.map(buttons)).toEqual([
+      ['Add Insight'],
+      ['Add Goal'],
+      ['Add Decision'],
+      ['Add Guardrail'],
+      ['Add Entity'],
+      ['Add Flow'],
+      ['Add Metric'],
+    ])
+
+    const add = screen.getByRole('button', { name: 'Add Decision' })
+
+    expect(add.className).toContain('btn--ghost')
+    expect(add.className).toContain('btn--sm')
+    expect(add.querySelectorAll('svg')).toHaveLength(1)
+    expect(add.closest('li')).toBeNull()
+    expect(
+      within(group('Decisions'))
+        .getByRole('list')
+        .compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Add Part' })).toBeNull()
+  })
+
+  it('shows all cards of a group with 6 cards, and no button to fold it', () => {
+    renderView({ concept: withInsights(6) })
+
+    expect(cardIds('Insights')).toHaveLength(6)
+    expect(buttons('Insights')).toEqual(['Add Insight'])
+  })
+
+  it('folds a group with more than 6 cards to its first 6, and unfolds it with one button', async () => {
+    renderView({ concept: withInsights(8) })
+
+    const fold = screen.getByRole('button', { name: 'Show all 8' })
+
+    expect(cardIds('Insights')).toEqual([
+      '#I1',
+      '#I2',
+      '#I3',
+      '#I4',
+      '#I5',
+      '#I6',
+    ])
+    expect(fold.getAttribute('aria-expanded')).toBe('false')
+    expect(fold.className).toContain('btn--ghost')
+    expect(fold.className).toContain('btn--sm')
+    expect(buttons('Insights')).toEqual(['Show all 8', 'Add Insight'])
+
+    await userEvent.click(fold)
+
+    expect(cardIds('Insights')).toHaveLength(8)
+    expect(fold.textContent).toBe('Show 6')
+    expect(fold.getAttribute('aria-expanded')).toBe('true')
+
+    await userEvent.click(fold)
+
+    expect(cardIds('Insights')).toHaveLength(6)
+    expect(fold.textContent).toBe('Show all 8')
+    expect(fold.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('counts the linked Parts of a group too, and folds a group that can add no Part', () => {
+    renderView({
+      concept: {
+        ...withInsights(5),
+        linkedParts: [
+          part('I21', 'insight', 'Novices stop at long videos'),
+          part('I22', 'insight', 'Videos have no sound'),
+        ],
+      },
+      onAddPart: undefined,
+    })
+
+    expect(cardIds('Insights')).toEqual([
+      '#I1',
+      '#I2',
+      '#I3',
+      '#I4',
+      '#I5',
+      '#I21',
+    ])
+    expect(buttons('Insights')).toEqual(['Show all 7'])
   })
 
   it('shows each Part as a card with its type, record id and title', () => {
@@ -175,21 +309,14 @@ describe('ConceptView', () => {
     const onAddPart = vi.fn()
     renderView({ concept: BRIEF, onAddPart })
 
-    expect(groups()).toEqual([
-      'Insights',
-      'Goals',
-      'Decisions',
-      'Entities',
-      'Flows',
-      'Guardrails',
-      'Metrics',
-    ])
+    expect(groups()).toEqual(LOOP_ORDER)
 
     const decisions = within(group('Decisions'))
 
     expect(decisions.queryByRole('link')).toBeNull()
     expect(decisions.getByRole('listitem').textContent).toBe('Add Decision')
-    expect(within(group('Goals')).queryByRole('button')).toBeNull()
+    // The button of the empty slot is the one add control of its group.
+    expect(buttons('Decisions')).toEqual(['Add Decision'])
 
     await userEvent.click(
       decisions.getByRole('button', { name: 'Add Decision' }),
@@ -255,7 +382,10 @@ describe('ConceptView', () => {
     const decisions = within(group('Decisions'))
 
     expect(decisions.getAllByRole('link')).toHaveLength(1)
-    expect(decisions.queryByRole('button')).toBeNull()
+    expect(decisions.getAllByRole('listitem')).toHaveLength(1)
+    expect(
+      decisions.getByRole('button', { name: 'Add Decision' }).closest('li'),
+    ).toBeNull()
   })
 
   it('shows the Concepts inside as tiles with their count of Parts', async () => {
@@ -305,6 +435,53 @@ describe('ConceptView', () => {
     renderView()
 
     expect(screen.queryByRole('navigation', { name: 'Concepts' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add Concept' })).toBeNull()
+  })
+
+  it('adds a Concept with the one ghost button of the row of Concepts, also when no Concept is inside', async () => {
+    const onAddConcept = vi.fn()
+    renderView({ onAddConcept })
+
+    const row = within(screen.getByRole('navigation', { name: 'Concepts' }))
+    const add = row.getByRole('button', { name: 'Add Concept' })
+
+    expect(row.queryByRole('list')).toBeNull()
+    expect(row.getAllByRole('button')).toEqual([add])
+    expect(add.className).toContain('btn--ghost')
+    expect(add.className).toContain('btn--sm')
+    expect(add.querySelectorAll('svg')).toHaveLength(1)
+
+    await userEvent.click(add)
+
+    expect(onAddConcept).toHaveBeenCalledOnce()
+  })
+
+  it('puts the button that adds a Concept after the tiles', () => {
+    renderView({
+      concept: {
+        ...CONCEPT,
+        concepts: [
+          {
+            slug: 'step-videos',
+            title: 'Step videos',
+            kind: null,
+            partCount: 2,
+            concepts: [],
+          },
+        ],
+      },
+      onAddConcept: () => {},
+    })
+
+    const row = within(screen.getByRole('navigation', { name: 'Concepts' }))
+
+    expect(
+      row
+        .getByRole('list')
+        .compareDocumentPosition(
+          row.getByRole('button', { name: 'Add Concept' }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 
   it('shows only the Part types of a lens', () => {
@@ -313,19 +490,13 @@ describe('ConceptView', () => {
     expect(groups()).toEqual(['Goals', 'Decisions'])
   })
 
-  it('replaces the groups of an empty Concept with plain words and one button', async () => {
-    const onAddPart = vi.fn()
-    renderView({ concept: { ...CONCEPT, parts: [] }, onAddPart })
+  it('shows each type of an empty Concept as its title and its add control', () => {
+    renderView({ concept: { ...CONCEPT, parts: [] } })
 
-    const words = screen.getByText('No Parts')
-
-    expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
-    expect(getComputedStyle(words).color).toBe(TEXT_SECONDARY)
-    expect(screen.queryByRole('region')).toBeNull()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Add Part' }))
-
-    expect(onAddPart).toHaveBeenCalledExactlyOnceWith()
+    expect(groups()).toEqual(LOOP_ORDER)
+    expect(screen.queryByText('No Parts')).toBeNull()
+    expect(screen.queryByRole('list')).toBeNull()
+    expect(screen.getAllByRole('button')).toHaveLength(LOOP_ORDER.length)
   })
 
   it('shows an empty slot as its type alone, and no button, when no Part can be added', () => {
@@ -341,7 +512,10 @@ describe('ConceptView', () => {
   it('shows an empty Concept as plain words alone when no Part can be added', () => {
     renderView({ concept: { ...CONCEPT, parts: [] }, onAddPart: undefined })
 
-    expect(screen.getByText('No Parts')).toBeDefined()
+    const words = screen.getByText('No Parts')
+
+    expect(getComputedStyle(words).color).toBe(TEXT_SECONDARY)
+    expect(screen.queryByRole('region')).toBeNull()
     expect(screen.queryByRole('button')).toBeNull()
   })
 
@@ -350,5 +524,6 @@ describe('ConceptView', () => {
 
     expect(screen.getByText('No Parts')).toBeDefined()
     expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
   })
 })

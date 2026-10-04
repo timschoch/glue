@@ -10,7 +10,6 @@ import { createRouterContext } from './router-context.ts'
 import type { RouterContext, Server, SessionMemory } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
 import {
-  decision,
   findConcept,
   findPart,
   findProject,
@@ -20,16 +19,6 @@ import {
 
 const session = {
   user: { id: 'user-1', name: 'Ada', email: 'ada@example.com' },
-}
-
-// The Concept of the model before the Part model: the Decision form reads it.
-const productConcept = {
-  product: { slug: 'glue', name: 'Glue' },
-  goals: [],
-  decisions: [],
-  guardrails: [],
-  insights: [],
-  facts: [],
 }
 
 function context(overrides: Partial<Server> = {}): Server {
@@ -42,11 +31,15 @@ function context(overrides: Partial<Server> = {}): Server {
       Promise.resolve(findProject(project) ? parts : []),
     ),
     fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
-    fetchProductConcept: vi.fn(() => Promise.resolve(productConcept)),
-    fetchRecord: vi.fn(() => Promise.resolve(decision)),
-    proposeDecision: vi.fn(() =>
-      Promise.resolve({ id: 'D1', issueMissing: false }),
+    addProject: vi.fn(({ slug }) => Promise.resolve({ slug })),
+    addConcept: vi.fn(({ concept }) => Promise.resolve({ slug: concept.slug })),
+    addPart: vi.fn(() => Promise.resolve({ id: 'D5', issueMissing: false })),
+    updatePart: vi.fn(({ recordId }) =>
+      Promise.resolve({ id: recordId, issueMissing: false }),
     ),
+    removePart: vi.fn(() => Promise.resolve(undefined)),
+    addJoint: vi.fn(() => Promise.resolve({ id: 1 })),
+    removeJoint: vi.fn(() => Promise.resolve(undefined)),
     signIn: vi.fn(() => Promise.resolve(undefined)),
     signUp: vi.fn(() => Promise.resolve(undefined)),
     signOut: vi.fn(() => Promise.resolve()),
@@ -78,7 +71,6 @@ function findMatch(router: Router, routeId: string) {
 const PROJECT = '/_signed-in/$project'
 const CONCEPT = '/_signed-in/$project/$concept/'
 const RECORD = '/_signed-in/$project/$concept/$recordId'
-const DECISION_FORM = '/_mantine/_signed-in/$project/decisions/new'
 
 describe('a Project route without a session', () => {
   it('sends the start to sign-in', async () => {
@@ -105,15 +97,12 @@ describe('a Project route without a session', () => {
     await load('/glue', signedOut)
     await load('/glue/part-model', signedOut)
     await load('/glue/part-model/D4', signedOut)
-    await load('/glue/decisions/new', signedOut)
 
     expect(signedOut.fetchProjects).not.toHaveBeenCalled()
     expect(signedOut.fetchProject).not.toHaveBeenCalled()
     expect(signedOut.fetchConcept).not.toHaveBeenCalled()
     expect(signedOut.fetchParts).not.toHaveBeenCalled()
     expect(signedOut.fetchPart).not.toHaveBeenCalled()
-    expect(signedOut.fetchProductConcept).not.toHaveBeenCalled()
-    expect(signedOut.fetchRecord).not.toHaveBeenCalled()
   })
 })
 
@@ -272,107 +261,38 @@ describe('a Project route with a session', () => {
     })
   })
 
-  it.each(['/glue', '/glue/part-model', '/glue/part-model/D4'])(
-    'shows %s without the Mantine kit',
-    async (path) => {
-      const router = await open(path, signedIn())
+  it.each([
+    '/glue',
+    '/glue/part-model',
+    '/glue/part-model/D4',
+    '/sign-in',
+    '/sign-up',
+  ])('shows %s with the stylesheet of the Carbon kit', async (path) => {
+    const router = await open(
+      path,
+      path.startsWith('/sign') ? context() : signedIn(),
+    )
 
-      expect(findMatch(router, '/_mantine')).toBeUndefined()
-      expect(findMatch(router, '/_signed-in')?.links).toHaveLength(1)
-    },
-  )
-
-  it.each(['/glue/decisions/new', '/sign-in', '/sign-up'])(
-    'shows %s without the Carbon kit',
-    async (path) => {
-      const router = await open(
-        path,
-        path === '/glue/decisions/new' ? signedIn() : context(),
-      )
-
-      expect(findMatch(router, '/_signed-in')).toBeUndefined()
-      expect(findMatch(router, '/_mantine')?.links).toHaveLength(2)
-    },
-  )
-
-  it('has no Decision form for a Project that Glue does not know', async () => {
-    const server = signedIn({
-      fetchProductConcept: vi.fn(() => Promise.resolve(undefined)),
-    })
-
-    const router = await open('/nope/decisions/new', server)
-
-    const match = findMatch(router, DECISION_FORM)
-
-    expect(match?.status).toBe('notFound')
-    expect(match?.meta).toContainEqual({ title: 'No Product nope | Glue' })
+    expect(findMatch(router, '__root__')?.links).toHaveLength(1)
   })
 
-  it.each(['I3', 'R2'])(
-    'opens the Decision form with %s from the address as evidence',
-    async (evidence) => {
-      const server = signedIn()
+  it.each([
+    ['/glue/part-model?add=decision', { add: 'decision' }],
+    ['/glue/part-model?add=concept', { add: 'concept' }],
+    ['/glue?add=project', { add: 'project' }],
+    ['/glue/part-model/D4?edit=true', { edit: true }],
+    ['/glue/part-model?add=record&edit=yes', {}],
+  ])('reads the form of %s from the address', async (path, search) => {
+    const router = await open(path, signedIn())
 
-      const location = await load(
-        `/flexibeck/decisions/new?evidence=${evidence}`,
-        server,
-      )
-
-      expect(location.search).toEqual({ evidence })
-      expect(server.fetchProductConcept).toHaveBeenCalledWith('flexibeck')
-      expect(server.fetchRecord).not.toHaveBeenCalled()
-    },
-  )
-
-  it('reads the Decision that the form supersedes', async () => {
-    const server = signedIn()
-
-    const router = await open('/glue/decisions/new?supersedes=D4', server)
-
-    expect(server.fetchRecord).toHaveBeenCalledWith({
-      product: 'glue',
-      recordId: 'D4',
-    })
-    expect(findMatch(router, DECISION_FORM)?.status).toBe('success')
+    expect(findMatch(router, PROJECT)?.search).toEqual(search)
   })
 
-  it('shows the record, not the form, for a Decision that is superseded already', async () => {
-    const server = signedIn({
-      fetchRecord: vi.fn(() =>
-        Promise.resolve({
-          ...decision,
-          status: 'superseded' as const,
-          supersededBy: { id: 'D5', title: 'The Concept lives in files' },
-        }),
-      ),
-    })
+  it('has no page for the Decision form from before the Part model', async () => {
+    const router = await open('/glue/decisions/new', signedIn())
 
-    const location = await load('/glue/decisions/new?supersedes=D4', server)
-
-    expect(location.pathname).toBe('/glue/part-model/D4')
+    expect(findMatch(router, RECORD)?.status).toBe('notFound')
   })
-
-  it('has no Decision form for a Decision that the Concept does not have', async () => {
-    const server = signedIn({
-      fetchRecord: vi.fn(() => Promise.resolve(undefined)),
-    })
-
-    const router = await open('/glue/decisions/new?supersedes=D9', server)
-
-    expect(findMatch(router, DECISION_FORM)?.status).toBe('notFound')
-  })
-
-  it.each(['evidence=nope', 'evidence=F1', 'supersedes=I3'])(
-    'does not give %s from the address to the Decision form',
-    async (search) => {
-      const server = signedIn()
-
-      const router = await open(`/glue/decisions/new?${search}`, server)
-
-      expect(findMatch(router, DECISION_FORM)?.search).toEqual({})
-      expect(server.fetchRecord).not.toHaveBeenCalled()
-    },
-  )
 })
 
 describe('the session of a signed-in person', () => {
