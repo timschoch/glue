@@ -56,6 +56,7 @@ async function renderPage(path: string, overrides: Partial<Server> = {}) {
     addPart: vi.fn(() => Promise.resolve(saved)),
     updatePart: vi.fn(() => Promise.resolve(saved)),
     answerPart: vi.fn(() => Promise.resolve(saved)),
+    answerQuestion: vi.fn(() => Promise.resolve(saved)),
     addJoint: vi.fn(() => Promise.resolve({ id: 20 })),
     removeJoint: vi.fn(() => Promise.resolve(undefined)),
     fetchPeople: vi.fn(() => Promise.resolve(people)),
