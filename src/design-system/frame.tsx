@@ -64,6 +64,7 @@ export type FrameProps = {
   // The open Concept and the Concepts around it, outermost first.
   conceptPath: ReadonlyArray<FrameLink>
   // The records opened on the way to the open record, the open record last.
+  // It shows from two records on.
   trail?: ReadonlyArray<FrameLink>
   // The pinned records, newest first.
   pinned?: ReadonlyArray<FramePin>
@@ -110,6 +111,8 @@ export function Frame({
   const [panelOpen, setPanelOpen] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const isPinned = pinned.length > 0
+  // One record is no trail: the record shows its title itself.
+  const hasTrail = trail.length > 1
   const link = (href: string) => ({
     href,
     onClick: (event: MouseEvent<HTMLAnchorElement>) => onOpen?.(href, event),
@@ -264,22 +267,24 @@ export function Frame({
           isPinned ? `${styles.content} ${styles.besidePinned}` : styles.content
         }
       >
-        {(trail.length > 0 || isPinned) && (
+        {(hasTrail || isPinned) && (
           <div className={styles.trail}>
-            <nav aria-label="Trail">
-              <ol className={styles.records}>
-                {trail.map(({ name, href }, index) => (
-                  <li key={href} className={styles.record}>
-                    {index > 0 && <ArrowRight className={styles.glyph} />}
-                    {index === trail.length - 1 ? (
-                      <span aria-current="page">{name}</span>
-                    ) : (
-                      <Link {...link(href)}>{name}</Link>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            </nav>
+            {hasTrail && (
+              <nav aria-label="Trail">
+                <ol className={styles.records}>
+                  {trail.map(({ name, href }, index) => (
+                    <li key={href} className={styles.record}>
+                      {index > 0 && <ArrowRight className={styles.glyph} />}
+                      {index === trail.length - 1 ? (
+                        <span aria-current="page">{name}</span>
+                      ) : (
+                        <Link {...link(href)}>{name}</Link>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            )}
             {isPinned && (
               <Popover
                 open={stackOpen}

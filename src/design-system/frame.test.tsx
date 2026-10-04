@@ -22,6 +22,9 @@ const BODY_WEIGHT = 'var(--cds-body-compact-01-font-weight, 400)'
 const FROM_LG = '(min-width: 66rem)'
 const BELOW_LG = '(max-width: 65.98rem)'
 
+// Below Carbon's md breakpoint the header has room for one Concept.
+const BELOW_MD = '(max-width: 41.98rem)'
+
 // The width of Carbon's side nav.
 const PANEL_WIDTH = '16rem'
 
@@ -161,9 +164,12 @@ function hiddenAt(element: HTMLElement): Array<string> {
     .map((media) => media.conditionText)
 }
 
-// The start margin that the media rules give an element, by media condition.
-// jsdom does not apply media rules itself.
-function marginStartAt(element: HTMLElement): Record<string, string> {
+// The value that the media rules give a property of an element, by media
+// condition. jsdom does not apply media rules itself.
+function styleAt(
+  element: HTMLElement,
+  property: string,
+): Record<string, string> {
   return Object.fromEntries(
     [...document.styleSheets]
       .flatMap((sheet) => [...sheet.cssRules])
@@ -172,9 +178,9 @@ function marginStartAt(element: HTMLElement): Record<string, string> {
         [...media.cssRules]
           .filter((rule) => rule instanceof CSSStyleRule)
           .filter((rule) => element.matches(rule.selectorText))
-          .map((rule) => rule.style.getPropertyValue('margin-inline-start'))
-          .filter((margin) => margin !== '')
-          .map((margin) => [media.conditionText, margin]),
+          .map((rule) => rule.style.getPropertyValue(property))
+          .filter((value) => value !== '')
+          .map((value) => [media.conditionText, value]),
       ),
   )
 }
@@ -271,6 +277,40 @@ describe('Frame', () => {
     ).toEqual(['Show each technique'])
     expect(trail.querySelectorAll('svg')).toHaveLength(1)
     expect(trail.querySelector('[class*="breadcrumb"]')).toBeNull()
+  })
+
+  it('shows no trail for one record: the record has its title already', () => {
+    renderFrame([], undefined, undefined, {
+      trail: [{ name: 'Videos are too long', href: '/bakeday/step-videos/I7' }],
+    })
+
+    expect(screen.queryByRole('navigation', { name: 'Trail' })).toBeNull()
+  })
+
+  it('keeps the count of pins in the row of a trail with one record', () => {
+    renderFrame(PINNED, undefined, undefined, {
+      trail: [{ name: 'Videos are too long', href: '/bakeday/step-videos/I7' }],
+    })
+
+    const main = within(screen.getByRole('main'))
+
+    expect(main.queryByRole('navigation', { name: 'Trail' })).toBeNull()
+    expect(main.getByRole('button', { name: '2 pinned' })).toBeDefined()
+  })
+
+  it('shows the last Concept of the breadcrumb alone below md, on one line with an ellipsis', () => {
+    renderFrame()
+
+    const [first, last] = within(
+      screen.getByRole('navigation', { name: 'Breadcrumb' }),
+    ).getAllByRole('listitem')
+
+    expect(hiddenAt(first)).toEqual([BELOW_MD])
+    expect(hiddenAt(last)).toEqual([])
+    const link = within(last).getByRole('link')
+
+    expect(styleAt(link, 'text-overflow')).toEqual({ [BELOW_MD]: 'ellipsis' })
+    expect(styleAt(link, 'white-space')).toEqual({ [BELOW_MD]: 'nowrap' })
   })
 
   it('has no right column while no record is pinned', () => {
@@ -551,7 +591,9 @@ describe('Frame', () => {
     const main = screen.getByRole('main')
 
     expect(getComputedStyle(main).marginInlineStart).toBe('0')
-    expect(marginStartAt(main)).toEqual({ [FROM_LG]: PANEL_WIDTH })
+    expect(styleAt(main, 'margin-inline-start')).toEqual({
+      [FROM_LG]: PANEL_WIDTH,
+    })
   })
 
   it('shows the pinned card as a light card on the canvas in the stack too', () => {
@@ -753,6 +795,6 @@ describe('PlainFrame', () => {
 
     expect(main.textContent).toBe('Content')
     expect(layer(main)).toBe(BACKGROUND)
-    expect(marginStartAt(main)).toEqual({})
+    expect(styleAt(main, 'margin-inline-start')).toEqual({})
   })
 })

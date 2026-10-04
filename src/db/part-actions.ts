@@ -68,6 +68,7 @@ export const partRemoveInputSchema = partReadInputSchema.extend({
 
 export const projectAddInputSchema = z.object({
   slug: newConceptSchema.shape.slug,
+  name: newConceptSchema.shape.title,
 })
 
 export const answerInputSchema = partReadInputSchema.extend({
@@ -184,11 +185,10 @@ export function createPartActions(request: ActionRequest) {
           .catch(toFailure),
     ),
 
-    // The Project takes its slug as its name.
-    addProject: withSession(async (db, { slug }: ProjectAddInput) => {
+    addProject: withSession(async (db, { slug, name }: ProjectAddInput) => {
       if (await findProject(db, slug))
         return { message: `project "${slug}" exists already` }
-      await addProject(db, slug)
+      await addProject(db, slug, name)
       return { slug }
     }),
 

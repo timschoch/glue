@@ -103,7 +103,7 @@ const requests = {
   addJoint: () =>
     actions.addJoint({ project, joint: { part: 'I1', needs: 'G1' } }),
   removeJoint: () => actions.removeJoint({ project, jointId: 1 }),
-  addProject: () => actions.addProject({ slug: 'bakeday' }),
+  addProject: () => actions.addProject({ slug: 'bakeday', name: 'Bake day' }),
 } satisfies Record<keyof typeof actions, () => Promise<unknown>>
 
 async function readProject() {
@@ -519,17 +519,18 @@ describe('a server function of the Part model with a session', () => {
   })
 
   it('adds a Project with its root Concept', async () => {
-    expect(await actions.addProject({ slug: 'bakeday' })).toEqual({
-      slug: 'bakeday',
-    })
+    expect(
+      await actions.addProject({ slug: 'bakeday', name: 'Bake day' }),
+    ).toEqual({ slug: 'bakeday' })
     expect(await findProject(db, 'bakeday')).toMatchObject({
       slug: 'bakeday',
-      concept: { slug: 'bakeday', concepts: [] },
+      name: 'Bake day',
+      concept: { slug: 'bakeday', title: 'Bake day', concepts: [] },
     })
   })
 
   it('answers a Project that exists already as a failure', async () => {
-    expect(await actions.addProject({ slug: project })).toEqual({
+    expect(await actions.addProject({ slug: project, name: 'Any' })).toEqual({
       message: 'project "flexibeck" exists already',
     })
   })

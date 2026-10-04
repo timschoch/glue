@@ -309,7 +309,7 @@ describe('a section', () => {
 })
 
 describe('a record', () => {
-  it('opens in the main window with a click on its card, as the start of a trail', async () => {
+  it('opens in the main window with a click on its card, and shows no trail of one record', async () => {
     const { expectAddress } = await renderPage(
       '/glue/part-model?section=Decide',
     )
@@ -318,7 +318,7 @@ describe('a record', () => {
 
     await expectAddress('/glue/part-model/D4', { section: 'Decide' })
     expect(pageTitle()).toBe(D4)
-    expect(items('Trail')).toEqual([D4])
+    expect(screen.queryByRole('navigation', { name: 'Trail' })).toBeNull()
   })
 
   it('adds the record of a Joint to the trail, and goes back with a click on the trail', async () => {
@@ -339,7 +339,7 @@ describe('a record', () => {
     )
 
     await expectAddress('/glue/part-model/D4')
-    expect(items('Trail')).toEqual([D4])
+    expect(screen.queryByRole('navigation', { name: 'Trail' })).toBeNull()
   })
 
   it('opens the record of a record id in its text', async () => {
@@ -752,22 +752,39 @@ describe('a new Concept and a new Project', () => {
       ),
     )
     await expectAddress('/glue', { add: 'project' })
-    await userEvent.type(field('Slug'), 'flexibeck')
+    expect(field('Name').getAttribute('placeholder')).toBeNull()
+    await userEvent.type(field('Name'), 'My Project')
     await userEvent.click(button('Save'))
 
-    await expectAddress('/flexibeck')
-    expect(server.addProject).toHaveBeenCalledWith({ slug: 'flexibeck' })
+    await expectAddress('/my-project')
+    expect(server.addProject).toHaveBeenCalledWith({
+      slug: 'my-project',
+      name: 'My Project',
+    })
   })
 
-  it('shows a wrong slug at its field and does not save', async () => {
-    const { server } = await renderPage('/glue?add=project')
-    await userEvent.type(field('Slug'), 'My Project')
+  it.each([
+    ['Project', '/glue?add=project', 'Name', 'Enter a name with a letter.'],
+    [
+      'Concept',
+      '/glue/part-model?add=concept',
+      'Title',
+      'Enter a title with a letter.',
+    ],
+  ])(
+    'shows the name of a %s without a letter as wrong at its field, and does not save',
+    async (_added, path, label, reason) => {
+      const { server } = await renderPage(path)
+      expect(field(label).getAttribute('placeholder')).toBeNull()
+      await userEvent.type(field(label), '!?')
 
-    await userEvent.click(button('Save'))
+      await userEvent.click(button('Save'))
 
-    expect(screen.getByText('Enter a slug, such as my-project.')).toBeDefined()
-    expect(server.addProject).not.toHaveBeenCalled()
-  })
+      expect(screen.getByText(reason)).toBeDefined()
+      expect(server.addProject).not.toHaveBeenCalled()
+      expect(server.addConcept).not.toHaveBeenCalled()
+    },
+  )
 })
 
 describe('the session', () => {

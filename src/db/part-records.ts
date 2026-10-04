@@ -47,16 +47,18 @@ function parseInput<TOutput>(inputSchema: z.ZodType<TOutput>, input: unknown) {
 const idRowsSchema = z.object({ rows: z.array(z.object({ id: z.number() })) })
 
 // Adds the Project when it does not exist, and its root Concept when it has
-// none. The root takes the slug and the name of the Project. Gives back the
-// row id of the Project.
+// none. The root takes the slug and the name of the Project. A Project
+// without a name takes its slug as its name. Gives back the row id of the
+// Project.
 export async function addProject(
   db: ConceptDb,
   projectSlug: string,
+  name = projectSlug,
 ): Promise<number> {
   const result = await db.execute(sql`
     with project as (
       insert into "projects" ("slug", "name")
-      values (${projectSlug}::text, ${projectSlug}::text)
+      values (${projectSlug}::text, ${name}::text)
       on conflict ("slug") do update set "slug" = excluded."slug"
       returning "id", "slug", "name"
     ),

@@ -29,7 +29,7 @@ type Story = StoryObj<typeof meta>
 export const AddConcept: Story = {}
 
 export const AddProject: Story = {
-  args: { heading: 'Project', label: 'Slug', placeholder: 'bakeday' },
+  args: { heading: 'Project', label: 'Name' },
 }
 
 export const Saving: Story = { args: { pending: true } }

@@ -140,6 +140,19 @@ describe('addProject', () => {
     ])
   })
 
+  it('gives the Project and its root Concept the name of the Project', async () => {
+    await addProject(db, 'bake-day', 'Bake day')
+
+    expect(
+      await db
+        .select({ slug: schema.projects.slug, name: schema.projects.name })
+        .from(schema.projects),
+    ).toEqual([{ slug: 'bake-day', name: 'Bake day' }])
+    expect(await listConcepts()).toMatchObject([
+      { slug: 'bake-day', title: 'Bake day' },
+    ])
+  })
+
   it('gives back the row id of the Project, new or not', async () => {
     expect(await addProject(db, 'glue')).toBe(1)
     expect(await addProject(db, 'flexibeck')).toBe(2)

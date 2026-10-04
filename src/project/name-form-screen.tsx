@@ -7,19 +7,17 @@ import { useWrite } from './use-write.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
 
-const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/
-
-// The slug of a title: its words in lowercase, joined by hyphens.
-export function toSlug(title: string): string {
-  return title
+// The slug of a name or a title: its words in lowercase, joined by hyphens.
+export function toSlug(name: string): string {
+  return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
 }
 
 // The form in the main window that adds a Concept below the open Concept,
-// or a Project. A Concept gets its slug from its title. A Project gets its
-// name from its slug.
+// or a Project. A Concept gets its slug from its title, a Project from its
+// name.
 export function NameFormScreen({ added }: { added: 'concept' | 'project' }) {
   const router = useRouter()
   const { addConcept, addProject } = projectRoute.useRouteContext()
@@ -39,15 +37,14 @@ export function NameFormScreen({ added }: { added: 'concept' | 'project' }) {
       <NameForm
         {...shared}
         heading="Project"
-        label="Slug"
-        placeholder="my-project"
-        onSave={(slug) => {
-          const wrong = !SLUG.test(slug)
-          setError(wrong ? 'Enter a slug, such as my-project.' : undefined)
-          if (wrong) return
+        label="Name"
+        onSave={(name) => {
+          const slug = toSlug(name)
+          setError(slug === '' ? 'Enter a name with a letter.' : undefined)
+          if (slug === '') return
           void write(
             'Saving',
-            () => addProject({ slug }),
+            () => addProject({ slug, name }),
             (saved) =>
               router.navigate({
                 to: '/$project',

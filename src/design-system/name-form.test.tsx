@@ -40,21 +40,21 @@ function alerts(): Array<string> {
 
 describe('NameForm', () => {
   it('names what it adds as the page title, and has one field with its label', () => {
-    renderForm({ heading: 'Project', label: 'Slug' })
+    renderForm({ heading: 'Project', label: 'Name' })
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
       'Project',
     )
     expect(screen.getByRole('form', { name: 'Project' })).toBeDefined()
     expect(screen.getAllByRole('textbox')).toEqual([
-      screen.getByLabelText('Slug'),
+      screen.getByLabelText('Name'),
     ])
   })
 
-  it('shows the format of the field as its placeholder, and no helper text', () => {
-    renderForm({ placeholder: 'bakeday' })
+  it('has no placeholder and no helper text', () => {
+    renderForm()
 
-    expect(field().placeholder).toBe('bakeday')
+    expect(field().hasAttribute('placeholder')).toBe(false)
     expect(document.querySelector('[class*="helper-text"]')).toBeNull()
   })
 

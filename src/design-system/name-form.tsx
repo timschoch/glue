@@ -10,8 +10,6 @@ export type NameFormProps = {
   heading: string
   // The label of the one field.
   label: string
-  // The format of the field.
-  placeholder?: string
   // The reason of a wrong value.
   error?: string
   serverError?: string
@@ -23,11 +21,10 @@ export type NameFormProps = {
 }
 
 // The form that adds a thing with one field: a Concept by its title, a
-// Project by its slug. It looks like the Part form.
+// Project by its name. It looks like the Part form.
 export function NameForm({
   heading,
   label,
-  placeholder,
   error,
   serverError,
   pending = false,
@@ -53,7 +50,6 @@ export function NameForm({
       <TextInput
         id={fieldId}
         labelText={label}
-        placeholder={placeholder}
         invalid={error !== undefined}
         invalidText={error}
         // Carbon names the reason only as the error message of the input. A
