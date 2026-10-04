@@ -68,7 +68,8 @@ const notSunk = workStates.filter((workState) => workState !== 'sunk')
 // there has no arrow for "Mark not ready" and none out of Draft to
 // Published. Red and black are the choice of the owner at any time, so each
 // Part that is not sunk takes `not-ready` and `sink`. `supersede` is the
-// sign-off: it publishes a draft and a Part in review.
+// sign-off: it publishes a draft and a Part in review. `not-ready` keeps the
+// status of a Decision: "proposed" is review, and the answer makes a draft.
 export const answerRules: Record<Answer, AnswerRule> = {
   fine: {
     from: ['to-check'],
@@ -83,7 +84,6 @@ export const answerRules: Record<Answer, AnswerRule> = {
     from: notSunk,
     ...NEW_PART_STATE,
     closesFlags: true,
-    decisionStatus: 'proposed',
     insightStatus: 'draft',
   },
   supersede: {
@@ -110,6 +110,14 @@ export function listAnswers(workState: WorkState): Answer[] {
   )
 }
 
+// The value of "published_at" for a write that gives the Part the Work state:
+// the first time that it is published stays.
+export function toPublishedAt(workState: WorkState): SQL {
+  return workState === 'published'
+    ? sql`coalesce("published_at", now())`
+    : sql`"published_at"`
+}
+
 // What follows a write to a Part, as common table expressions of the same
 // statement. `changed` names the expression that gives the Part after the
 // write: "id", "title", "body", "trust" and "work_state". "parts" still
@@ -118,8 +126,12 @@ export function listAnswers(workState: WorkState): Answer[] {
 // - A published Part with a new title or body, and a Part that turns
 //   not-ready or wrong, flags each Part that needs it over a Joint. A two-way
 //   Joint flags in both directions. A Part that is draft or sunk gets no flag.
-// - A Part with a new flag turns flagged and to-check. A Part in review
-//   stays there, and red stays red: automatic is yellow only.
+// - A draft or a Part in review that is published again flags them with
+//   `changed`: its edits reached nobody. The first sign-off flags nobody.
+// - A Part with a flag from the write turns flagged and to-check. A Part in
+//   review stays there, and red stays red: automatic is yellow only. A cause
+//   that has an open flag on the Part flags it again. So an open flag that a
+//   write at the same time left on a published Part mutes nothing.
 // - A Part that waits on the changed Part is back in to-check.
 // - `closesFlags` reads `new_part`: the open flags of the Part close when it
 //   holds. By default: when the Part is published or sunk.
@@ -130,7 +142,8 @@ export function spreadTrust(
   const newParts = sql.identifier(changed)
   return sql`,
     old_parts as (
-      select "id", "title", "body", "trust", "work_state" from "parts"
+      select "id", "title", "body", "trust", "work_state", "published_at"
+      from "parts"
       where "id" in (select "id" from ${newParts})
     ),
     closed_flags as (
@@ -149,11 +162,18 @@ export function spreadTrust(
         values
           (
             'changed',
-            old_part."work_state" = 'published'
+            (
+              old_part."work_state" = 'published'
               and (
                 new_part."title" <> old_part."title"
                 or new_part."body" <> old_part."body"
               )
+            )
+            or (
+              new_part."work_state" = 'published'
+              and old_part."work_state" in ('draft', 'review')
+              and old_part."published_at" is not null
+            )
           ),
           (
             'not-ready',
@@ -176,7 +196,9 @@ export function spreadTrust(
           else joint."needed_part_id"
         end
       where needing."work_state" not in ('draft', 'sunk')
-      on conflict do nothing
+      on conflict ("part_id", "cause_part_id", "reason")
+        where "closed_at" is null
+        do update set "created_at" = now()
       returning "part_id"
     ),
     woken as (

@@ -10,10 +10,16 @@ CREATE TABLE "flags" (
 --> statement-breakpoint
 ALTER TABLE "parts" ADD COLUMN "trust" text DEFAULT 'not-ready' NOT NULL;--> statement-breakpoint
 ALTER TABLE "parts" ADD COLUMN "work_state" text DEFAULT 'draft' NOT NULL;--> statement-breakpoint
+ALTER TABLE "parts" ADD COLUMN "published_at" timestamp with time zone;--> statement-breakpoint
 -- The defaults are for a new Part: a draft that nobody relies on. A Part from
 -- before this migration gets its Trust and its Work state from its status
--- (D39). A Part with no status, and a Goal, is published and solid.
+-- (D39). A Part with no status, and a Goal, is published and solid. A
+-- published Part was published before.
 UPDATE "parts" SET
+	"published_at" = CASE
+		WHEN "status" IN ('proposed', 'draft', 'superseded') THEN NULL
+		ELSE now()
+	END,
 	"trust" = CASE "status"
 		WHEN 'proposed' THEN 'not-ready'
 		WHEN 'draft' THEN 'not-ready'

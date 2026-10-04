@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite'
+import type { SQL } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -85,6 +86,23 @@ async function readState(recordId: string) {
 async function listFlags(recordId: string) {
   const part = await findPart(db, 'glue', recordId)
   return part?.flags.map(({ cause, reason }) => `${cause.id} ${reason}`)
+}
+
+// A database where `write` runs after the reads of a call and before its
+// statement: what a second request does at the same time.
+function toRacingDb(write: () => Promise<unknown>) {
+  let hasWritten = false
+  return new Proxy(db, {
+    get(target, property) {
+      if (property !== 'execute' || hasWritten)
+        return Reflect.get(target, property)
+      return async (statement: SQL) => {
+        hasWritten = true
+        await write()
+        return target.execute(statement)
+      }
+    },
+  })
 }
 
 const solid = { trust: 'solid', workState: 'published' }
@@ -440,6 +458,36 @@ describe('the answer of the owner', () => {
     ).rejects.toThrow(`"${other}" is sunk`)
   })
 
+  it('refuses to wait on a Part that is sunk after the read', async () => {
+    const id = await addFlaggedInsight()
+    const other = await addInsight('Revenue drops')
+    const racing = toRacingDb(() =>
+      answerPart(db, 'glue', other, { answer: 'sink' }),
+    )
+
+    await expect(
+      answerPart(racing, 'glue', id, { answer: 'wait', waitsOn: other }),
+    ).rejects.toThrow(`"${other}" is sunk`)
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      ...flagged,
+      waitsOn: null,
+    })
+  })
+
+  it('refuses to wait on a Part of another Project', async () => {
+    const id = await addFlaggedInsight()
+    await addProject(db, 'flexibeck')
+    const other = await addPart(db, 'flexibeck', {
+      type: 'entity',
+      title: 'Recipe',
+    })
+
+    await expect(
+      answerPart(db, 'glue', id, { answer: 'wait', waitsOn: other }),
+    ).rejects.toThrow(`"${other}" not found`)
+    expect(await readState(id)).toEqual(flagged)
+  })
+
   it('makes the Part a draft with "need-time", and keeps its Trust', async () => {
     const id = await addFlaggedInsight()
 
@@ -464,6 +512,19 @@ describe('the answer of the owner', () => {
     })
     expect(await listFlags(needing)).toEqual([`${id} not-ready`])
     expect(await readState(needing)).toEqual(flagged)
+  })
+
+  it('keeps the status of a Decision with "not-ready"', async () => {
+    await addGoal()
+    await addInsight('Loads are slow')
+    const id = await addDecision('accepted', ['G1', 'I1'])
+
+    await answerPart(db, 'glue', id, { answer: 'not-ready' })
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      ...draft,
+      status: 'accepted',
+    })
   })
 
   it('publishes a draft with "supersede"', async () => {
@@ -550,6 +611,80 @@ describe('the answer of the owner', () => {
     await expect(
       answerPart(db, 'glue', 'I9', { answer: 'sink' }),
     ).rejects.toThrow('I9')
+  })
+})
+
+describe('a Part that is published again', () => {
+  it('flags the Parts that need it with the reason changed', async () => {
+    const id = await addFlaggedInsight()
+    const needing = await addInsight('Revenue drops', [id])
+    await answerPart(db, 'glue', id, { answer: 'need-time' })
+    await updatePart(db, 'glue', id, { body: 'One in ten leaves.' })
+
+    expect(await readState(needing)).toEqual(solid)
+
+    await answerPart(db, 'glue', id, { answer: 'supersede' })
+
+    expect(await listFlags(needing)).toEqual([`${id} changed`])
+    expect(await readState(needing)).toEqual(flagged)
+  })
+
+  it('flags them when a Decision is accepted again', async () => {
+    await addGoal()
+    await addInsight('Loads are slow')
+    const id = await addDecision('accepted', ['G1', 'I1'])
+    const needing = await addInsight('Users churn', [id])
+    await updatePart(db, 'glue', id, { status: 'proposed' })
+
+    await updatePart(db, 'glue', id, { status: 'accepted' })
+
+    expect(await listFlags(needing)).toEqual([
+      `${id} not-ready`,
+      `${id} changed`,
+    ])
+  })
+
+  it('flags nobody with the first sign-off of a Part', async () => {
+    const id = await addDraftInsight('Loads are slow')
+    const needing = await addInsight('Users churn', [id])
+
+    await answerPart(db, 'glue', id, { answer: 'supersede' })
+
+    expect(await findPart(db, 'glue', needing)).toMatchObject({
+      ...solid,
+      flags: [],
+    })
+  })
+})
+
+describe('a write at the same time as an answer', () => {
+  it('refuses the answer to a Part that changed after the read, and keeps its flags', async () => {
+    const id = await addFlaggedInsight()
+    await addInsight('Revenue drops')
+    await addJoint(db, 'glue', { part: id, needs: 'I3' })
+    // The clock of PGlite is coarse: two writes can get the same time.
+    await client.exec("update parts set changed_at = now() - interval '1 hour'")
+    const racing = toRacingDb(() =>
+      updatePart(db, 'glue', 'I3', { title: 'Revenue drops fast' }),
+    )
+
+    await expect(
+      answerPart(racing, 'glue', id, { answer: 'fine' }),
+    ).rejects.toThrow('changed at the same time')
+    expect(await readState(id)).toEqual(flagged)
+    expect(await listFlags(id)).toEqual(['I1 changed', 'I3 changed'])
+  })
+
+  it('flags a published Part again that kept an open flag of the cause', async () => {
+    const id = await addFlaggedInsight()
+    await client.exec(
+      "update parts set trust = 'solid', work_state = 'published' where record_id = 'I2'",
+    )
+
+    await updatePart(db, 'glue', 'I1', { title: 'Loads take three seconds' })
+
+    expect(await readState(id)).toEqual(flagged)
+    expect(await listFlags(id)).toEqual(['I1 changed'])
   })
 })
 

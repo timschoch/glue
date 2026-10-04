@@ -881,6 +881,20 @@ describe('the migration that adds Trust and the Work state', () => {
     ])
   })
 
+  it('marks each published Part as published before', async () => {
+    await runMigration(trustMigration)
+
+    const marked = await client.query<{ record_id: string }>(
+      'select record_id from parts where published_at is not null order by id',
+    )
+    expect(marked.rows.map((row) => row.record_id)).toEqual([
+      'G1',
+      'I1',
+      'D2',
+      'E1',
+    ])
+  })
+
   it('takes a Part from the code from before the migration', async () => {
     await runMigration(trustMigration)
 

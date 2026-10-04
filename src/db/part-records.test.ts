@@ -296,6 +296,7 @@ describe('addPart', () => {
       trust: 'not-ready',
       workState: 'draft',
       awaitedPartId: null,
+      publishedAt: null,
     })
     expect(await showPart('D1')).toMatchObject({
       type: 'decision',

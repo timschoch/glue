@@ -16,6 +16,7 @@ import {
   NEW_PART_STATE,
   spreadTrust,
   stateOfStatus,
+  toPublishedAt,
 } from './part-trust.ts'
 import {
   InvalidRecordError,
@@ -295,6 +296,8 @@ async function findParts(
       type: parts.type,
       status: parts.status,
       workState: parts.workState,
+      // As text: a Date drops the microseconds.
+      changedAt: sql<string>`${parts.changedAt}::text`,
     })
     .from(parts)
     .where(
@@ -456,7 +459,8 @@ async function addPartRow(
       insert into "parts" (
         "project_id", "concept_id", "type", "record_id", "title", "body",
         "owner", "status", "date", "source", "metric", "enforced_by",
-        "evidence_level", "superseded_by_id", "trust", "work_state"
+        "evidence_level", "superseded_by_id", "trust", "work_state",
+        "published_at"
       )
       select
         ${projectId}::integer,
@@ -474,7 +478,8 @@ async function addPartRow(
         ${fields.evidenceLevel ?? null}::text,
         ${supersededById ?? null}::integer,
         ${trust}::text,
-        ${workState}::text
+        ${workState}::text,
+        ${workState === 'published' ? sql`now()` : sql`null::timestamptz`}
       from counter
       returning "id", "record_id"
     )
@@ -700,6 +705,7 @@ export async function updatePart(
             trust: sql`case when ${hasNewStatus} then ${moved.trust}::text else ${parts.trust} end`,
             workState: sql`case when ${hasNewStatus} then ${moved.workState}::text else ${parts.workState} end`,
             awaitedPartId: sql`case when ${hasNewStatus} then null else ${parts.awaitedPartId} end`,
+            publishedAt: sql`case when ${hasNewStatus} then ${toPublishedAt(moved.workState)} else "published_at" end`,
           }),
           changedAt: sql`now()`,
         })
@@ -1039,8 +1045,10 @@ export function parsePartAnswer(input: unknown): PartAnswer {
 // and its status as the answer says (D39, and the table in docs/concept.md),
 // closes its open flags, and tells the Parts that need it. `wait` keeps the
 // flags. The Work state of the Part must take the answer. The statement
-// asks for the Work state that was read, so of two answers at the same time
-// only the first one writes.
+// asks for the Part as it was read: an answer to a Part that another write
+// changed in between writes nothing, so it closes no flag that the owner did
+// not see, and of two answers at the same time only the first one writes.
+// `wait` locks the awaited Part and asks that it is not sunk.
 export async function answerPart(
   db: ConceptDb,
   projectSlug: string,
@@ -1058,15 +1066,13 @@ export async function answerPart(
         : `"${recordId}" is ${part.workState}: it takes the answers ${allowed.join(', ')}`,
     )
 
-  let awaitedPartId: number | null = null
-  if (given.answer === 'wait') {
-    if (given.waitsOn === recordId)
-      throw new InvalidRecordError('a Part cannot wait on itself')
-    const [awaited] = await findParts(db, projectId, [given.waitsOn])
-    if (awaited.workState === 'sunk')
-      throw new InvalidRecordError(`"${given.waitsOn}" is sunk`)
-    awaitedPartId = awaited.id
-  }
+  const waitsOn = given.answer === 'wait' ? given.waitsOn : undefined
+  if (waitsOn === recordId)
+    throw new InvalidRecordError('a Part cannot wait on itself')
+  const awaited =
+    waitsOn === undefined
+      ? undefined
+      : (await findParts(db, projectId, [waitsOn]))[0]
 
   const rule = answerRules[given.answer]
   const statuses: Partial<Record<schema.PartType, string | null>> = {
@@ -1075,23 +1081,36 @@ export async function answerPart(
   }
   const status = statuses[part.type]
   const result = await db.execute(sql`
-    with answered as (
+    with awaited as (
+      select "id" from "parts"
+      where "id" = ${awaited?.id ?? null}::integer and "work_state" <> 'sunk'
+      for share
+    ),
+    answered as (
       update "parts" set
         "trust" = ${rule.trust === undefined ? sql`"trust"` : sql`${rule.trust}::text`},
         "work_state" = ${rule.workState}::text,
-        "awaited_part_id" = ${awaitedPartId}::integer,
+        "awaited_part_id" = (select "id" from awaited),
         ${status === undefined ? sql`` : sql`"status" = ${status}::text,`}
+        "published_at" = ${toPublishedAt(rule.workState)},
         "changed_at" = now()
       where "id" = ${part.id}::integer
-        and "work_state" = ${part.workState}::text
+        and "changed_at" = ${part.changedAt}::timestamptz
+        ${awaited === undefined ? sql`` : sql`and exists (select 1 from awaited)`}
       returning ${trustFields}
     )${spreadTrust('answered', sql`${rule.closesFlags}::boolean`)}
     select "id" from answered
   `)
-  if (idRowsSchema.parse(result).rows.length === 0)
-    throw new InvalidRecordError(
-      `"${recordId}" changed at the same time: read it and answer again`,
-    )
+  if (idRowsSchema.parse(result).rows.length > 0) return
+
+  if (waitsOn !== undefined) {
+    const [now] = await findParts(db, projectId, [waitsOn])
+    if (now.workState === 'sunk')
+      throw new InvalidRecordError(`"${waitsOn}" is sunk`)
+  }
+  throw new InvalidRecordError(
+    `"${recordId}" changed at the same time: read it and answer again`,
+  )
 }
 
 // What a measure run read for a Part, and when.

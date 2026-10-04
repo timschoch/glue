@@ -318,6 +318,9 @@ export const parts = pgTable(
     changedAt: timestamp('changed_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // The first time that the Part was published. A Part that is published
+    // again tells the Parts that need it.
+    publishedAt: timestamp('published_at', { withTimezone: true }),
   },
   (table) => [
     foreignKey({

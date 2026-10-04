@@ -59,6 +59,20 @@ test('a superseded Decision fails with a hint to its replacement', () => {
   assert.match(found, /D10/)
 })
 
+test('a sunk Decision without a successor fails, and names no replacement', () => {
+  const withSunk = new Map(decisions).set('D7', {
+    status: 'superseded',
+    superseded_by: null,
+  })
+  const [found] = problems({
+    body: 'Closes #12\nDecision: D7',
+    files: [],
+    decisions: withSunk,
+  })
+  assert.match(found, /Decision "D7" is sunk and has no successor/)
+  assert.doesNotMatch(found, /undefined|null/)
+})
+
 test('a PR may cite a Decision it adds itself', () => {
   const withNew = new Map(decisions).set('D42', { status: 'proposed' })
   assert.deepEqual(
