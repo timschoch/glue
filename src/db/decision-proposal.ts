@@ -53,7 +53,7 @@ export function validateProposal(
     evidence:
       proposal.evidence.length > 0
         ? undefined
-        : 'Pick one Insight or Fact or more.',
+        : 'Pick one Insight or Guardrail or more.',
     owner: proposal.owner.trim()
       ? undefined
       : 'Enter the name of the person who owns the Decision.',

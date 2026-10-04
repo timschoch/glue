@@ -9,6 +9,13 @@ export class ProductNotFoundError extends InvalidRecordError {
   }
 }
 
+// The Joint of the request does not exist. The HTTP API answers it with 404.
+export class JointNotFoundError extends InvalidRecordError {
+  constructor(jointId: number) {
+    super(`joint ${jointId} not found`)
+  }
+}
+
 const UNIQUE_VIOLATION = '23505'
 
 // The database refused a row that exists already: any unique rule, or the

@@ -22,6 +22,7 @@ import { findConcept, findRecord } from '../db/legacy-records.ts'
 import {
   InvalidRecordError,
   isUniqueViolation,
+  JointNotFoundError,
   ProductNotFoundError,
 } from '../db/record-errors.ts'
 import { typeOfRecordId } from '../db/record-id.ts'
@@ -37,11 +38,17 @@ import type { MetricSource } from '../measure/metric-source.ts'
 export type ApiRequest = {
   db: ConceptDb
   request: Request
-  params: { project: string; folder?: string; recordId?: string }
+  params: {
+    project: string
+    folder?: string
+    recordId?: string
+    concept?: string
+    jointId?: string
+  }
 }
 
 // A request that can accept a Decision, and so open its downstream issue.
-type ChangeRequest = ApiRequest & { github: GithubClient }
+export type ChangeRequest = ApiRequest & { github: GithubClient }
 
 const text = z.string().min(1)
 const body = z.string().default('')
@@ -149,7 +156,7 @@ export const errorSchema = z
   })
   .meta({ id: 'Error' })
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     readonly code: ErrorCode,
     message: string,
@@ -164,7 +171,10 @@ function toApiError(error: unknown): ApiError {
   if (error instanceof z.ZodError) {
     return new ApiError('invalid-request', z.prettifyError(error))
   }
-  if (error instanceof ProductNotFoundError) {
+  if (
+    error instanceof ProductNotFoundError ||
+    error instanceof JointNotFoundError
+  ) {
     return new ApiError('not-found', error.message)
   }
   if (error instanceof InvalidRecordError) {
@@ -212,7 +222,7 @@ async function validateToken({ db, request, params }: ApiRequest) {
   }
 }
 
-async function handleApiRequest(
+export async function handleApiRequest(
   input: ApiRequest,
   respond: () => Promise<Response>,
 ): Promise<Response> {
@@ -224,7 +234,7 @@ async function handleApiRequest(
   }
 }
 
-async function parseJson(request: Request): Promise<unknown> {
+export async function parseJson(request: Request): Promise<unknown> {
   try {
     return await request.json()
   } catch {

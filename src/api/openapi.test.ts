@@ -29,8 +29,70 @@ describe('GET /api/v1/openapi.json', () => {
           `patch ${root}/decisions/{recordId}`,
           `post ${root}/measure`,
         ])
+        .concat(
+          [
+            'get ',
+            'get /concepts/{concept}',
+            'post /concepts',
+            'get /parts',
+            'post /parts',
+            'get /parts/{recordId}',
+            'patch /parts/{recordId}',
+            'post /joints',
+            'delete /joints/{jointId}',
+          ].map((route) => route.replace(' ', ' /api/v1/projects/{project}')),
+        )
         .sort(),
     )
+  })
+
+  it('describes the Part model: what each answer holds and what each request takes', async () => {
+    const document = await handleGetOpenApi().json()
+    const root = document.paths['/api/v1/projects/{project}']
+    const parts = document.paths['/api/v1/projects/{project}/parts']
+    const { schemas } = document.components
+
+    expect(root.get.responses[200].content['application/json'].schema).toEqual({
+      $ref: '#/components/schemas/Project',
+    })
+    expect(parts.get.parameters).toContainEqual(
+      expect.objectContaining({ in: 'query', name: 'type' }),
+    )
+    expect(Object.keys(schemas)).toEqual(
+      expect.arrayContaining([
+        'Project',
+        'ConceptNode',
+        'ProjectConcept',
+        'PartSummary',
+        'Part',
+        'ChangedPart',
+        'ConceptInput',
+        'PartInput',
+        'PartUpdate',
+        'JointInput',
+      ]),
+    )
+    expect(schemas.Part.properties.evidenceLevel.anyOf).toContainEqual({
+      type: 'string',
+      enum: ['hunch', 'pattern', 'confirmed'],
+    })
+    expect(JSON.stringify(schemas.PartInput)).toContain('"entity"')
+  })
+
+  it('describes the issue of a Decision in the answer, and in no request', async () => {
+    const document = await handleGetOpenApi().json()
+    const { schemas } = document.components
+
+    expect(schemas.Part.properties.issueUrl).toBeDefined()
+    expect(JSON.stringify(schemas.PartInput)).not.toContain('issueUrl')
+    expect(JSON.stringify(schemas.PartUpdate)).not.toContain('issueUrl')
+  })
+
+  it('describes the Evidence level of an Insight and the source of a Guardrail', async () => {
+    const { schemas } = (await handleGetOpenApi().json()).components
+
+    expect(schemas.Insight.required).toContain('evidenceLevel')
+    expect(schemas.Guardrail.required).toContain('source')
   })
 
   it('marks every products route as deprecated, and no projects route', async () => {

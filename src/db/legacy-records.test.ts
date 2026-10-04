@@ -229,6 +229,7 @@ describe('findRecord', () => {
       date: '2026-01-01',
       source: 'https://example.com/i1',
       status: 'draft',
+      evidenceLevel: 'pattern',
       body: 'Seen in **three** interviews.',
       decisions: [{ id: 'D1', title: 'Cache the homepage' }],
     })
@@ -242,6 +243,7 @@ describe('findRecord', () => {
       id: 'R1',
       title: 'No query over 200ms',
       enforcedBy: 'none yet',
+      source: null,
       body: '',
     })
   })
@@ -453,6 +455,7 @@ describe('showConceptRecord', () => {
         { id: 'R1', title: 'No query over 200ms' },
         { id: 'I1', title: 'Users churn on slow loads' },
       ],
+      needs: [],
       supersededBy: 'D2',
       supersedes: [],
     })
@@ -516,6 +519,7 @@ describe('showConceptRecord', () => {
         date: '2026-01-01',
         source: 'https://example.com/i1',
         status: 'draft',
+        evidenceLevel: 'pattern',
       },
       body: 'Seen in **three** interviews.',
     })
@@ -527,7 +531,11 @@ describe('showConceptRecord', () => {
     expect(await showConceptRecord(db, 'glue', 'R1')).toEqual({
       id: 'R1',
       folder: 'guardrails',
-      fields: { title: 'No query over 200ms', enforcedBy: 'none yet' },
+      fields: {
+        title: 'No query over 200ms',
+        enforcedBy: 'none yet',
+        source: null,
+      },
       body: '',
     })
   })

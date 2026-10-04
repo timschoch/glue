@@ -196,6 +196,7 @@ describe('Insights', () => {
       date: '2026-09-30',
       source: 'interviews',
       status: 'draft',
+      evidenceLevel: null,
       body: 'Five of eight said so.',
       decisions: [],
     })
@@ -212,6 +213,54 @@ describe('Insights', () => {
         status: 'draft',
       },
     ])
+  })
+
+  it('answers 400 for a status other than draft, and names draft', async () => {
+    const response = await call(
+      handleAddRecord,
+      'POST',
+      { project: 'flexibeck', folder: 'insights' },
+      { title: 'Users churn', source: 'interviews', status: 'confirmed' },
+    )
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toContain('"draft"')
+  })
+
+  it('returns the Evidence level of an Insight', async () => {
+    const id = await addConceptRecord(
+      db,
+      'flexibeck',
+      'insights',
+      { title: 'Users churn', source: 'interviews', evidence_level: 'pattern' },
+      '',
+    )
+
+    const read = await call(handleGetRecord, 'GET', {
+      project: 'flexibeck',
+      folder: 'insights',
+      recordId: id,
+    })
+
+    expect(read.body.evidenceLevel).toBe('pattern')
+  })
+
+  it('returns the source of a Guardrail', async () => {
+    const id = await addConceptRecord(
+      db,
+      'flexibeck',
+      'guardrails',
+      { title: 'No paid tools', enforced_by: 'review', source: 'the Owner' },
+      '',
+    )
+
+    const read = await call(handleGetRecord, 'GET', {
+      project: 'flexibeck',
+      folder: 'guardrails',
+      recordId: id,
+    })
+
+    expect(read.body).toMatchObject({ id, source: 'the Owner' })
   })
 
   it('answers 400 for an Insight without a title', async () => {

@@ -4,7 +4,8 @@ import type { ConceptDb } from '../db/client.ts'
 import { findProduct } from '../db/concept.ts'
 import type { Decision, RecordReference } from '../db/concept.ts'
 import { findRecord } from '../db/legacy-records.ts'
-import { updatePart } from '../db/part-records.ts'
+import { setIssueUrl } from '../db/part-records.ts'
+import { typeOfRecordId } from '../db/record-id.ts'
 import type { GithubClient, IssueInput } from './client.ts'
 
 export type DownstreamIssue =
@@ -38,13 +39,17 @@ function toIssue(decision: Decision): IssueInput {
   }
 }
 
-// Opens the issue once. A Decision with an issue opens no second one.
+// Opens the issue when the Part is an accepted Decision. Every write that
+// can leave a Decision accepted calls it with the record id of the Part, so
+// the CLI, the HTTP API and the app all open the issue. A Decision with an
+// issue opens no second one.
 export async function createDownstreamIssue(
   db: ConceptDb,
   github: GithubClient,
   productSlug: string,
   decisionId: string,
 ): Promise<DownstreamIssue> {
+  if (typeOfRecordId(decisionId) !== 'decision') return { kind: 'not-found' }
   const decision = await findRecord(db, productSlug, decisionId)
   if (decision?.kind !== 'decision') return { kind: 'not-found' }
   if (decision.issueUrl) return { kind: 'existing', url: decision.issueUrl }
@@ -64,12 +69,6 @@ export async function createDownstreamIssue(
   }
 
   // A Decision with an issue keeps it.
-  await updatePart(
-    db,
-    productSlug,
-    decisionId,
-    { issueUrl: url },
-    { issueUrl: null },
-  )
+  await setIssueUrl(db, productSlug, decisionId, url)
   return { kind: 'created', url }
 }
