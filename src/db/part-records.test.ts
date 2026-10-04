@@ -345,9 +345,9 @@ describe('addPart', () => {
 
     // The Parts 1 to 4 are G1, I1, R1, D1.
     expect(await listJoints()).toEqual([
-      { id: 1, partId: 4, neededPartId: 3, twoWay: false },
-      { id: 2, partId: 4, neededPartId: 1, twoWay: false },
-      { id: 3, partId: 4, neededPartId: 2, twoWay: false },
+      { id: 1, partId: 4, neededPartId: 3, twoWay: false, mentioned: false },
+      { id: 2, partId: 4, neededPartId: 1, twoWay: false, mentioned: false },
+      { id: 3, partId: 4, neededPartId: 2, twoWay: false, mentioned: false },
     ])
   })
 
@@ -855,6 +855,7 @@ describe('addJoint', () => {
       partId: 3,
       neededPartId: 1,
       twoWay: false,
+      mentioned: false,
     })
   })
 
@@ -1191,5 +1192,169 @@ describe('setReading', () => {
     await expect(setReading(db, 'glue', 'G7', reading)).rejects.toThrow(
       new InvalidRecordError('goal "G7" not found'),
     )
+  })
+})
+
+// The Parts 1 to 4 are G1, I1, R1, D1. The Joints 1 and 2 glue D1 to G1 and
+// to I1.
+describe('the Joints of the mentions in a body', () => {
+  beforeEach(addGluedParts)
+
+  // The Joints from the Part of the row id, without their ids.
+  async function listJointsFrom(partId: number) {
+    const joints = await listJoints()
+    return joints
+      .filter((joint) => joint.partId === partId)
+      .map(({ id: _id, partId: _partId, ...joint }) => joint)
+  }
+
+  it('glues a new Part one-way to each Part that its body names', async () => {
+    await addPart(db, 'glue', {
+      type: 'entity',
+      title: 'Cache',
+      body: 'It serves #R1 and #g1. See also glue#I1.',
+    })
+
+    expect(await listJointsFrom(5)).toEqual([
+      { neededPartId: 1, twoWay: false, mentioned: true },
+      { neededPartId: 2, twoWay: false, mentioned: true },
+      { neededPartId: 3, twoWay: false, mentioned: true },
+    ])
+  })
+
+  it('adds one Joint for a Part that a new Part needs and names', async () => {
+    await addPart(db, 'glue', {
+      type: 'entity',
+      title: 'Cache',
+      body: 'It serves #G1 and #R1.',
+      needs: ['G1'],
+    })
+
+    expect(await listJointsFrom(5)).toEqual([
+      { neededPartId: 1, twoWay: false, mentioned: false },
+      { neededPartId: 3, twoWay: false, mentioned: true },
+    ])
+  })
+
+  it('glues a Part to each Part that its changed body names', async () => {
+    await updatePart(db, 'glue', 'R1', { body: 'It serves #G1 and #I1.' })
+
+    expect(await listJointsFrom(3)).toEqual([
+      { neededPartId: 1, twoWay: false, mentioned: true },
+      { neededPartId: 2, twoWay: false, mentioned: true },
+    ])
+  })
+
+  it('removes the Joint when the body names the Part no more', async () => {
+    await updatePart(db, 'glue', 'R1', { body: 'It serves #G1 and #I1.' })
+
+    await updatePart(db, 'glue', 'R1', { body: 'It serves #I1.' })
+
+    expect(await listJointsFrom(3)).toEqual([
+      { neededPartId: 2, twoWay: false, mentioned: true },
+    ])
+  })
+
+  it('keeps the Joints of the mentions when a change has no body', async () => {
+    await updatePart(db, 'glue', 'R1', { body: 'It serves #G1.' })
+
+    await updatePart(db, 'glue', 'R1', { title: 'UI is Carbon, not Mantine' })
+
+    expect(await listJointsFrom(3)).toHaveLength(1)
+  })
+
+  it('keeps a Joint that a person added, with and without the mention', async () => {
+    await addJoint(db, 'glue', { part: 'R1', needs: 'G1', twoWay: true })
+    const added = [{ neededPartId: 1, twoWay: true, mentioned: false }]
+
+    await updatePart(db, 'glue', 'R1', { body: 'It serves #G1.' })
+    expect(await listJointsFrom(3)).toEqual(added)
+
+    await updatePart(db, 'glue', 'R1', { body: '' })
+    expect(await listJointsFrom(3)).toEqual(added)
+  })
+
+  it('keeps the Joint of a mention that a person then adds by hand', async () => {
+    await updatePart(db, 'glue', 'R1', { body: 'It serves #G1.' })
+
+    await addJoint(db, 'glue', { part: 'G1', needs: 'R1' })
+    await updatePart(db, 'glue', 'R1', { body: '' })
+
+    expect(await listJointsFrom(3)).toEqual([])
+    expect(await listJointsFrom(1)).toEqual([
+      { neededPartId: 3, twoWay: false, mentioned: false },
+    ])
+  })
+
+  it('adds no Joint for an id that the Project does not have', async () => {
+    await addProject(db, 'flexibeck')
+    await addPart(db, 'flexibeck', { type: 'entity', title: 'Baker' })
+
+    await updatePart(db, 'glue', 'R1', {
+      body: 'See #G7, #E1 and flexibeck#E1.',
+    })
+
+    expect(await listJoints()).toHaveLength(2)
+  })
+
+  it('adds no Joint for a mention of the Part itself', async () => {
+    await updatePart(db, 'glue', 'R1', { body: 'This is #R1.' })
+
+    expect(await listJoints()).toHaveLength(2)
+  })
+
+  it('adds no Joint for a record id in code', async () => {
+    await updatePart(db, 'glue', 'R1', { body: 'Type `#G1`.' })
+
+    expect(await listJoints()).toHaveLength(2)
+  })
+
+  it('adds no second Joint for a mention of the Goal of a Decision', async () => {
+    await addPart(db, 'glue', goal)
+
+    await updatePart(db, 'glue', 'D1', { body: 'For #G1, not for #G2.' })
+
+    expect(await listJointsFrom(4)).toEqual([
+      { neededPartId: 1, twoWay: false, mentioned: false },
+      { neededPartId: 2, twoWay: false, mentioned: false },
+    ])
+  })
+
+  it('adds no Goal to a new Decision that names a second Goal', async () => {
+    await addPart(db, 'glue', goal)
+
+    await addPart(db, 'glue', { ...decision, body: 'For #G1, not for #G2.' })
+
+    expect(await listJointsFrom(6)).toEqual([
+      { neededPartId: 1, twoWay: false, mentioned: false },
+      { neededPartId: 2, twoWay: false, mentioned: false },
+    ])
+  })
+
+  it('keeps the last evidence of a Decision when its mention goes', async () => {
+    await updatePart(db, 'glue', 'D1', { body: 'The rule is #R1.' })
+    await removeJoint(db, 'glue', 2)
+
+    await updatePart(db, 'glue', 'D1', { body: '' })
+
+    expect(await listJointsFrom(4)).toEqual([
+      { neededPartId: 1, twoWay: false, mentioned: false },
+      { neededPartId: 3, twoWay: false, mentioned: true },
+    ])
+  })
+
+  it('changes no Joint when the Part is not in the expected state', async () => {
+    await updatePart(db, 'glue', 'R1', { body: 'It serves #G1.' })
+
+    const changed = await updatePart(
+      db,
+      'glue',
+      'D1',
+      { body: 'The rule is #R1.' },
+      { status: 'proposed' },
+    )
+
+    expect(changed).toBe(false)
+    expect(await listJointsFrom(4)).toHaveLength(2)
   })
 })

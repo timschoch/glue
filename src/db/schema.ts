@@ -343,6 +343,9 @@ export const joints = pgTable(
       .notNull()
       .references(() => parts.id, { onDelete: 'restrict' }),
     twoWay: boolean('two_way').notNull().default(false),
+    // The body of `partId` names `neededPartId`, and that added the Joint
+    // (D37). It goes with the mention. A Joint that a person added stays.
+    mentioned: boolean('mentioned').notNull().default(false),
   },
   (table) => [
     check(
