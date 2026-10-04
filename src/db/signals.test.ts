@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { setProductRepository } from './concept-records.ts'
+import { setProductRepository } from './projects.ts'
 import { addProject } from './part-records.ts'
 import { findPart } from './parts.ts'
 import { InvalidRecordError } from './record-errors.ts'

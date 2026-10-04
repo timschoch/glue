@@ -1,13 +1,13 @@
 // The HTTP API of the Signals of a Project (D30). The server routes in
-// src/routes/api/ reach these handlers through concept-routes.ts. The
+// src/routes/api/ reach these handlers through part-routes.ts. The
 // schemas here document the answers in openapi.ts.
 import { z } from 'zod'
 
 import { createPartOperations } from '../db/part-operations.ts'
 import { listSignals, signalInsightSchema } from '../db/signals.ts'
 import type { ProjectSignals } from '../db/signals.ts'
-import { handleApiRequest, parseJson } from './concept-api.ts'
-import type { ChangeRequest } from './concept-api.ts'
+import { handleApiRequest, parseJson } from './api-request.ts'
+import type { ChangeRequest } from './api-request.ts'
 import { toChangedPartResponse } from './part-api.ts'
 
 export const projectSignalsSchema = z

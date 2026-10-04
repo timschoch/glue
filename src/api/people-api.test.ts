@@ -5,7 +5,7 @@ import { addPart } from '../db/part-records.ts'
 import * as schema from '../db/schema.ts'
 import { createTestDatabase } from '../db/test-database.ts'
 import { createToken } from '../db/tokens.ts'
-import type { ApiRequest } from './concept-api.ts'
+import type { ApiRequest } from './api-request.ts'
 import { handleListMine } from './part-api.ts'
 import {
   handleAddMember,

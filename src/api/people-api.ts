@@ -14,8 +14,8 @@ import {
   newAssignmentSchema,
   unassign,
 } from '../db/members.ts'
-import { handleApiRequest, parseJson } from './concept-api.ts'
-import type { ApiRequest } from './concept-api.ts'
+import { handleApiRequest, parseJson } from './api-request.ts'
+import type { ApiRequest } from './api-request.ts'
 
 export const memberSchema = z
   .object({

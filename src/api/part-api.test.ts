@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { setProductRepository } from '../db/concept-records.ts'
+import { setProductRepository } from '../db/projects.ts'
 import type { GoalMeasure } from '../db/goal-measure.ts'
 import {
   addJoint,
@@ -15,7 +15,7 @@ import * as schema from '../db/schema.ts'
 import { createToken } from '../db/tokens.ts'
 import type { GithubClient } from '../github/client.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
-import type { ApiRequest } from './concept-api.ts'
+import type { ApiRequest } from './api-request.ts'
 import {
   handleAddConcept,
   handleAddJoint,
@@ -114,6 +114,14 @@ const decision = {
   owner: 'Ada',
   status: 'proposed',
   needs: ['G1', 'I1'],
+}
+
+const funnel = {
+  kind: 'funnel',
+  source: 'mock-analytics',
+  steps: ['signed-up', 'paid'],
+  target: 0.25,
+  window_days: 7,
 }
 
 describe('every endpoint of the Part model', () => {
@@ -551,6 +559,29 @@ describe('POST a Part', () => {
     expect(response.body.error.message).toContain('enforcedBy')
   })
 
+  it('answers 400 for a Part without a title, and names the field', async () => {
+    const response = await call(handleAddPart, 'POST', {
+      body: { type: 'insight', source: 'interviews' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('invalid-request')
+    expect(response.body.error.message).toContain('title')
+  })
+
+  it('gives two Decisions that arrive at the same time different ids', async () => {
+    const responses = await Promise.all([
+      call(handleAddPart, 'POST', { body: decision }),
+      call(handleAddPart, 'POST', { body: decision }),
+    ])
+
+    expect(responses.map((response) => response.status)).toEqual([201, 201])
+    expect(responses.map((response) => response.body.id).sort()).toEqual([
+      'D1',
+      'D2',
+    ])
+  })
+
   it('answers 400 for a needed Part that does not exist', async () => {
     const response = await call(handleAddPart, 'POST', {
       body: { type: 'entity', title: 'Cart', needs: ['D9'] },
@@ -666,6 +697,59 @@ describe('PATCH a Part', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.error.message).toContain('metric')
+  })
+
+  // The analytics project of a Project is set with the CLI, not per measure,
+  // so a token cannot read the analytics of another Project.
+  it.each([
+    ['a target above 1', 'target', { ...funnel, target: 25 }],
+    ['an analytics project', 'project', { ...funnel, project: 'phc_other' }],
+    [
+      'a baseline value and no breakdown',
+      'baseline_value',
+      {
+        kind: 'mean',
+        source: 'mock-analytics',
+        event: 'survey sent',
+        property: '$survey_response',
+        target_change: 1,
+        window_days: 7,
+        baseline_value: 'eadfd12',
+      },
+    ],
+  ])(
+    'answers 400 for a measure with %s, and names %s',
+    async (_name, field, measure) => {
+      const response = await call(handleUpdatePart, 'PATCH', {
+        params: { recordId: 'G1' },
+        body: { measure },
+      })
+      const goal = await call(handleGetPart, 'GET', {
+        params: { recordId: 'G1' },
+      })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.message).toContain(field)
+      expect(goal.body.measure).toBeNull()
+    },
+  )
+
+  it('closes a Goal as achieved and keeps its measure', async () => {
+    await call(handleUpdatePart, 'PATCH', {
+      params: { recordId: 'G1' },
+      body: { measure: funnel },
+    })
+
+    const response = await call(handleUpdatePart, 'PATCH', {
+      params: { recordId: 'G1' },
+      body: { status: 'achieved' },
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      status: 'achieved',
+      measure: { measure: funnel },
+    })
   })
 
   it('answers 400 for a change without a field', async () => {

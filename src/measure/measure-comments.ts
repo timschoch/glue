@@ -3,8 +3,8 @@
 // Insight with the counts and quotes (Decision D22). The comments stay in
 // the channel; Glue stores only the Insight.
 import type { ConceptDb } from '../db/client.ts'
-import { listSocialProducts } from '../db/concept.ts'
-import type { SocialProduct } from '../db/concept.ts'
+import { listSocialProducts } from '../db/projects.ts'
+import type { SocialProduct } from '../db/projects.ts'
 import { addCommentInsight } from '../db/part-records.ts'
 import { SENTIMENTS } from './sentiment.ts'
 import type {

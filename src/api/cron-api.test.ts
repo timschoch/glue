@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { addConceptRecord, setAnalyticsProject } from '../db/concept-records.ts'
+import { addPart, addProject } from '../db/part-records.ts'
+import { setAnalyticsProject } from '../db/projects.ts'
 import * as schema from '../db/schema.ts'
 import { createTestDatabase } from '../db/test-database.ts'
 import { measureGoals } from '../measure/measure-goals.ts'
@@ -28,24 +29,20 @@ const source: MetricSource = {
 
 beforeEach(async () => {
   for (const product of ['flexibeck', 'glue']) {
-    await addConceptRecord(
-      db,
-      product,
-      'goals',
-      {
-        title: 'More users pay',
-        metric: 'signup to paid',
-        source: 'okr',
-        measure: {
-          kind: 'funnel',
-          source: 'mock-analytics',
-          steps: ['signed-up', 'paid'],
-          target: 0.25,
-          window_days: 7,
-        },
+    await addProject(db, product)
+    await addPart(db, product, {
+      type: 'goal',
+      title: 'More users pay',
+      metric: 'signup to paid',
+      source: 'okr',
+      measure: {
+        kind: 'funnel',
+        source: 'mock-analytics',
+        steps: ['signed-up', 'paid'],
+        target: 0.25,
+        window_days: 7,
       },
-      '',
-    )
+    })
     await setAnalyticsProject(db, product, `phc_${product}`)
   }
 })

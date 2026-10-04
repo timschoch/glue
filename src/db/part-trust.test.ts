@@ -12,7 +12,6 @@ import {
   vi,
 } from 'vitest'
 
-import { keepInsight } from './concept-records.ts'
 import {
   addJoint,
   addPart,
@@ -189,7 +188,7 @@ describe('a change of the status', () => {
   it('publishes the draft Insight that is kept', async () => {
     const id = await addDraftInsight('Bakers want videos')
 
-    await keepInsight(db, 'glue', id)
+    await updatePart(db, 'glue', id, { status: null })
 
     expect(await readState(id)).toEqual(solid)
   })

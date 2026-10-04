@@ -1,30 +1,15 @@
 // `pnpm concept`: read and add Glue's Concept records in the database.
-// See src/db/concept-fields.ts for the record types and their fields.
+// See src/part-fields.ts for the record types and their fields.
 import { z } from 'zod'
 
 import { createDb } from '../src/db/client.ts'
 import type { ConceptDb } from '../src/db/client.ts'
-import {
-  addConceptRecord,
-  addDecision,
-  setAnalyticsProject,
-  setProductRepository,
-  setSocialHandle,
-  updateDecision,
-} from '../src/db/concept-records.ts'
-import type { ConceptFields, ConceptFolder } from '../src/db/concept-records.ts'
 import { listBuilds } from '../src/db/builds.ts'
-import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
-import type { DecisionStatus } from '../src/db/concept-fields.ts'
 import { findContract, signContract } from '../src/db/contracts.ts'
 import type { FrozenPart } from '../src/db/contracts.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
 import type { GoalMeasure } from '../src/db/goal-measure.ts'
 import type { Kind } from '../src/db/kinds.ts'
-import {
-  listConceptRecords,
-  showConceptRecord,
-} from '../src/db/legacy-records.ts'
 import {
   addMember,
   assign,
@@ -43,16 +28,25 @@ import {
   parsePartChange,
   parseQuestionAnswer,
   removeJoint,
+  supersedeDecision,
   updatePart,
 } from '../src/db/part-records.ts'
 import {
+  decisionStatuses,
   evidenceLevels,
+  evidenceTypes,
   findPart,
   listMine,
   listParts,
 } from '../src/db/parts.ts'
 import type { Part, PartSummary, PartType } from '../src/db/parts.ts'
 import { answers } from '../src/db/part-trust.ts'
+import {
+  getProjectId,
+  setAnalyticsProject,
+  setProductRepository,
+  setSocialHandle,
+} from '../src/db/projects.ts'
 import { typeOfRecordId } from '../src/db/record-id.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 import { createGithubClient } from '../src/github/client.ts'
@@ -79,8 +73,18 @@ const FIELD_TO_PART_KEY: Record<string, string> = {
   evidence_level: 'evidenceLevel',
 }
 
-// The Part types without a record shape of today. `list`, `show` and `add`
-// read and write them as Parts.
+// The Part types with flags of their own, in the order of the list. `show`
+// prints the fields of their type.
+const CONCEPT_FOLDERS = {
+  goals: 'goal',
+  decisions: 'decision',
+  insights: 'insight',
+  guardrails: 'guardrail',
+} as const
+
+type ConceptFolder = keyof typeof CONCEPT_FOLDERS
+
+// The Part types that `show` prints as a plain Part.
 const PART_FOLDERS = {
   entities: 'entity',
   flows: 'flow',
@@ -91,38 +95,45 @@ type PartFolder = keyof typeof PART_FOLDERS
 
 const PART_TYPES: readonly PartType[] = Object.values(PART_FOLDERS)
 
-const KNOWN_FIELDS = new Set(
-  Object.values(CONCEPT_FIELDS)
-    .flatMap((type) => type.required as readonly string[])
-    .filter((field) => field !== 'id')
-    .concat([
-      'project',
-      'body',
-      'status',
-      'superseded_by',
-      'supersedes',
-      'evidence_level',
-      'needs',
-      'concept',
-      'kind',
-      'parent',
-      'name',
-      'measure',
-      'analytics_project',
-      'repository',
-      'social_handle',
-      'waits_on',
-      'words',
-      'by',
-      'version',
-      'member',
-      'responsible',
-      'co_author',
-      'option',
-      'pick',
-      'text',
-    ]),
-)
+const EVIDENCE_TYPES: readonly PartType[] = evidenceTypes
+
+const KNOWN_FIELDS = new Set([
+  'title',
+  'metric',
+  'source',
+  'date',
+  'owner',
+  'goal',
+  'evidence',
+  'enforced_by',
+  'project',
+  'body',
+  'status',
+  'superseded_by',
+  'supersedes',
+  'evidence_level',
+  'needs',
+  'concept',
+  'kind',
+  'parent',
+  'name',
+  'measure',
+  'analytics_project',
+  'repository',
+  'social_handle',
+  'waits_on',
+  'words',
+  'by',
+  'version',
+  'member',
+  'responsible',
+  'co_author',
+  'option',
+  'pick',
+  'text',
+])
+
+type Flags = Record<string, string | string[] | GoalMeasure | undefined>
 
 function parseMeasure(value: string): GoalMeasure {
   let json: unknown
@@ -145,7 +156,7 @@ function parseFlagValue(key: string, value: string) {
 }
 
 function isConceptFolder(value: string | undefined): value is ConceptFolder {
-  return value !== undefined && value in CONCEPT_FIELDS
+  return value !== undefined && value in CONCEPT_FOLDERS
 }
 
 function isPartFolder(value: string | undefined): value is PartFolder {
@@ -153,7 +164,7 @@ function isPartFolder(value: string | undefined): value is PartFolder {
 }
 
 // The flags as the fields of a Part.
-function toPartInput(flags: ConceptFields) {
+function toPartInput(flags: Flags) {
   return Object.fromEntries(
     Object.entries(flags).map(([field, value]) => [
       FIELD_TO_PART_KEY[field] ?? field,
@@ -162,8 +173,68 @@ function toPartInput(flags: ConceptFields) {
   )
 }
 
-export function parseFlags(args: string[]): ConceptFields {
-  const flags: ConceptFields = {}
+function isMissing(value: Flags[string]) {
+  return (
+    value === undefined ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0)
+  )
+}
+
+// `add` names the first flag that the type needs and the command lacks. A
+// Part without a date takes today.
+function requireFlags(type: PartType, flags: Flags) {
+  const fields: ReadonlyArray<PartField> = partFields[type]
+  for (const { name, flag = name, kind, required } of fields) {
+    const key = FLAG_TO_FIELD[flag] ?? flag
+    if (required && kind !== 'date' && isMissing(flags[key]))
+      throw new Error(`"${key}" is required`)
+  }
+  if (
+    type === 'decision' &&
+    flags.status === 'superseded' &&
+    isMissing(flags.superseded_by)
+  )
+    throw new Error('a superseded Decision needs "superseded_by"')
+}
+
+// The letter of a record id names its type. An id with the letter of
+// another type is not a record of the type that the flag asks for.
+function requireType(id: string, types: readonly PartType[], name: string) {
+  const type = typeOfRecordId(id)
+  if (!type || !types.includes(type))
+    throw new Error(`${name} "${id}" not found`)
+  return id
+}
+
+// The flags as the fields of a Decision. Its Goal and its evidence come
+// first in what it needs.
+function toDecisionInput({
+  goal,
+  evidence,
+  needs,
+  superseded_by: supersededBy,
+  option,
+  pick,
+  ...fields
+}: Flags) {
+  return {
+    ...fields,
+    needs: [
+      requireType(String(goal), ['goal'], 'goal'),
+      ...(Array.isArray(evidence) ? evidence : []).map((id) =>
+        requireType(id, EVIDENCE_TYPES, 'evidence'),
+      ),
+      ...(Array.isArray(needs) ? needs : []),
+    ],
+    supersededBy,
+    options: option,
+    pick: pick === undefined ? undefined : Number(pick),
+  }
+}
+
+export function parseFlags(args: string[]): Flags {
+  const flags: Flags = {}
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
     if (!arg.startsWith('--')) continue
@@ -216,7 +287,7 @@ async function collectStdin(): Promise<string> {
 }
 
 // The body of the flags. `-` reads it from stdin.
-async function readBody(flags: ConceptFields): Promise<string | undefined> {
+async function readBody(flags: Flags): Promise<string | undefined> {
   const body = flags.body as string | undefined
   return body === '-' ? collectStdin() : body
 }
@@ -280,28 +351,71 @@ function printQuestion({ question, unchosen }: Part) {
   if (unchosen) console.log('outcome: not chosen')
 }
 
-function printRecord(
-  record: Awaited<ReturnType<typeof showConceptRecord>>,
-  part: Part | undefined,
-) {
-  console.log(record.id)
-  for (const [key, value] of Object.entries(record.fields)) {
-    console.log(`${key}: ${formatFieldValue(value)}`)
+// The fields of a Goal, a Decision, an Insight or a Guardrail that `show`
+// prints, in their order. A Goal without a measure has no readings.
+function listShownFields(part: Part): Record<string, unknown> {
+  const { title, source, status, measure } = part
+  switch (part.type) {
+    case 'goal':
+      return {
+        title,
+        metric: part.metric,
+        source,
+        measure: measure?.measure ?? null,
+        status,
+        baseline: measure?.baseline ?? null,
+        latestValue: measure?.latestValue ?? null,
+        latestBreakdownValue: measure?.latestBreakdownValue ?? null,
+        measuredAt: measure?.measuredAt ?? null,
+      }
+    case 'decision':
+      return {
+        title,
+        date: part.date,
+        owner: part.owner,
+        status,
+        ...(part.issueUrl && { issue: part.issueUrl }),
+      }
+    case 'insight':
+      return {
+        title,
+        date: part.date,
+        source,
+        status,
+        evidenceLevel: part.evidenceLevel,
+      }
+    default:
+      return { title, enforcedBy: part.enforcedBy, source }
   }
-  if (record.goal) console.log(`goal: ${record.goal.id} ${record.goal.title}`)
-  for (const item of record.evidence ?? []) {
+}
+
+// What a Decision needs: its Goal, its evidence, then each other Part.
+function printDecisionLinks(decision: Part) {
+  const needed = decision.needs.map((end) => end.part)
+  const goal = needed.find(({ type }) => type === 'goal')
+  const isEvidence = ({ type }: PartSummary) => EVIDENCE_TYPES.includes(type)
+  if (goal) console.log(`goal: ${goal.id} ${goal.title}`)
+  for (const item of needed.filter(isEvidence)) {
     console.log(`evidence: ${item.id} ${item.title}`)
   }
-  for (const item of record.needs ?? []) {
-    console.log(`needs: ${item.id} ${item.title}`)
+  for (const item of needed) {
+    if (item.type !== 'goal' && !isEvidence(item))
+      console.log(`needs: ${item.id} ${item.title}`)
   }
-  if (record.supersededBy) console.log(`superseded_by: ${record.supersededBy}`)
-  for (const id of record.supersedes ?? []) console.log(`supersedes: ${id}`)
-  if (part) {
-    printQuestion(part)
-    printTrust(part)
+  if (decision.supersededBy)
+    console.log(`superseded_by: ${decision.supersededBy.id}`)
+  for (const { id } of decision.supersedes) console.log(`supersedes: ${id}`)
+}
+
+function printRecord(part: Part) {
+  console.log(part.id)
+  for (const [key, value] of Object.entries(listShownFields(part))) {
+    console.log(`${key}: ${formatFieldValue(value)}`)
   }
-  if (record.body) console.log(`\n${record.body}`)
+  if (part.type === 'decision') printDecisionLinks(part)
+  printQuestion(part)
+  printTrust(part)
+  if (part.body) console.log(`\n${part.body}`)
 }
 
 // An Entity, a Flow or a Metric: the fields that it has, its home Concept
@@ -338,9 +452,8 @@ function formatNeededFlags(type: PartType) {
 }
 
 function formatHelp() {
-  // Fact is no longer a type (D26), so `add` does not take it.
-  const types = Object.entries(CONCEPT_FIELDS).flatMap(([folder, { type }]) =>
-    type === null ? [] : [`  ${folder}: ${formatNeededFlags(type)}`],
+  const types = Object.entries(CONCEPT_FOLDERS).map(
+    ([folder, type]) => `  ${folder}: ${formatNeededFlags(type)}`,
   )
   return [
     'pnpm concept list [<type>]',
@@ -403,6 +516,38 @@ function formatHelp() {
   ].join('\n')
 }
 
+// `set` on a Decision: its status, and its successor when the status is
+// superseded.
+async function setDecisionStatus(
+  db: ConceptDb,
+  product: string,
+  id: string,
+  { status, superseded_by: supersededBy }: Flags,
+) {
+  const statuses: readonly unknown[] = decisionStatuses
+  if (!statuses.includes(status)) {
+    throw new Error(
+      `status "${String(status)}" must be one of ${decisionStatuses.join(', ')}`,
+    )
+  }
+  if (status !== 'superseded') {
+    if (supersededBy) {
+      throw new Error('"superseded_by" only applies to a superseded Decision')
+    }
+    await updatePart(db, product, id, parsePartChange('decision', { status }))
+    return
+  }
+  if (!supersededBy) {
+    throw new Error('a superseded Decision needs "superseded_by"')
+  }
+  await supersedeDecision(
+    db,
+    product,
+    id,
+    requireType(String(supersededBy), ['decision'], 'decision'),
+  )
+}
+
 // No command, or `--help` at any place, prints the commands. It needs no
 // database.
 export async function main(args: string[], databaseUrl: string | undefined) {
@@ -429,23 +574,14 @@ export async function runConcept(
         isConceptFolder(first) || isPartFolder(first) ? first : undefined
       const flags = parseFlags(folder ? rest.slice(1) : rest)
       const product = (flags.project as string | undefined) ?? 'glue'
-      const rows = [
-        ...(isPartFolder(folder)
-          ? []
-          : await listConceptRecords(db, product, folder)),
-        ...(isConceptFolder(folder)
-          ? []
-          : await listParts(
-              db,
-              product,
-              folder ? [PART_FOLDERS[folder]] : Object.values(PART_FOLDERS),
-            )),
-      ]
-      const states = new Map(
-        (await listParts(db, product)).map((part) => [part.id, part]),
-      )
-      for (const row of rows) {
-        console.log(formatRow({ ...row, ...states.get(row.id) }))
+      if (!isPartFolder(folder)) await getProjectId(db, product)
+      const folders = { ...CONCEPT_FOLDERS, ...PART_FOLDERS }
+      const types = folder ? [folders[folder]] : Object.values(folders)
+      const parts = await listParts(db, product, types)
+      for (const type of types) {
+        for (const part of parts.filter((listed) => listed.type === type)) {
+          console.log(formatRow(part))
+        }
       }
       return
     }
@@ -498,14 +634,13 @@ export async function runConcept(
       const flags = parseFlags(flagArgs)
       const product = (flags.project as string | undefined) ?? 'glue'
       const type = typeOfRecordId(id)
-      if (!type || !PART_TYPES.includes(type)) {
-        const record = await showConceptRecord(db, product, id)
-        printRecord(record, await findPart(db, product, id))
-        return
-      }
+      const isPlain = type !== undefined && PART_TYPES.includes(type)
+      if (!isPlain) await getProjectId(db, product)
+      if (!type) throw new Error(`"${id}" is not a Concept id`)
       const part = await findPart(db, product, id)
       if (!part) throw new Error(`"${id}" not found`)
-      printPart(part)
+      if (isPlain) printPart(part)
+      else printRecord(part)
       return
     }
     case 'add': {
@@ -527,19 +662,22 @@ export async function runConcept(
         console.log(await addPart(db, product, part))
         return
       }
-      if (folder !== 'decisions') {
-        console.log(await addConceptRecord(db, product, folder, flags, body))
+      const type = CONCEPT_FOLDERS[folder]
+      requireFlags(type, flags)
+      if (type !== 'decision') {
+        // A Decision serves a Goal, so its Project exists already.
+        await addProject(db, product)
+        const part = parseNewPart({ ...toPartInput(flags), type, body })
+        console.log(await addPart(db, product, part))
         return
       }
-      const { id, issue } = await addDecision(
-        db,
-        getGithub(),
+      const operations = createPartOperations({ db, github: getGithub() })
+      const { part, issue } = await operations.addPart(
         product,
-        flags,
-        body,
+        parseNewPart({ ...toDecisionInput(flags), type, body }),
       )
-      console.log(id)
-      console.error(formatDownstreamIssue(product, id, issue))
+      console.log(part.id)
+      console.error(formatDownstreamIssue(product, part.id, issue))
       return
     }
     case 'set': {
@@ -561,14 +699,8 @@ export async function runConcept(
         await updatePart(db, product, id, parsePartChange(type, change))
         return
       }
-      const { issue } = await updateDecision(
-        db,
-        getGithub(),
-        product,
-        id,
-        flags.status as DecisionStatus,
-        flags.superseded_by as string | undefined,
-      )
+      await setDecisionStatus(db, product, id, flags)
+      const issue = await createDownstreamIssue(db, getGithub(), product, id)
       console.error(formatDownstreamIssue(product, id, issue))
       return
     }

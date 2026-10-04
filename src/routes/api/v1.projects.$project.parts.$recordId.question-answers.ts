@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { questionAnswersHandlers } from '../../api/concept-routes.ts'
+import { questionAnswersHandlers } from '../../api/part-routes.ts'
 
 export const Route = createFileRoute(
   '/api/v1/projects/$project/parts/$recordId/question-answers',

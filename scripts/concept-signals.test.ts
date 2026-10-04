@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { setProductRepository } from '../src/db/concept-records.ts'
+import { setProductRepository } from '../src/db/projects.ts'
 import { addProject } from '../src/db/part-records.ts'
 import { findPart } from '../src/db/parts.ts'
 import * as schema from '../src/db/schema.ts'

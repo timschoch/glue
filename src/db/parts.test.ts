@@ -295,6 +295,18 @@ describe('listParts', () => {
     ])
   })
 
+  it('sorts the Parts of a type by the number in the id', async () => {
+    await client.exec(`
+      insert into parts (project_id, concept_id, type, record_id, title, enforced_by) values
+        (1, 1, 'guardrail', 'R10', 'No secret in logs', 'none yet'),
+        (1, 1, 'guardrail', 'R2', 'No Tailwind', 'lint');
+    `)
+
+    const found = await listParts(db, 'glue', ['guardrail'])
+
+    expect(found.map(({ id }) => id)).toEqual(['R1', 'R2', 'R10'])
+  })
+
   it('returns no Part for an unknown Project', async () => {
     expect(await listParts(db, 'bakeday')).toEqual([])
   })
@@ -435,6 +447,13 @@ describe('findPart', () => {
     expect(await findPart(db, 'flexibeck', 'D1')).toBeUndefined()
     expect(await findPart(db, 'bakeday', 'G1')).toBeUndefined()
   })
+
+  it.each(['X1', 'D1; drop table parts', ''])(
+    'returns nothing for the id "%s"',
+    async (recordId) => {
+      expect(await findPart(db, 'glue', recordId)).toBeUndefined()
+    },
+  )
 
   it('has no target and no sign for a mean without a reading', async () => {
     const mean = {

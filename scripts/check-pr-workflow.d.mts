@@ -1,4 +1,4 @@
-import type { DecisionStatus } from '../src/db/concept-fields.ts'
+import type { DecisionStatus } from '../src/db/parts.ts'
 
 export type Decision = {
   status: DecisionStatus

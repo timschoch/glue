@@ -4,7 +4,7 @@
 import { eq, max } from 'drizzle-orm'
 
 import type { ConceptDb } from './client.ts'
-import { findProduct } from './concept.ts'
+import { findProduct } from './projects.ts'
 import { listParts } from './parts.ts'
 import type { PartSummary } from './parts.ts'
 import { ProductNotFoundError } from './record-errors.ts'

@@ -13,22 +13,7 @@ describe('GET /api/v1/openapi.json', () => {
       Object.keys(item as object).map((method) => `${method} ${path}`),
     )
     expect(routes.sort()).toEqual(
-      ['/api/v1/projects/{project}', '/api/v1/products/{product}']
-        .flatMap((root) => [
-          `get ${root}/concept`,
-          ...['goals', 'decisions', 'insights', 'facts', 'guardrails'].flatMap(
-            (folder) => [
-              `get ${root}/${folder}`,
-              `get ${root}/${folder}/{recordId}`,
-            ],
-          ),
-          `post ${root}/goals`,
-          `post ${root}/insights`,
-          `post ${root}/decisions`,
-          `patch ${root}/goals/{recordId}`,
-          `patch ${root}/decisions/{recordId}`,
-          `post ${root}/measure`,
-        ])
+      ['post /api/v1/products/{product}/measure']
         .concat(
           [
             'get ',
@@ -53,6 +38,7 @@ describe('GET /api/v1/openapi.json', () => {
             'get /assignments',
             'post /assignments',
             'delete /assignments',
+            'post /measure',
           ].map((route) => route.replace(' ', ' /api/v1/projects/{project}')),
         )
         .sort(),
@@ -200,8 +186,8 @@ describe('GET /api/v1/openapi.json', () => {
   it('describes the Evidence level of an Insight and the source of a Guardrail', async () => {
     const { schemas } = (await handleGetOpenApi().json()).components
 
-    expect(schemas.Insight.required).toContain('evidenceLevel')
-    expect(schemas.Guardrail.required).toContain('source')
+    expect(schemas.Part.required).toContain('evidenceLevel')
+    expect(schemas.Part.required).toContain('source')
   })
 
   it('marks every products route as deprecated, and no projects route', async () => {
@@ -226,7 +212,7 @@ describe('GET /api/v1/openapi.json', () => {
     )
 
     expect(new Set(ids).size).toBe(ids.length)
-    expect(ids).toContain('getConcept')
+    expect(ids).toContain('getProjectConcept')
   })
 
   it('describes the bearer token and the shared schemas', async () => {
@@ -238,49 +224,40 @@ describe('GET /api/v1/openapi.json', () => {
     })
     expect(Object.keys(document.components.schemas)).toEqual(
       expect.arrayContaining([
-        'Concept',
-        'Decision',
-        'DecisionInput',
-        'DecisionUpdate',
-        'GoalInput',
-        'GoalUpdate',
         'GoalMeasure',
+        'MeasureResult',
         'MeasuredInsight',
         'SkippedGoal',
-        'InsightInput',
         'Error',
       ]),
     )
   })
 
   it('describes no way to add a Fact: a Fact is no longer a type', async () => {
-    const document = await handleGetOpenApi().json()
+    const { schemas } = (await handleGetOpenApi().json()).components
 
-    expect(document.paths['/api/v1/projects/{project}/facts'].post).toBe(
-      undefined,
-    )
-    expect(Object.keys(document.components.schemas)).not.toContain('FactInput')
+    expect(JSON.stringify(schemas.PartInput)).not.toContain('"fact"')
+    expect(Object.keys(schemas)).not.toContain('FactInput')
   })
 
   it('describes the downstream issue of a Decision', async () => {
     const document = await handleGetOpenApi().json()
     const { schemas } = document.components
-    const decisions = document.paths['/api/v1/projects/{project}/decisions']
-    const decision =
-      document.paths['/api/v1/projects/{project}/decisions/{recordId}']
-    const changed = { $ref: '#/components/schemas/ChangedDecision' }
+    const parts = document.paths['/api/v1/projects/{project}/parts']
+    const part = document.paths['/api/v1/projects/{project}/parts/{recordId}']
+    const changed = { $ref: '#/components/schemas/ChangedPart' }
 
-    expect(schemas.Decision.properties.issueUrl).toMatchObject({
-      anyOf: [{ type: 'string', format: 'uri' }, { type: 'null' }],
+    expect(schemas.Part.properties.issueUrl).toEqual({
+      type: ['string', 'null'],
     })
-    expect(schemas.ChangedDecision.properties.issueError).toMatchObject({
+    expect(schemas.ChangedPart.properties.issueError).toMatchObject({
       type: 'string',
     })
     expect(
-      decisions.post.responses[201].content['application/json'].schema,
+      parts.post.responses[201].content['application/json'].schema,
     ).toEqual(changed)
     expect(
-      decision.patch.responses[200].content['application/json'].schema,
+      part.patch.responses[200].content['application/json'].schema,
     ).toEqual(changed)
   })
 
@@ -288,10 +265,10 @@ describe('GET /api/v1/openapi.json', () => {
     const document = await handleGetOpenApi().json()
     const { schemas } = document.components
 
-    expect(schemas.Goal.properties.status).toMatchObject({
-      enum: ['open', 'achieved'],
-    })
-    expect(Object.keys(schemas.Goal.properties)).toEqual(
+    expect(JSON.stringify(schemas.PartInput)).toContain(
+      '"status":{"type":"string","enum":["open","achieved"]}',
+    )
+    expect(Object.keys(schemas.PartMeasure.properties)).toEqual(
       expect.arrayContaining([
         'baseline',
         'latestValue',
@@ -302,9 +279,6 @@ describe('GET /api/v1/openapi.json', () => {
     expect(Object.keys(schemas.MeanMeasure.properties)).toContain(
       'baseline_value',
     )
-    expect(schemas.GoalUpdate.properties.status).toMatchObject({
-      enum: ['open', 'achieved'],
-    })
     expect(schemas.GoalMeasure.oneOf).toEqual([
       { $ref: '#/components/schemas/FunnelMeasure' },
       { $ref: '#/components/schemas/MeanMeasure' },
@@ -312,10 +286,12 @@ describe('GET /api/v1/openapi.json', () => {
   })
 
   it('describes the Decision that a new Decision supersedes', async () => {
-    const document = await handleGetOpenApi().json()
+    const { PartInput } = (await handleGetOpenApi().json()).components.schemas
+    const decision = PartInput.oneOf.find(
+      (input: { properties: { type: { const: string } } }) =>
+        input.properties.type.const === 'decision',
+    )
 
-    expect(
-      document.components.schemas.DecisionInput.properties.supersedes,
-    ).toMatchObject({ type: 'string' })
+    expect(decision.properties.supersedes).toMatchObject({ type: 'string' })
   })
 })

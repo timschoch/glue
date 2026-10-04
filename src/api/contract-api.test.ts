@@ -11,7 +11,7 @@ import {
 } from '../db/part-records.ts'
 import * as schema from '../db/schema.ts'
 import { createToken } from '../db/tokens.ts'
-import type { ApiRequest } from './concept-api.ts'
+import type { ApiRequest } from './api-request.ts'
 import { handleGetContract, handleSignContract } from './contract-api.ts'
 
 let client: PGlite

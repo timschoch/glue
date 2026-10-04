@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { addConceptRecord, setSocialHandle } from '../db/concept-records.ts'
-import { findConcept, findRecord } from '../db/legacy-records.ts'
+import { addPart, addProject } from '../db/part-records.ts'
+import { findPart, listParts } from '../db/parts.ts'
+import { setSocialHandle } from '../db/projects.ts'
 import * as schema from '../db/schema.ts'
 import { createTestDatabase } from '../db/test-database.ts'
 import { measureComments } from './measure-comments.ts'
@@ -20,13 +21,13 @@ const NOW = new Date('2026-09-30T10:00:00Z')
 const UNTIL = new Date('2026-09-30T09:59:50Z')
 
 async function addProduct(product: string, handle: string | null) {
-  await addConceptRecord(
-    db,
-    product,
-    'goals',
-    { title: 'Users like it', metric: 'survey mean', source: 'okr' },
-    '',
-  )
+  await addProject(db, product)
+  await addPart(db, product, {
+    type: 'goal',
+    title: 'Users like it',
+    metric: 'survey mean',
+    source: 'okr',
+  })
   await setSocialHandle(db, product, handle)
 }
 
@@ -113,9 +114,9 @@ describe('measureComments', () => {
       expect.objectContaining({ product: 'flexibeck', id: 'I1' }),
     ])
     expect(skipped).toEqual([])
-    const insight = await findRecord(db, 'flexibeck', 'I1')
+    const insight = await findPart(db, 'flexibeck', 'I1')
     expect(insight).toMatchObject({
-      kind: 'insight',
+      type: 'insight',
       title: 'Comments on flexibeck: 2 positive, 1 neutral, 1 negative',
       date: '2026-09-30',
       status: 'draft',
@@ -165,8 +166,8 @@ describe('measureComments', () => {
     expect(next.source).toBe(
       'mock-social://flexibeck/comments?since=2026-09-28T09:00:00.123Z&until=2026-09-29T09:00:00.000Z',
     )
-    const concept = await findConcept(db, 'flexibeck')
-    expect(concept?.insights.map((insight) => insight.id)).toEqual(['I1', 'I2'])
+    const insights = await listParts(db, 'flexibeck', ['insight'])
+    expect(insights.map((insight) => insight.id)).toEqual(['I1', 'I2'])
   })
 
   it('writes one Insight when two runs overlap', async () => {
@@ -176,8 +177,8 @@ describe('measureComments', () => {
 
     await Promise.all([runMeasure(fake.channel), runMeasure(fake.channel)])
 
-    const concept = await findConcept(db, 'flexibeck')
-    expect(concept?.insights.map((insight) => insight.id)).toEqual(['I1'])
+    const insights = await listParts(db, 'flexibeck', ['insight'])
+    expect(insights.map((insight) => insight.id)).toEqual(['I1'])
   })
 
   it('skips a Product whose comments fail, measures the next, and reads them again later', async () => {

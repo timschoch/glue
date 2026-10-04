@@ -13,9 +13,7 @@ import {
   vi,
 } from 'vitest'
 
-import { addConceptRecord } from './concept-records.ts'
 import { kinds } from './kinds.ts'
-import { findRecord } from './legacy-records.ts'
 import { addPart } from './part-records.ts'
 import { findPart, findProject, listParts } from './parts.ts'
 import * as schema from './schema.ts'
@@ -111,13 +109,11 @@ describe('the migration that adds the record counters', () => {
     await runMigration(countersMigration)
     await runMigrationsAfter(countersMigration)
 
-    const id = await addConceptRecord(
-      drizzle(client, { schema }),
-      'glue',
-      'insights',
-      { title: 'CI takes ten minutes', source: 'verify ci' },
-      '',
-    )
+    const id = await addPart(drizzle(client, { schema }), 'glue', {
+      type: 'insight',
+      title: 'CI takes ten minutes',
+      source: 'verify ci',
+    })
     expect(id).toBe('I3')
   })
 })
@@ -656,66 +652,72 @@ describe('the migration that copies the records into the Part model', () => {
       'I2',
       'I6',
     ])
-    expect(await findRecord(db, 'glue', 'D2')).toMatchObject({
+    expect(decision).toMatchObject({
       date: '2026-09-04',
       owner: 'Tim',
       status: 'accepted',
       issueUrl: 'https://github.com/timschoch/glue/issues/7',
-      goal: { id: 'G1', title: 'More users pay' },
-      evidence: [
-        { id: 'R2', title: 'Findings go back as Insights' },
-        { id: 'I1', title: 'Bakers want step videos' },
-        { id: 'I7', title: 'Glue has its Concept in a database' },
-        { id: 'I2', title: 'The build failed on a type error' },
-        { id: 'I6', title: 'Files in the repo are fine' },
+      needs: [
+        { part: { id: 'G1', title: 'More users pay' } },
+        { part: { id: 'R2', title: 'Findings go back as Insights' } },
+        { part: { id: 'I1', title: 'Bakers want step videos' } },
+        { part: { id: 'I7', title: 'Glue has its Concept in a database' } },
+        { part: { id: 'I2', title: 'The build failed on a type error' } },
+        { part: { id: 'I6', title: 'Files in the repo are fine' } },
       ],
     })
-    expect(await findRecord(db, 'flexibeck', 'D1')).toMatchObject({
-      goal: { id: 'G1', title: 'Plans fit the day' },
-      evidence: [
-        { id: 'I2', title: 'Home bakers with jobs' },
-        { id: 'I1', title: 'A recipe is a tree of steps' },
+    expect(await findPart(db, 'flexibeck', 'D1')).toMatchObject({
+      needs: [
+        { part: { id: 'G1', title: 'Plans fit the day' } },
+        { part: { id: 'I2', title: 'Home bakers with jobs' } },
+        { part: { id: 'I1', title: 'A recipe is a tree of steps' } },
       ],
     })
   })
 
   it('keeps the Decision that superseded a Decision', async () => {
+    await runMigrationsAfter(cutoverMigration)
     const db = drizzle(client, { schema })
 
-    expect(await findRecord(db, 'glue', 'D1')).toMatchObject({
+    expect(await findPart(db, 'glue', 'D1')).toMatchObject({
       status: 'superseded',
       supersededBy: { id: 'D2', title: 'Show the video of the creator' },
-      evidence: [{ id: 'I1', title: 'Bakers want step videos' }],
+      needs: [
+        { part: { id: 'G1', title: 'More users pay' } },
+        { part: { id: 'I1', title: 'Bakers want step videos' } },
+      ],
     })
-    expect(await findRecord(db, 'glue', 'D2')).toMatchObject({
+    expect(await findPart(db, 'glue', 'D2')).toMatchObject({
       supersededBy: null,
       supersedes: [{ id: 'D1', title: 'Show a photo' }],
     })
   })
 
   it('moves the measure and the readings of a Goal', async () => {
+    await runMigrationsAfter(cutoverMigration)
     const db = drizzle(client, { schema })
 
-    expect(await findRecord(db, 'glue', 'G1')).toMatchObject({
+    expect(await findPart(db, 'glue', 'G1')).toMatchObject({
       metric: 'signup to paid',
       source: 'okr',
       status: 'open',
       measure: {
-        kind: 'funnel',
-        source: 'mock-analytics',
-        steps: ['signed-up', 'paid'],
-        target: 0.2,
-        window_days: 7,
+        measure: {
+          kind: 'funnel',
+          source: 'mock-analytics',
+          steps: ['signed-up', 'paid'],
+          target: 0.2,
+          window_days: 7,
+        },
+        baseline: 4.2,
+        latestValue: 5.1,
+        latestBreakdownValue: 'v2',
+        measuredAt: '2026-10-02T06:00:00.000Z',
       },
-      baseline: 4.2,
-      latestValue: 5.1,
-      latestBreakdownValue: 'v2',
-      measuredAt: '2026-10-02T06:00:00.000Z',
     })
-    expect(await findRecord(db, 'glue', 'G2')).toMatchObject({
+    expect(await findPart(db, 'glue', 'G2')).toMatchObject({
       status: 'achieved',
       measure: null,
-      measuredAt: null,
     })
   })
 
