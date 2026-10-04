@@ -46,6 +46,7 @@ describe('the Parts of the stories', () => {
     // The stories that have Parts: a search that finds none proves nothing.
     expect([...new Set(found.map(({ file }) => file))]).toEqual([
       './card.stories.tsx',
+      './frame.stories.tsx',
       './part-cards.stories.tsx',
       './record.stories.tsx',
     ])

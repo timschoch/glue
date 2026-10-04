@@ -29,6 +29,7 @@ import type {
   CardProps,
   EvidenceLevel,
   PartType,
+  Reading,
   Trust,
   WorkState,
 } from './card.tsx'
@@ -51,6 +52,8 @@ export type RecordPartSummary = {
   concept: string
   trust: Trust
   workState?: WorkState
+  // Only a Goal or a Metric has one.
+  reading?: Reading
   href: string
 }
 
@@ -66,6 +69,7 @@ const flagReasons = {
   changed: 'Changed',
   'not-ready': 'Not ready',
   wrong: 'Wrong',
+  'off-target': 'Off target',
 } as const
 
 // An open flag: its reason and the Part that caused it.
@@ -163,6 +167,7 @@ function PartCard({
       recordId={part.id}
       title={part.title}
       trust={part.trust}
+      reading={part.reading}
       workState={part.workState}
       concept={link ? part.concept : undefined}
       minimal={minimal}

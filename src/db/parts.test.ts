@@ -4,6 +4,7 @@ import {
   findConcept,
   findPart,
   findProject,
+  listMeasured,
   listParts,
   listProjects,
 } from './parts.ts'
@@ -74,6 +75,16 @@ const goal = {
   status: 'open',
   concept: 'glue',
   conceptTitle: 'Glue',
+}
+// The reading of G1 misses the target of its funnel.
+const goalMeasure = {
+  measure,
+  baseline: 0.1,
+  latestValue: 0.15,
+  latestBreakdownValue: null,
+  measuredAt: '2026-10-02T08:00:00.000Z',
+  target: 0.2,
+  onTarget: false,
 }
 const insight = {
   ...state,
@@ -309,6 +320,7 @@ describe('findPart', () => {
         { jointId: 2, twoWay: false, link: false, part: insight },
       ],
       neededBy: [{ jointId: 4, twoWay: false, link: true, part: flow }],
+      measured: [{ ...goal, measure: goalMeasure }],
       flags: [],
       waitsOn: null,
       signals: [],
@@ -375,13 +387,8 @@ describe('findPart', () => {
       body: 'Why the Goal exists.',
       metric: 'signup to paid',
       source: 'okr',
-      measure: {
-        measure,
-        baseline: 0.1,
-        latestValue: 0.15,
-        latestBreakdownValue: null,
-        measuredAt: '2026-10-02T08:00:00.000Z',
-      },
+      measure: goalMeasure,
+      measured: [],
       needs: [],
       neededBy: [{ jointId: 1, twoWay: false, link: true, part: decision }],
     })
@@ -424,5 +431,54 @@ describe('findPart', () => {
     expect(await findPart(db, 'glue', 'D9')).toBeUndefined()
     expect(await findPart(db, 'flexibeck', 'D1')).toBeUndefined()
     expect(await findPart(db, 'bakeday', 'G1')).toBeUndefined()
+  })
+
+  it('has no target and no sign for a mean without a reading', async () => {
+    const mean = {
+      kind: 'mean',
+      source: 'mock-analytics',
+      event: 'survey sent',
+      property: 'answer',
+      target_change: 1,
+      window_days: 7,
+    }
+    await client.exec(`
+      insert into parts (project_id, concept_id, type, record_id, title) values
+        (1, 1, 'metric', 'M1', 'Ease of the first bake');
+      insert into measures (part_id, measure) values (9, '${JSON.stringify(mean)}');
+    `)
+
+    expect((await findPart(db, 'glue', 'M1'))?.measure).toMatchObject({
+      latestValue: null,
+      target: null,
+      onTarget: null,
+    })
+  })
+})
+
+describe('listMeasured', () => {
+  it('returns the Goals with a measure and all Metrics of the Project', async () => {
+    await client.exec(`
+      insert into parts (project_id, concept_id, type, record_id, title) values
+        (1, 2, 'metric', 'M1', 'Ease of the first bake');
+    `)
+
+    expect(await listMeasured(db, 'glue')).toEqual([
+      { ...goal, measure: goalMeasure },
+      {
+        ...state,
+        id: 'M1',
+        type: 'metric',
+        title: 'Ease of the first bake',
+        status: null,
+        concept: 'part-model',
+        conceptTitle: 'Part model',
+        measure: null,
+      },
+    ])
+  })
+
+  it('leaves out a Goal without a measure', async () => {
+    expect(await listMeasured(db, 'flexibeck')).toEqual([])
   })
 })

@@ -113,6 +113,22 @@ $action-height: $spacing-07;
   @include type-style('body-compact-01');
 }
 
+// The newest value against its target: the sign, the value, the target.
+.reading {
+  @include type-style('label-01');
+
+  display: flex;
+  align-items: center;
+  color: $text-secondary;
+  gap: $spacing-03;
+}
+
+.value {
+  @include type-style('heading-compact-01');
+
+  color: $text-primary;
+}
+
 .emptySlots {
   display: flex;
   flex-wrap: wrap;

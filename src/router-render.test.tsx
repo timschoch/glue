@@ -15,7 +15,12 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Session } from './authentication/session.ts'
-import type { Part, PartSummary } from './db/parts.ts'
+import type {
+  MeasuredPart,
+  Part,
+  PartMeasure,
+  PartSummary,
+} from './db/parts.ts'
 import { createRouterContext } from './router-context.ts'
 import type { Server } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
@@ -91,6 +96,7 @@ async function renderPage(path: string, changed: Partial<Server> = {}) {
       Promise.resolve(project === 'glue' ? parts : []),
     ),
     fetchMine: vi.fn(() => Promise.resolve<PartSummary[]>([])),
+    fetchMeasured: vi.fn(() => Promise.resolve<MeasuredPart[]>([])),
     fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
     fetchSignals: vi.fn(() => Promise.resolve({ signals, reason: null })),
     fetchBuilds: vi.fn(() => Promise.resolve({ builds: [], reason: null })),
@@ -747,6 +753,86 @@ describe('the section Mine', () => {
     expect(pageTitle()).toBe('Mine')
     expect(section('Mine').getAttribute('aria-current')).toBe('page')
     expect(within(screen.getByRole('main')).queryByRole('link')).toBeNull()
+  })
+})
+
+describe('the section Use', () => {
+  // A funnel that misses its target.
+  const reading: PartMeasure = {
+    measure: {
+      kind: 'funnel',
+      source: 'mock-analytics',
+      steps: ['signed-up', 'paid'],
+      target: 0.25,
+      window_days: 7,
+    },
+    baseline: null,
+    latestValue: 0.1,
+    latestBreakdownValue: null,
+    measuredAt: '2026-10-04T00:00:00.000Z',
+    target: 0.25,
+    onTarget: false,
+  }
+  const metric = { ...parts[0], type: 'metric' } as const
+  const measured: MeasuredPart[] = [
+    { ...parts[1], measure: { ...reading, latestValue: 0.3, onTarget: true } },
+    { ...metric, id: 'M1', title: 'Signup to paid', measure: reading },
+    { ...metric, id: 'M2', title: 'Ease of the first build', measure: null },
+  ]
+
+  it('lists each Metric and each measured Goal with its newest value against its target', async () => {
+    const { expectAddress } = await renderPage('/glue?section=Use', {
+      fetchMeasured: vi.fn(() => Promise.resolve(measured)),
+    })
+
+    expect(pageTitle()).toBe('Use')
+    expect(card('G1').textContent).toContain('30% Target 25%')
+    expect(within(card('G1')).getByLabelText('On target')).toBeDefined()
+    expect(card('M1').textContent).toContain('10% Target 25%')
+    expect(within(card('M1')).getByLabelText('Off target')).toBeDefined()
+
+    await userEvent.click(card('M1'))
+
+    await expectAddress('/glue/part-model/M1', { section: 'Use' })
+  })
+
+  it('shows an empty slot for a Metric with no reading', async () => {
+    await renderPage('/glue?section=Use', {
+      fetchMeasured: vi.fn(() => Promise.resolve(measured)),
+    })
+
+    expect(card('M2').textContent).toContain('Reading')
+    expect(within(card('M2')).queryByLabelText(/target/)).toBeNull()
+  })
+
+  it('shows the reading of the Goal that a Decision serves on its record', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchPart: vi.fn(changedPart('D4', { measured: [measured[0]] })),
+    })
+
+    expect(card('G1').textContent).toContain('30% Target 25%')
+    expect(within(card('G1')).getByLabelText('On target')).toBeDefined()
+  })
+
+  it('names the flag of a reading that misses its target', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchPart: vi.fn(
+        changedPart('D4', {
+          trust: 'flagged',
+          flags: [
+            {
+              cause: { id: 'G1', title: parts[1].title },
+              reason: 'off-target',
+              createdAt: '2026-10-04T00:00:00.000Z',
+            },
+          ],
+        }),
+      ),
+    })
+
+    const flags = within(screen.getByRole('list', { name: 'Flags' }))
+
+    expect(flags.getByText('Off target')).toBeDefined()
   })
 })
 

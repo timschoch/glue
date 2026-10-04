@@ -137,9 +137,12 @@ export function toPublishedAt(workState: WorkState): SQL {
 // - A Part that waits on the changed Part is back in to-check.
 // - `closesFlags` reads `new_part`: the open flags of the Part close when it
 //   holds. By default: when the Part is published or sunk.
+// - `isOffTarget`: the write is a reading that misses the target of the Part.
+//   It flags each Part that needs it.
 export function spreadTrust(
   changed: string,
   closesFlags: SQL = sql`new_part."work_state" in ('published', 'sunk')`,
+  isOffTarget = false,
 ): SQL {
   const newParts = sql.identifier(changed)
   return sql`,
@@ -181,7 +184,8 @@ export function spreadTrust(
             'not-ready',
             new_part."trust" = 'not-ready' and old_part."trust" <> 'not-ready'
           ),
-          ('wrong', new_part."trust" = 'wrong' and old_part."trust" <> 'wrong')
+          ('wrong', new_part."trust" = 'wrong' and old_part."trust" <> 'wrong'),
+          ('off-target', ${isOffTarget}::boolean)
       ) as reasons ("reason", "applies")
       where reasons."applies"
     ),
