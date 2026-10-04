@@ -4,7 +4,13 @@ import {
   createMemoryHistory,
   createRouter,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -383,11 +389,7 @@ describe('a record', () => {
   it('leaves a click with a modifier key to the browser', async () => {
     const { expectAddress } = await renderPage('/glue/part-model')
 
-    // One user: the key stays down for the click.
-    const user = userEvent.setup()
-    await user.keyboard('{Meta>}')
-    await user.click(card('D4'))
-    await user.keyboard('{/Meta}')
+    fireEvent.click(card('D4'), { metaKey: true })
 
     await expectAddress('/glue/part-model')
   })

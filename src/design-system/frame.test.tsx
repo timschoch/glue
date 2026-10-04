@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import './theme.scss'
 import { Frame, PlainFrame } from './frame.tsx'
@@ -522,6 +522,13 @@ describe('Frame', () => {
       () => userEvent.click(screen.getByRole('link', { name: 'Design' })),
     ],
   ])('closes the open left panel on %s', async (_name, close) => {
+    // Escape in the Project switcher starts a timer of 3 s in Carbon. The
+    // test runs it, so it does not end after the test file.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    onTestFinished(() => {
+      vi.runOnlyPendingTimers()
+      vi.useRealTimers()
+    })
     renderFrame()
 
     const menu = screen.getByRole('button', { name: 'Menu' })
