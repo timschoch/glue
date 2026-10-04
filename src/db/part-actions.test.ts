@@ -372,6 +372,23 @@ describe('a server function of the Part model with a session', () => {
     expect(fake.issues).toHaveLength(1)
   })
 
+  it('signs an answer in words with the name of the person of the session', async () => {
+    await actions.addPart({
+      project,
+      part: { ...decision, status: 'proposed' },
+    })
+
+    await actions.answerPart({
+      project,
+      recordId: 'D1',
+      answer: { answer: 'supersede', words: 'Yes, go', by: 'Eve' },
+    })
+
+    expect((await findPart(db, project, 'D1'))?.body).toMatch(
+      /^Ada, \d{4}-\d{2}-\d{2}: Yes, go$/,
+    )
+  })
+
   it('answers an answer that the Work state does not take as a failure', async () => {
     const refused = await actions.answerPart({
       project,

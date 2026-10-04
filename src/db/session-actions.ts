@@ -25,12 +25,26 @@ export function createSessionGuard({
   findSession,
   getDb,
 }: Pick<ActionRequest, 'findSession' | 'getDb'>) {
-  return function withSession<TInput extends unknown[], TResult>(
-    run: (db: ConceptDb, ...input: TInput) => Promise<TResult>,
+  // An action that needs the person of the session, such as for a name.
+  function withMember<TInput extends unknown[], TResult>(
+    run: (
+      db: ConceptDb,
+      session: Session,
+      ...input: TInput
+    ) => Promise<TResult>,
   ) {
     return async (...input: TInput) => {
-      if (!(await findSession())) throw redirect({ to: '/sign-in' })
-      return run(getDb(), ...input)
+      const session = await findSession()
+      if (!session) throw redirect({ to: '/sign-in' })
+      return run(getDb(), session, ...input)
     }
   }
+
+  function withSession<TInput extends unknown[], TResult>(
+    run: (db: ConceptDb, ...input: TInput) => Promise<TResult>,
+  ) {
+    return withMember((db, _session, ...input: TInput) => run(db, ...input))
+  }
+
+  return { withSession, withMember }
 }

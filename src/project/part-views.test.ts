@@ -53,6 +53,7 @@ const decision: Part = {
   flags: [],
   waitsOn: null,
   signals: [],
+  answers: ['not-ready', 'sink'],
 }
 
 const href = ({ id }: PartSummary) => `/glue/${id}`

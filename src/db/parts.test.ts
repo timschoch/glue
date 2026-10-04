@@ -322,6 +322,7 @@ describe('findPart', () => {
       flags: [],
       waitsOn: null,
       signals: [],
+      answers: ['supersede', 'not-ready', 'sink'],
     })
   })
 

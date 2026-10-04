@@ -388,6 +388,7 @@ describe('GET a Part', () => {
       flags: [],
       waitsOn: null,
       signals: [],
+      answers: ['not-ready', 'sink'],
     })
   })
 
@@ -737,6 +738,22 @@ describe('Trust and the Work state', () => {
     expect(unknown.status).toBe(400)
     expect(alone.status).toBe(400)
     expect(alone.body.error.message).toContain('waitsOn')
+  })
+
+  it('lists the answers that the Part takes, and puts an answer in words at the end of the body', async () => {
+    const part = await call(handleGetPart, 'GET', {
+      params: { recordId: 'I1' },
+    })
+    const response = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'I1' },
+      body: { answer: 'sink', words: 'A test proved it wrong', by: 'Agent' },
+    })
+
+    expect(part.body.answers).toEqual(['not-ready', 'sink'])
+    expect(response.body.answers).toEqual([])
+    expect(response.body.body).toMatch(
+      /Agent, \d{4}-\d{2}-\d{2}: A test proved it wrong$/,
+    )
   })
 
   it('answers 404 for an answer to a Part that does not exist', async () => {

@@ -12,6 +12,7 @@ import {
   answerPart,
   removePart,
   supersedeDecision,
+  todayUtc,
   updatePart,
 } from './part-records.ts'
 import { findPart, listMine, listParts } from './parts.ts'
@@ -735,6 +736,72 @@ describe('a Part that waits', () => {
     await expect(
       answerPart(db, 'glue', 'I2', { answer: 'fine' }),
     ).rejects.toThrow('"I2" is waiting: it takes the answers not-ready, sink')
+  })
+})
+
+describe('an answer in words', () => {
+  async function addProposedDecision() {
+    await addGoal()
+    await addInsight('Loads are slow')
+    return addDecision('proposed', ['G1', 'I1'])
+  }
+
+  it('goes to the end of the body with the name and the date, and the Decision is signed off', async () => {
+    const id = await addProposedDecision()
+    await updatePart(db, 'glue', id, { body: 'Option 1 or option 2?' })
+
+    await answerPart(db, 'glue', id, {
+      answer: 'supersede',
+      words: 'Take option 2',
+      by: 'Tim',
+    })
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      ...solid,
+      status: 'accepted',
+      body: `Option 1 or option 2?\n\nTim, ${todayUtc()}: Take option 2`,
+    })
+  })
+
+  it('is the whole body of a Part without one, and the Decision is sunk', async () => {
+    const id = await addProposedDecision()
+
+    await answerPart(db, 'glue', id, {
+      answer: 'sink',
+      words: 'Neither',
+      by: 'Tim',
+    })
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      workState: 'sunk',
+      body: `Tim, ${todayUtc()}: Neither`,
+    })
+  })
+
+  it('needs the name of the person', async () => {
+    const id = await addProposedDecision()
+
+    await expect(
+      answerPart(db, 'glue', id, { answer: 'supersede', words: 'Yes' }),
+    ).rejects.toThrow('"words" needs "by"')
+  })
+})
+
+describe('the answers that a Part takes', () => {
+  it('are the ones of its Work state', async () => {
+    const id = await addFlaggedInsight()
+
+    expect((await findPart(db, 'glue', id))?.answers).toEqual([
+      'fine',
+      'wait',
+      'need-time',
+      'not-ready',
+      'sink',
+    ])
+    expect((await findPart(db, 'glue', 'I1'))?.answers).toEqual([
+      'not-ready',
+      'sink',
+    ])
   })
 })
 

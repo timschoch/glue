@@ -20,6 +20,7 @@ import {
   updatePart,
 } from '../db/part-records.ts'
 import {
+  answers,
   evidenceLevels,
   findConcept,
   findPart,
@@ -167,6 +168,9 @@ export const partSchema = z
     signals: z
       .array(z.object({ url: z.string(), title: z.string() }))
       .meta({ description: 'The Signals that an Insight grew from' }),
+    answers: z.array(z.enum(answers)).meta({
+      description: 'The answers that the Work state takes, the usual one first',
+    }),
   })
   .meta({ id: 'Part' }) satisfies z.ZodType<Part>
 

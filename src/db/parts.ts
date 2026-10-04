@@ -13,6 +13,8 @@ import type {
   WorkState,
 } from './schema.ts'
 import { kinds } from './kinds.ts'
+import { listAnswers } from './part-trust.ts'
+import type { Answer } from './part-trust.ts'
 import { sortById } from './record-id.ts'
 import * as schema from './schema.ts'
 
@@ -34,6 +36,8 @@ export type {
   Trust,
   WorkState,
 } from './schema.ts'
+export { answers } from './part-trust.ts'
+export type { Answer } from './part-trust.ts'
 
 export type PartSummary = {
   // The record id, for example D12.
@@ -132,6 +136,8 @@ export type Part = PartSummary & {
   waitsOn: PartSummary | null
   // The Signals that an Insight grew from, in the order they were picked.
   signals: { url: string; title: string }[]
+  // The answers that the Work state takes, the usual one first.
+  answers: Answer[]
 }
 
 const { projects, concepts, parts, joints, measures, flags, signals } = schema
@@ -468,5 +474,6 @@ export async function findPart(
     flags: openFlags,
     waitsOn: waitsOn.at(0) ?? null,
     signals: grownFrom,
+    answers: listAnswers(part.workState),
   }
 }
