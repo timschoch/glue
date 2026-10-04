@@ -1,11 +1,9 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { joinProject } from '../db/members.ts'
 import { addPart } from '../db/part-records.ts'
 import * as schema from '../db/schema.ts'
+import { createTestDatabase } from '../db/test-database.ts'
 import { createToken } from '../db/tokens.ts'
 import type { ApiRequest } from './concept-api.ts'
 import { handleListMine } from './part-api.ts'
@@ -17,14 +15,10 @@ import {
   handleUnassign,
 } from './people-api.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
+const { client, db } = createTestDatabase(schema)
 let token: string
 
 beforeAll(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
   await client.exec(`
     create schema neon_auth;
     create table neon_auth."user" (id uuid primary key, name text not null, email text not null);
@@ -36,7 +30,6 @@ beforeAll(async () => {
 // The Project flexibeck has the Goal G1 and the Guardrail R1 in its root
 // Concept. Ada is its member. Bo has an account and is no member.
 beforeEach(async () => {
-  await client.exec('truncate projects restart identity cascade')
   ;({ token } = await createToken(db, 'flexibeck', 'orchestrator'))
   await addPart(db, 'flexibeck', {
     type: 'goal',
@@ -55,10 +48,6 @@ beforeEach(async () => {
     name: 'Ada',
     email: 'ada@example.com',
   })
-})
-
-afterAll(async () => {
-  await client.close()
 })
 
 type Call = { body?: unknown; query?: string; token?: string | null }
