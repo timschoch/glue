@@ -11,7 +11,9 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { MouseEvent, ReactNode } from 'react'
 import type { Components } from 'react-markdown'
+import type { MarkdownNode } from '../mention.ts'
 
+import { replaceMentions } from '../mention.ts'
 import { Card, evidenceLevels, partTypes, signs, workStates } from './card.tsx'
 import styles from './record.module.scss'
 import type { EvidenceLevel, PartType, Trust, WorkState } from './card.tsx'
@@ -67,48 +69,22 @@ type OpenHandler = (
   event: MouseEvent<HTMLAnchorElement>,
 ) => void
 
-// A node of the Markdown tree, as far as the record ids need it.
-type MarkdownNode = {
-  type: string
-  value?: string
-  url?: string
-  data?: { hProperties: { recordId: string } }
-  children?: Array<MarkdownNode>
-}
-
-// A record id in a text, with its `#`.
-const RECORD_ID = /(#[A-Z]\d+\b)/
-
-// A link has its own target, so a record id in it stays text.
-const LINK_TYPES = new Set(['link', 'linkReference'])
-
 // A body can hold text from outside, such as an issue. An image in it would
 // tell its server who reads the record.
 const disallowedElements = ['img']
 
 // Turns each id of a known record in the texts below a node into a link.
 function linkRecordIds(node: MarkdownNode, hrefs: Map<string, string>) {
-  if (!node.children || LINK_TYPES.has(node.type)) return
-  node.children = node.children.flatMap((child) => {
-    if (child.type !== 'text' || child.value === undefined) {
-      linkRecordIds(child, hrefs)
-      return [child]
-    }
-    return child.value
-      .split(RECORD_ID)
-      .filter((text) => text !== '')
-      .map((text): MarkdownNode => {
-        const recordId = text.slice(1)
-        const url = RECORD_ID.test(text) ? hrefs.get(recordId) : undefined
-        return url === undefined
-          ? { type: 'text', value: text }
-          : {
-              type: 'link',
-              url,
-              data: { hProperties: { recordId } },
-              children: [{ type: 'text', value: text }],
-            }
-      })
+  replaceMentions(node, ({ project, recordId }) => {
+    const url = project === undefined ? hrefs.get(recordId) : undefined
+    return url === undefined
+      ? undefined
+      : {
+          type: 'link',
+          url,
+          data: { hProperties: { recordId } },
+          children: [{ type: 'text', value: `#${recordId}` }],
+        }
   })
 }
 

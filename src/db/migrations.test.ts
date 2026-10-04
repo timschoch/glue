@@ -262,7 +262,11 @@ describe('the migration that adds the tables of the Part model', () => {
 
   it('holds the Parts, Joints and measures that the schema describes', async () => {
     const db = drizzle(client, { schema })
-    await db.insert(schema.joints).values({ partId: 3, neededPartId: 2 })
+    // A later migration adds a column to `joints`, so the test names the
+    // columns of this one.
+    await client.exec(
+      `insert into joints (part_id, needed_part_id) values (3, 2)`,
+    )
     await db.insert(schema.measures).values({
       partId: 1,
       measure: {
@@ -320,7 +324,12 @@ describe('the migration that adds the tables of the Part model', () => {
       },
     ])
     const joints = await db
-      .select()
+      .select({
+        id: schema.joints.id,
+        partId: schema.joints.partId,
+        neededPartId: schema.joints.neededPartId,
+        twoWay: schema.joints.twoWay,
+      })
       .from(schema.joints)
       .orderBy(schema.joints.id)
     expect(joints).toEqual([
@@ -693,6 +702,7 @@ describe('the migration that copies the records into the Part model', () => {
   })
 
   it('starts each counter at the highest number that its type had', async () => {
+    await runMigrationsAfter(cutoverMigration)
     const db = drizzle(client, { schema })
 
     const insight = await addPart(db, 'glue', {

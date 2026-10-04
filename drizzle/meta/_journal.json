@@ -85,6 +85,13 @@
       "when": 1791059571824,
       "tag": "0011_part_model_cutover",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791084731589,
+      "tag": "0012_mention_joints",
+      "breakpoints": true
     }
   ]
 }

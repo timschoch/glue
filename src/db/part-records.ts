@@ -2,6 +2,7 @@ import type { SQL } from 'drizzle-orm'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { findMentions } from '../mention.ts'
 import type { ConceptDb } from './client.ts'
 import { getProjectId } from './concept.ts'
 import { goalMeasureSchema } from './goal-measure.ts'
@@ -316,6 +317,30 @@ async function findDecision(
 
 const evidenceTypes: readonly schema.PartType[] = schema.evidenceTypes
 
+// The record ids that the body names in its own Project (D37). A Joint glues
+// two Parts of one Project, so a Part of another Project gets none.
+function findMentionedRecordIds(projectSlug: string, body = '') {
+  return findMentions(body)
+    .filter(({ project }) => project === undefined || project === projectSlug)
+    .map(({ recordId }) => recordId)
+}
+
+// The Parts that a body of a Part of the type glues it to: a query with
+// their row id and their type. An id that the Project does not have gives no
+// Part. A Decision has one Goal, so a mention gives it no Goal.
+function selectMentionedParts(
+  projectId: number,
+  type: schema.PartType,
+  recordIds: string[],
+) {
+  return sql`
+    select "id", "type" from "parts"
+    where "project_id" = ${projectId}::integer
+      and ${recordIds.length === 0 ? sql`false` : sql`"record_id" in ${recordIds}`}
+      ${type === 'decision' ? sql`and "type" <> 'goal'` : sql``}
+  `
+}
+
 export function todayUtc() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -332,6 +357,8 @@ type PartRow = {
   fields: PartFields
   // The row ids of the Parts that it needs, in the order of their Joints.
   neededPartIds?: number[]
+  // The record ids that its body names: see findMentionedRecordIds.
+  mentionedRecordIds?: string[]
   // The row id of the Decision that it supersedes.
   supersedesId?: number
   // The row id of the Decision that superseded it.
@@ -347,7 +374,7 @@ async function addPartRow(
   gate?: SQL,
 ): Promise<string | null> {
   const { projectId, conceptId, type, fields, neededPartIds = [] } = row
-  const { supersedesId, supersededById } = row
+  const { mentionedRecordIds = [], supersedesId, supersededById } = row
   const status = fields.status ?? (type === 'goal' ? 'open' : null)
   const isDated = type === 'decision' || type === 'insight'
 
@@ -362,14 +389,25 @@ async function addPartRow(
           where "id" = ${supersedesId}::integer and "status" <> 'superseded'
           for update
         )`
-  // The Joints go in by their position, so their ids keep the order.
-  const neededValues = sql.join(
-    neededPartIds.map(
-      (neededPartId, position) =>
-        sql`(${position}::integer, ${neededPartId}::integer)`,
-    ),
-    sql`, `,
+  // The Joints go in by their position, so their ids keep the order. The
+  // Joints of the mentions come after them. A Part that it needs and names
+  // gets one Joint.
+  const neededRows = neededPartIds.map(
+    (neededPartId, position) =>
+      sql`select ${position}::integer, ${neededPartId}::integer, false`,
   )
+  const mentionedRows =
+    mentionedRecordIds.length === 0
+      ? []
+      : [
+          sql`
+            select 0, "id", true
+            from (${selectMentionedParts(projectId, type, mentionedRecordIds)})
+              as mentioned_parts
+            ${neededPartIds.length === 0 ? sql`` : sql`where "id" not in ${neededPartIds}`}
+          `,
+        ]
+  const jointRows = [...neededRows, ...mentionedRows]
   // The counter only grows, so the id of a deleted Part does not come back,
   // and two statements never read the same number. A row that went in
   // without the counter can have a higher number. Thus the step starts from
@@ -417,14 +455,15 @@ async function addPartRow(
       returning "id", "record_id"
     )
     ${
-      neededPartIds.length === 0
+      jointRows.length === 0
         ? sql``
         : sql`, added_joints as (
-            insert into "joints" ("part_id", "needed_part_id")
-            select added_part."id", needed."id"
+            insert into "joints" ("part_id", "needed_part_id", "mentioned")
+            select added_part."id", needed."id", needed."mentioned"
             from added_part,
-              (values ${neededValues}) as needed ("position", "id")
-            order by needed."position"
+              (${sql.join(jointRows, sql` union all `)})
+                as needed ("position", "id", "mentioned")
+            order by needed."mentioned", needed."position", needed."id"
           )`
     }
     ${
@@ -523,6 +562,7 @@ export async function addPart(
     type,
     fields,
     neededPartIds: neededParts.map((needed) => needed.id),
+    mentionedRecordIds: findMentionedRecordIds(projectSlug, fields.body),
     supersedesId,
     supersededById: successor?.id,
   })
@@ -550,7 +590,13 @@ export async function addCommentInsight(
   const conceptId = await findConceptId(db, projectId, undefined)
   return addPartRow(
     db,
-    { projectId, conceptId, type: 'insight', fields },
+    {
+      projectId,
+      conceptId,
+      type: 'insight',
+      fields,
+      mentionedRecordIds: findMentionedRecordIds(projectSlug, fields.body),
+    },
     sql`gate as (
       update "projects"
       set "comments_read_until" = ${read.until.toISOString()}::timestamptz
@@ -579,8 +625,10 @@ function isExpected(partId: number, expected: ExpectedPart) {
 
 // Sets the fields that the change names, and the measure with them as one
 // statement. A superseded Decision that gets another status has no successor
-// any more. false: the Part was not in the expected state, and nothing
-// changed.
+// any more. A new body glues the Part to each Part that it names, and
+// removes the Joint of a mention that is gone (D37). A Joint that a person
+// added stays, and so does the last evidence of a Decision. false: the Part
+// was not in the expected state, and nothing changed.
 export async function updatePart(
   db: ConceptDb,
   projectSlug: string,
@@ -588,7 +636,8 @@ export async function updatePart(
   change: PartChange,
   expected: ExpectedPart = {},
 ): Promise<boolean> {
-  const part = await getPart(db, projectSlug, recordId)
+  const projectId = await getProjectId(db, projectSlug)
+  const [part] = await findParts(db, projectId, [recordId])
   const { measure: nextMeasure, ...columns } = parseInput(
     partChangeSchemas[part.type],
     change,
@@ -627,9 +676,47 @@ export async function updatePart(
             "latest_breakdown_value" = null,
             "measured_at" = null
         )`
+  const mentionedParts = selectMentionedParts(
+    projectId,
+    part.type,
+    findMentionedRecordIds(projectSlug, columns.body).filter(
+      (mentionedRecordId) => mentionedRecordId !== recordId,
+    ),
+  )
+  const keepsEvidence = sql`and (
+    "needed_part_id" not in (
+      select "id" from "parts" where "type" in ${evidenceTypes}
+    )
+    or exists (
+      select 1 from mentioned_parts where "type" in ${evidenceTypes}
+    )
+    or exists (
+      select 1 from "joints" as other, "parts" as evidence
+      where other."part_id" = ${part.id}::integer
+        and not other."mentioned"
+        and evidence."id" = other."needed_part_id"
+        and evidence."type" in ${evidenceTypes}
+    )
+  )`
+  const changedJoints = sql`, mentioned_parts as (${mentionedParts}),
+    removed_joints as (
+      delete from "joints"
+      where "part_id" in (select "id" from changed)
+        and "mentioned"
+        and "needed_part_id" not in (select "id" from mentioned_parts)
+        ${part.type === 'decision' ? keepsEvidence : sql``}
+    ),
+    added_joints as (
+      insert into "joints" ("part_id", "needed_part_id", "mentioned")
+      select changed."id", mentioned_parts."id", true
+      from changed, mentioned_parts
+      order by mentioned_parts."id"
+      on conflict do nothing
+    )`
   const result = await db.execute(sql`
     with changed as ${changed}
     ${nextMeasure === undefined ? sql`` : changedMeasure}
+    ${columns.body === undefined ? sql`` : changedJoints}
     select "id" from changed
   `)
   return idRowsSchema.parse(result).rows.length > 0
@@ -694,7 +781,8 @@ export type NewJoint = z.input<typeof newJointSchema>
 // with different home Concepts make a link: the same Joint, never a copy.
 // A Decision has one Goal, so the statement adds no second one. A two-way
 // Joint shows on both sides, so it gives the Decision a Goal in either
-// direction.
+// direction. The Joint of a mention between the two Parts becomes the Joint
+// that the person adds, so it stays when the mention goes.
 export async function addJoint(
   db: ConceptDb,
   projectSlug: string,
@@ -737,7 +825,16 @@ export async function addJoint(
       ${neededPart.id}::integer,
       ${twoWay}::boolean
     ${decision ? hasNoGoal : sql``}
-    on conflict do nothing
+    on conflict (
+      least("part_id", "needed_part_id"),
+      greatest("part_id", "needed_part_id")
+    )
+    do update set
+      "part_id" = excluded."part_id",
+      "needed_part_id" = excluded."needed_part_id",
+      "two_way" = excluded."two_way",
+      "mentioned" = false
+    where "joints"."mentioned"
     returning "id"
   `)
   const added = idRowsSchema.parse(result).rows

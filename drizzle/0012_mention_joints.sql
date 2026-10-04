@@ -1,0 +1,1 @@
+ALTER TABLE "joints" ADD COLUMN "mentioned" boolean DEFAULT false NOT NULL;
