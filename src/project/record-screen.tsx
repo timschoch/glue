@@ -2,10 +2,12 @@ import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { useCallback, useMemo, useState } from 'react'
 import type { MouseEvent } from 'react'
 
+import type { Build } from '../db/builds.ts'
 import type { Answer, Part, PartSummary } from '../db/parts.ts'
 import { partTypes } from '../design-system/card.tsx'
 import { Record } from '../design-system/record.tsx'
 import type { RecordAction } from '../design-system/record.tsx'
+import { LinkedBuilds } from './linked-builds.tsx'
 import { findCommonFlow } from './common-flow.ts'
 import { PartFormScreen } from './part-form-screen.tsx'
 import { toRecordPart, toRecordSummaries } from './part-views.ts'
@@ -31,9 +33,12 @@ const answerLabels: { [answer in Answer]: string } = {
 export function RecordScreen({
   part,
   parts,
+  builds = [],
 }: {
   part: Part
   parts: ReadonlyArray<PartSummary>
+  // The builds of the Project: the record shows the ones that name it.
+  builds?: ReadonlyArray<Build>
 }) {
   const router = useRouter()
   const { answerPart, addJoint, removeJoint } = projectRoute.useRouteContext()
@@ -73,6 +78,9 @@ export function RecordScreen({
     return <PartFormScreen type={search.add} needed={part} parts={parts} />
   }
 
+  const named = builds.filter(({ decisions }) =>
+    decisions.some(({ id }) => id === part.id),
+  )
   const name = `${partTypes[part.type]} ${part.id}`
   // A Decision in review takes an answer in words. The server adds the name
   // of the person and the date.
@@ -164,6 +172,8 @@ export function RecordScreen({
         void changeSearch(changePin(search, part.id, pinned))
       }
       onOpen={handleOpen}
-    />
+    >
+      {named.length > 0 && <LinkedBuilds builds={named} />}
+    </Record>
   )
 }

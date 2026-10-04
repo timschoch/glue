@@ -1,6 +1,6 @@
 import { Button, InlineNotification, Link } from '@carbon/react'
 import { useId } from 'react'
-import type { MouseEvent } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 
 import { Card, partTypes } from './card.tsx'
 import type { PartType, Trust } from './card.tsx'
@@ -48,6 +48,9 @@ export type ContractPanelProps = {
   onSignOff: () => void
   // Why the last sign-off failed.
   failure?: string
+  // What the tools outside Glue have on the Contract. It comes after the
+  // Versions.
+  children?: ReactNode
 }
 
 function SignedBy({ signedBy, signedAt }: ContractVersionRow) {
@@ -72,6 +75,7 @@ export function ContractPanel({
   onOpenPart,
   onSignOff,
   failure,
+  children,
 }: ContractPanelProps) {
   const titleId = useId()
   const blockingId = useId()
@@ -106,6 +110,7 @@ export function ContractPanel({
           ))}
         </ul>
       )}
+      {children}
       {blocking.length > 0 && (
         <div className={styles.group}>
           <p id={blockingId} className={styles.label}>

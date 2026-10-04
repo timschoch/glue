@@ -9,11 +9,23 @@ export type IssueInput = { title: string; body: string; labels: string[] }
 // opened.
 export type Issue = { url: string; title: string; createdAt: string }
 
+// A pull request as Glue reads it. One that was closed with no merge is not
+// a build, so Glue does not read it.
+export type PullRequest = {
+  number: number
+  url: string
+  title: string
+  state: 'open' | 'merged'
+  body: string
+}
+
 export type GithubClient = {
   // Opens an issue and returns its web address.
   createIssue: (repository: string, issue: IssueInput) => Promise<string>
   // The open and the closed issues with the label, the newest first.
   listIssues: (repository: string, label: string) => Promise<Issue[]>
+  // The open and the merged pull requests, the newest first.
+  listPullRequests: (repository: string) => Promise<PullRequest[]>
 }
 
 const API_URL = 'https://api.github.com'
@@ -29,6 +41,15 @@ type ListedIssue = {
   title: string
   created_at: string
   pull_request?: unknown
+}
+
+type ListedPullRequest = {
+  number: number
+  html_url: string
+  title: string
+  state: 'open' | 'closed'
+  merged_at: string | null
+  body: string | null
 }
 
 export function createGithubClient(): GithubClient {
@@ -92,6 +113,24 @@ export function createGithubClient(): GithubClient {
           url: issue.html_url,
           title: issue.title,
           createdAt: issue.created_at,
+        }))
+    },
+    listPullRequests: async (repository) => {
+      const query = new URLSearchParams({
+        state: 'all',
+        per_page: String(PAGE_SIZE),
+      })
+      const response = await fetchGithub(`/repos/${repository}/pulls?${query}`)
+      await validateResponse(response, 'list pull requests')
+      const listed: ListedPullRequest[] = await response.json()
+      return listed
+        .filter((pull) => pull.state === 'open' || pull.merged_at !== null)
+        .map((pull) => ({
+          number: pull.number,
+          url: pull.html_url,
+          title: pull.title,
+          state: pull.state === 'open' ? 'open' : 'merged',
+          body: pull.body ?? '',
         }))
     },
   }

@@ -97,6 +97,7 @@ const requests = {
     }),
   listMine: () => actions.listMine({ project }),
   listSignals: () => actions.listSignals({ project }),
+  listBuilds: () => actions.listBuilds({ project }),
   addSignalInsight: () =>
     actions.addSignalInsight({
       project,

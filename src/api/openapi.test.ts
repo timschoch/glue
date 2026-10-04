@@ -44,6 +44,7 @@ describe('GET /api/v1/openapi.json', () => {
             'get /mine',
             'get /signals',
             'post /signals/insights',
+            'get /builds',
             'post /joints',
             'delete /joints/{jointId}',
           ].map((route) => route.replace(' ', ' /api/v1/projects/{project}')),

@@ -3,6 +3,7 @@ import { isRedirect, redirect } from '@tanstack/react-router'
 import type { SignIn, SignUp } from './authentication/credentials.ts'
 import { parseRedirect } from './authentication/redirect.ts'
 import type { Failure, Session } from './authentication/session.ts'
+import type { ProjectBuilds } from './db/builds.ts'
 import type { Contract, ContractState } from './db/contracts.ts'
 import type {
   AnswerInput,
@@ -36,6 +37,7 @@ export type Server = {
     recordId: string
   }) => Promise<Part | undefined>
   fetchSignals: (project: string) => Promise<ProjectSignals>
+  fetchBuilds: (project: string) => Promise<ProjectBuilds>
   // The writes. A Failure is an answer for the person: the write did not
   // happen and the message says why.
   addProject: (project: ProjectAddInput) => Promise<{ slug: string } | Failure>
@@ -154,6 +156,8 @@ export function createRouterContext(
       ),
     fetchSignals: (project) =>
       keepSignInTarget(server.fetchSignals(project), `/${project}`),
+    fetchBuilds: (project) =>
+      keepSignInTarget(server.fetchBuilds(project), `/${project}`),
     // The record route sends the record to its home Concept.
     fetchPart: (part) =>
       keepSignInTarget(
