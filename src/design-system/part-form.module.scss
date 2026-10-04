@@ -29,6 +29,51 @@ $text-width: $spacing-13 * 4;
   gap: $spacing-03;
 }
 
+// The field is as wide as the form, and the list of the records opens at it.
+.body {
+  display: block;
+}
+
+.mentions {
+  max-block-size: $spacing-13 * 2;
+  min-inline-size: $spacing-13 * 2;
+  overflow-y: auto;
+}
+
+// One record of the list: the type line, then the title.
+.mention {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  align-items: baseline;
+  padding: $spacing-03 $spacing-05;
+  color: $text-primary;
+  cursor: pointer;
+  gap: $spacing-03;
+
+  &:hover {
+    background-color: $layer-hover;
+  }
+
+  &[aria-selected='true'] {
+    background-color: $layer-selected;
+  }
+}
+
+.mentionType {
+  @include type-style('label-01');
+
+  flex-shrink: 0;
+  color: $text-secondary;
+}
+
+// The label of a field that shows its one pick and no search.
+.pickerLabel {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}
+
 .buttons {
   display: flex;
   align-items: center;

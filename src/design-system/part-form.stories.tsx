@@ -103,6 +103,17 @@ export const AddDecisionWithPicks: Story = {
   },
 }
 
+// The list of the records after a # in the body.
+export const BodyWithRecords: Story = {
+  args: { type: 'decision' },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.type(
+      canvas.getByRole('textbox', { name: 'Body' }),
+      'It builds on #vid',
+    )
+  },
+}
+
 // A Decision that exists has no field for its Joints.
 export const EditDecision: Story = {
   args: { ...AddDecisionWithPicks.args, recordId: 'D12' },

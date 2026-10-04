@@ -43,6 +43,13 @@ const PARTS: Array<PartFormPart> = [
     trust: 'solid',
     href: '#R4',
   },
+  {
+    id: 'D5',
+    type: 'decision',
+    title: 'Bake with a video',
+    trust: 'solid',
+    href: '#D5',
+  },
 ]
 
 // The values of a Decision that the form can save.
@@ -338,7 +345,7 @@ describe('PartForm', () => {
     expect(screen.queryByText('Saving')).toBeNull()
   })
 
-  it('offers the Goals to the Goal picker, and the Insights and the Guardrails to the evidence picker', async () => {
+  it('offers the Goals to the Goal picker, and the Insights, the Guardrails and the Decisions to the evidence picker', async () => {
     renderForm()
 
     await userEvent.click(picker('Goal'))
@@ -355,7 +362,27 @@ describe('PartForm', () => {
       'I7 Bakers want step videos',
       'I9 Videos are too long',
       'R4 Only the videos of the creator',
+      'D5 Bake with a video',
     ])
+  })
+
+  it('puts the record id of a pick after # into the body', async () => {
+    const { onSave } = renderForm({ type: 'entity', recordId: 'I7' })
+
+    await userEvent.type(field('Title'), 'Technique')
+    await userEvent.type(field('Body'), 'See #i9')
+
+    // jsdom has no layout, so Carbon holds the list back as hidden.
+    expect(
+      screen
+        .getAllByRole('option', { hidden: true })
+        .map((option) => option.textContent),
+    ).toEqual(['Insight I9 Videos are too long'])
+
+    await userEvent.keyboard('{Enter}')
+    await userEvent.click(saveButton())
+
+    expect(onSave.mock.calls[0][0].body).toBe('See #I9')
   })
 
   it.each([
@@ -389,7 +416,11 @@ describe('PartForm', () => {
 
     expect(
       screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['I9 Videos are too long', 'R4 Only the videos of the creator'])
+    ).toEqual([
+      'I9 Videos are too long',
+      'R4 Only the videos of the creator',
+      'D5 Bake with a video',
+    ])
   })
 
   it('removes a pick with the one icon button of its card, named with the record id', async () => {
@@ -429,12 +460,20 @@ describe('PartForm', () => {
     expect(picks('Evidence')).toEqual(['Bakers want step videos'])
   })
 
-  it('holds one Goal: a second pick replaces the first', async () => {
-    renderForm({ values: { goal: 'G2' } })
+  it('holds one Goal: the search gives its place to the label while the Goal has a pick', async () => {
+    renderForm()
 
     await pick('Goal', 'G3', 'G3 Bakers come back')
 
     expect(picks('Goal')).toEqual(['Bakers come back'])
+    expect(screen.queryByRole('combobox', { name: 'Goal' })).toBeNull()
+    expect(
+      screen.getByText('Goal', { selector: '[class*="pickerLabel"]' }),
+    ).toBeDefined()
+
+    await userEvent.click(iconButton('Remove G3'))
+
+    expect(picker('Goal')).toHaveProperty('value', '')
   })
 
   it('does not save a Decision after its Goal is removed', async () => {
