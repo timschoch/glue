@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.11.0](https://github.com/timschoch/glue/compare/v1.10.0...v1.11.0) (2026-10-04)
+
+
+### Features
+
+* **app:** answer a proposed Decision with an option or with words ([#220](https://github.com/timschoch/glue/issues/220)) ([1d7f97d](https://github.com/timschoch/glue/commit/1d7f97d3e161d0aa409d7412b75603e6ff5bff46))
+* **app:** pick a record after # in the body of the Part form ([#214](https://github.com/timschoch/glue/issues/214)) ([54a9681](https://github.com/timschoch/glue/commit/54a9681bbe5af99d712d1c2c5cad0a9dae6aeb93)), closes [#209](https://github.com/timschoch/glue/issues/209)
+* **app:** show each Metric and measured Goal against its target in Use ([#219](https://github.com/timschoch/glue/issues/219)) ([25287bf](https://github.com/timschoch/glue/commit/25287bf96394179e21e12c549b9b2aa052d4b2c8))
+* **app:** show the map of a Concept, with Parts as nodes and Joints as lines ([#215](https://github.com/timschoch/glue/issues/215)) ([fa84b4b](https://github.com/timschoch/glue/commit/fa84b4bd051447e0d8712a2f74b751ee8d02209e)), closes [#206](https://github.com/timschoch/glue/issues/206)
+* **builds:** show the builds of a Project and the stale mark ([#221](https://github.com/timschoch/glue/issues/221)) ([006eed8](https://github.com/timschoch/glue/commit/006eed868342361028864657453c91cd1951fa15))
+* **mail:** send mail with Resend and take inbound mail ([#202](https://github.com/timschoch/glue/issues/202)) ([70b8d42](https://github.com/timschoch/glue/commit/70b8d422f49d6f9ecdfa063e29853ddcd06056fc))
+* **people:** add members, loop steps, Responsible and Co-Author ([#198](https://github.com/timschoch/glue/issues/198)) ([dae24d4](https://github.com/timschoch/glue/commit/dae24d4f09207a3c907e429a86908988ba0d81f9))
+
+
+### Bug Fixes
+
+* **app:** fix the faults from the first signed-in walk ([#213](https://github.com/timschoch/glue/issues/213)) ([5a07222](https://github.com/timschoch/glue/commit/5a07222a83e370fadba6b6c237a717e23e7c287c)), closes [#203](https://github.com/timschoch/glue/issues/203)
+* **cli:** clear a field with set, and fix the flaky 429 smoke test ([#216](https://github.com/timschoch/glue/issues/216)) ([c148366](https://github.com/timschoch/glue/commit/c14836616a803f05d064e8eefe381a40c20e0a48)), closes [#211](https://github.com/timschoch/glue/issues/211)
+
 ## [1.10.0](https://github.com/timschoch/glue/compare/v1.9.0...v1.10.0) (2026-10-04)
 
 
