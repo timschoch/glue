@@ -201,12 +201,14 @@ describe('a Contract Version', () => {
     const tiers = screen.getAllByRole('region')
 
     expect(
-      screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent),
+      screen
+        .getAllByRole('heading', { level: 2 })
+        .map((heading) => heading.textContent),
     ).toEqual(['Tier 1', 'Tier 2'])
     expect(
       within(tiers[0])
         .getAllByRole('heading', { level: 3 })
-        .map((h) => h.textContent),
+        .map((heading) => heading.textContent),
     ).toEqual(['Watch a technique while baking', 'Only creator videos'])
     expect(within(tiers[0]).getByText(/The video loops\./)).toBeTruthy()
     expect(within(tiers[1]).getByText('G2')).toBeTruthy()

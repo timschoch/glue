@@ -161,7 +161,9 @@ describe('the screen of a Contract Version', () => {
     )
     expect(main.getByText('Contract Version 1')).toBeTruthy()
     expect(
-      main.getAllByRole('heading', { level: 3 }).map((h) => h.textContent),
+      main
+        .getAllByRole('heading', { level: 3 })
+        .map((heading) => heading.textContent),
     ).toEqual(['Agents read files', 'The Concept lives in the database'])
     expect(
       within(main.getByRole('list', { name: 'Empty slots' })).getByText(
