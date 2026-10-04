@@ -92,13 +92,13 @@ describe('the builds of a Project', () => {
       'Read the Concept from the database',
       'Add the Part tables',
     ])
-    expect(within(open).getByText('Open')).toBeTruthy()
+    within(open).getByText('Open')
     expect(
       within(open).getByRole('link', { name: /D4/ }).getAttribute('href'),
     ).toBe('/glue/part-model/D4?section=Build')
     expect(within(open).queryByText('Stale')).toBeNull()
-    expect(within(old).getByText('Merged')).toBeTruthy()
-    expect(within(old).getByText('Stale')).toBeTruthy()
+    within(old).getByText('Merged')
+    within(old).getByText('Stale')
     expect(
       within(old)
         .getByRole('link', { name: 'Part model Version 1' })
@@ -116,7 +116,7 @@ describe('the builds of a Project', () => {
       ),
     })
 
-    expect(screen.getByText('The Project has no repository')).toBeTruthy()
+    screen.getByText('The Project has no repository')
   })
 
   it('reads no builds for a Concept without a Contract Version in another section', async () => {
@@ -137,9 +137,7 @@ describe('the builds of a Project', () => {
 
     const contract = within(screen.getByRole('region', { name: 'Contract' }))
 
-    expect(
-      contract.getByRole('link', { name: 'Add the Part tables' }),
-    ).toBeTruthy()
+    contract.getByRole('link', { name: 'Add the Part tables' })
     expect(
       contract.queryByRole('link', {
         name: 'Read the Concept from the database',

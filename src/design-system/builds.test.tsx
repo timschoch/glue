@@ -51,12 +51,12 @@ describe('Builds', () => {
 
     const open = within(row(OPEN.title))
 
-    expect(screen.getByRole('heading', { name: 'Builds' })).toBeTruthy()
+    screen.getByRole('heading', { name: 'Builds' })
     expect(
       open.getByRole('link', { name: OPEN.title }).getAttribute('href'),
     ).toBe(OPEN.url)
-    expect(open.getByText('Open')).toBeTruthy()
-    expect(within(row(OLD.title)).getByText('Merged')).toBeTruthy()
+    open.getByText('Open')
+    within(row(OLD.title)).getByText('Merged')
   })
 
   it('shows the card of the Decision that a build names, and opens it', async () => {
@@ -89,17 +89,17 @@ describe('Builds', () => {
   it('marks only a stale build', () => {
     render(<Builds builds={[OPEN, OLD]} />)
 
-    expect(within(row(OLD.title)).getByText('Stale')).toBeTruthy()
+    within(row(OLD.title)).getByText('Stale')
     expect(within(row(OPEN.title)).queryByText('Stale')).toBeNull()
   })
 
   it('says that there are no builds, or why', () => {
     const { rerender } = render(<Builds builds={[]} />)
 
-    expect(screen.getByText('No builds')).toBeTruthy()
+    screen.getByText('No builds')
 
     rerender(<Builds builds={[]} reason="The Project has no repository" />)
 
-    expect(screen.getByText('The Project has no repository')).toBeTruthy()
+    screen.getByText('The Project has no repository')
   })
 })
