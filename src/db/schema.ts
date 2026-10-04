@@ -472,6 +472,46 @@ export const signals = pgTable(
   ],
 )
 
+// A Part as a Contract Version holds it: its content at the time of the
+// sign-off. `needs` has the record ids of the Parts that it needs.
+export type FrozenPart = {
+  id: string
+  type: PartType
+  title: string
+  body: string
+  // The slug of the home Concept.
+  concept: string
+  status: string | null
+  owner: string | null
+  date: string | null
+  source: string | null
+  metric: string | null
+  enforcedBy: string | null
+  evidenceLevel: EvidenceLevel | null
+  needs: string[]
+}
+
+// A Contract Version is the Parts of a Concept, and of the Concepts in it,
+// as they were at one sign-off (D28). A row never changes.
+export const contractVersions = pgTable(
+  'contract_versions',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    conceptId: integer('concept_id')
+      .notNull()
+      .references(() => concepts.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    // The SHA-256 of `parts` as text.
+    checksum: text('checksum').notNull(),
+    parts: jsonb('parts').notNull().$type<FrozenPart[]>(),
+    signedBy: text('signed_by').notNull(),
+    signedAt: timestamp('signed_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.conceptId, table.version)],
+)
+
 // The highest number that a record id of one Part type had in the Project.
 // It only grows, so the id of a deleted Part does not come back.
 export const partCounters = pgTable(

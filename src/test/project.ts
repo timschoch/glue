@@ -1,3 +1,4 @@
+import type { Contract, ContractState } from '../db/contracts.ts'
 import type {
   Concept,
   ConceptNode,
@@ -186,4 +187,45 @@ export function findPart({
   return project === 'glue'
     ? records.find((record) => record.id === recordId)
     : undefined
+}
+
+type ConceptInput = { project: string; concept: string }
+
+const signed = {
+  version: 1,
+  checksum: '9f2c4e7a1b3d5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcd',
+  signedBy: 'Ada',
+  signedAt: '2026-10-01T10:00:00.000Z',
+}
+
+// The Part model has one Contract Version and is ahead of it. No other
+// Concept has a Version.
+export function findContractState(
+  input: ConceptInput,
+): ContractState | undefined {
+  if (!findConcept(input)) return undefined
+  return input.concept === partModel.slug
+    ? { versions: [signed], ahead: true, blocking: [] }
+    : { versions: [], ahead: false, blocking: [] }
+}
+
+export function findContract({
+  concept,
+  version = signed.version,
+}: ConceptInput & { version?: number }): Contract | undefined {
+  if (concept !== partModel.slug || version !== signed.version) return undefined
+  const frozen = records
+    .filter((record) => record.concept === partModel.slug)
+    .map((record) => ({ ...record, needs: [] }))
+
+  return {
+    ...signed,
+    concept: partModel.slug,
+    title: partModel.title,
+    kind: partModel.kind,
+    newestVersion: signed.version,
+    tier1: [],
+    tier2: frozen,
+    slots: findConcept({ project: 'glue', concept })?.slots ?? [],
+  }
 }

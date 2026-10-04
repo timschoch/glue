@@ -3,6 +3,7 @@ import { isRedirect, redirect } from '@tanstack/react-router'
 import type { SignIn, SignUp } from './authentication/credentials.ts'
 import { parseRedirect } from './authentication/redirect.ts'
 import type { Failure, Session } from './authentication/session.ts'
+import type { Contract, ContractState } from './db/contracts.ts'
 import type {
   AnswerInput,
   ConceptAddInput,
@@ -47,6 +48,21 @@ export type Server = {
   addSignalInsight: (
     insight: SignalInsightAddInput,
   ) => Promise<SavedPart | Failure>
+  fetchContractState: (concept: {
+    project: string
+    concept: string
+  }) => Promise<ContractState | undefined>
+  // Without a version: the newest Contract Version.
+  fetchContract: (contract: {
+    project: string
+    concept: string
+    version?: number
+  }) => Promise<Contract | undefined>
+  // The person of the session signs.
+  signContract: (concept: {
+    project: string
+    concept: string
+  }) => Promise<{ version: number } | Failure>
   signIn: (credentials: SignIn) => Promise<Failure | undefined>
   signUp: (account: SignUp) => Promise<Failure | undefined>
   signOut: () => Promise<void>
@@ -98,6 +114,16 @@ export async function requireSession(context: RouterContext, path: string) {
   return { session }
 }
 
+function conceptPath({
+  project,
+  concept,
+}: {
+  project: string
+  concept: string
+}) {
+  return concept === project ? `/${project}` : `/${project}/${concept}`
+}
+
 export function createRouterContext(
   server: Server,
   memory: SessionMemory = {},
@@ -115,11 +141,16 @@ export function createRouterContext(
     fetchMine: (project) =>
       keepSignInTarget(server.fetchMine(project), `/${project}`),
     fetchConcept: (concept) =>
+      keepSignInTarget(server.fetchConcept(concept), conceptPath(concept)),
+    fetchContractState: (concept) =>
       keepSignInTarget(
-        server.fetchConcept(concept),
-        concept.concept === concept.project
-          ? `/${concept.project}`
-          : `/${concept.project}/${concept.concept}`,
+        server.fetchContractState(concept),
+        conceptPath(concept),
+      ),
+    fetchContract: (contract) =>
+      keepSignInTarget(
+        server.fetchContract(contract),
+        `/${contract.project}/${contract.concept}/contract/${contract.version}`,
       ),
     fetchSignals: (project) =>
       keepSignInTarget(server.fetchSignals(project), `/${project}`),

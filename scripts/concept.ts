@@ -16,6 +16,8 @@ import {
 import type { ConceptFields, ConceptFolder } from '../src/db/concept-records.ts'
 import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
 import type { DecisionStatus, GoalStatus } from '../src/db/concept-fields.ts'
+import { findContract, signContract } from '../src/db/contracts.ts'
+import type { FrozenPart } from '../src/db/contracts.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
 import type { GoalMeasure } from '../src/db/goal-measure.ts'
 import type { Kind } from '../src/db/kinds.ts'
@@ -101,6 +103,7 @@ const KNOWN_FIELDS = new Set(
       'waits_on',
       'words',
       'by',
+      'version',
     ]),
 )
 
@@ -297,6 +300,8 @@ function formatHelp() {
     'pnpm concept signals',
     'pnpm concept signals insight <address> [<address> ...] --title <title> [--concept <slug>] [--body <text>]',
     'pnpm concept concept add <slug> --title <title> [--kind <kind>] [--parent <slug>]',
+    'pnpm concept contract show <concept> [--version <number>]',
+    'pnpm concept contract sign <concept> --owner <name>',
     'pnpm concept joint add <id> <needed id> [--two-way]',
     'pnpm concept joint remove <id> <needed id>',
     'pnpm concept project add <slug>',
@@ -305,7 +310,7 @@ function formatHelp() {
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set, downstream, answer, mine, signals, concept and joint take --project <slug>. The default is glue.',
+    'list, show, add, set, downstream, answer, mine, signals, concept, contract and joint take --project <slug>. The default is glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -327,6 +332,8 @@ function formatHelp() {
     'mine lists what needs the owner: the records in to-check, draft or review.',
     'signals lists the issues with the label user-feedback in the repository of the Project.',
     'signals insight adds a draft Insight at the level hunch that grows from the Signals.',
+    'contract sign freezes the records of a Concept as its next Contract Version. Each record needs Trust solid.',
+    'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
   ].join('\n')
 }
 
@@ -500,6 +507,9 @@ export async function runConcept(
     case 'concept':
       await handleConceptCommand(db, rest)
       return
+    case 'contract':
+      await handleContractCommand(db, rest)
+      return
     case 'joint':
       await handleJointCommand(db, rest)
       return
@@ -564,6 +574,66 @@ async function handleConceptCommand(
       parent: flags.parent as string | undefined,
     }),
   )
+}
+
+function formatFrozenPart({ id, type, title }: FrozenPart) {
+  return [id, type, title].join('  ')
+}
+
+// `contract sign <concept> --owner <name>` signs off the Concept and prints
+// the new Contract Version as `<concept>@<version>`: what a PR names in its
+// `Contract:` line. `contract show <concept>` prints the newest Version, or
+// the one of `--version`.
+async function handleContractCommand(
+  db: ConceptDb,
+  [command, concept, ...rest]: string[],
+) {
+  const flags = parseFlags(rest)
+  const project = (flags.project as string | undefined) ?? 'glue'
+  switch (command) {
+    case 'sign': {
+      const owner = flags.owner as string | undefined
+      if (!concept || !owner) {
+        throw new Error('contract sign needs <concept> and --owner')
+      }
+      const version = await signContract(db, project, concept, owner)
+      console.log(`${concept}@${version}`)
+      return
+    }
+    case 'show': {
+      const sent = flags.version as string | undefined
+      const version = sent === undefined ? undefined : Number(sent)
+      const contract = await findContract(db, project, concept, version)
+      if (!contract) {
+        throw new Error(
+          `"${concept}" has no Contract Version${sent === undefined ? '' : ` ${sent}`}`,
+        )
+      }
+      console.log(`${contract.concept}@${contract.version}`)
+      console.log(`checksum: ${contract.checksum}`)
+      console.log(
+        `signed: ${contract.signedBy} ${contract.signedAt.slice(0, 10)}`,
+      )
+      if (contract.newestVersion > contract.version) {
+        console.log(
+          `superseded_by: ${contract.concept}@${contract.newestVersion}`,
+        )
+      }
+      const emptySlots = contract.slots.filter(({ filled }) => !filled)
+      if (emptySlots.length > 0) {
+        console.log(
+          `empty slots: ${emptySlots.map(({ type }) => type).join(', ')}`,
+        )
+      }
+      console.log('tier 1')
+      for (const part of contract.tier1) console.log(formatFrozenPart(part))
+      console.log('tier 2')
+      for (const part of contract.tier2) console.log(formatFrozenPart(part))
+      return
+    }
+    default:
+      throw new Error(`unknown contract command "${command}"`)
+  }
 }
 
 // `joint add <id> <needed id>` glues two Parts: the first needs the second.

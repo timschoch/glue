@@ -11,6 +11,8 @@ import type { RouterContext, Server, SessionMemory } from './router-context.ts'
 import { routeTree } from './routeTree.gen'
 import {
   findConcept,
+  findContract,
+  findContractState,
   findPart,
   findProject,
   parts,
@@ -36,6 +38,11 @@ function context(overrides: Partial<Server> = {}): Server {
     addSignalInsight: vi.fn(() =>
       Promise.resolve({ id: 'I1', issueMissing: false }),
     ),
+    fetchContractState: vi.fn((input) =>
+      Promise.resolve(findContractState(input)),
+    ),
+    fetchContract: vi.fn((input) => Promise.resolve(findContract(input))),
+    signContract: vi.fn(() => Promise.resolve({ version: 2 })),
     addProject: vi.fn(({ slug }) => Promise.resolve({ slug })),
     addConcept: vi.fn(({ concept }) => Promise.resolve({ slug: concept.slug })),
     addPart: vi.fn(() => Promise.resolve({ id: 'D5', issueMissing: false })),
