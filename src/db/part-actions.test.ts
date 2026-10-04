@@ -36,9 +36,16 @@ const actions = createPartActions({
 
 const project = 'flexibeck'
 
+// The one issue with the label user-feedback in the repository.
+const signal = {
+  url: 'https://github.com/timschoch/flexibeck-next/issues/7',
+  title: 'The list is slow',
+  createdAt: '2026-10-02T08:00:00Z',
+}
+
 beforeEach(async () => {
   session = undefined
-  fake = createFakeGithub()
+  fake = createFakeGithub([signal])
   github = fake.github
   client = new PGlite()
   db = drizzle(client, { schema })
@@ -99,6 +106,12 @@ const requests = {
       answer: { answer: 'sink' },
     }),
   listMine: () => actions.listMine({ project }),
+  listSignals: () => actions.listSignals({ project }),
+  addSignalInsight: () =>
+    actions.addSignalInsight({
+      project,
+      insight: { signals: [signal.url], title: 'Long lists are slow' },
+    }),
   addJoint: () =>
     actions.addJoint({ project, joint: { part: 'I1', needs: 'G1' } }),
   removeJoint: () => actions.removeJoint({ project, jointId: 1 }),
@@ -191,6 +204,32 @@ describe('a server function of the Part model with a session', () => {
       source: 'verify ci',
     })
     expect(part?.needs.map((end) => end.part.id)).toEqual(['G1'])
+  })
+
+  it('lists the Signals, and adds the Insight that grows from them', async () => {
+    expect(await requests.addSignalInsight()).toEqual({
+      id: 'I2',
+      issueMissing: false,
+    })
+    expect(await actions.listSignals({ project })).toEqual({
+      reason: null,
+      signals: [
+        {
+          url: signal.url,
+          title: signal.title,
+          date: '2026-10-02',
+          insight: { id: 'I2', title: 'Long lists are slow' },
+        },
+      ],
+    })
+  })
+
+  it('answers a Signal that grew into an Insight already as a failure', async () => {
+    await requests.addSignalInsight()
+
+    expect(await requests.addSignalInsight()).toEqual({
+      message: `"${signal.url}" grew into I2 already`,
+    })
   })
 
   it('adds a Concept', async () => {

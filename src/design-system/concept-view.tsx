@@ -1,7 +1,7 @@
 import { Add } from '@carbon/icons-react'
 import { Button, ClickableTile } from '@carbon/react'
 import { useState } from 'react'
-import type { MouseEvent, ReactElement, SyntheticEvent } from 'react'
+import type { MouseEvent, ReactElement, ReactNode, SyntheticEvent } from 'react'
 
 import { Card, partTypes } from './card.tsx'
 import type { PartType, Trust } from './card.tsx'
@@ -154,6 +154,8 @@ export type ConceptViewProps = {
   // With the callback the row of Concepts holds one button that adds a
   // Concept inside this one.
   onAddConcept?: () => void
+  // One more group, after the Parts.
+  children?: ReactNode
 }
 
 // One Concept in the main window: its head, the Concepts inside it, and its
@@ -170,6 +172,7 @@ export function ConceptView({
   onOpenConcept,
   onAddPart,
   onAddConcept,
+  children,
 }: ConceptViewProps) {
   const groups = typeGroups
     .filter(({ type }) => types === undefined || types.includes(type))
@@ -251,6 +254,7 @@ export function ConceptView({
           onAdd={onAddPart && (() => onAddPart(type))}
         />
       ))}
+      {children}
     </div>
   )
 }

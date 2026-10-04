@@ -387,6 +387,7 @@ describe('GET a Part', () => {
       neededBy: [],
       flags: [],
       waitsOn: null,
+      signals: [],
     })
   })
 

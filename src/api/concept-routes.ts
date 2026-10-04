@@ -27,6 +27,7 @@ import {
   handleRemoveJoint,
   handleUpdatePart,
 } from './part-api.ts'
+import { handleAddSignalInsight, handleListSignals } from './signal-api.ts'
 
 type PathParams = {
   folder?: string
@@ -92,6 +93,14 @@ export const jointsHandlers = {
 
 export const jointHandlers = {
   DELETE: (route: RouteRequest) => handleRemoveJoint(toApiRequest(route)),
+}
+
+export const signalsHandlers = {
+  GET: (route: RouteRequest) => handleListSignals(toChangeRequest(route)),
+}
+
+export const signalInsightsHandlers = {
+  POST: (route: RouteRequest) => handleAddSignalInsight(toChangeRequest(route)),
 }
 
 export const conceptHandlers = {

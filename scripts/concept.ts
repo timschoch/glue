@@ -49,6 +49,7 @@ import { createGithubClient } from '../src/github/client.ts'
 import type { GithubClient } from '../src/github/client.ts'
 import { createDownstreamIssue } from '../src/github/downstream-issue.ts'
 import type { DownstreamIssue } from '../src/github/downstream-issue.ts'
+import { addSignalInsight, listSignals } from '../src/db/signals.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
   'analytics-project': 'analytics_project',
@@ -287,6 +288,8 @@ function formatHelp() {
     'pnpm concept downstream <id>',
     'pnpm concept answer <id> <answer> [--waits-on <id>]',
     'pnpm concept mine',
+    'pnpm concept signals',
+    'pnpm concept signals insight <address> [<address> ...] --title <title> [--concept <slug>] [--body <text>]',
     'pnpm concept concept add <slug> --title <title> [--kind <kind>] [--parent <slug>]',
     'pnpm concept joint add <id> <needed id> [--two-way]',
     'pnpm concept joint remove <id> <needed id>',
@@ -296,7 +299,7 @@ function formatHelp() {
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set, downstream, answer, mine, concept and joint take --project <slug>. The default is glue.',
+    'list, show, add, set, downstream, answer, mine, signals, concept and joint take --project <slug>. The default is glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -315,6 +318,8 @@ function formatHelp() {
     `answer takes ${answers.join(', ')}. The Work state of the record says which ones.`,
     'wait needs --waits-on: the record that it waits on.',
     'mine lists what needs the owner: the records in to-check, draft or review.',
+    'signals lists the issues with the label user-feedback in the repository of the Project.',
+    'signals insight adds a draft Insight at the level hunch that grows from the Signals.',
   ].join('\n')
 }
 
@@ -477,6 +482,9 @@ export async function runConcept(
       if (issue.kind === 'failed') process.exitCode = 1
       return
     }
+    case 'signals':
+      await handleSignalsCommand(db, getGithub, rest)
+      return
     case 'concept':
       await handleConceptCommand(db, rest)
       return
@@ -493,6 +501,35 @@ export async function runConcept(
       return
     default:
       throw new Error(`unknown command "${command}". See pnpm concept --help`)
+  }
+}
+
+// `signals` lists the Signals of the Project, each with the Insight that
+// grew from it. `signals insight <address> ... --title <title>` adds the
+// Insight that grows from the Signals at the addresses.
+async function handleSignalsCommand(
+  db: ConceptDb,
+  getGithub: () => GithubClient,
+  args: string[],
+) {
+  const flags = parseFlags(args)
+  const project = (flags.project as string | undefined) ?? 'glue'
+  if (args[0] === 'insight') {
+    const firstFlag = args.findIndex((arg) => arg.startsWith('--'))
+    console.log(
+      await addSignalInsight(db, getGithub(), project, {
+        signals: args.slice(1, firstFlag === -1 ? undefined : firstFlag),
+        title: flags.title as string,
+        body: await readBody(flags),
+        concept: flags.concept as string | undefined,
+      }),
+    )
+    return
+  }
+  const { signals, reason } = await listSignals(db, getGithub(), project)
+  if (reason !== null) console.error(`no Signals: ${reason}`)
+  for (const { date, url, insight, title } of signals) {
+    console.log([date, url, insight?.id, title].filter(Boolean).join('  '))
   }
 }
 

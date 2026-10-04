@@ -89,6 +89,7 @@ const noFields = {
   supersedes: [],
   needs: [],
   neededBy: [],
+  signals: [],
 } satisfies Partial<RecordPart>
 
 const meta = {

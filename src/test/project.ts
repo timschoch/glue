@@ -161,6 +161,7 @@ function part(
     neededBy: toEnds(neededBy, 10),
     flags: [],
     waitsOn: null,
+    signals: [],
   }
 }
 

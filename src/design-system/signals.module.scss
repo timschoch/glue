@@ -1,0 +1,44 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The title, the list and the button belong together.
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.title {
+  @include type-style('heading-compact-02');
+
+  color: $text-primary;
+}
+
+.label {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+// One Signal: the checkbox, the title, the date, the Insight. The checkbox
+// column keeps its width when a Signal has no checkbox.
+.signal {
+  display: grid;
+  align-items: center;
+  border-block-end: 1px solid $border-subtle-01;
+  gap: $spacing-03 $spacing-05;
+  grid-template-columns: $spacing-06 minmax(0, 2fr) max-content minmax(0, 1fr);
+  min-block-size: $spacing-08;
+  overflow-wrap: anywhere;
+  padding-block: $spacing-03;
+}
+
+.action {
+  align-self: flex-start;
+}

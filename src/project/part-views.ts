@@ -63,5 +63,6 @@ export function toRecordPart(part: Part, href: PartHref): RecordPart {
     supersedes: part.supersedes.map((other) => toRecordSummary(other, href)),
     needs: toEnds(part.needs),
     neededBy: toEnds(part.neededBy),
+    signals: part.signals,
   }
 }

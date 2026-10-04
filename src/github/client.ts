@@ -1,18 +1,35 @@
 // GitHub over its REST API. Glue writes issues to the repository of a
-// Product. Tests use a fake with the same shape.
+// Product, and reads the issues that are its Signals. Tests use a fake with
+// the same shape.
 import { getSetting } from '../settings.server.ts'
 
 export type IssueInput = { title: string; body: string; labels: string[] }
 
+// An issue as Glue reads it: its web address, its title and when it was
+// opened.
+export type Issue = { url: string; title: string; createdAt: string }
+
 export type GithubClient = {
   // Opens an issue and returns its web address.
   createIssue: (repository: string, issue: IssueInput) => Promise<string>
+  // The open and the closed issues with the label, the newest first.
+  listIssues: (repository: string, label: string) => Promise<Issue[]>
 }
 
 const API_URL = 'https://api.github.com'
 const NOT_FOUND = 404
 // A new label takes the colour GitHub shows for ready work.
 const LABEL_COLOR = '0e8a16'
+// The most issues that GitHub gives in one answer.
+const PAGE_SIZE = 100
+
+// GitHub lists pull requests as issues, with the key `pull_request`.
+type ListedIssue = {
+  html_url: string
+  title: string
+  created_at: string
+  pull_request?: unknown
+}
 
 export function createGithubClient(): GithubClient {
   async function fetchGithub(path: string, init: RequestInit = {}) {
@@ -59,6 +76,23 @@ export function createGithubClient(): GithubClient {
       await validateResponse(response, 'create issue')
       const created: { html_url: string } = await response.json()
       return created.html_url
+    },
+    listIssues: async (repository, label) => {
+      const query = new URLSearchParams({
+        labels: label,
+        state: 'all',
+        per_page: String(PAGE_SIZE),
+      })
+      const response = await fetchGithub(`/repos/${repository}/issues?${query}`)
+      await validateResponse(response, 'list issues')
+      const listed: ListedIssue[] = await response.json()
+      return listed
+        .filter((issue) => issue.pull_request === undefined)
+        .map((issue) => ({
+          url: issue.html_url,
+          title: issue.title,
+          createdAt: issue.created_at,
+        }))
     },
   }
 }

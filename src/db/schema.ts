@@ -450,6 +450,28 @@ export const measures = pgTable('measures', {
   measuredAt: timestamp('measured_at', { withTimezone: true }),
 })
 
+// A Signal that an Insight grew from (D30). The Signal stays in its tool:
+// Glue keeps its address and its title. A Signal grows into one Insight.
+export const signals = pgTable(
+  'signals',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id),
+    url: text('url').notNull(),
+    title: text('title').notNull(),
+    // The Insight.
+    partId: integer('part_id')
+      .notNull()
+      .references(() => parts.id, { onDelete: 'cascade' }),
+  },
+  (table) => [
+    unique().on(table.projectId, table.url),
+    index('signals_part_id_index').on(table.partId),
+  ],
+)
+
 // The highest number that a record id of one Part type had in the Project.
 // It only grows, so the id of a deleted Part does not come back.
 export const partCounters = pgTable(

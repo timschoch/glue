@@ -12,8 +12,10 @@ import type {
   PartUpdateInput,
   ProjectAddInput,
   SavedPart,
+  SignalInsightAddInput,
 } from './db/part-actions.ts'
 import type { Concept, Part, PartSummary, Project } from './db/parts.ts'
+import type { ProjectSignals } from './db/signals.ts'
 import { UNKNOWN_CONCEPT } from './project/project-search.ts'
 
 // What the routes need from the server. A test gives the router its own.
@@ -30,6 +32,7 @@ export type Server = {
     project: string
     recordId: string
   }) => Promise<Part | undefined>
+  fetchSignals: (project: string) => Promise<ProjectSignals>
   // The writes. A Failure is an answer for the person: the write did not
   // happen and the message says why.
   addProject: (project: ProjectAddInput) => Promise<{ slug: string } | Failure>
@@ -39,6 +42,9 @@ export type Server = {
   answerPart: (answer: AnswerInput) => Promise<SavedPart | Failure>
   addJoint: (joint: JointAddInput) => Promise<{ id: number } | Failure>
   removeJoint: (joint: JointRemoveInput) => Promise<Failure | undefined>
+  addSignalInsight: (
+    insight: SignalInsightAddInput,
+  ) => Promise<SavedPart | Failure>
   signIn: (credentials: SignIn) => Promise<Failure | undefined>
   signUp: (account: SignUp) => Promise<Failure | undefined>
   signOut: () => Promise<void>
@@ -111,6 +117,8 @@ export function createRouterContext(
           ? `/${concept.project}`
           : `/${concept.project}/${concept.concept}`,
       ),
+    fetchSignals: (project) =>
+      keepSignInTarget(server.fetchSignals(project), `/${project}`),
     // The record route sends the record to its home Concept.
     fetchPart: (part) =>
       keepSignInTarget(
