@@ -48,6 +48,9 @@ Agents build Glue in a run. The Orchestrator plans and merges, Workers build, th
   - Bad: "D1 to D4 are `proposed`. Do you accept them? Can I start circle 1?"
   - Good: "I accepted D1 to D4 and started circle 1."
 - Ask early for anything that takes the Owner time: credentials, sign-ups (agents have no email account), trials.
+- The Owner looks at finished work and tests nothing. After each release, walk the live app signed in: `node scripts/live-walk.mjs`. It makes its own account, visits each section and a record, and lists page errors. Read the screenshots in `.temp/live/`, fix what is broken, then report.
+  - Bad: "Not checked: the signed-in screens. Please open the app and tell me if a screen is broken."
+  - Good: "I walked the live app signed in. The record page had a page error. The fix is in PR 204."
 - Halt the run only when all work is blocked or something broke badly. Halt: issue labelled `ready-for-human`, title starts with `HALT:`.
 
 ### Build concentric
