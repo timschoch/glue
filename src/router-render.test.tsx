@@ -569,6 +569,31 @@ describe('a new Part', () => {
     })
   })
 
+  it('lists the Parts of the Project after a # in the body, and saves the record id of the pick', async () => {
+    const { server } = await renderPage('/glue/part-model?add=metric')
+    await userEvent.type(field('Title'), 'Time')
+
+    await userEvent.type(field('Body'), 'It reads #')
+
+    // jsdom has no layout, so Carbon holds the list back as hidden, and a
+    // hidden element has no name.
+    expect(
+      within(screen.getByLabelText('Records')).getAllByRole('option', {
+        hidden: true,
+      }).length,
+    ).toBeGreaterThan(1)
+
+    await userEvent.keyboard('{Enter}')
+    await userEvent.click(button('Save'))
+
+    expect(server.addPart).toHaveBeenCalledWith({
+      project: 'glue',
+      part: expect.objectContaining({
+        body: expect.stringMatching(/^It reads #[A-Z]\d+$/),
+      }),
+    })
+  })
+
   it('opens the Part form from the control of a type group', async () => {
     const { expectAddress } = await renderPage('/glue/part-model')
 

@@ -11,11 +11,10 @@ import {
   setProductRepository,
   setSocialHandle,
   updateDecision,
-  updateGoal,
 } from '../src/db/concept-records.ts'
 import type { ConceptFields, ConceptFolder } from '../src/db/concept-records.ts'
 import { CONCEPT_FIELDS } from '../src/db/concept-fields.ts'
-import type { DecisionStatus, GoalStatus } from '../src/db/concept-fields.ts'
+import type { DecisionStatus } from '../src/db/concept-fields.ts'
 import { findContract, signContract } from '../src/db/contracts.ts'
 import type { FrozenPart } from '../src/db/contracts.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
@@ -323,8 +322,9 @@ function formatHelp() {
     '  decisions, entities, flows and metrics take --needs: the records that it needs',
     '  --evidence and --needs take ids with commas between them: I1,I2',
     '',
-    'set on a Goal takes --status and --measure, on a Decision --status and --superseded-by.',
+    'set on a Decision takes --status and --superseded-by.',
     'On each other type it takes the flags of the type.',
+    'An empty value clears the field: --status "".',
     '',
     `answer takes ${answers.join(', ')}. The Work state of the record says which ones.`,
     'wait needs --waits-on: the record that it waits on.',
@@ -466,18 +466,18 @@ export async function runConcept(
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
       const product = (flags.project as string | undefined) ?? 'glue'
-      if (id.startsWith('G')) {
-        await updateGoal(db, product, id, {
-          measure: flags.measure as GoalMeasure | undefined,
-          status: flags.status as GoalStatus | undefined,
-        })
-        return
-      }
       const type = typeOfRecordId(id)
       if (!type) throw new Error(`"${id}" is not a Concept id`)
       if (type !== 'decision') {
         const { project: _project, ...fields } = flags
-        const change = { ...toPartInput(fields), body: await readBody(flags) }
+        // An empty value clears the field. The type says if it can be empty.
+        const cleared = Object.fromEntries(
+          Object.entries(toPartInput(fields)).map(([field, value]) => [
+            field,
+            value === '' ? null : value,
+          ]),
+        )
+        const change = { ...cleared, body: await readBody(flags) }
         await updatePart(db, product, id, parsePartChange(type, change))
         return
       }
