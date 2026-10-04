@@ -9,6 +9,8 @@ type Setting =
   | 'MOCK_SOCIAL_READ_KEY'
   | 'HF_TOKEN'
   | 'CRON_SECRET'
+  | 'RESEND_API_KEY'
+  | 'RESEND_WEBHOOK_SECRET'
 
 // Settings come from the environment and stay on the server.
 export function findSetting(name: Setting): string | undefined {

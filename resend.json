@@ -1,0 +1,25 @@
+{
+  "domain": "apps.timschoch.com",
+  "repo": "glue",
+  "addresses": [
+    {
+      "name": "default",
+      "address": "glue@apps.timschoch.com",
+      "displayName": "Glue",
+      "purpose": "Mail that Glue sends, and the replies to it",
+      "inbound": true
+    }
+  ],
+  "apiKey": {
+    "name": "glue",
+    "id": "d7cca513-f6a8-486f-b589-052ec742b79e",
+    "permission": "full_access",
+    "envVar": "RESEND_API_KEY"
+  },
+  "inbound": {
+    "enabled": true,
+    "webhookId": "9c1fff87-5ed5-4366-ba01-b8eddaebaaf4",
+    "endpoint": "https://glue-glue-glue.vercel.app/api/mail/inbound",
+    "secretEnvVar": "RESEND_WEBHOOK_SECRET"
+  }
+}
