@@ -1,12 +1,14 @@
 import { getRouteApi } from '@tanstack/react-router'
 import { useState } from 'react'
 
+import type { ProjectBuilds } from '../db/builds.ts'
 import type { Concept } from '../db/parts.ts'
 import type { ContractState } from '../db/contracts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
 import { PartCards } from '../design-system/part-cards.tsx'
 import { Signals } from '../design-system/signals.tsx'
+import { LinkedBuilds } from './linked-builds.tsx'
 import { ContractSection } from './contract-screen.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
@@ -17,7 +19,8 @@ import { useProjectLinks } from './use-project-links.ts'
 const projectRoute = getRouteApi('/_signed-in/$project')
 
 // One Concept in the main window, with the lens of the section. The section
-// Understand shows the Signals of the Project too. The form that the address
+// Understand shows the Signals of the Project too, and the section Build its
+// builds. The form that the address
 // names takes the place of the Concept. So does the form of the Insight that
 // grows from the picked Signals. The section Mine shows the Parts of the
 // whole Project that need the owner.
@@ -25,10 +28,12 @@ export function ConceptScreen({
   concept,
   contract,
   signals,
+  builds,
 }: {
   concept: Concept
   contract: ContractState
   signals?: ProjectSignals
+  builds?: ProjectBuilds
 }) {
   const { parts, mine } = projectRoute.useLoaderData()
   const { search, conceptHref, recordHref, open, changeSearch } =
@@ -106,8 +111,15 @@ export function ConceptScreen({
       onOpenConcept={({ slug }, event) => open(conceptHref(slug), event)}
       onAddPart={(type) => void changeSearch({ ...search, add: type })}
       onAddConcept={() => void changeSearch({ ...search, add: 'concept' })}
-      contract={hasContract && <ContractSection contract={contract} />}
+      contract={
+        hasContract && (
+          <ContractSection contract={contract} builds={builds?.builds} />
+        )
+      }
     >
+      {builds && search.section === 'Build' && (
+        <LinkedBuilds builds={builds.builds} reason={builds.reason} />
+      )}
       {signals && listed && (
         <Signals
           signals={listed}

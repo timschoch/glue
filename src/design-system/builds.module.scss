@@ -1,0 +1,55 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The title and the list belong together.
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.title {
+  @include type-style('heading-compact-02');
+
+  color: $text-primary;
+}
+
+.label {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+// One build: the title, the state, the stale mark, what it names. The column
+// of the stale mark keeps its width when a build is not stale.
+.build {
+  display: grid;
+  align-items: center;
+  border-block-end: 1px solid $border-subtle-01;
+  gap: $spacing-03 $spacing-05;
+  grid-template-columns:
+    minmax(0, 2fr) $spacing-10 $spacing-09
+    minmax(0, 2fr);
+  min-block-size: $spacing-08;
+  overflow-wrap: anywhere;
+  padding-block: $spacing-03;
+}
+
+.stale {
+  @include type-style('label-01');
+
+  color: $text-primary;
+}
+
+// The Decisions and the Contract Version that the build names.
+.named {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}

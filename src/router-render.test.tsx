@@ -92,6 +92,7 @@ async function renderPage(path: string, changed: Partial<Server> = {}) {
     fetchMine: vi.fn(() => Promise.resolve<PartSummary[]>([])),
     fetchPart: vi.fn((input) => Promise.resolve(findPart(input))),
     fetchSignals: vi.fn(() => Promise.resolve({ signals, reason: null })),
+    fetchBuilds: vi.fn(() => Promise.resolve({ builds: [], reason: null })),
     addSignalInsight: vi.fn(() => Promise.resolve(saved('I3'))),
     fetchContractState: vi.fn((input) =>
       Promise.resolve(findContractState(input)),

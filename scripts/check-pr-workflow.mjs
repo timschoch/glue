@@ -8,13 +8,13 @@
 //     change was built with. It must be the newest Version (D28).
 //   - source changes come with test changes, or a "No-test-reason:" line
 // Outside a pull_request build it passes.
+import { findContractLine, findDecisionIds } from '../src/github/pr-body.mjs'
+
+export { findContractLine }
+
 const SOURCE = /^src\/.*\.(ts|tsx)$/
 const GENERATED = /(^|\/)routeTree\.gen\.ts$/
 const TEST = /\.(test|spec)\.(ts|tsx|mjs|js)$|^e2e\//
-const DECISION_LINE = /^Decision:\s*(.+)$/im
-const DECISION_ID = /\bD\d+\b/g
-const CONTRACT_LINE = /^Contract:\s*(.*)$/im
-const CONTRACT_VERSION = /^([a-z0-9]+(?:-[a-z0-9]+)*)@(\d+)$/
 // Branches that bots open. Their PRs carry no issue link and no Decision.
 const BOT_PREFIXES = ['dependabot/', 'renovate/', 'release-please--', 'skilly/']
 // The branch that skilly's update workflow opens its PR from.
@@ -25,15 +25,6 @@ export function isBotBranch(ref) {
     ref === SKILLY_UPDATE_BRANCH ||
     BOT_PREFIXES.some((prefix) => ref.startsWith(prefix))
   )
-}
-
-// The Contract Version that the PR body names. undefined: the body has no
-// "Contract:" line. null: the line does not read as <concept>@<version>.
-export function findContractLine(body) {
-  const line = body.match(CONTRACT_LINE)
-  if (!line) return undefined
-  const named = line[1].trim().match(CONTRACT_VERSION)
-  return named ? { concept: named[1], version: Number(named[2]) } : null
 }
 
 // `contract` is the newest Version of the Concept that the body names.
@@ -66,17 +57,16 @@ export function problems({ body, files, decisions, contract }) {
     )
   }
   const named = findContractLine(body)
-  const decisionLine = body.match(DECISION_LINE)
+  const ids = findDecisionIds(body)
   if (named !== undefined) found.push(...contractProblems(named, contract))
-  if (!decisionLine) {
+  if (!ids) {
     if (named === undefined) {
       found.push(
         'Name the Decision this change implements: "Decision: <id>", for example "Decision: D2". Or name the Contract Version it was built with: "Contract: <concept>@<version>".',
       )
     }
   } else {
-    const ids = decisionLine[1].match(DECISION_ID)
-    if (!ids) {
+    if (ids.length === 0) {
       found.push(
         'Name at least one Decision id in the "Decision:" line, for example "Decision: D2".',
       )
