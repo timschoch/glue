@@ -131,7 +131,7 @@ A deliberate skip of a blocked shell command: `GLUE_OVERRIDE="<reason>"` in the 
   - `glue-build`: the build of Glue. Run Goals, the Decisions of tickets, findings of the run.
   - `flexibeck`: the second product.
   - A Part of `glue-build` or `flexibeck` can need a Part of `glue`, written `glue/D4`. Never the other way. An issue of `glue-build` or `flexibeck` can be a Signal in `glue`.
-- Read the Concept before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. The default Project is `glue-build`. Another Project: `--project <slug>`. Part types and their fields: [src/part-fields.ts](src/part-fields.ts). Every ticket and PR names its Decision id: `Decision: D46` for `glue-build`, `Decision: glue/D12` for `glue`.
+- Read the Concept before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. The default Project is `glue-build`. Another Project: `--project <slug>`. Part types and their fields: [src/part-fields.ts](src/part-fields.ts). Every ticket and PR names its Decision with its Project: `Decision: glue-build/D46`, `Decision: glue/D12`. The Projects share this repository, so a bare id names no Decision (`glue/D50`).
 - Measure step: `pnpm collect-insights` turns failed checks, blocked reviews and overrides into draft Insights.
 - Decisions about the repo's tooling that serve no Goal: [docs/adr/](docs/adr/)
 
