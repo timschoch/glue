@@ -81,6 +81,17 @@ export function createPartOperations({
       return toChangedPart(project, recordId)
     },
 
+    // Moves the Parts to the Concept of their Project, and gives them back
+    // as they are now. One of them does not exist: no Part moves.
+    async moveParts(project: string, recordIds: string[], concept: string) {
+      for (const recordId of recordIds) await getPart(project, recordId)
+      for (const recordId of recordIds)
+        await updatePart(db, project, recordId, { concept })
+      return Promise.all(
+        recordIds.map((recordId) => getPart(project, recordId)),
+      )
+    },
+
     // Gives a Decision that exists its status: see supersedeDecision for
     // `superseded`. No other status takes a successor.
     async setDecisionStatus(

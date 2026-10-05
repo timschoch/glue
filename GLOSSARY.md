@@ -11,10 +11,9 @@ Use these terms in code, docs, issues and UI. A new term goes here first. Layout
 | Concept     | Parts assembled with glue: the why of one Product, or of one area of it. A Concept can hold smaller Concepts. Today the code has one Concept per Product. |
 | Version     | An immutable, numbered state of a Part or a Concept. Downstream tools read signed-off Versions only.                                                      |
 | Goal        | A target the Product must reach, as a KPI or OKR with a metric source. Every Decision serves a Goal.                                                      |
-| Decision    | One choice with its reason, date and owner. Serves a Goal and links to the evidence behind it.                                                            |
+| Decision    | One choice with its reason, date and owner. Serves a Goal and needs evidence: an Insight or a Guardrail.                                                  |
 | Insight     | A finding from UX research, usage data or feedback. Evidence for Decisions.                                                                               |
-| Fact        | A verified statement: a constraint, a number, a contract. Evidence for Decisions.                                                                         |
-| Guardrail   | A rule every change to the Product must respect. Enforced downstream, not suggested.                                                                      |
+| Guardrail   | A rule every change to the Product must respect. Enforced downstream, not suggested. Evidence for Decisions.                                              |
 | Integration | A sync with an outside tool that reads from or writes to a Concept.                                                                                       |
 | Mock        | A stand-in for an outside tool (analytics, CRM, design system) that Glue integrates with. Lives outside Glue's code.                                      |
 | Token       | A secret that opens the Concept of one Product over the HTTP API. Glue stores only its hash.                                                              |

@@ -257,9 +257,6 @@ export const partTypes = [
 ] as const
 export type PartType = (typeof partTypes)[number]
 
-// The Part types that a Decision takes as evidence.
-export const evidenceTypes = ['insight', 'guardrail'] as const
-
 export const evidenceLevels = ['hunch', 'pattern', 'confirmed'] as const
 export type EvidenceLevel = (typeof evidenceLevels)[number]
 

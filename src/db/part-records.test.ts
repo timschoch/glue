@@ -23,6 +23,7 @@ import {
   setIssueUrl,
   setReading,
   supersedeDecision,
+  updateConcept,
   updatePart,
 } from './part-records.ts'
 import {
@@ -271,6 +272,74 @@ describe('addConcept', () => {
         kind: 'prd',
       }),
     ).rejects.toThrow(InvalidRecordError)
+  })
+})
+
+describe('updateConcept', () => {
+  beforeEach(async () => {
+    await addProject(db, 'glue')
+    await addConcept(db, 'glue', { slug: 'part-model', title: 'Part model' })
+    await addConcept(db, 'glue', {
+      slug: 'joints',
+      title: 'Joints',
+      parent: 'part-model',
+    })
+    await addConcept(db, 'glue', { slug: 'loop', title: 'Loop' })
+  })
+
+  const listParents = async () =>
+    (await listConcepts()).map(({ slug, parentId }) => [slug, parentId])
+
+  it('gives a Concept a new parent and a new title', async () => {
+    await updateConcept(db, 'glue', 'joints', { title: 'Glue', parent: 'loop' })
+
+    expect((await listConcepts())[2]).toEqual({
+      projectId: 1,
+      parentId: 4,
+      slug: 'joints',
+      title: 'Glue',
+      kind: null,
+    })
+  })
+
+  it('refuses a Concept as its own ancestor, and keeps the tree', async () => {
+    await expect(
+      updateConcept(db, 'glue', 'part-model', { parent: 'joints' }),
+    ).rejects.toThrow(
+      new InvalidRecordError('concept "part-model" cannot be its own ancestor'),
+    )
+    await expect(
+      updateConcept(db, 'glue', 'loop', { parent: 'loop' }),
+    ).rejects.toThrow(
+      new InvalidRecordError('concept "loop" cannot be its own ancestor'),
+    )
+    expect(await listParents()).toEqual([
+      ['glue', null],
+      ['part-model', 1],
+      ['joints', 2],
+      ['loop', 1],
+    ])
+  })
+
+  it('refuses a parent for the root Concept', async () => {
+    await expect(
+      updateConcept(db, 'glue', 'glue', { parent: 'loop' }),
+    ).rejects.toThrow(new InvalidRecordError('the root Concept has no parent'))
+  })
+
+  it('refuses a Concept and a parent that the Project does not have', async () => {
+    await expect(
+      updateConcept(db, 'glue', 'videos', { title: 'Videos' }),
+    ).rejects.toThrow(new InvalidRecordError('concept "videos" not found'))
+    await expect(
+      updateConcept(db, 'glue', 'loop', { parent: 'videos' }),
+    ).rejects.toThrow(new InvalidRecordError('concept "videos" not found'))
+  })
+
+  it('refuses a change without a field', async () => {
+    await expect(updateConcept(db, 'glue', 'loop', {})).rejects.toThrow(
+      new InvalidRecordError('send at least one field'),
+    )
   })
 })
 

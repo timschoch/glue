@@ -10,6 +10,7 @@ import {
   fetchContractState,
   submitSignContract,
 } from './db/contracts.functions.ts'
+import type { BuildsNamed } from './db/builds.ts'
 import type {
   AnswerInput,
   AssignInput,
@@ -69,7 +70,10 @@ export const server = {
   fetchPart: (part: { project: string; recordId: string }) =>
     fetchPart({ data: part }),
   fetchSignals: (project: string) => fetchSignals({ data: { project } }),
-  fetchBuilds: (project: string) => fetchBuilds({ data: { project } }),
+  // Without `named`: the builds of the Project. With it: each build that
+  // names the Decision or the Contract of the Concept.
+  fetchBuilds: (project: string, named?: BuildsNamed) =>
+    fetchBuilds({ data: { project, named } }),
   fetchPeople: (project: string) => fetchPeople({ data: { project } }),
   // The writes. A Failure is an answer for the person: the write did not
   // happen and the message says why.

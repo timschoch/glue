@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from 'react'
 import type { MouseEvent } from 'react'
 
 import type { Build } from '../db/builds.ts'
-import type { Answer, Part, PartSummary } from '../db/parts.ts'
+import type { Answer, ConceptNode, Part, PartSummary } from '../db/parts.ts'
 import { partTypes } from '../design-system/card.tsx'
 import { Record } from '../design-system/record.tsx'
 import type { RecordAction } from '../design-system/record.tsx'
@@ -28,6 +28,11 @@ const answerLabels: { [answer in Answer]: string } = {
   sink: 'Sink it',
 }
 
+// The Concept and each Concept in it, in the order of the tree.
+function listConcepts(concept: ConceptNode): Array<ConceptNode> {
+  return [concept, ...concept.concepts.flatMap(listConcepts)]
+}
+
 // One record in the main window. `parts` are the Parts of the Project: a
 // record id in the text opens its record, and a Joint goes to one of them.
 // The form that the address names takes the place of the record.
@@ -38,12 +43,14 @@ export function RecordScreen({
 }: {
   part: Part
   parts: ReadonlyArray<PartSummary>
-  // The builds of the Project: the record shows the ones that name it.
+  // The builds that name the record.
   builds?: ReadonlyArray<Build>
 }) {
   const router = useRouter()
-  const { answerPart, answerQuestion, addJoint, removeJoint } =
+  const { answerPart, answerQuestion, addJoint, removeJoint, updatePart } =
     projectRoute.useRouteContext()
+  const { project: tree, people } = projectRoute.useLoaderData()
+  const concepts = useMemo(() => listConcepts(tree.concept), [tree])
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
   const { pending, failure, write } = useWrite()
@@ -84,12 +91,10 @@ export function RecordScreen({
   }
 
   // The record is the Decision: a build shows only the other Decisions.
-  const named = builds
-    .filter(({ decisions }) => decisions.some(({ id }) => id === part.id))
-    .map((build) => ({
-      ...build,
-      decisions: build.decisions.filter(({ id }) => id !== part.id),
-    }))
+  const named = builds.map((build) => ({
+    ...build,
+    decisions: build.decisions.filter(({ id }) => id !== part.id),
+  }))
   const name = `${partTypes[part.type]} ${part.id}`
   // A Decision in review takes an answer in words. The server adds the name
   // of the person and the date.
@@ -207,6 +212,23 @@ export function RecordScreen({
       }
       onOpen={handleOpen}
       assignees={<AssigneesControl target={{ part: part.id }} />}
+      home={
+        people.me === null
+          ? undefined
+          : {
+              value: part.concept,
+              concepts,
+              // The address of the record follows its home: see the route.
+              onChange: (concept) =>
+                void write('Saving', () =>
+                  updatePart({
+                    project,
+                    recordId: part.id,
+                    change: { concept },
+                  }),
+                ),
+            }
+      }
     >
       {named.length > 0 && <LinkedBuilds builds={named} />}
     </Record>

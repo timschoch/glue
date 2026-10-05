@@ -27,7 +27,6 @@ import * as schema from './schema.ts'
 export {
   decisionStatuses,
   evidenceLevels,
-  evidenceTypes,
   flagReasons,
   partTypes,
   trusts,

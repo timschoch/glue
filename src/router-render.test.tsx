@@ -511,6 +511,34 @@ describe('a record', () => {
     expect(pageTitle()).toBe('No record D9')
     screen.getByRole('navigation', { name: 'Main' })
   })
+
+  it('moves to the Concept that the person picks', async () => {
+    const { server } = await renderPage('/glue/part-model/D4')
+    const home = screen.getByRole<HTMLSelectElement>('combobox', {
+      name: 'Concept',
+    })
+
+    expect(home.value).toBe('part-model')
+    expect(within(home).getAllByRole('option')).toHaveLength(4)
+
+    await userEvent.selectOptions(home, 'Flows')
+
+    await waitFor(() =>
+      expect(server.updatePart).toHaveBeenCalledWith({
+        project: 'glue',
+        recordId: 'D4',
+        change: { concept: 'flows' },
+      }),
+    )
+  })
+
+  it('has no control for its Concept for a person who is no member', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchPeople: vi.fn(() => Promise.resolve({ ...people, me: null })),
+    })
+
+    expect(screen.queryByRole('combobox', { name: 'Concept' })).toBeNull()
+  })
 })
 
 describe('a new Part', () => {
@@ -1098,6 +1126,61 @@ describe('the common flow of a record', () => {
     await expectAddress('/glue/glue/G1', { add: 'decision' })
     expect(pageTitle()).toBe('Decision')
     within(screen.getByRole('main')).getByText('Agents build from the Concept')
+  })
+
+  it('adds the Decision that has the Insight as its evidence', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model/I3', {
+      fetchPart: vi.fn(
+        changedPart('I3', { evidenceLevel: 'confirmed', neededBy: [] }),
+      ),
+    })
+
+    await act('Add Decision')
+    await expectAddress('/glue/part-model/I3', { add: 'decision' })
+    within(screen.getByRole('list', { name: 'Evidence' })).getByText(I3)
+    await userEvent.type(field('Title'), 'Agents read the Concept')
+    await userEvent.type(screen.getByRole('combobox', { name: 'Goal' }), 'g1')
+    await userEvent.click(await screen.findByRole('option', { name: /G1/ }))
+    await userEvent.click(button('Save'))
+
+    await waitFor(() =>
+      expect(server.addPart).toHaveBeenCalledWith({
+        project: 'glue',
+        part: expect.objectContaining({
+          type: 'decision',
+          status: 'proposed',
+          needs: ['G1', 'I3'],
+        }),
+      }),
+    )
+  })
+
+  it('adds the Decision that needs the Part of another type as a Joint', async () => {
+    const { server } = await renderPage('/glue/part-model/D4?add=decision', {
+      fetchPart: vi.fn(changedPart('D4', { status: 'superseded' })),
+    })
+
+    expect(screen.queryByRole('list', { name: 'Evidence' })).toBeNull()
+    await userEvent.type(field('Title'), 'Agents read the Concept')
+    await userEvent.type(screen.getByRole('combobox', { name: 'Goal' }), 'g1')
+    await userEvent.click(await screen.findByRole('option', { name: /G1/ }))
+    await userEvent.type(
+      screen.getByRole('combobox', { name: 'Evidence' }),
+      'i3',
+    )
+    await userEvent.click(await screen.findByRole('option', { name: /I3/ }))
+    await userEvent.click(button('Save'))
+
+    await waitFor(() =>
+      expect(server.addPart).toHaveBeenCalledWith({
+        project: 'glue',
+        part: expect.objectContaining({
+          type: 'decision',
+          status: 'proposed',
+          needs: ['G1', 'I3', 'D4'],
+        }),
+      }),
+    )
   })
 
   it('opens the form of an Insight to raise its level', async () => {

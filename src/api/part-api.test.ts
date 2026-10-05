@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { setProductRepository } from '../db/projects.ts'
 import type { GoalMeasure } from '../db/goal-measure.ts'
 import {
+  addConcept,
   addJoint,
   addPart,
   addProject,
@@ -668,6 +669,32 @@ describe('PATCH a Part', () => {
       enforcedBy: 'the load test',
       source: 'the hosting contract',
     })
+  })
+
+  it('moves the Part to the Concept that the request names', async () => {
+    await addConcept(db, 'flexibeck', { slug: 'checkout', title: 'Checkout' })
+
+    const response = await call(handleUpdatePart, 'PATCH', {
+      params: { recordId: 'R1' },
+      body: { concept: 'checkout' },
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      id: 'R1',
+      concept: 'checkout',
+      conceptTitle: 'Checkout',
+    })
+  })
+
+  it('answers 400 for a Concept that the Project does not have', async () => {
+    const response = await call(handleUpdatePart, 'PATCH', {
+      params: { recordId: 'R1' },
+      body: { concept: 'checkout' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('concept "checkout" not found')
   })
 
   it('sets the Evidence level of an Insight', async () => {

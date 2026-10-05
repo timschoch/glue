@@ -12,6 +12,8 @@ import {
   PopoverContent,
   RadioButton,
   RadioButtonGroup,
+  Select,
+  SelectItem,
   TextArea,
 } from '@carbon/react'
 import { useEffect, useId, useMemo, useState } from 'react'
@@ -411,6 +413,13 @@ export type RecordProps = {
   children?: ReactNode
   // The Responsible and the Co-Authors of the Part.
   assignees?: ReactNode
+  // The home Concept of the Part as a choice of the Concepts of the Project:
+  // a pick moves the Part there. `value` is a slug.
+  home?: {
+    value: string
+    concepts: ReadonlyArray<{ slug: string; title: string }>
+    onChange: (slug: string) => void
+  }
 }
 
 // One Part in the main window: the head, the step bar of its flow, the box
@@ -435,8 +444,10 @@ export function Record({
   onRemoveJoint,
   children,
   assignees,
+  home,
 }: RecordProps) {
   const titleId = useId()
+  const homeId = useId()
   const signalsId = useId()
   const searchId = useId()
   const nextId = useId()
@@ -534,7 +545,26 @@ export function Record({
           </div>
         )}
       </header>
-      {assignees}
+      {(home || assignees) && (
+        <div className={styles.holders}>
+          {home && (
+            <div className={styles.home}>
+              <Select
+                id={homeId}
+                size="sm"
+                labelText="Concept"
+                value={home.value}
+                onChange={({ target }) => home.onChange(target.value)}
+              >
+                {home.concepts.map(({ slug, title }) => (
+                  <SelectItem key={slug} value={slug} text={title} />
+                ))}
+              </Select>
+            </div>
+          )}
+          {assignees}
+        </div>
+      )}
       {flow && <StepBar {...flow} />}
       {(action || pending !== undefined || error !== undefined) && (
         <section aria-labelledby={nextId} className={styles.action}>

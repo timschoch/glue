@@ -101,6 +101,15 @@ type Field = (typeof partFields)[PartType][number]
 
 export type FormField = Extract<Field, { label: string }>
 
+// The Part types that a Decision takes as evidence (D44). The form, its
+// values, `pnpm concept`, the Downstream issue and the server read it.
+export const evidenceTypes = ['insight', 'guardrail'] as const
+
+export function isEvidence(type: PartType): boolean {
+  const types: ReadonlyArray<PartType> = evidenceTypes
+  return types.includes(type)
+}
+
 // The fields of the Part type that the Part form shows, in its order.
 export function listFormFields(type: PartType): ReadonlyArray<FormField> {
   const fields: ReadonlyArray<Field> = partFields[type]
