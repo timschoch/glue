@@ -4,7 +4,11 @@ import { z } from 'zod'
 import { createDocument } from 'zod-openapi'
 
 import { errorSchema } from './api-request.ts'
-import { projectBuildsSchema } from './build-api.ts'
+import {
+  validatedBuildSchema,
+  gateSchema,
+  projectBuildsSchema,
+} from './build-api.ts'
 import {
   contractSchema,
   contractSignInputSchema,
@@ -344,6 +348,24 @@ function listPartPaths() {
               'The open builds and the newest merged ones, each with the Decisions and the Contract Version that it names',
             ...jsonContent(projectBuildsSchema),
           },
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/gate`]: {
+      post: {
+        operationId: 'validateBuild',
+        summary:
+          'Check a build against the Contract of its Concept, and keep the result with the build',
+        requestParams: { path },
+        requestBody: jsonContent(validatedBuildSchema),
+        responses: {
+          200: {
+            description:
+              'The build holds, or it breaks with the reasons. A check in CI fails on `breaks`',
+            ...jsonContent(gateSchema),
+          },
+          400: errorResponses[400],
           ...readErrorResponses,
         },
       },

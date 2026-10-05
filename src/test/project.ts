@@ -86,8 +86,8 @@ const guardrail = summary('R1', 'guardrail', 'No query over 200ms', readModel)
 // The Parts of Glue, in the order of the read model.
 export const parts = [insight, goal, accepted, guardrail]
 
-// The builds of Glue: one names the Decision D4, one names an old Contract
-// Version of the Part model.
+// The builds of Glue: one names the Decision D4 and its gate holds, one names
+// an old Contract Version of the Part model and its gate breaks.
 export const builds: Build[] = [
   {
     number: 12,
@@ -97,6 +97,11 @@ export const builds: Build[] = [
     decisions: [accepted],
     contract: null,
     stale: false,
+    gate: {
+      result: 'holds',
+      reasons: [],
+      checkedAt: '2026-10-05T09:00:00.000Z',
+    },
   },
   {
     number: 11,
@@ -111,6 +116,13 @@ export const builds: Build[] = [
       newestVersion: 2,
     },
     stale: true,
+    gate: {
+      result: 'breaks',
+      reasons: [
+        'Contract "part-model@1" is not the newest Version. Build with "part-model@2": `pnpm concept contract show part-model`.',
+      ],
+      checkedAt: '2026-10-05T09:00:00.000Z',
+    },
   },
 ]
 

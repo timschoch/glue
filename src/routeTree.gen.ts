@@ -27,6 +27,7 @@ import { Route as ApiV1ProjectsProjectIndexRouteImport } from './routes/api/v1.p
 import { Route as ApiV1ProjectsProjectAssignmentsRouteImport } from './routes/api/v1.projects.$project.assignments'
 import { Route as ApiV1ProjectsProjectBuildsRouteImport } from './routes/api/v1.projects.$project.builds'
 import { Route as ApiV1ProjectsProjectConceptsRouteImport } from './routes/api/v1.projects.$project.concepts'
+import { Route as ApiV1ProjectsProjectGateRouteImport } from './routes/api/v1.projects.$project.gate'
 import { Route as ApiV1ProjectsProjectJointsRouteImport } from './routes/api/v1.projects.$project.joints'
 import { Route as ApiV1ProjectsProjectMeasureRouteImport } from './routes/api/v1.projects.$project.measure'
 import { Route as ApiV1ProjectsProjectMembersRouteImport } from './routes/api/v1.projects.$project.members'
@@ -139,6 +140,12 @@ const ApiV1ProjectsProjectConceptsRoute =
     path: '/api/v1/projects/$project/concepts',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1ProjectsProjectGateRoute =
+  ApiV1ProjectsProjectGateRouteImport.update({
+    id: '/api/v1/projects/$project/gate',
+    path: '/api/v1/projects/$project/gate',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1ProjectsProjectJointsRoute =
   ApiV1ProjectsProjectJointsRouteImport.update({
     id: '/api/v1/projects/$project/joints',
@@ -241,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/projects/$project/assignments': typeof ApiV1ProjectsProjectAssignmentsRoute
   '/api/v1/projects/$project/builds': typeof ApiV1ProjectsProjectBuildsRoute
   '/api/v1/projects/$project/concepts': typeof ApiV1ProjectsProjectConceptsRouteWithChildren
+  '/api/v1/projects/$project/gate': typeof ApiV1ProjectsProjectGateRoute
   '/api/v1/projects/$project/joints': typeof ApiV1ProjectsProjectJointsRouteWithChildren
   '/api/v1/projects/$project/measure': typeof ApiV1ProjectsProjectMeasureRoute
   '/api/v1/projects/$project/members': typeof ApiV1ProjectsProjectMembersRoute
@@ -273,6 +281,7 @@ export interface FileRoutesByTo {
   '/api/v1/projects/$project/assignments': typeof ApiV1ProjectsProjectAssignmentsRoute
   '/api/v1/projects/$project/builds': typeof ApiV1ProjectsProjectBuildsRoute
   '/api/v1/projects/$project/concepts': typeof ApiV1ProjectsProjectConceptsRouteWithChildren
+  '/api/v1/projects/$project/gate': typeof ApiV1ProjectsProjectGateRoute
   '/api/v1/projects/$project/joints': typeof ApiV1ProjectsProjectJointsRouteWithChildren
   '/api/v1/projects/$project/measure': typeof ApiV1ProjectsProjectMeasureRoute
   '/api/v1/projects/$project/members': typeof ApiV1ProjectsProjectMembersRoute
@@ -308,6 +317,7 @@ export interface FileRoutesById {
   '/api/v1/projects/$project/assignments': typeof ApiV1ProjectsProjectAssignmentsRoute
   '/api/v1/projects/$project/builds': typeof ApiV1ProjectsProjectBuildsRoute
   '/api/v1/projects/$project/concepts': typeof ApiV1ProjectsProjectConceptsRouteWithChildren
+  '/api/v1/projects/$project/gate': typeof ApiV1ProjectsProjectGateRoute
   '/api/v1/projects/$project/joints': typeof ApiV1ProjectsProjectJointsRouteWithChildren
   '/api/v1/projects/$project/measure': typeof ApiV1ProjectsProjectMeasureRoute
   '/api/v1/projects/$project/members': typeof ApiV1ProjectsProjectMembersRoute
@@ -343,6 +353,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/assignments'
     | '/api/v1/projects/$project/builds'
     | '/api/v1/projects/$project/concepts'
+    | '/api/v1/projects/$project/gate'
     | '/api/v1/projects/$project/joints'
     | '/api/v1/projects/$project/measure'
     | '/api/v1/projects/$project/members'
@@ -375,6 +386,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/assignments'
     | '/api/v1/projects/$project/builds'
     | '/api/v1/projects/$project/concepts'
+    | '/api/v1/projects/$project/gate'
     | '/api/v1/projects/$project/joints'
     | '/api/v1/projects/$project/measure'
     | '/api/v1/projects/$project/members'
@@ -409,6 +421,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/assignments'
     | '/api/v1/projects/$project/builds'
     | '/api/v1/projects/$project/concepts'
+    | '/api/v1/projects/$project/gate'
     | '/api/v1/projects/$project/joints'
     | '/api/v1/projects/$project/measure'
     | '/api/v1/projects/$project/members'
@@ -437,6 +450,7 @@ export interface RootRouteChildren {
   ApiV1ProjectsProjectAssignmentsRoute: typeof ApiV1ProjectsProjectAssignmentsRoute
   ApiV1ProjectsProjectBuildsRoute: typeof ApiV1ProjectsProjectBuildsRoute
   ApiV1ProjectsProjectConceptsRoute: typeof ApiV1ProjectsProjectConceptsRouteWithChildren
+  ApiV1ProjectsProjectGateRoute: typeof ApiV1ProjectsProjectGateRoute
   ApiV1ProjectsProjectJointsRoute: typeof ApiV1ProjectsProjectJointsRouteWithChildren
   ApiV1ProjectsProjectMeasureRoute: typeof ApiV1ProjectsProjectMeasureRoute
   ApiV1ProjectsProjectMembersRoute: typeof ApiV1ProjectsProjectMembersRoute
@@ -573,6 +587,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/projects/$project/concepts'
       fullPath: '/api/v1/projects/$project/concepts'
       preLoaderRoute: typeof ApiV1ProjectsProjectConceptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/projects/$project/gate': {
+      id: '/api/v1/projects/$project/gate'
+      path: '/api/v1/projects/$project/gate'
+      fullPath: '/api/v1/projects/$project/gate'
+      preLoaderRoute: typeof ApiV1ProjectsProjectGateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/projects/$project/joints': {
@@ -816,6 +837,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1ProjectsProjectBuildsRoute: ApiV1ProjectsProjectBuildsRoute,
   ApiV1ProjectsProjectConceptsRoute:
     ApiV1ProjectsProjectConceptsRouteWithChildren,
+  ApiV1ProjectsProjectGateRoute: ApiV1ProjectsProjectGateRoute,
   ApiV1ProjectsProjectJointsRoute: ApiV1ProjectsProjectJointsRouteWithChildren,
   ApiV1ProjectsProjectMeasureRoute: ApiV1ProjectsProjectMeasureRoute,
   ApiV1ProjectsProjectMembersRoute: ApiV1ProjectsProjectMembersRoute,
@@ -829,12 +851,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

@@ -32,7 +32,7 @@ import {
   handleWatch,
 } from './people-api.ts'
 import { handleAddSignalInsight, handleListSignals } from './signal-api.ts'
-import { handleListBuilds } from './build-api.ts'
+import { handleValidateBuild, handleListBuilds } from './build-api.ts'
 
 type PathParams = {
   recordId?: string
@@ -115,6 +115,10 @@ export const signalsHandlers = {
 
 export const buildsHandlers = {
   GET: (route: RouteRequest) => handleListBuilds(toChangeRequest(route)),
+}
+
+export const gateHandlers = {
+  POST: (route: RouteRequest) => handleValidateBuild(toApiRequest(route)),
 }
 
 export const signalInsightsHandlers = {

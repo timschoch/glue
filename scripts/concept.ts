@@ -45,6 +45,7 @@ import {
 import type { JointEnd, Part, PartSummary, PartType } from '../src/db/parts.ts'
 import { answers } from '../src/db/part-trust.ts'
 import {
+  BUILD_PROJECT,
   addProjectReference,
   findBuildProject,
   getProjectId,
@@ -61,6 +62,7 @@ import type { DownstreamIssue } from '../src/github/downstream-issue.ts'
 import { listSignals } from '../src/db/signals.ts'
 import { evidenceTypes, isEvidence, partFields } from '../src/part-fields.ts'
 import type { PartField } from '../src/part-fields.ts'
+import { fetchGate } from './gate.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
   'analytics-project': 'analytics_project',
@@ -137,6 +139,7 @@ const KNOWN_FIELDS = new Set([
   'text',
   'to_project',
   'references',
+  'pr',
 ])
 
 type Flags = Record<string, string | string[] | GoalMeasure | undefined>
@@ -499,6 +502,7 @@ function formatHelp() {
     'pnpm concept signals',
     'pnpm concept signals insight <address> [<address> ...] --title <title> [--concept <slug>] [--body <text>]',
     'pnpm concept builds',
+    'pnpm concept gate --pr <number> [--project <slug>]',
     'pnpm concept mine [--member <e-mail>]',
     'pnpm concept member add <e-mail>',
     'pnpm concept member list',
@@ -555,6 +559,7 @@ function formatHelp() {
     'signals lists the issues with the label user-feedback in the repository of the Project.',
     'signals insight adds a draft Insight at the level hunch that grows from the Signals.',
     'builds lists the pull requests of the repository of the Project, each with the Decisions or the Contract Version that it names. stale: the Contract Version is old, or a Decision is sunk.',
+    'gate asks Glue over its HTTP API if the pull request of GITHUB_REPOSITORY names the newest Contract Version of its Concept, or Decisions that stand. Glue keeps the answer with the build. breaks exits 1. It needs GLUE_API_TOKEN and no database. The default Project is GLUE_PROJECT, then glue-build.',
     'concept remove removes a Concept that holds nothing: no record, no Concept and no Contract Version. The root Concept stays.',
     'contract sign freezes the records of a Concept as its next Contract Version. Each record needs Trust solid.',
     'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
@@ -565,11 +570,42 @@ function formatHelp() {
   ].join('\n')
 }
 
+// `gate --pr <number>` asks the gate of the Project if the pull request
+// holds. `breaks` prints the reasons and exits 1.
+async function handleGateCommand(
+  args: string[],
+  environment: Record<string, string | undefined>,
+  fetchApi: typeof fetch,
+) {
+  const flags = parseFlags(args)
+  const number = Number(flags.pr)
+  if (!Number.isInteger(number) || number < 1) {
+    throw new Error('gate needs --pr <number>')
+  }
+  const project =
+    (flags.project as string | undefined) ??
+    environment.GLUE_PROJECT ??
+    BUILD_PROJECT
+  const gate = await fetchGate({ project, number }, environment, fetchApi)
+  console.log(`#${number}  ${gate.result}`)
+  for (const reason of gate.reasons) console.error(`  - ${reason}`)
+  if (gate.result === 'breaks') process.exitCode = 1
+}
+
 // No command, or `--help` at any place, prints the commands. It needs no
-// database.
-export async function main(args: string[], databaseUrl: string | undefined) {
+// database, and `gate` needs none: it asks the HTTP API.
+export async function main(
+  args: string[],
+  databaseUrl: string | undefined,
+  environment: Record<string, string | undefined> = process.env,
+  fetchApi: typeof fetch = fetch,
+) {
   if (args.length === 0 || args.includes('--help')) {
     console.log(formatHelp())
+    return
+  }
+  if (args[0] === 'gate') {
+    await handleGateCommand(args.slice(1), environment, fetchApi)
     return
   }
   if (!databaseUrl) throw new Error('DATABASE_URL is required')

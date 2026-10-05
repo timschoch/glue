@@ -23,6 +23,7 @@ const OPEN: BuildRow = {
   ],
   contract: null,
   stale: false,
+  gate: 'holds',
 }
 
 const OLD: BuildRow = {
@@ -33,6 +34,7 @@ const OLD: BuildRow = {
   decisions: [],
   contract: { title: 'Technique videos', version: 1, href: '#videos-1' },
   stale: true,
+  gate: 'breaks',
 }
 
 afterEach(cleanup)
@@ -91,6 +93,24 @@ describe('Builds', () => {
 
     within(row(OLD.title)).getByText('Stale')
     expect(within(row(OPEN.title)).queryByText('Stale')).toBeNull()
+  })
+
+  it('shows the newest gate result of a build as its sign', () => {
+    const unchecked: BuildRow = {
+      ...OPEN,
+      number: 10,
+      title: 'Write with Carbon',
+      decisions: [],
+      gate: null,
+    }
+    render(<Builds builds={[OPEN, OLD, unchecked]} />)
+
+    within(row(OPEN.title)).getByRole('img', { name: 'Holds' })
+    within(row(OLD.title)).getByRole('img', { name: 'Breaks' })
+    expect(
+      within(row(OPEN.title)).queryByRole('img', { name: 'Breaks' }),
+    ).toBeNull()
+    expect(within(row(unchecked.title)).queryByRole('img')).toBeNull()
   })
 
   it('says that there are no builds, or why', () => {

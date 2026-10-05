@@ -32,6 +32,7 @@ const meta = {
         ],
         contract: null,
         stale: false,
+        gate: 'holds',
       },
       {
         number: 191,
@@ -41,6 +42,7 @@ const meta = {
         decisions: [],
         contract: { title: 'Part model', version: 2, href: '#' },
         stale: true,
+        gate: 'breaks',
       },
       {
         number: 187,
@@ -50,6 +52,7 @@ const meta = {
         decisions: [],
         contract: null,
         stale: false,
+        gate: null,
       },
     ],
   },
