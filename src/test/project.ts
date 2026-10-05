@@ -1,5 +1,6 @@
 import type { Build } from '../db/builds.ts'
 import type { Contract, ContractState } from '../db/contracts.ts'
+import type { LeveledPart } from '../db/flight-level.ts'
 import type { People } from '../db/members.ts'
 import type {
   Concept,
@@ -83,8 +84,14 @@ const accepted = summary(
 )
 const guardrail = summary('R1', 'guardrail', 'No query over 200ms', readModel)
 
-// The Parts of Glue, in the order of the read model.
-export const parts = [insight, goal, accepted, guardrail]
+// The Parts of Glue, in the order of the read model, as Ada sees them: her
+// loop step is Decide.
+export const parts: LeveledPart[] = [
+  { ...insight, flightLevel: 'strategic' },
+  { ...goal, flightLevel: 'operational' },
+  { ...accepted, flightLevel: 'operational' },
+  { ...guardrail, flightLevel: 'strategic' },
+]
 
 // The builds of Glue: one names the Decision D4 and its gate holds, one names
 // an old Contract Version of the Part model and its gate breaks.

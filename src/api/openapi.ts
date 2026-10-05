@@ -21,6 +21,7 @@ import {
   changedPartSchema,
   conceptInputSchema,
   jointInputSchema,
+  leveledPartSchema,
   partInputSchema,
   partSchema,
   partSummarySchema,
@@ -199,12 +200,18 @@ function listPartPaths() {
         summary: 'List the Parts of the Project: all, or the ones of the types',
         requestParams: {
           path,
-          query: z.object({ type: partTypesQuerySchema.optional() }),
+          query: z.object({
+            type: partTypesQuerySchema.optional(),
+            member: z.string().optional().meta({
+              description:
+                'The e-mail address of a member: each Part gets its flight level for the member',
+            }),
+          }),
         },
         responses: {
           200: {
             description: 'The Parts, by type, then by number',
-            ...jsonContent(z.array(partSummarySchema)),
+            ...jsonContent(z.array(leveledPartSchema)),
           },
           400: errorResponses[400],
           ...readErrorResponses,

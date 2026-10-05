@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { signContract } from '../db/contracts.ts'
 import { addProjectReference, setProductRepository } from '../db/projects.ts'
 import type { GoalMeasure } from '../db/goal-measure.ts'
+import { joinProject, setLoopSteps } from '../db/members.ts'
 import {
   addConcept,
   addJoint,
@@ -399,6 +400,30 @@ describe('GET the Parts', () => {
     expect(response.body.map((part: { id: string }) => part.id)).toEqual([
       'G1',
       'R1',
+    ])
+  })
+
+  it('gives the flight level of each Part for the member that the query names', async () => {
+    const ada = await joinProject(db, 'flexibeck', {
+      id: 'user-ada',
+      name: 'Ada',
+      email: 'ada@example.com',
+    })
+    await setLoopSteps(db, 'flexibeck', ada.id, ['build'])
+
+    const response = await call(handleListParts, 'GET', {
+      query: '?member=ada@example.com',
+    })
+
+    expect(
+      response.body.map((part: { id: string; flightLevel: string }) => [
+        part.id,
+        part.flightLevel,
+      ]),
+    ).toEqual([
+      ['I1', 'strategic'],
+      ['G1', 'strategic'],
+      ['R1', 'operational'],
     ])
   })
 

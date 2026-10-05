@@ -5,6 +5,7 @@
 import { z } from 'zod'
 
 import { frozenFields } from '../db/contracts.ts'
+import { flightLevels, listLeveledParts } from '../db/flight-level.ts'
 import { goalMeasureSchema } from '../db/goal-measure.ts'
 import { createPartOperations } from '../db/part-operations.ts'
 import type { ChangedPart } from '../db/part-operations.ts'
@@ -56,6 +57,16 @@ export const partSummarySchema = z
       .meta({ description: 'The title of the home Concept' }),
   })
   .meta({ id: 'PartSummary' }) satisfies z.ZodType<PartSummary>
+
+// A Part in the list of a member.
+export const leveledPartSchema = partSummarySchema
+  .extend({
+    flightLevel: z.enum(flightLevels).optional().meta({
+      description:
+        'Only with member. operational: the Part is of a loop step of the member, or the member is Responsible or Co-Author of the Part or of its home Concept. strategic: each other Part',
+    }),
+  })
+  .meta({ id: 'LeveledPart' })
 
 const conceptNodeSchema = z
   .object({
@@ -358,13 +369,14 @@ export function handleRemoveConcept(input: ApiRequest) {
 export function handleListParts(input: ApiRequest) {
   return handleApiRequest(input, async () => {
     const { searchParams } = new URL(input.request.url)
-    const types = partTypesQuerySchema.parse(searchParams.getAll('type'))
+    const found = partTypesQuerySchema.parse(searchParams.getAll('type'))
+    const types = found.length > 0 ? found : undefined
+    const member = searchParams.get('member')
+    const { db, params } = input
     return Response.json(
-      await listParts(
-        input.db,
-        input.params.project,
-        types.length > 0 ? types : undefined,
-      ),
+      member === null
+        ? await listParts(db, params.project, types)
+        : await listLeveledParts(db, params.project, member, types),
     )
   })
 }

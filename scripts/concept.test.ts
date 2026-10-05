@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { joinProject, setLoopSteps } from '../src/db/members.ts'
 import { createPartOperations } from '../src/db/part-operations.ts'
 import { addPart, addProject, setReading } from '../src/db/part-records.ts'
 import { findConcept, findPart } from '../src/db/parts.ts'
@@ -368,6 +369,22 @@ describe('runConcept', () => {
       'G1  open  not-ready  draft  Ship faster',
       'R1  not-ready  draft  CI takes ten minutes at most',
       'F1  not-ready  draft  Push',
+    ])
+  })
+
+  it('lists the records with the flight level of each one for a member', async () => {
+    const ada = await joinProject(db, 'flexibeck', {
+      id: 'user-ada',
+      name: 'Ada',
+      email: 'ada@example.com',
+    })
+    await setLoopSteps(db, 'flexibeck', ada.id, ['build'])
+
+    await run('list', '--member', 'ada@example.com', '--project', 'flexibeck')
+
+    expect(logged()).toEqual([
+      'G1  open  not-ready  draft  strategic  Ship faster',
+      'R1  not-ready  draft  operational  CI takes ten minutes at most',
     ])
   })
 
