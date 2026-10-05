@@ -1,16 +1,9 @@
-import type { DecisionStatus } from '../src/db/parts.ts'
+import type { GateDecision, NewestContract } from '../src/github/pr-gate.mjs'
 
-export type Decision = {
-  status: DecisionStatus
-  superseded_by?: string
-}
+export type Decision = GateDecision
+export type { NewestContract }
 
 export { findContractLine } from '../src/github/pr-body.mjs'
-// The newest Contract Version of a Concept. undefined: it has none.
-export type NewestContract = {
-  concept: string
-  newestVersion: number | undefined
-}
 
 export function problems(input: {
   body: string

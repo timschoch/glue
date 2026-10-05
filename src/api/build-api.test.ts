@@ -1,7 +1,16 @@
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 import { setProductRepository } from '../db/projects.ts'
 import { addProject } from '../db/part-records.ts'
@@ -9,7 +18,12 @@ import * as schema from '../db/schema.ts'
 import { createToken } from '../db/tokens.ts'
 import type { GithubClient } from '../github/client.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
-import { handleListBuilds, projectBuildsSchema } from './build-api.ts'
+import {
+  gateSchema,
+  handleValidateBuild,
+  handleListBuilds,
+  projectBuildsSchema,
+} from './build-api.ts'
 
 let client: PGlite
 let db: ReturnType<typeof drizzle<typeof schema>>
@@ -69,6 +83,7 @@ describe('GET /projects/{project}/builds', () => {
           state: 'open',
           decisions: [],
           contract: null,
+          gate: null,
           stale: false,
         },
       ],
@@ -88,5 +103,53 @@ describe('GET /projects/{project}/builds', () => {
     const { status } = await call('Bearer nope')
 
     expect(status).toBe(401)
+  })
+})
+
+describe('POST /projects/{project}/gate', () => {
+  async function validate(sent: unknown) {
+    const response = await handleValidateBuild({
+      db,
+      request: new Request('http://localhost/api/v1', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+        body: JSON.stringify(sent),
+      }),
+      params: { project: 'glue' },
+    })
+    return { status: response.status, body: await response.json() }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('answers what the gate says about the build, in the shape of the schema', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-05T08:00:00.000Z'))
+
+    const { status, body } = await validate({
+      repository: 'timschoch/glue',
+      number: 12,
+      body: 'Fixes #3\n\nDecision: D7',
+    })
+
+    expect(status).toBe(200)
+    expect(gateSchema.parse(body)).toEqual({
+      result: 'breaks',
+      reasons: [
+        'Decision "D7" does not exist. List them with `pnpm concept list decisions`.',
+      ],
+      checkedAt: '2026-10-05T08:00:00.000Z',
+    })
+  })
+
+  it('refuses a build with no number', async () => {
+    const { status } = await validate({
+      repository: 'timschoch/glue',
+      body: '',
+    })
+
+    expect(status).toBe(400)
   })
 })

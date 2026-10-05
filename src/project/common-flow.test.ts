@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { Gate } from '../db/gate.ts'
 import type { Part, PartSummary } from '../db/parts.ts'
 import { findCommonFlow } from './common-flow.ts'
 
@@ -38,6 +39,8 @@ const published: Part = {
   question: null,
   unchosen: false,
 }
+
+const CHECKED_AT = '2026-10-05T09:00:00.000Z'
 
 const draft = {
   trust: 'not-ready',
@@ -204,6 +207,50 @@ describe('the common flow of a Part', () => {
     expect(
       findCommonFlow({ ...published, trust: 'flagged', workState: 'waiting' }),
     ).toMatchObject({ name: 'React to a change', current: 1, next: undefined })
+  })
+
+  it('puts a published Decision with a build at the gate', () => {
+    expect(findCommonFlow(published, [{ number: 12, gate: null }])).toEqual({
+      name: 'Brief to build',
+      steps: ['Version', 'Build', 'Gate'],
+      current: 2,
+      next: undefined,
+    })
+  })
+
+  it('ends the flow of a build when the gate of the newest build holds', () => {
+    const holds: Gate = {
+      result: 'holds',
+      reasons: [],
+      checkedAt: CHECKED_AT,
+    }
+    const breaks: Gate = {
+      result: 'breaks',
+      reasons: ['Decision "D1" is sunk and has no successor.'],
+      checkedAt: CHECKED_AT,
+    }
+
+    expect(
+      findCommonFlow(published, [
+        { number: 11, gate: breaks },
+        { number: 12, gate: holds },
+      ])?.current,
+    ).toBe(3)
+    expect(
+      findCommonFlow(published, [
+        { number: 12, gate: breaks },
+        { number: 11, gate: holds },
+      ])?.current,
+    ).toBe(2)
+  })
+
+  it('keeps a flag before the flow of a build', () => {
+    expect(
+      findCommonFlow(
+        { ...published, trust: 'flagged', workState: 'to-check' },
+        [{ number: 12, gate: null }],
+      )?.name,
+    ).toBe('React to a change')
   })
 
   it('has no flow for a sunk Part', () => {

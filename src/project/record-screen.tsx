@@ -74,7 +74,7 @@ export function RecordScreen({
     () => toRecordPart(part, recordHref, parts),
     [part, recordHref, parts],
   )
-  const flow = useMemo(() => findCommonFlow(part), [part])
+  const flow = useMemo(() => findCommonFlow(part, builds), [part, builds])
   const handleOpen = useCallback(
     (recordId: string, event: MouseEvent<HTMLAnchorElement>) => {
       const opened = bodyParts.find(({ id }) => id === recordId)

@@ -1,3 +1,4 @@
+import type { Build } from '../db/builds.ts'
 import type { Answer, Part, PartType } from '../db/parts.ts'
 
 // The common flows of docs/concept.md, section 7: which one a Part is in,
@@ -30,6 +31,7 @@ const flows = {
     steps: ['Set Goal', 'Choose', 'Sign'],
   },
   brief: { name: 'Decision to Brief', steps: ['Fill slots', 'Sign'] },
+  build: { name: 'Brief to build', steps: ['Version', 'Build', 'Gate'] },
   use: { name: 'Use to Insight', steps: ['Measure', 'Read'] },
   change: { name: 'React to a change', steps: ['Check', 'Answer'] },
 } as const
@@ -101,9 +103,26 @@ const draftFlows: Record<PartType, Omit<CommonFlow, 'next'>> = {
   metric: { ...flows.use, current: 0 },
 }
 
+// A build that names the Part, with the newest result of its gate.
+export type GatedBuild = Pick<Build, 'number' | 'gate'>
+
+// The flow of a published Part that builds name. It is at the gate until the
+// gate of the newest build holds.
+function findBuildFlow(builds: ReadonlyArray<GatedBuild>): CommonFlow {
+  const newest = builds.reduce((found, build) =>
+    build.number > found.number ? build : found,
+  )
+  const current = newest.gate?.result === 'holds' ? 3 : 2
+  return { ...flows.build, current, next: undefined }
+}
+
 // The common flow that fits the type and the state of the Part. A flag
-// comes before the flow of the type. A sunk Part is in no flow.
-export function findCommonFlow(part: Part): CommonFlow | undefined {
+// comes before the flow of the type. A build that names a published Part
+// comes before the flow of its type. A sunk Part is in no flow.
+export function findCommonFlow(
+  part: Part,
+  builds: ReadonlyArray<GatedBuild> = [],
+): CommonFlow | undefined {
   switch (part.workState) {
     case 'sunk':
       return undefined
@@ -119,6 +138,6 @@ export function findCommonFlow(part: Part): CommonFlow | undefined {
     case 'review':
       return { ...draftFlows[part.type], next: signOff }
     case 'published':
-      return findPublishedFlow(part)
+      return builds.length > 0 ? findBuildFlow(builds) : findPublishedFlow(part)
   }
 }

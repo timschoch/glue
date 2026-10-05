@@ -669,3 +669,24 @@ export const watchers = pgTable(
     index('watchers_member_id_index').on(table.memberId),
   ],
 )
+
+export const gateResults = ['holds', 'breaks'] as const
+export type GateResult = (typeof gateResults)[number]
+
+// What the gate said about a build the last time (glue/D48). A build is a
+// pull request of the repository of the Project, by its number. The pull
+// request stays in GitHub.
+export const buildGates = pgTable(
+  'build_gates',
+  {
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    number: integer('number').notNull(),
+    result: text('result').notNull().$type<GateResult>(),
+    // Why the build breaks. None: it holds.
+    reasons: jsonb('reasons').notNull().$type<string[]>(),
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.projectId, table.number] })],
+)

@@ -1,9 +1,12 @@
 // The builds of a Project (D28): the pull requests of its repository, each
 // with the Decisions and the Contract Version that its body names. A build
-// stays in GitHub. Glue reads it live and keeps nothing.
+// stays in GitHub. Glue reads it live and keeps only what the gate said
+// about it (glue/D48).
 import { eq, max } from 'drizzle-orm'
 
 import type { ConceptDb } from './client.ts'
+import { listGates } from './gate.ts'
+import type { Gate } from './gate.ts'
 import { findProduct } from './projects.ts'
 import { listParts } from './parts.ts'
 import type { PartSummary } from './parts.ts'
@@ -33,6 +36,8 @@ export type Build = {
   decisions: PartSummary[]
   // null: the body names no Contract Version that the Project has.
   contract: BuildContract | null
+  // What the gate said the last time. null: no gate checked the build.
+  gate: Gate | null
   // Its Contract Version is not the newest one, or a Decision of it is sunk.
   stale: boolean
 }
@@ -82,9 +87,10 @@ export async function listBuilds(
   if (!project) throw new ProductNotFoundError(projectSlug)
   if (!project.repository) return { builds: [], reason: NO_REPOSITORY }
 
-  const [decisions, newestVersions] = await Promise.all([
+  const [decisions, newestVersions, gates] = await Promise.all([
     listParts(db, projectSlug, ['decision']),
     listNewestVersions(db, project.id),
+    listGates(db, project.id),
   ])
   // The text of a search is the id of a Decision of the Project or the word
   // for a Contract, never the words of the person.
@@ -149,6 +155,7 @@ export async function listBuilds(
           ...pull,
           decisions: decided,
           contract,
+          gate: gates.get(pull.number) ?? null,
           stale:
             (contract !== null && contract.version < contract.newestVersion) ||
             decided.some(({ workState }) => workState === 'sunk'),

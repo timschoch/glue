@@ -116,6 +116,7 @@ describe('listBuilds', () => {
           expect.objectContaining({ id: 'D2', concept: 'videos' }),
         ],
         contract: null,
+        gate: null,
         stale: false,
       },
       expect.objectContaining({ number: 11, decisions: [], stale: false }),

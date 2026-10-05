@@ -3,7 +3,7 @@ import { Link } from '@carbon/react'
 import { useId } from 'react'
 import type { MouseEvent } from 'react'
 
-import { Card } from './card.tsx'
+import { Card, signs } from './card.tsx'
 import type { PartType, Trust, WorkState } from './card.tsx'
 import styles from './builds.module.scss'
 
@@ -31,9 +31,27 @@ export type BuildRow = {
   contract: BuildContract | null
   // Its Contract Version is old, or a Decision of it is sunk.
   stale: boolean
+  // The newest result of its gate. None: no gate checked it.
+  gate: keyof typeof gateSigns | null
 }
 
 const states = { open: 'Open', merged: 'Merged' } as const
+
+// Holds or breaks, with the signs of Trust.
+const gateSigns = {
+  holds: { ...signs.solid, word: 'Holds' },
+  breaks: { ...signs['not-ready'], word: 'Breaks' },
+}
+
+function GateSign({ gate }: { gate: keyof typeof gateSigns }) {
+  const { word, Glyph, className } = gateSigns[gate]
+
+  return (
+    <Glyph aria-label={word} className={className}>
+      <title>{word}</title>
+    </Glyph>
+  )
+}
 
 export type BuildsProps = {
   builds: ReadonlyArray<BuildRow>
@@ -46,8 +64,9 @@ export type BuildsProps = {
   ) => void
 }
 
-// The builds of a Project: each one with its link out, its state, the stale
-// mark, and the Decisions and the Contract Version that it names.
+// The builds of a Project: each one with the sign of its gate, its link out,
+// its state, the stale mark, and the Decisions and the Contract Version that
+// it names.
 export function Builds({
   builds,
   reason,
@@ -65,47 +84,55 @@ export function Builds({
         <p className={styles.label}>{reason ?? 'No builds'}</p>
       ) : (
         <ul className={styles.list}>
-          {builds.map(({ number, url, title, state, stale, ...named }) => (
-            <li key={number} className={styles.build}>
-              <Link
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                renderIcon={Launch}
-              >
-                {title}
-              </Link>
-              <span className={styles.label}>{states[state]}</span>
-              <span className={styles.stale}>{stale && 'Stale'}</span>
-              <div className={styles.named}>
-                {named.decisions.map((part) => (
-                  <Card
-                    key={part.id}
-                    minimal
-                    type={part.type}
-                    recordId={part.id}
-                    title={part.title}
-                    trust={part.trust}
-                    workState={part.workState}
-                    href={part.href}
-                    onOpen={onOpenPart && ((event) => onOpenPart(part, event))}
-                  />
-                ))}
-                {named.contract && (
-                  <Link
-                    href={named.contract.href}
-                    onClick={
-                      onOpenContract &&
-                      ((event) =>
-                        named.contract && onOpenContract(named.contract, event))
-                    }
-                  >
-                    {named.contract.title} Version {named.contract.version}
-                  </Link>
-                )}
-              </div>
-            </li>
-          ))}
+          {builds.map(
+            ({ number, url, title, state, stale, gate, ...named }) => (
+              <li key={number} className={styles.build}>
+                <span className={styles.sign}>
+                  {gate && <GateSign gate={gate} />}
+                </span>
+                <Link
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  renderIcon={Launch}
+                >
+                  {title}
+                </Link>
+                <span className={styles.label}>{states[state]}</span>
+                <span className={styles.stale}>{stale && 'Stale'}</span>
+                <div className={styles.named}>
+                  {named.decisions.map((part) => (
+                    <Card
+                      key={part.id}
+                      minimal
+                      type={part.type}
+                      recordId={part.id}
+                      title={part.title}
+                      trust={part.trust}
+                      workState={part.workState}
+                      href={part.href}
+                      onOpen={
+                        onOpenPart && ((event) => onOpenPart(part, event))
+                      }
+                    />
+                  ))}
+                  {named.contract && (
+                    <Link
+                      href={named.contract.href}
+                      onClick={
+                        onOpenContract &&
+                        ((event) =>
+                          named.contract &&
+                          onOpenContract(named.contract, event))
+                      }
+                    >
+                      {named.contract.title} Version {named.contract.version}
+                    </Link>
+                  )}
+                </div>
+              </li>
+            ),
+          )}
         </ul>
       )}
     </section>

@@ -19,8 +19,9 @@ export function LinkedBuilds({
 
   return (
     <Builds
-      builds={builds.map(({ decisions, contract, ...build }) => ({
+      builds={builds.map(({ decisions, contract, gate, ...build }) => ({
         ...build,
+        gate: gate?.result ?? null,
         decisions: decisions.map((part) => ({
           id: part.id,
           type: part.type,

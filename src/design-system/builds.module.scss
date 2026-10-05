@@ -26,19 +26,24 @@
   flex-direction: column;
 }
 
-// One build: the title, the state, the stale mark, what it names. The column
-// of the stale mark keeps its width when a build is not stale.
+// One build: the sign of its gate, the title, the state, the stale mark, what
+// it names. The columns of the sign and of the stale mark keep their width
+// when a build has none.
 .build {
   display: grid;
   align-items: center;
   border-block-end: 1px solid $border-subtle-01;
   gap: $spacing-03 $spacing-05;
   grid-template-columns:
-    minmax(0, 2fr) $spacing-10 $spacing-09
+    $spacing-05 minmax(0, 2fr) $spacing-10 $spacing-09
     minmax(0, 2fr);
   min-block-size: $spacing-08;
   overflow-wrap: anywhere;
   padding-block: $spacing-03;
+}
+
+.sign {
+  display: flex;
 }
 
 .stale {

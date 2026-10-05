@@ -32,6 +32,7 @@ describe('GET /api/v1/openapi.json', () => {
             'get /signals',
             'post /signals/insights',
             'get /builds',
+            'post /gate',
             'post /joints',
             'delete /joints/{jointId}',
             'get /members',
