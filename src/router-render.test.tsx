@@ -1795,3 +1795,80 @@ describe('the session', () => {
     )
   })
 })
+
+describe('the Map', () => {
+  // React Flow and ELK load with the Map, and ELK places the nodes.
+  const loaded = { timeout: 20_000 }
+
+  async function findMap() {
+    return within(await screen.findByRole('figure', { name: 'Map' }, loaded))
+  }
+
+  it('shows the top-level Concepts of a Project closed, opens one in place, and the address keeps it', async () => {
+    const { expectAddress, server } = await renderPage('/glue?view=map')
+    const map = await findMap()
+
+    await map.findByRole('link', { name: /^Flows/ }, loaded)
+    await userEvent.click(map.getByRole('button', { name: /^Part model/ }))
+
+    await expectAddress('/glue', { view: 'map', expanded: ['part-model'] })
+    await map.findByRole('link', { name: /^Read model/ }, loaded)
+    expect(server.fetchMapJoints).toHaveBeenCalledWith('glue')
+  })
+
+  it('reads no Joints of the Map for the list', async () => {
+    const { server } = await renderPage('/glue')
+
+    expect(server.fetchMapJoints).not.toHaveBeenCalled()
+  })
+
+  it('opens a Part of the Map in the panel beside the Map, and Escape closes it', async () => {
+    const { expectAddress } = await renderPage('/glue/read-model?view=map')
+    const map = await findMap()
+
+    await userEvent.click(
+      await map.findByRole('link', { name: / R1 / }, loaded),
+    )
+
+    await expectAddress('/glue/read-model', { view: 'map', panel: 'R1' })
+    const panel = within(
+      await screen.findByRole('complementary', { name: 'Guardrail R1' }),
+    )
+    panel.getByRole('heading', { name: R1 })
+    expect(panel.getByRole('link', { name: 'Open' }).getAttribute('href')).toBe(
+      '/glue/read-model/R1',
+    )
+    map.getByRole('link', { name: / R1 / })
+
+    await userEvent.keyboard('{Escape}')
+
+    await expectAddress('/glue/read-model', { view: 'map' })
+    expect(screen.queryByRole('complementary', { name: 'Guardrail R1' })).toBe(
+      null,
+    )
+  })
+
+  it('opens a sub Concept of the Map in the panel, and the close button closes it', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model?view=map')
+    const map = await findMap()
+
+    await userEvent.click(
+      await map.findByRole('link', { name: /^Read model/ }, loaded),
+    )
+
+    await expectAddress('/glue/part-model', {
+      view: 'map',
+      panel: 'read-model',
+    })
+    const panel = within(
+      await screen.findByRole('complementary', { name: 'Read model' }),
+    )
+    expect(panel.getByRole('link', { name: 'Open' }).getAttribute('href')).toBe(
+      '/glue/read-model?view=map',
+    )
+
+    await userEvent.click(panel.getByRole('button', { name: 'Close' }))
+
+    await expectAddress('/glue/part-model', { view: 'map' })
+  })
+})

@@ -2,7 +2,7 @@ import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import type { ProjectBuilds } from '../db/builds.ts'
-import type { Concept, PartSummary } from '../db/parts.ts'
+import type { Concept, MapJoint, Part, PartSummary } from '../db/parts.ts'
 import type { ContractState } from '../db/contracts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
@@ -12,6 +12,7 @@ import { Signals } from '../design-system/signals.tsx'
 import { AssigneesControl } from './assignees-control.tsx'
 import { ContractSection } from './contract-screen.tsx'
 import { LinkedBuilds } from './linked-builds.tsx'
+import { MapPanelScreen, MapScreen } from './map-screen.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
 import { toReading } from './part-views.ts'
@@ -36,6 +37,8 @@ export function ConceptScreen({
   contract,
   signals,
   builds,
+  mapJoints,
+  panelPart,
 }: {
   concept: Concept
   contract: ContractState
@@ -43,6 +46,10 @@ export function ConceptScreen({
   // In the section Build: the builds of the Project. With no section: the
   // builds that name the Contract of the Concept.
   builds?: ProjectBuilds
+  // In the map view: the Joints of the Project, and the record that the
+  // panel of the Map shows.
+  mapJoints?: ReadonlyArray<MapJoint>
+  panelPart?: Part
 }) {
   const router = useRouter()
   const { parts, mine, watched, measured } = projectRoute.useLoaderData()
@@ -152,6 +159,8 @@ export function ConceptScreen({
           view: view === 'map' ? view : undefined,
         })
       }
+      map={mapJoints && <MapScreen focus={concept.slug} joints={mapJoints} />}
+      panel={<MapPanelScreen part={panelPart} />}
       types={lensTypes(search.section)}
       partHref={recordHref}
       conceptHref={({ slug }) => conceptHref(slug)}

@@ -19,6 +19,11 @@ export type ProjectSearch = {
   edit?: true
   // The map of the Concept in place of its list.
   view?: 'map'
+  // The slugs of the Concepts that are open on the Map.
+  expanded?: Array<string>
+  // What the panel beside the Map shows: a record id or the slug of a
+  // Concept.
+  panel?: string
 }
 
 const nameForms = ['concept', 'project'] as const
@@ -69,6 +74,15 @@ function parseRecordIds(value: unknown): Array<string> | undefined {
   return recordIds.length > 0 ? [...new Set(recordIds)] : undefined
 }
 
+function isSlug(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value)
+}
+
+function parseSlugs(value: unknown): Array<string> | undefined {
+  const slugs = Array.isArray(value) ? value.filter(isSlug) : []
+  return slugs.length > 0 ? [...new Set(slugs)] : undefined
+}
+
 export function parseProjectSearch(
   search: Record<string, unknown>,
 ): ProjectSearch {
@@ -79,6 +93,12 @@ export function parseProjectSearch(
     add: isAdded(search.add) ? search.add : undefined,
     edit: search.edit === true ? true : undefined,
     view: search.view === 'map' ? 'map' : undefined,
+    expanded: parseSlugs(search.expanded),
+    panel:
+      isSlug(search.panel) ||
+      (typeof search.panel === 'string' && isRecordId(search.panel))
+        ? search.panel
+        : undefined,
   }
 }
 

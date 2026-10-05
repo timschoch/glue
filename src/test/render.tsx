@@ -1,11 +1,13 @@
 import { cleanup } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
 
-// Carbon's text area and dialog watch their size, which jsdom can not do.
+// Carbon's text area and dialog and the nodes of the Map watch their size,
+// which jsdom can not do.
 vi.stubGlobal(
   'ResizeObserver',
   class {
     observe() {}
+    unobserve() {}
     disconnect() {}
   },
 )

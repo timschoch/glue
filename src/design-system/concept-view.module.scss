@@ -29,6 +29,13 @@ $card-width: $spacing-13 * 2;
   gap: $spacing-05;
 }
 
+// The Map takes the room that its panel leaves.
+.map {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-05;
+}
+
 .switch {
   inline-size: $spacing-13;
 }

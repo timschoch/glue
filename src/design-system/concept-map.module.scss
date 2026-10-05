@@ -1,71 +1,164 @@
+@use '@carbon/react/scss/motion' as *;
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
 @use '@carbon/react/scss/type' as *;
+@use '@carbon/react/scss/utilities/focus-outline' as *;
 
-// A map that is wider than the window scrolls in its own box.
+// The Map takes the room that its panel leaves. It has the height of its
+// layout, up to the height of the window: a bigger Map shows smaller.
 .map {
-  overflow-x: auto;
+  flex: 1 1 0;
+  max-block-size: calc(100vh - #{$spacing-13 * 2});
+  min-block-size: $spacing-13;
+  min-inline-size: 0;
 }
 
-// The plan has the size of the layout. The lines and the nodes lie on it.
-.plan {
-  position: relative;
+// What is not glued to the node or the line under the pointer or with the
+// focus.
+.node,
+.area,
+.pill {
+  @media (prefers-reduced-motion: no-preference) {
+    transition: opacity $duration-fast-02 motion(standard, productive);
+  }
 }
 
-.lines {
-  position: absolute;
-  block-size: 100%;
-  inline-size: 100%;
-  inset: 0;
-}
+.dimmed {
+  opacity: 0.25;
 
-// One style for every Joint. The stroke does not grow with the drawing, so
-// its width of 1 is one pixel.
-.line {
-  fill: none;
-  stroke: $border-strong-01;
-  vector-effect: non-scaling-stroke;
+  @media (prefers-reduced-motion: no-preference) {
+    transition: opacity $duration-fast-02 motion(standard, productive);
+  }
 }
 
 // A node has the size of the layout, and its content fills it.
-.node {
-  position: absolute;
+.body {
   display: grid;
+  block-size: 100%;
+  inline-size: 100%;
 }
 
-// An empty slot: the dashed border says missing. It holds its one button, at
-// the start edge.
-.emptySlot {
+.node .body {
+  overflow: hidden;
+}
+
+// An open Concept: the ground of its nodes.
+.area {
+  border: 1px solid $border-strong-01;
+  background-color: $background;
+}
+
+// A Concept outside the open one, and another Project.
+.outside {
+  .tile,
+  &.area {
+    background-color: $layer-accent-01;
+  }
+}
+
+// The head of an open Concept: its name at the start, the button that opens
+// it in the panel at the end.
+.head {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  border: 1px dashed $border-strong-01;
+  align-items: center;
+  align-self: start;
+  justify-content: space-between;
+  block-size: $spacing-08;
 }
 
-// The type of an empty slot that has no button: it takes the room of the button.
-.slotType {
-  @include type-style('label-01');
-
-  padding: $spacing-03 $spacing-05;
-  color: $text-secondary;
-}
-
-// A Concept inside: a surface with its name.
-.surface {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-03;
-}
-
-.conceptTitle {
+.headTitle {
   @include type-style('heading-compact-01');
 
   color: $text-primary;
-  overflow-wrap: anywhere;
+  padding-inline-start: $spacing-05;
 }
 
-.label {
+// A closed Concept, and another Project: a surface with its name.
+.tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: $spacing-03 $spacing-05;
+  border: 0;
+  background-color: $layer-01;
+  color: $text-primary;
+  cursor: pointer;
+  gap: $spacing-02;
+  text-align: start;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $layer-hover-01;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
+}
+
+.title {
+  @include type-style('heading-compact-01');
+}
+
+// React Flow needs the two handles of a node to draw its lines. They do
+// nothing here.
+.handle {
+  visibility: hidden;
+}
+
+// One style for every line: one pixel wide, also on a Map that shows smaller.
+// The colour is the Trust of the needed Part.
+.line {
+  vector-effect: non-scaling-stroke;
+}
+
+.line.solid {
+  stroke: $support-success;
+}
+
+.line.flagged {
+  stroke: $support-warning;
+}
+
+.line.not-ready {
+  stroke: $support-error;
+}
+
+.line.wrong {
+  stroke: $icon-primary;
+}
+
+// A line that crosses the edge of the Project.
+.line.dashed {
+  stroke-dasharray: 4 3;
+}
+
+.arrow {
+  &.solid {
+    fill: $support-success;
+  }
+
+  &.flagged {
+    fill: $support-warning;
+  }
+
+  &.not-ready {
+    fill: $support-error;
+  }
+
+  &.wrong {
+    fill: $icon-primary;
+  }
+}
+
+// The count of the Joints of a line, on the line.
+.pill {
   @include type-style('label-01');
 
+  position: absolute;
+  // Over the lines: React Flow lifts a line to a node in an open Concept.
+  z-index: 2;
+  background-color: $background;
   color: $text-secondary;
+  padding-inline: $spacing-02;
 }

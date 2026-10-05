@@ -1,155 +1,349 @@
-// The layout of the map of a Concept: the nodes in layers from top to
-// bottom, and one line per Joint. All sizes are in rem.
+// What the Map shows: its nodes and its lines, before any place on the
+// screen. The places come from ELK.
+import type { PartType, Trust } from './card.tsx'
 
-export const NODE_WIDTH = 13
-export const NODE_HEIGHT = 8
-// The room between two nodes of one layer.
-export const NODE_GAP = 1
-// The room between two layers: the lines of the Joints cross it.
-export const LAYER_GAP = 3
+export type MapPart = {
+  // The record id, for example D12.
+  id: string
+  type: PartType
+  title: string
+  trust: Trust
+  // The slug of the home Concept.
+  concept: string
+}
 
-// A node, and the highest layer that it may have.
-export type MapNode = { id: string; rank: number }
+export type MapConcept = {
+  slug: string
+  title: string
+  concepts: ReadonlyArray<MapConcept>
+}
 
-// `part` needs `needs`. The ids are the ids of two nodes.
+// `part` needs `needs`: two record ids.
 export type MapJoint = {
   id: number
   part: string
   needs: string
-  twoWay: boolean
+  // The Trust of the needed Part.
+  trust: Trust
+  // The end that is a Part of another Project, and that Project.
+  reference?: { end: 'part' | 'needs'; slug: string; name: string }
 }
 
-export type MapLayout = {
-  width: number
-  height: number
-  // The upper start corner of each node.
-  places: Record<string, { left: number; top: number }>
-  // One SVG path per Joint that has both its nodes on the map.
-  lines: Array<{ id: number; path: string }>
+type ConceptMapNode = {
+  kind: 'concept'
+  id: string
+  slug: string
+  title: string
+  // The Parts of the Concept and of the Concepts in it.
+  count: number
+  // Open: a group with its content as nodes inside.
+  open: boolean
+  expandable: boolean
 }
 
-function mean(values: ReadonlyArray<number>): number {
-  return values.reduce((sum, value) => sum + value, 0) / values.length
+type PartMapNode = { kind: 'part'; id: string; part: MapPart }
+
+// Another Project that a reference leads to.
+type ProjectMapNode = {
+  kind: 'project'
+  id: string
+  slug: string
+  title: string
 }
 
-// The ids of the nodes, layer by layer from the top. A node is in the layer
-// of its rank, or below each node that it needs. A two-way Joint moves no
-// node: both nodes need each other. A layer has the nodes in the order of
-// the nodes above that they are glued to, then in the order they came in.
-export function layoutLayers(
-  nodes: ReadonlyArray<MapNode>,
-  joints: ReadonlyArray<MapJoint>,
-): Array<Array<string>> {
-  const ranks = new Map(nodes.map(({ id, rank }) => [id, rank]))
-  const glued = joints.filter(
-    ({ part, needs }) => part !== needs && ranks.has(part) && ranks.has(needs),
+export type MapNode = (ConceptMapNode | PartMapNode | ProjectMapNode) & {
+  // The id of the group that holds the node.
+  parent?: string
+  // The column of a node without a group.
+  partition?: number
+  // Outside the open Concept of a Concept Map.
+  outside: boolean
+}
+
+// All the Joints between two nodes.
+export type MapLine = {
+  id: string
+  from: string
+  to: string
+  count: number
+  // The worst Trust of the needed Parts.
+  trust: Trust
+  // Each Joint crosses a Project edge.
+  dashed: boolean
+  // The line goes from a later column to an earlier one.
+  flipped: boolean
+}
+
+export type MapView = { nodes: Array<MapNode>; lines: Array<MapLine> }
+
+const worstFirst = ['wrong', 'not-ready', 'flagged', 'solid'] as const
+
+// The Map of a Project when the focus is its root: each top-level Concept
+// is one closed node, in a column of its own. The Map of a Concept else:
+// the Concept is open in the middle column, each outside top-level Concept
+// glued to it is a closed node in the column before or after. A Concept of
+// `expanded` is open when it has no group. An open Concept shows its sub
+// Concepts, or its Parts when it has none. `parts` are the Parts of the lens.
+export function toMapView({
+  tree,
+  parts,
+  joints,
+  focus,
+  expanded,
+}: {
+  // The root Concept of the Project.
+  tree: MapConcept
+  parts: ReadonlyArray<MapPart>
+  joints: ReadonlyArray<MapJoint>
+  // The slug of the Concept of the Map.
+  focus: string
+  expanded: ReadonlyArray<string>
+}): MapView {
+  const concepts = new Map<string, MapConcept>()
+  const parents = new Map<string, string>()
+  function index(concept: MapConcept) {
+    concepts.set(concept.slug, concept)
+    for (const child of concept.concepts) {
+      parents.set(child.slug, concept.slug)
+      index(child)
+    }
+  }
+  index(tree)
+
+  // The Concept and the Concepts that hold it, root first.
+  function listPath(slug: string): Array<string> {
+    const path = []
+    for (let at: string | undefined = slug; at; at = parents.get(at)) {
+      path.unshift(at)
+    }
+    return path
+  }
+
+  const isProjectMap = focus === tree.slug || !concepts.has(focus)
+  const isInFocus = (slug: string) =>
+    !isProjectMap && listPath(slug).includes(focus)
+  const partsById = new Map(parts.map((part) => [part.id, part]))
+  const tops = [tree, ...tree.concepts]
+
+  type End = MapPart | NonNullable<MapJoint['reference']>
+  const findEnd = (joint: MapJoint, end: 'part' | 'needs'): End | undefined =>
+    joint.reference?.end === end ? joint.reference : partsById.get(joint[end])
+  const isOutside = (end: End): end is MapPart =>
+    'concept' in end && !isInFocus(end.concept)
+
+  const shown = joints.flatMap((joint) => {
+    const part = findEnd(joint, 'part')
+    const needs = findEnd(joint, 'needs')
+    if (!part || !needs) return []
+    const touchesFocus = [part, needs].some(
+      (end) => 'concept' in end && isInFocus(end.concept),
+    )
+    return isProjectMap || touchesFocus ? [{ joint, part, needs }] : []
+  })
+  const ends = shown.flatMap(({ part, needs }) => [part, needs])
+
+  // What a Joint glues to the open Concept from outside.
+  const gluedParts = new Set(ends.filter(isOutside).map(({ id }) => id))
+  const gluedConcepts = new Set(
+    ends.filter(isOutside).flatMap(({ concept }) => listPath(concept)),
   )
 
-  const depths = new Map<string, number>()
-  const open = new Set<string>()
-  // Joints in a circle: the node that closes the circle counts with its rank.
-  function findDepth(id: string): number {
-    const rank = ranks.get(id) ?? 0
-    const known = depths.get(id)
-    if (known !== undefined) return known
-    if (open.has(id)) return rank
-    open.add(id)
-    const depth = Math.max(
-      rank,
-      ...glued
-        .filter(({ part, twoWay }) => part === id && !twoWay)
-        .map(({ needs }) => findDepth(needs) + 1),
-    )
-    open.delete(id)
-    depths.set(id, depth)
-    return depth
-  }
-  for (const { id } of nodes) findDepth(id)
+  const nodes: Array<MapNode> = []
+  // What each open Concept shows.
+  const contents = new Map<string, 'concepts' | 'parts'>()
 
-  const used = [...new Set(depths.values())].sort((one, other) => one - other)
-  // The place of each node in its layer, with zero in the middle.
-  const offsets = new Map<string, number>()
-
-  return used.map((depth) => {
-    const layer = nodes
-      .filter(({ id }) => depths.get(id) === depth)
-      .map(({ id }, index) => {
-        const above = glued
-          .flatMap(({ part, needs }) =>
-            part === id ? [needs] : needs === id ? [part] : [],
+  function addConcept(
+    concept: MapConcept,
+    place: { parent?: string; partition?: number; outside: boolean },
+  ) {
+    const { slug, title } = concept
+    const id = `concept:${slug}`
+    const isFocus = !isProjectMap && slug === focus
+    // The root stands for its own Parts: its Concepts are the other nodes.
+    const inside =
+      concept === tree
+        ? []
+        : concept.concepts.filter(
+            (child) => !place.outside || gluedConcepts.has(child.slug),
           )
-          .flatMap((other) => offsets.get(other) ?? [])
-        return {
-          id,
-          index,
-          pull: above.length > 0 ? mean(above) : Infinity,
-        }
-      })
-      .sort(
-        (one, other) =>
-          // Infinity minus Infinity is no number: equal pulls keep their order.
-          (one.pull === other.pull ? 0 : one.pull - other.pull) ||
-          one.index - other.index,
-      )
-      .map(({ id }) => id)
-    layer.forEach((id, index) =>
-      offsets.set(id, index - (layer.length - 1) / 2),
+    const own = parts.filter(
+      (part) =>
+        part.concept === slug && (!place.outside || gluedParts.has(part.id)),
     )
-    return layer
-  })
-}
+    // A node cannot open around the open Concept.
+    const holdsFocus =
+      !isFocus && concept !== tree && listPath(focus).includes(slug)
+    // Only a node without a group opens in place.
+    const expandable =
+      !isFocus &&
+      !holdsFocus &&
+      place.parent === undefined &&
+      inside.length + own.length > 0
+    const open = isFocus || (expandable && expanded.includes(slug))
+    nodes.push({
+      kind: 'concept',
+      id,
+      slug,
+      title,
+      count: parts.filter(
+        (part) =>
+          part.concept === slug ||
+          (concept !== tree && listPath(part.concept).includes(slug)),
+      ).length,
+      open,
+      expandable,
+      ...place,
+    })
+    if (!open) return
+    contents.set(slug, inside.length > 0 ? 'concepts' : 'parts')
+    for (const child of inside) {
+      addConcept(child, { parent: id, outside: place.outside })
+    }
+    if (inside.length > 0) return
+    for (const part of own) {
+      nodes.push({
+        kind: 'part',
+        id: `part:${part.id}`,
+        part,
+        parent: id,
+        outside: place.outside,
+      })
+    }
+  }
 
-// The places of the nodes of the layers, and the lines of the Joints. Each
-// layer is in the middle of the map. A line goes from the lower edge of the
-// upper node to the upper edge of the lower node. In one layer it goes from
-// side to side.
-export function layoutMap(
-  layers: ReadonlyArray<ReadonlyArray<string>>,
-  joints: ReadonlyArray<MapJoint>,
-): MapLayout {
-  const widthOf = (count: number) =>
-    count * NODE_WIDTH + Math.max(count - 1, 0) * NODE_GAP
-  const width = Math.max(0, ...layers.map((layer) => widthOf(layer.length)))
-  const height = widthOfLayers(layers.length)
-
-  const places: MapLayout['places'] = {}
-  layers.forEach((layer, depth) => {
-    const start = (width - widthOf(layer.length)) / 2
-    layer.forEach((id, index) => {
-      places[id] = {
-        left: start + index * (NODE_WIDTH + NODE_GAP),
-        top: depth * (NODE_HEIGHT + LAYER_GAP),
+  const hasOwnParts = parts.some((part) => part.concept === tree.slug)
+  if (isProjectMap) {
+    tops.forEach((concept, rank) => {
+      if (concept !== tree || hasOwnParts) {
+        addConcept(concept, { partition: rank, outside: false })
       }
     })
-  })
-
-  const lines = joints.flatMap(({ id, part, needs }) => {
-    if (!Object.hasOwn(places, part) || !Object.hasOwn(places, needs)) {
-      return []
-    }
-    const ends = [places[part], places[needs]]
-    if (ends[0].top === ends[1].top) {
-      const [first, second] = ends.sort((one, other) => one.left - other.left)
-      const middle = first.top + NODE_HEIGHT / 2
-      return {
-        id,
-        path: `M ${first.left + NODE_WIDTH} ${middle} L ${second.left} ${middle}`,
+  } else {
+    const focusRank = tops.findIndex(
+      ({ slug }) => slug === (listPath(focus).at(1) ?? focus),
+    )
+    tops.forEach((concept, rank) => {
+      const open = concepts.get(focus)
+      if (rank === focusRank && open) {
+        addConcept(open, { partition: 1, outside: false })
       }
-    }
-    const [upper, lower] = ends.sort((one, other) => one.top - other.top)
-    const from = upper.left + NODE_WIDTH / 2
-    const to = lower.left + NODE_WIDTH / 2
-    const fromTop = upper.top + NODE_HEIGHT
-    const bend = (fromTop + lower.top) / 2
-    return {
+      if (concept.slug === focus) return
+      const isGlued =
+        concept === tree
+          ? parts.some(
+              (part) => part.concept === tree.slug && gluedParts.has(part.id),
+            )
+          : gluedConcepts.has(concept.slug)
+      if (isGlued) {
+        addConcept(concept, {
+          partition: Math.sign(rank - focusRank) + 1,
+          outside: true,
+        })
+      }
+    })
+  }
+  for (const end of ends) {
+    const id = `project:${'concept' in end ? '' : end.slug}`
+    if ('concept' in end || nodes.some((node) => node.id === id)) continue
+    nodes.push({
+      kind: 'project',
       id,
-      path: `M ${from} ${fromTop} C ${from} ${bend}, ${to} ${bend}, ${to} ${lower.top}`,
-    }
-  })
+      slug: end.slug,
+      title: end.name,
+      partition: isProjectMap ? tops.length : 2,
+      outside: true,
+    })
+  }
 
-  return { width, height, places, lines }
+  // The node that stands for an end of a Joint.
+  function see(end: End): string {
+    if (!('concept' in end)) return `project:${end.slug}`
+    const path = listPath(end.concept)
+    let at = isInFocus(end.concept)
+      ? path.indexOf(focus)
+      : Math.min(1, path.length - 1)
+    while (contents.get(path[at]) === 'concepts' && at < path.length - 1) {
+      at += 1
+    }
+    return at === path.length - 1 && contents.get(path[at]) === 'parts'
+      ? `part:${end.id}`
+      : `concept:${path[at]}`
+  }
+
+  const groups = new Map(nodes.map(({ id, parent }) => [id, parent]))
+  // The node and the groups that hold it, the outermost one last.
+  function listGroups(id: string): Array<string> {
+    const found = []
+    for (let at: string | undefined = id; at; at = groups.get(at)) {
+      found.push(at)
+    }
+    return found
+  }
+  const findPartition = (id: string) =>
+    nodes.find((node) => node.id === listGroups(id).at(-1))?.partition ?? 0
+
+  const bundles = new Map<
+    string,
+    { from: string; to: string; joints: Array<MapJoint> }
+  >()
+  for (const { joint, part, needs } of shown) {
+    const [from, to] = [see(part), see(needs)]
+    // A line between a group and a node inside it has no place to go.
+    if (listGroups(from).includes(to) || listGroups(to).includes(from)) continue
+    const id = `${from}>${to}`
+    const bundle = bundles.get(id) ?? { from, to, joints: [] }
+    bundle.joints.push(joint)
+    bundles.set(id, bundle)
+  }
+
+  const lines = [...bundles].map(([id, bundle]) => ({
+    id,
+    from: bundle.from,
+    to: bundle.to,
+    count: bundle.joints.length,
+    trust:
+      worstFirst.find((trust) =>
+        bundle.joints.some((joint) => joint.trust === trust),
+      ) ?? 'solid',
+    dashed: bundle.joints.every(({ reference }) => reference !== undefined),
+    flipped: findPartition(bundle.from) > findPartition(bundle.to),
+  }))
+
+  return { nodes, lines }
 }
 
-function widthOfLayers(count: number): number {
-  return count * NODE_HEIGHT + Math.max(count - 1, 0) * LAYER_GAP
+// What stays at full strength while the pointer or the focus is on a node or
+// on a line: the node with the nodes inside it, its lines and the nodes at
+// their other ends, each with the groups that hold it. For a line: the line
+// and its two ends.
+export function listGlued(
+  { nodes, lines }: MapView,
+  id: string,
+): { nodes: Array<string>; lines: Array<string> } {
+  const groups = new Map(nodes.map((node) => [node.id, node.parent]))
+  function listGroups(of: string): Array<string> {
+    const found = []
+    for (let at: string | undefined = of; at; at = groups.get(at)) {
+      found.push(at)
+    }
+    return found
+  }
+
+  const line = lines.find((candidate) => candidate.id === id)
+  const own = new Set(
+    nodes
+      .filter((node) => listGroups(node.id).includes(id))
+      .map((node) => node.id),
+  )
+  const kept = line
+    ? [line]
+    : lines.filter(({ from, to }) => own.has(from) || own.has(to))
+  const lit = new Set(
+    [...own, ...kept.flatMap(({ from, to }) => [from, to])].flatMap(listGroups),
+  )
+
+  return {
+    nodes: nodes.filter((node) => lit.has(node.id)).map((node) => node.id),
+    lines: kept.map((keptLine) => keptLine.id),
+  }
 }

@@ -545,14 +545,12 @@ describe('ConceptView', () => {
     expect(onViewChange).toHaveBeenCalledExactlyOnceWith('map')
   })
 
-  it('shows the Parts as the nodes of the map, with the head of the Concept', () => {
+  it('shows the Map and its panel in place of the list, with the head of the Concept', () => {
     renderView({
-      concept: {
-        ...CONCEPT,
-        joints: [{ id: 1, part: 'D12', needs: 'G2', twoWay: false }],
-      },
       view: 'map',
       onViewChange: () => {},
+      map: <figure aria-label="Map" />,
+      panel: <aside aria-label="Decision D12" />,
     })
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
@@ -562,9 +560,18 @@ describe('ConceptView', () => {
       screen.getByRole('tab', { name: 'Map' }).getAttribute('aria-selected'),
     ).toBe('true')
     expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
-    expect(screen.getAllByRole('listitem')).toHaveLength(8)
-    expect(
-      screen.getByRole('link', { name: /D12/ }).closest('li')?.style.top,
-    ).not.toBe('0rem')
+    expect(screen.queryByRole('listitem')).toBeNull()
+    screen.getByRole('figure', { name: 'Map' })
+    screen.getByRole('complementary', { name: 'Decision D12' })
+  })
+
+  it('shows no Map and no panel in the list', () => {
+    renderView({
+      map: <figure aria-label="Map" />,
+      panel: <aside aria-label="Decision D12" />,
+    })
+
+    expect(screen.queryByRole('figure')).toBeNull()
+    expect(screen.queryByRole('complementary')).toBeNull()
   })
 })

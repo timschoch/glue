@@ -40,6 +40,7 @@ import {
   findConcept,
   findPart,
   findProject,
+  listMapJoints,
   listMeasured,
   listMine,
   listParts,
@@ -246,6 +247,10 @@ export function createPartActions(request: ActionRequest) {
 
     listMeasured: withReader((db, { project }: ProjectInput) =>
       listMeasured(db, project),
+    ),
+
+    listMapJoints: withReader((db, { project }: ProjectInput) =>
+      listMapJoints(db, project),
     ),
 
     // The person who adds a Project is its first member.

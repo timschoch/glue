@@ -30,6 +30,7 @@ import type {
 import {
   fetchBuilds,
   fetchConcept,
+  fetchMapJoints,
   fetchMeasured,
   fetchMine,
   fetchPart,
@@ -75,6 +76,8 @@ export const server = {
   // The Metrics and the measured Goals of the Project, each with its newest
   // reading.
   fetchMeasured: (project: string) => fetchMeasured({ data: { project } }),
+  // The Joints of the Project as the Map draws them.
+  fetchMapJoints: (project: string) => fetchMapJoints({ data: { project } }),
   fetchPart: (part: { project: string; recordId: string }) =>
     fetchPart({ data: part }),
   fetchSignals: (project: string) => fetchSignals({ data: { project } }),

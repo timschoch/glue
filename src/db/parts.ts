@@ -486,6 +486,55 @@ export function listParts(
   )
 }
 
+// A Joint as the Map draws it. `part` needs `needs`: two record ids.
+export type MapJoint = {
+  id: number
+  part: string
+  needs: string
+  // The Trust of the needed Part.
+  trust: Trust
+  // Only a reference has it: the end that is a Part of another Project, and
+  // that Project.
+  reference?: { end: 'part' | 'needs'; slug: string; name: string }
+}
+
+// The Joints with a Part of the Project at one end or at both, in the order
+// of their ids.
+export async function listMapJoints(
+  db: ConceptDb,
+  projectSlug: string,
+): Promise<MapJoint[]> {
+  const found = await db
+    .select({
+      id: joints.id,
+      part: parts.recordId,
+      needs: neededParts.recordId,
+      trust: neededParts.trust,
+      project: { slug: projects.slug, name: projects.name },
+      neededProject: { slug: neededProjects.slug, name: neededProjects.name },
+    })
+    .from(joints)
+    .innerJoin(parts, eq(joints.partId, parts.id))
+    .innerJoin(projects, eq(parts.projectId, projects.id))
+    .innerJoin(neededParts, eq(joints.neededPartId, neededParts.id))
+    .innerJoin(neededProjects, eq(neededParts.projectId, neededProjects.id))
+    .where(
+      or(eq(projects.slug, projectSlug), eq(neededProjects.slug, projectSlug)),
+    )
+    .orderBy(joints.id)
+
+  return found.map(({ project, neededProject, ...joint }) => {
+    if (project.slug === neededProject.slug) return joint
+    return {
+      ...joint,
+      reference:
+        project.slug === projectSlug
+          ? { end: 'needs', ...neededProject }
+          : { end: 'part', ...project },
+    }
+  })
+}
+
 // The Parts of the record ids that the Project has, with one statement.
 export function listPartsByRecordId(
   db: ConceptDb,

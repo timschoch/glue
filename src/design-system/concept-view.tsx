@@ -11,8 +11,6 @@ import type { MouseEvent, ReactElement, ReactNode, SyntheticEvent } from 'react'
 
 import { Card, partTypes } from './card.tsx'
 import type { PartType, Trust } from './card.tsx'
-import type { MapJoint } from './concept-map-layout.ts'
-import { ConceptMap } from './concept-map.tsx'
 import styles from './concept-view.module.scss'
 
 // The Part types in the order of the loop, each with its word for many Parts.
@@ -131,6 +129,22 @@ export type ConceptViewNode = {
   concepts: ReadonlyArray<ConceptViewNode>
 }
 
+// What a tile of a Concept says: its title and the count of its Parts.
+export function ConceptSummary({
+  concept,
+}: {
+  concept: Pick<ConceptViewNode, 'title' | 'partCount'>
+}) {
+  return (
+    <>
+      <span className={styles.conceptTitle}>{concept.title}</span>
+      <span className={styles.label}>
+        {concept.partCount} {concept.partCount === 1 ? 'Part' : 'Parts'}
+      </span>
+    </>
+  )
+}
+
 export type ConceptViewProps = {
   concept: {
     slug: string
@@ -144,11 +158,12 @@ export type ConceptViewProps = {
     linkedParts: ReadonlyArray<ConceptViewPart>
     // One slot per Part type of the Kind.
     slots: ReadonlyArray<{ type: PartType; filled: boolean }>
-    // The lines of the map. `part` needs `needs`: two record ids.
-    joints?: ReadonlyArray<MapJoint>
   }
-  // The list of the Parts in their type groups, or the map of the Parts.
+  // The list of the Parts in their type groups, or the Map.
   view?: 'list' | 'map'
+  // The Map, and the panel beside it that shows what the Map opened.
+  map?: ReactNode
+  panel?: ReactNode
   // With the callback the head holds the switch between the list and the map.
   onViewChange?: (view: 'list' | 'map') => void
   // The lens: the Part types to show. Without it the view shows all types.
@@ -185,11 +200,13 @@ export type ConceptViewProps = {
 // its card. A slot of the Kind with no Part shows as an empty slot at the
 // place of its type. A type with no Part and no slot shows only while a Part
 // can be added. A lens with no Part type, such as People, shows no Parts and
-// no words about them. The map view shows the Concepts inside, the Parts and
-// the empty slots as the nodes of the map.
+// no words about them. The map view shows the Map in place of the Concepts
+// and the Parts, with its panel at the end of the row.
 export function ConceptView({
   concept,
   view = 'list',
+  map,
+  panel,
   onViewChange,
   types,
   partHref,
@@ -278,15 +295,10 @@ export function ConceptView({
       {assignees}
       {contract}
       {view === 'map' && (
-        <ConceptMap
-          concept={{ ...concept, joints: concept.joints ?? [] }}
-          types={types}
-          partHref={partHref}
-          conceptHref={conceptHref}
-          onOpenPart={onOpenPart}
-          onOpenConcept={onOpenConcept}
-          onAddPart={onAddPart}
-        />
+        <div className={styles.map}>
+          {map}
+          {panel}
+        </div>
       )}
       {view === 'list' && (concept.concepts.length > 0 || onAddConcept) && (
         <nav aria-label="Concepts" className={styles.group}>
@@ -301,11 +313,7 @@ export function ConceptView({
                     }
                     className={styles.group}
                   >
-                    <span className={styles.conceptTitle}>{child.title}</span>
-                    <span className={styles.label}>
-                      {child.partCount}{' '}
-                      {child.partCount === 1 ? 'Part' : 'Parts'}
-                    </span>
+                    <ConceptSummary concept={child} />
                   </ClickableTile>
                 </li>
               ))}

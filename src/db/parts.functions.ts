@@ -71,6 +71,10 @@ export const fetchMeasured = createServerFn({ method: 'GET' })
   .validator(projectInputSchema)
   .handler(({ data }) => actions.listMeasured(data))
 
+export const fetchMapJoints = createServerFn({ method: 'GET' })
+  .validator(projectInputSchema)
+  .handler(({ data }) => actions.listMapJoints(data))
+
 export const submitAddConcept = createServerFn({ method: 'POST' })
   .validator(conceptAddInputSchema)
   .handler(({ data }) => actions.addConcept(data))

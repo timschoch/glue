@@ -1,0 +1,19 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+
+// The panel has a fixed width. The Map takes the rest of the row.
+.panel {
+  display: flex;
+  flex: 0 0 $spacing-13 * 3;
+  flex-direction: column;
+  border-inline-start: 1px solid $border-subtle-01;
+  gap: $spacing-05;
+  min-inline-size: 0;
+  padding-inline-start: $spacing-05;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}

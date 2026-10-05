@@ -1,230 +1,322 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { SyntheticEvent } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import './theme.scss'
-import { LAYER_GAP, NODE_HEIGHT } from './concept-map-layout.ts'
+import type { MapConcept, MapJoint, MapPart } from './concept-map-layout.ts'
+import styles from './concept-map.module.scss'
 import { ConceptMap } from './concept-map.tsx'
 import type { ConceptMapProps } from './concept-map.tsx'
 
-type Concept = ConceptMapProps['concept']
-type Part = Concept['parts'][number]
+// React Flow watches the size of its nodes, which jsdom can not do.
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+)
 
-function part(id: string, type: Part['type'], title: string): Part {
-  return {
-    id,
-    type,
-    title,
-    status: null,
-    concept: 'technique-videos',
-    conceptTitle: 'Technique videos',
-    trust: 'solid',
+const TREE: MapConcept = {
+  slug: 'glue',
+  title: 'Glue',
+  concepts: [
+    { slug: 'part-model', title: 'Part model', concepts: [] },
+    {
+      slug: 'build-run',
+      title: 'Build run',
+      concepts: [
+        { slug: 'merge-gate', title: 'Merge gate', concepts: [] },
+        { slug: 'verify', title: 'Verify', concepts: [] },
+      ],
+    },
+    { slug: 'people', title: 'People', concepts: [] },
+  ],
+}
+
+const G1: MapPart = {
+  id: 'G1',
+  type: 'goal',
+  title: 'Glue is the hub',
+  trust: 'solid',
+  concept: 'glue',
+}
+const D1: MapPart = {
+  id: 'D1',
+  type: 'decision',
+  title: 'Parts glue to Parts',
+  trust: 'solid',
+  concept: 'part-model',
+}
+const E1: MapPart = {
+  id: 'E1',
+  type: 'entity',
+  title: 'Part',
+  trust: 'flagged',
+  concept: 'part-model',
+}
+const D2: MapPart = {
+  id: 'D2',
+  type: 'decision',
+  title: 'Gate each merge',
+  trust: 'solid',
+  concept: 'merge-gate',
+}
+
+const JOINTS: Array<MapJoint> = [
+  { id: 1, part: 'D1', needs: 'G1', trust: 'solid' },
+  { id: 2, part: 'D2', needs: 'D1', trust: 'solid' },
+  { id: 3, part: 'D2', needs: 'E1', trust: 'flagged' },
+]
+
+afterEach(() => {
+  vi.useRealTimers()
+  cleanup()
+})
+
+// The Map of the Project Glue, when its nodes have their places.
+async function renderMap(props: Partial<ConceptMapProps> = {}) {
+  const stay = (_: unknown, event: SyntheticEvent) => event.preventDefault()
+  const handlers = {
+    onExpandedChange: vi.fn(),
+    onOpenPart: vi.fn(stay),
+    onOpenConcept: vi.fn(stay),
   }
-}
-
-function joint(id: number, from: string, needs: string, twoWay = false) {
-  return { id, part: from, needs, twoWay }
-}
-
-const CONCEPT: Concept = {
-  concepts: [],
-  parts: [
-    part('I7', 'insight', 'Bakers want step videos'),
-    part('G2', 'goal', 'First bake feels easy'),
-    part('D12', 'decision', 'Show the video of the creator'),
-    part('F5', 'flow', 'Watch a technique while baking'),
-    part('R4', 'guardrail', 'Only the videos of the creator'),
-  ],
-  linkedParts: [],
-  slots: [],
-  joints: [
-    joint(1, 'D12', 'G2'),
-    joint(2, 'D12', 'I7'),
-    joint(3, 'F5', 'D12'),
-    joint(4, 'R4', 'D12'),
-  ],
-}
-
-afterEach(cleanup)
-
-function renderMap(props: Partial<ConceptMapProps> = {}) {
-  return render(
+  render(
     <ConceptMap
-      concept={CONCEPT}
-      partHref={({ id }) => `#${id}`}
-      conceptHref={({ slug }) => `#${slug}`}
+      tree={TREE}
+      parts={[G1, D1, E1, D2]}
+      joints={JOINTS}
+      focus="glue"
+      expanded={[]}
+      partHref={({ id }) => `/glue/${id}`}
+      conceptHref={(slug) => `/glue/${slug}`}
+      projectHref={(slug) => `/${slug}`}
+      {...handlers}
       {...props}
     />,
   )
+  await screen.findByRole('link', { name: /^People/ }, { timeout: 20_000 })
+  return handlers
 }
 
-// The node of the map that holds the link or the button with the name.
-function node(name: RegExp, role: 'link' | 'button' = 'link'): HTMLElement {
-  const item = screen.getByRole(role, { name }).closest('li')
-  if (!item) throw new Error(`no node ${name}`)
-  return item
+function button(name: string | RegExp): HTMLElement {
+  return screen.getByRole('button', { name })
 }
 
-// The lines of the Joints: the first drawing of the map. The other drawings
-// are the signs of the cards.
-function jointLines(container: HTMLElement): Array<Element> {
-  return [...(container.querySelector('svg')?.querySelectorAll('path') ?? [])]
+function link(name: string | RegExp): HTMLElement {
+  return screen.getByRole('link', { name })
 }
 
-// The layer of a node, from its place.
-function layer(name: RegExp, role?: 'link' | 'button'): number {
-  return parseFloat(node(name, role).style.top) / (NODE_HEIGHT + LAYER_GAP)
+// The card of a record.
+function card(recordId: string): HTMLElement {
+  return link(new RegExp(` ${recordId} `))
 }
 
-describe('ConceptMap', () => {
-  it('shows each Part as one node: the sign, the type line and the title', () => {
-    renderMap()
+// The line of a bundle of Joints.
+function line(name: string): HTMLElement {
+  return screen.getByRole('group', { name })
+}
 
-    expect(screen.getAllByRole('listitem')).toHaveLength(5)
-    const card = screen.getByRole('link', { name: /D12/ })
-    expect(card.getAttribute('href')).toBe('#D12')
-    expect(card.textContent).toContain(
-      'Decision D12 Show the video of the creator',
-    )
-    within(card).getByLabelText('Solid')
+// At opacity 0.25: not glued to what the pointer or the focus is on.
+function isDimmed(element: HTMLElement): boolean {
+  return element.closest(`.${styles.dimmed}`) !== null
+}
+
+describe('ConceptMap, the Map of a Project', () => {
+  it('shows each top-level Concept closed: one that holds something opens in place, an empty one is a link', async () => {
+    await renderMap()
+
+    expect(button(/^Glue/).getAttribute('aria-expanded')).toBe('false')
+    expect(button(/^Part model/).getAttribute('aria-expanded')).toBe('false')
+    expect(button(/^Build run/).getAttribute('aria-expanded')).toBe('false')
+    expect(link(/^People/).getAttribute('href')).toBe('/glue/people')
+    expect(screen.queryByRole('link', { name: / D1 / })).toBeNull()
   })
 
-  it('has a Part below the Parts that it needs', () => {
-    renderMap()
+  it('opens a closed Concept with a click, with Enter and with Space', async () => {
+    const { onExpandedChange } = await renderMap({ expanded: ['people'] })
 
-    expect(layer(/G2/)).toBe(0)
-    expect(layer(/I7/)).toBe(0)
-    expect(layer(/D12/)).toBe(1)
-    expect(layer(/F5/)).toBe(2)
-    expect(layer(/R4/)).toBe(3)
+    await userEvent.click(button(/^Part model/))
+
+    expect(onExpandedChange).toHaveBeenLastCalledWith(['people', 'part-model'])
+
+    button(/^Build run/).focus()
+    await userEvent.keyboard('{Enter}')
+
+    expect(onExpandedChange).toHaveBeenLastCalledWith(['people', 'build-run'])
+
+    await userEvent.keyboard(' ')
+
+    expect(onExpandedChange).toHaveBeenCalledTimes(3)
   })
 
-  it('draws one line per Joint, all in one style, outside the names', () => {
-    const { container } = renderMap()
-
-    const lines = jointLines(container)
-    expect(lines).toHaveLength(4)
-    expect(new Set(lines.map((line) => line.getAttribute('class'))).size).toBe(
-      1,
-    )
-    expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe(
-      'true',
-    )
-  })
-
-  it('opens the record of a node with a click', async () => {
-    const onOpenPart = vi.fn()
-    renderMap({ onOpenPart })
-
-    await userEvent.click(screen.getByRole('link', { name: /D12/ }))
-
-    expect(onOpenPart).toHaveBeenCalledOnce()
-    expect(onOpenPart.mock.calls[0][0]).toMatchObject({ id: 'D12' })
-  })
-
-  it('names the Concept on the node of a Part of another Concept', () => {
-    renderMap({
-      concept: {
-        ...CONCEPT,
-        linkedParts: [
-          {
-            ...part('I21', 'insight', 'Novices stop at long videos'),
-            concept: 'ux-study',
-            conceptTitle: 'UX study',
-          },
-        ],
-        joints: [...CONCEPT.joints, joint(5, 'D12', 'I21')],
-      },
+  it('shows the Parts of an open Concept that has no sub Concept, and closes it with its head', async () => {
+    const { onExpandedChange } = await renderMap({
+      expanded: ['part-model', 'build-run'],
     })
 
-    expect(screen.getByRole('link', { name: /I21/ }).textContent).toContain(
-      'UX study',
+    expect(card('D1').getAttribute('href')).toBe('/glue/D1')
+    card('E1')
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Part model', expanded: true }),
     )
-    expect(screen.getByRole('link', { name: /I7/ }).textContent).not.toContain(
-      'Technique videos',
+
+    expect(onExpandedChange).toHaveBeenLastCalledWith(['build-run'])
+  })
+
+  it('shows the sub Concepts of an open Concept, not its Parts', async () => {
+    await renderMap({ expanded: ['build-run'] })
+
+    expect(link(/^Merge gate/).getAttribute('href')).toBe('/glue/merge-gate')
+    link(/^Verify/)
+    expect(screen.queryByRole('link', { name: / D2 / })).toBeNull()
+  })
+
+  it('opens an open Concept in the panel with the icon button of its head', async () => {
+    const { onOpenConcept } = await renderMap({ expanded: ['part-model'] })
+
+    await userEvent.click(button('Open Part model'))
+
+    expect(onOpenConcept).toHaveBeenLastCalledWith(
+      'part-model',
+      expect.anything(),
     )
-    expect(layer(/I21/)).toBe(0)
+
+    button('Open Part model').focus()
+    await userEvent.keyboard('{Enter}')
+
+    expect(onOpenConcept).toHaveBeenCalledTimes(2)
   })
 
-  it('shows an empty slot as a node that adds a Part of its type', async () => {
-    const onAddPart = vi.fn()
-    renderMap({
-      concept: {
-        ...CONCEPT,
-        slots: [
-          { type: 'goal', filled: true },
-          { type: 'metric', filled: false },
-        ],
-      },
-      onAddPart,
+  it('opens a Part and a sub Concept in the panel with a click or with Enter', async () => {
+    const { onOpenPart, onOpenConcept } = await renderMap({
+      expanded: ['part-model', 'build-run'],
     })
 
-    expect(screen.getAllByRole('listitem')).toHaveLength(6)
-    expect(layer(/Add Metric/, 'button')).toBe(3)
-    await userEvent.click(screen.getByRole('button', { name: 'Add Metric' }))
+    await userEvent.click(card('D1'))
 
-    expect(onAddPart).toHaveBeenCalledExactlyOnceWith('metric')
+    expect(onOpenPart).toHaveBeenLastCalledWith(D1, expect.anything())
+
+    link(/^Merge gate/).focus()
+    await userEvent.keyboard('{Enter}')
+
+    expect(onOpenConcept).toHaveBeenLastCalledWith(
+      'merge-gate',
+      expect.anything(),
+    )
   })
 
-  it('shows the type of an empty slot when no Part can be added', () => {
-    renderMap({
-      concept: { ...CONCEPT, slots: [{ type: 'metric', filled: false }] },
-    })
+  it('draws one line per bundle of Joints, with the count and the worst Trust', async () => {
+    await renderMap()
 
-    expect(screen.queryByRole('button')).toBeNull()
-    screen.getByText('Metric')
+    const bundle = line('Build run needs Part model: 2 Joints')
+
+    line('Part model needs Glue: 1 Joint')
+    expect(screen.getByText('2').textContent).toBe('2')
+    expect(bundle.querySelector(`.${styles.flagged}`)).not.toBeNull()
+    expect(bundle.querySelector(`.${styles.solid}`)).toBeNull()
+  })
+})
+
+describe('ConceptMap, the Map of a Concept', () => {
+  it('shows the Concept open with no way to close it, and the Concepts glued to it closed', async () => {
+    render(
+      <ConceptMap
+        tree={TREE}
+        parts={[G1, D1, E1, D2]}
+        joints={JOINTS}
+        focus="part-model"
+        expanded={[]}
+        partHref={({ id }) => `/glue/${id}`}
+        conceptHref={(slug) => `/glue/${slug}`}
+        projectHref={(slug) => `/${slug}`}
+        onExpandedChange={() => {}}
+      />,
+    )
+    await screen.findByRole('link', { name: / D1 / }, { timeout: 20_000 })
+
+    card('E1')
+    button('Open Part model')
+    expect(screen.queryByRole('button', { name: 'Part model' })).toBeNull()
+    expect(button(/^Glue/).getAttribute('aria-expanded')).toBe('false')
+    expect(button(/^Build run/).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('People')).toBeNull()
+  })
+})
+
+describe('ConceptMap, the pointer and the focus', () => {
+  it('keeps what is glued to the node under the pointer, until 250 ms after the pointer leaves', async () => {
+    await renderMap()
+    vi.useFakeTimers()
+
+    fireEvent.mouseEnter(button(/^Glue/))
+
+    expect(isDimmed(button(/^Glue/))).toBe(false)
+    expect(isDimmed(button(/^Part model/))).toBe(false)
+    expect(isDimmed(line('Part model needs Glue: 1 Joint'))).toBe(false)
+    expect(isDimmed(button(/^Build run/))).toBe(true)
+    expect(isDimmed(link(/^People/))).toBe(true)
+    expect(isDimmed(line('Build run needs Part model: 2 Joints'))).toBe(true)
+    expect(isDimmed(screen.getByText('2'))).toBe(true)
+
+    fireEvent.mouseLeave(button(/^Glue/))
+    act(() => void vi.advanceTimersByTime(249))
+
+    expect(isDimmed(button(/^Build run/))).toBe(true)
+
+    act(() => void vi.advanceTimersByTime(1))
+
+    expect(isDimmed(button(/^Build run/))).toBe(false)
+    expect(isDimmed(link(/^People/))).toBe(false)
   })
 
-  it('shows a Concept inside as a surface with its name, below the Parts', async () => {
-    const onOpenConcept = vi.fn()
-    renderMap({
-      concept: {
-        ...CONCEPT,
-        concepts: [
-          {
-            slug: 'step-videos',
-            title: 'Step videos',
-            kind: 'brief',
-            partCount: 12,
-            concepts: [],
-          },
-        ],
-      },
-      onOpenConcept,
-    })
+  it('shows no normal state on the way from one node to the next', async () => {
+    await renderMap()
+    vi.useFakeTimers()
 
-    const surface = screen.getByRole('link', { name: /Step videos/ })
-    expect(surface.getAttribute('href')).toBe('#step-videos')
-    expect(surface.textContent).toContain('12 Parts')
-    expect(layer(/Step videos/)).toBe(4)
-    await userEvent.click(surface)
+    fireEvent.mouseEnter(button(/^Glue/))
+    fireEvent.mouseLeave(button(/^Glue/))
+    act(() => void vi.advanceTimersByTime(100))
+    fireEvent.mouseEnter(button(/^Build run/))
 
-    expect(onOpenConcept).toHaveBeenCalledOnce()
-    expect(onOpenConcept.mock.calls[0][0]).toMatchObject({
-      slug: 'step-videos',
-    })
+    expect(isDimmed(button(/^Glue/))).toBe(true)
+    expect(isDimmed(button(/^Build run/))).toBe(false)
+
+    act(() => void vi.advanceTimersByTime(250))
+
+    expect(isDimmed(button(/^Glue/))).toBe(true)
   })
 
-  it('shows only the Part types of the lens, with the Joints between them', () => {
-    const { container } = renderMap({ types: ['goal', 'decision'] })
+  it('keeps what is glued to the line under the pointer', async () => {
+    await renderMap()
 
-    expect(
-      screen.getAllByRole('link').map((link) => link.getAttribute('href')),
-    ).toEqual(['#G2', '#D12'])
-    expect(jointLines(container)).toHaveLength(1)
+    fireEvent.mouseEnter(line('Part model needs Glue: 1 Joint'))
+
+    expect(isDimmed(button(/^Glue/))).toBe(false)
+    expect(isDimmed(button(/^Part model/))).toBe(false)
+    expect(isDimmed(button(/^Build run/))).toBe(true)
   })
 
-  it('says that a Concept has no Parts', () => {
-    renderMap({ concept: { ...CONCEPT, parts: [], joints: [] } })
+  it('does the same for the keyboard focus on a node or on a line', async () => {
+    await renderMap()
+    vi.useFakeTimers()
 
-    screen.getByText('No Parts')
-    expect(screen.queryByRole('list')).toBeNull()
-  })
+    act(() => button(/^Glue/).focus())
 
-  it('has no words about Parts with a lens that has no Part type', () => {
-    const { container } = renderMap({ types: [] })
+    expect(isDimmed(button(/^Build run/))).toBe(true)
 
-    expect(container.textContent).toBe('')
+    act(() => line('Build run needs Part model: 2 Joints').focus())
+
+    expect(isDimmed(button(/^Glue/))).toBe(true)
+    expect(isDimmed(button(/^Build run/))).toBe(false)
+
+    act(() => line('Build run needs Part model: 2 Joints').blur())
+    act(() => void vi.advanceTimersByTime(250))
+
+    expect(isDimmed(button(/^Glue/))).toBe(false)
   })
 })
