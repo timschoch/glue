@@ -29,8 +29,7 @@ function useVersionHref() {
 
 // The Contract of the open Concept, with the sign-off. After a sign-off the
 // screen reads the Concept again.
-// `builds` are the builds of the Project: the Contract shows the ones that
-// name it.
+// `builds` are the builds that name the Contract.
 export function ContractSection({
   contract,
   builds = [],
@@ -43,7 +42,6 @@ export function ContractSection({
   const { project, concept, recordHref, open } = useProjectLinks()
   const versionHref = useVersionHref()
   const [failure, setFailure] = useState<string>()
-  const named = builds.filter((build) => build.contract?.concept === concept)
 
   async function signOff() {
     const signed = await signContract({ project, concept })
@@ -65,7 +63,7 @@ export function ContractSection({
       onSignOff={() => void signOff()}
       failure={failure}
     >
-      {named.length > 0 && <LinkedBuilds builds={named} />}
+      {builds.length > 0 && <LinkedBuilds builds={builds} />}
     </ContractPanel>
   )
 }

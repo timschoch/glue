@@ -11,6 +11,7 @@ import { createDb } from './client.ts'
 import {
   answerInputSchema,
   assignInputSchema,
+  buildsInputSchema,
   questionAnswerInputSchema,
   conceptAddInputSchema,
   conceptReadInputSchema,
@@ -95,7 +96,7 @@ export const fetchSignals = createServerFn({ method: 'GET' })
   .handler(({ data }) => actions.listSignals(data))
 
 export const fetchBuilds = createServerFn({ method: 'GET' })
-  .validator(projectInputSchema)
+  .validator(buildsInputSchema)
   .handler(({ data }) => actions.listBuilds(data))
 
 export const submitAddSignalInsight = createServerFn({ method: 'POST' })
