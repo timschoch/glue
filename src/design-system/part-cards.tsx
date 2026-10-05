@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type { MouseEvent } from 'react'
 
 import { Card } from './card.tsx'
@@ -16,40 +17,68 @@ export type PartCardsPart = {
   reading?: Reading
   // The name of the home Concept.
   concept: string
+  // What happened to a watched Part: its open flags.
+  note?: string
   href: string
 }
 
 export type PartCardsProps = {
   title: string
   parts: ReadonlyArray<PartCardsPart>
+  // The Parts that the person watches, in a group of their own.
+  watched?: ReadonlyArray<PartCardsPart>
   onOpen?: (part: PartCardsPart, event: MouseEvent<HTMLAnchorElement>) => void
+}
+
+function Cards({
+  parts,
+  onOpen,
+  labelledBy,
+}: Pick<PartCardsProps, 'parts' | 'onOpen'> & { labelledBy?: string }) {
+  return (
+    <ul aria-labelledby={labelledBy} className={styles.items}>
+      {parts.map((part) => (
+        <li key={part.id}>
+          <Card
+            type={part.type}
+            recordId={part.id}
+            title={part.title}
+            trust={part.trust}
+            summary={part.note}
+            reading={part.reading}
+            workState={part.workState}
+            concept={part.concept}
+            href={part.href}
+            onOpen={onOpen && ((event) => onOpen(part, event))}
+          />
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 // Parts of mixed types from the whole Project in the main window: the title
 // and one card per Part, with its Work state and its home Concept. Each card
-// opens its record.
-export function PartCards({ title, parts, onOpen }: PartCardsProps) {
+// opens its record. The watched Parts come after, below their own title.
+export function PartCards({
+  title,
+  parts,
+  watched = [],
+  onOpen,
+}: PartCardsProps) {
+  const watchedId = useId()
+
   return (
     <div className={styles.list}>
       <h1 className={styles.title}>{title}</h1>
-      {parts.length > 0 && (
-        <ul className={styles.items}>
-          {parts.map((part) => (
-            <li key={part.id}>
-              <Card
-                type={part.type}
-                recordId={part.id}
-                title={part.title}
-                trust={part.trust}
-                reading={part.reading}
-                workState={part.workState}
-                concept={part.concept}
-                href={part.href}
-                onOpen={onOpen && ((event) => onOpen(part, event))}
-              />
-            </li>
-          ))}
-        </ul>
+      {parts.length > 0 && <Cards parts={parts} onOpen={onOpen} />}
+      {watched.length > 0 && (
+        <section className={styles.group}>
+          <h2 id={watchedId} className={styles.groupTitle}>
+            Watched
+          </h2>
+          <Cards parts={watched} onOpen={onOpen} labelledBy={watchedId} />
+        </section>
       )}
     </div>
   )

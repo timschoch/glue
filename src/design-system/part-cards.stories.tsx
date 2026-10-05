@@ -104,6 +104,33 @@ export const Readings: Story = {
   },
 }
 
+// The Parts that the person watches, one with a flag.
+export const Watched: Story = {
+  args: {
+    watched: [
+      {
+        id: 'F5',
+        type: 'flow',
+        title: 'Watch a technique while baking',
+        trust: 'flagged',
+        workState: 'to-check',
+        note: 'Changed I7 Bakers want step videos',
+        concept: 'Technique videos',
+        href: '#',
+      },
+      {
+        id: 'M1',
+        type: 'metric',
+        title: 'Signup to first bake',
+        trust: 'solid',
+        workState: 'published',
+        concept: 'First bake',
+        href: '#',
+      },
+    ],
+  },
+}
+
 export const Empty: Story = { args: { parts: [] } }
 
 export const InNarrowWindow: Story = {

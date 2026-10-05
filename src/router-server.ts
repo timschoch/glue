@@ -20,6 +20,7 @@ import type {
   LoopStepsInput,
   MemberAddInput,
   PartAddInput,
+  PartReadInput,
   PartUpdateInput,
   ProjectAddInput,
   QuestionAnswerInput,
@@ -37,6 +38,7 @@ import {
   fetchProject,
   fetchProjects,
   fetchSignals,
+  fetchWatched,
   submitAddConcept,
   submitAddJoint,
   submitAddMember,
@@ -50,7 +52,9 @@ import {
   submitRemoveJoint,
   submitSetLoopSteps,
   submitUnassign,
+  submitUnwatch,
   submitUpdatePart,
+  submitWatch,
 } from './db/parts.functions.ts'
 
 type ConceptInput = { project: string; concept: string }
@@ -65,6 +69,9 @@ export const server = {
   fetchParts: (project: string) => fetchParts({ data: { project } }),
   // The Parts of the Project that need the owner, the newest change first.
   fetchMine: (project: string) => fetchMine({ data: { project } }),
+  // The Parts of the Project that the person watches, each with its open
+  // flags.
+  fetchWatched: (project: string) => fetchWatched({ data: { project } }),
   // The Metrics and the measured Goals of the Project, each with its newest
   // reading.
   fetchMeasured: (project: string) => fetchMeasured({ data: { project } }),
@@ -104,6 +111,9 @@ export const server = {
     submitSetLoopSteps({ data: loopSteps }),
   assign: (assignment: AssignInput) => submitAssign({ data: assignment }),
   unassign: (assignment: UnassignInput) => submitUnassign({ data: assignment }),
+  // The person of the session watches the Part, and stops.
+  watch: (part: PartReadInput) => submitWatch({ data: part }),
+  unwatch: (part: PartReadInput) => submitUnwatch({ data: part }),
   signIn: (credentials: SignIn) => submitSignIn({ data: credentials }),
   signUp: (account: SignUp) => submitSignUp({ data: account }),
   signOut: () => submitSignOut(),

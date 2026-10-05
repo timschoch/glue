@@ -33,6 +33,7 @@ import { Route as ApiV1ProjectsProjectMembersRouteImport } from './routes/api/v1
 import { Route as ApiV1ProjectsProjectMineRouteImport } from './routes/api/v1.projects.$project.mine'
 import { Route as ApiV1ProjectsProjectPartsRouteImport } from './routes/api/v1.projects.$project.parts'
 import { Route as ApiV1ProjectsProjectSignalsRouteImport } from './routes/api/v1.projects.$project.signals'
+import { Route as ApiV1ProjectsProjectWatchersRouteImport } from './routes/api/v1.projects.$project.watchers'
 import { Route as ApiV1ProjectsProjectConceptsConceptRouteImport } from './routes/api/v1.projects.$project.concepts.$concept'
 import { Route as ApiV1ProjectsProjectJointsJointIdRouteImport } from './routes/api/v1.projects.$project.joints.$jointId'
 import { Route as ApiV1ProjectsProjectPartsRecordIdRouteImport } from './routes/api/v1.projects.$project.parts.$recordId'
@@ -174,6 +175,12 @@ const ApiV1ProjectsProjectSignalsRoute =
     path: '/api/v1/projects/$project/signals',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1ProjectsProjectWatchersRoute =
+  ApiV1ProjectsProjectWatchersRouteImport.update({
+    id: '/api/v1/projects/$project/watchers',
+    path: '/api/v1/projects/$project/watchers',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1ProjectsProjectConceptsConceptRoute =
   ApiV1ProjectsProjectConceptsConceptRouteImport.update({
     id: '/$concept',
@@ -240,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/projects/$project/mine': typeof ApiV1ProjectsProjectMineRoute
   '/api/v1/projects/$project/parts': typeof ApiV1ProjectsProjectPartsRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
+  '/api/v1/projects/$project/watchers': typeof ApiV1ProjectsProjectWatchersRoute
   '/api/v1/projects/$project/': typeof ApiV1ProjectsProjectIndexRoute
   '/api/v1/projects/$project/concepts/$concept': typeof ApiV1ProjectsProjectConceptsConceptRouteWithChildren
   '/api/v1/projects/$project/joints/$jointId': typeof ApiV1ProjectsProjectJointsJointIdRoute
@@ -271,6 +279,7 @@ export interface FileRoutesByTo {
   '/api/v1/projects/$project/mine': typeof ApiV1ProjectsProjectMineRoute
   '/api/v1/projects/$project/parts': typeof ApiV1ProjectsProjectPartsRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
+  '/api/v1/projects/$project/watchers': typeof ApiV1ProjectsProjectWatchersRoute
   '/api/v1/projects/$project': typeof ApiV1ProjectsProjectIndexRoute
   '/api/v1/projects/$project/concepts/$concept': typeof ApiV1ProjectsProjectConceptsConceptRouteWithChildren
   '/api/v1/projects/$project/joints/$jointId': typeof ApiV1ProjectsProjectJointsJointIdRoute
@@ -305,6 +314,7 @@ export interface FileRoutesById {
   '/api/v1/projects/$project/mine': typeof ApiV1ProjectsProjectMineRoute
   '/api/v1/projects/$project/parts': typeof ApiV1ProjectsProjectPartsRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
+  '/api/v1/projects/$project/watchers': typeof ApiV1ProjectsProjectWatchersRoute
   '/api/v1/projects/$project/': typeof ApiV1ProjectsProjectIndexRoute
   '/api/v1/projects/$project/concepts/$concept': typeof ApiV1ProjectsProjectConceptsConceptRouteWithChildren
   '/api/v1/projects/$project/joints/$jointId': typeof ApiV1ProjectsProjectJointsJointIdRoute
@@ -339,6 +349,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/mine'
     | '/api/v1/projects/$project/parts'
     | '/api/v1/projects/$project/signals'
+    | '/api/v1/projects/$project/watchers'
     | '/api/v1/projects/$project/'
     | '/api/v1/projects/$project/concepts/$concept'
     | '/api/v1/projects/$project/joints/$jointId'
@@ -370,6 +381,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/mine'
     | '/api/v1/projects/$project/parts'
     | '/api/v1/projects/$project/signals'
+    | '/api/v1/projects/$project/watchers'
     | '/api/v1/projects/$project'
     | '/api/v1/projects/$project/concepts/$concept'
     | '/api/v1/projects/$project/joints/$jointId'
@@ -403,6 +415,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/mine'
     | '/api/v1/projects/$project/parts'
     | '/api/v1/projects/$project/signals'
+    | '/api/v1/projects/$project/watchers'
     | '/api/v1/projects/$project/'
     | '/api/v1/projects/$project/concepts/$concept'
     | '/api/v1/projects/$project/joints/$jointId'
@@ -430,6 +443,7 @@ export interface RootRouteChildren {
   ApiV1ProjectsProjectMineRoute: typeof ApiV1ProjectsProjectMineRoute
   ApiV1ProjectsProjectPartsRoute: typeof ApiV1ProjectsProjectPartsRouteWithChildren
   ApiV1ProjectsProjectSignalsRoute: typeof ApiV1ProjectsProjectSignalsRouteWithChildren
+  ApiV1ProjectsProjectWatchersRoute: typeof ApiV1ProjectsProjectWatchersRoute
   ApiV1ProjectsProjectIndexRoute: typeof ApiV1ProjectsProjectIndexRoute
 }
 
@@ -601,6 +615,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/projects/$project/signals'
       fullPath: '/api/v1/projects/$project/signals'
       preLoaderRoute: typeof ApiV1ProjectsProjectSignalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/projects/$project/watchers': {
+      id: '/api/v1/projects/$project/watchers'
+      path: '/api/v1/projects/$project/watchers'
+      fullPath: '/api/v1/projects/$project/watchers'
+      preLoaderRoute: typeof ApiV1ProjectsProjectWatchersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/projects/$project/concepts/$concept': {
@@ -802,6 +823,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1ProjectsProjectPartsRoute: ApiV1ProjectsProjectPartsRouteWithChildren,
   ApiV1ProjectsProjectSignalsRoute:
     ApiV1ProjectsProjectSignalsRouteWithChildren,
+  ApiV1ProjectsProjectWatchersRoute: ApiV1ProjectsProjectWatchersRoute,
   ApiV1ProjectsProjectIndexRoute: ApiV1ProjectsProjectIndexRoute,
 }
 export const routeTree = rootRouteImport

@@ -650,3 +650,22 @@ export const assignments = pgTable(
     index('assignments_part_id_index').on(table.partId),
   ],
 )
+
+// A member watches a Part (D47): the Part shows in Mine of the member, in a
+// group of its own. Watching is not owning: the owner of a Part is its
+// Responsible.
+export const watchers = pgTable(
+  'watchers',
+  {
+    partId: integer('part_id')
+      .notNull()
+      .references(() => parts.id, { onDelete: 'cascade' }),
+    memberId: integer('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.partId, table.memberId] }),
+    index('watchers_member_id_index').on(table.memberId),
+  ],
+)

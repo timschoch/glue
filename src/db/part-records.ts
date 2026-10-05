@@ -16,6 +16,7 @@ import { goalMeasureSchema, isOnTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import { kinds } from './kinds.ts'
 import type { Kind } from './kinds.ts'
+import { findFlagOwner } from './members.ts'
 import {
   listAnswers,
   answerRules,
@@ -367,6 +368,10 @@ const placeSchema = z.object({
     description:
       'The record id of the Decision that replaced it. It goes with the status superseded',
   }),
+  responsible: z.string().trim().min(1).optional().meta({
+    description:
+      'The e-mail address of the member who owns it. Default: the member who adds it',
+  }),
 })
 
 type Place = Omit<z.input<typeof placeSchema>, 'type'>
@@ -652,6 +657,8 @@ type PartRow = {
   supersededById?: number
   // The Signals that it grew from, in their order.
   signals?: { url: string; title: string }[]
+  // The row id of the member who owns it: its Responsible.
+  responsibleId?: number
 }
 
 // Adds the Part, and gives back its record id. `gate` is a common table
@@ -664,7 +671,7 @@ async function addPartRow(
 ): Promise<string | null> {
   const { projectId, conceptId, type, fields, neededPartIds = [] } = row
   const { mentioned, supersedesId, supersededById } = row
-  const { signals = [] } = row
+  const { signals = [], responsibleId } = row
   const question = row.question ? JSON.stringify(row.question) : null
   const status = fields.status ?? (type === 'goal' ? 'open' : null)
   const { trust, workState } = stateOfStatus(type, status) ?? NEW_PART_STATE
@@ -797,6 +804,15 @@ async function addPartRow(
           )`
     }
     ${
+      responsibleId === undefined
+        ? sql``
+        : sql`, added_owner as (
+            insert into "assignments" ("member_id", "part_id", "role")
+            select ${responsibleId}::integer, "id", 'responsible'
+            from added_part
+          )`
+    }
+    ${
       supersedesId === undefined
         ? sql``
         : sql`, superseded as (
@@ -822,11 +838,37 @@ async function addPartRow(
   return addedPartSchema.parse(result).rows.at(0)?.record_id ?? null
 }
 
-// Adds a Part to its home Concept, and gives back its record id.
+// The row id of the member of the Project with the e-mail address.
+async function getMemberId(
+  db: ConceptDb,
+  project: ProjectRow,
+  email: string,
+): Promise<number> {
+  const { members } = schema
+  const found = await db
+    .select({ id: members.id })
+    .from(members)
+    .where(
+      and(
+        eq(members.projectId, project.id),
+        sql`lower(${members.email}) = lower(${email}::text)`,
+      ),
+    )
+  const member = found.at(0)
+  if (!member)
+    throw new InvalidRecordError(`${email} is no member of ${project.slug}.`)
+  return member.id
+}
+
+// Adds a Part to its home Concept, and gives back its record id. A Part has
+// one owner, its Responsible (D47): the member that the Part names, or else
+// the member who adds it. `addedBy` is the e-mail address of that member.
+// The owner goes in with the Part as one write.
 export async function addPart(
   db: ConceptDb,
   projectSlug: string,
   part: NewPart,
+  addedBy?: string,
 ): Promise<string> {
   const {
     type,
@@ -834,6 +876,7 @@ export async function addPart(
     needs = [],
     supersedes,
     supersededBy,
+    responsible = addedBy,
   } = parseInput(placeSchema, part)
   const {
     type: _type,
@@ -841,6 +884,7 @@ export async function addPart(
     needs: _needs,
     supersedes: _supersedes,
     supersededBy: _supersededBy,
+    responsible: _responsible,
     ...inputFields
   } = part
   const { options, pick, ...fields } = parseInput(
@@ -894,6 +938,10 @@ export async function addPart(
     mentioned: await findMentioned(db, project, fields.body),
     supersedesId,
     supersededById: successor?.id,
+    responsibleId:
+      responsible === undefined
+        ? undefined
+        : await getMemberId(db, project, responsible),
   })
   if (recordId === null)
     throw new InvalidRecordError(`"${supersedes}" is superseded already`)
@@ -1475,15 +1523,26 @@ export type PartAnswer = z.input<typeof partAnswerSchema>
 // not see, and of two answers at the same time only the first one writes.
 // `wait` locks the awaited Part and asks that it is not sunk.
 // `move-to-version` answers one flag only: see moveToVersion.
+// `answeredBy` is the e-mail address of the member who answers. Only the
+// owner answers a flag (D47): a Part with an open flag and an owner refuses
+// the answer of each other member.
 export async function answerPart(
   db: ConceptDb,
   projectSlug: string,
   recordId: string,
   input: PartAnswer,
+  answeredBy?: string,
 ): Promise<void> {
   const given = parseInput(partAnswerSchema, input)
   const projectId = await getProjectId(db, projectSlug)
   const part = await getPart(db, projectId, recordId)
+  if (answeredBy !== undefined) {
+    const owner = await findFlagOwner(db, part.id, answeredBy)
+    if (owner)
+      throw new InvalidRecordError(
+        `"${recordId}" has a flag: only its owner ${owner.name} answers it`,
+      )
+  }
   if (given.answer === 'move-to-version')
     await moveToVersion(db, projectId, part, given)
   else await writeAnswer(db, projectId, part, given)

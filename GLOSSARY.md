@@ -26,6 +26,8 @@ The target model. Diagrams and rules: [docs/concept.md](docs/concept.md). The ap
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Project        | The top level that holds Concepts: a Product, or other work such as a UX study. Today the code has only Product.                                |
 | Part           | One record in a Concept. Types: Insight, Goal, Decision, Guardrail, Entity, Flow, Metric. Has one home Concept and one owner.                   |
+| Owner          | The one member of the Project who answers for a Part: its Responsible. A new Part takes the member who adds it. Only the owner answers a flag.  |
+| Watcher        | A member who follows a Part. Sees it in Mine in a group of its own, with its flags as a note. Not the owner.                                    |
 | Entity         | A Part that names a thing the Product has, for example Technique.                                                                               |
 | Flow           | A Part that says how something moves, step by step.                                                                                             |
 | Metric         | A Part that says if it worked: a reading against a target.                                                                                      |

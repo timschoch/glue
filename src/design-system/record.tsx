@@ -1,4 +1,12 @@
-import { Edit, Launch, Pin, PinFilled, Subtract } from '@carbon/icons-react'
+import {
+  Edit,
+  Launch,
+  Pin,
+  PinFilled,
+  Subtract,
+  View,
+  ViewFilled,
+} from '@carbon/icons-react'
 import {
   Button,
   ComboButton,
@@ -72,7 +80,7 @@ export type RecordJointEnd = {
 }
 
 // Why a Part has a flag: what happened to the Part that it needs.
-const flagReasons = {
+export const flagReasons = {
   changed: 'Changed',
   'not-ready': 'Not ready',
   wrong: 'Wrong',
@@ -417,8 +425,12 @@ type ClickAction = {
 // the record id of the pick.
 type PartPick = { label: string; onPick: (recordId: string) => void }
 
-// One action on the record. An action with a pick asks for a Part first.
-export type RecordAction = ClickAction | { label: string; pick: PartPick }
+// One action on the record. An action with a pick asks for a Part first. An
+// action with an address is a link: it goes to a person, not to Glue.
+export type RecordAction =
+  | ClickAction
+  | { label: string; pick: PartPick }
+  | { label: string; href: string }
 
 export type RecordProps = {
   part: RecordPart
@@ -428,6 +440,13 @@ export type RecordProps = {
   bodyParts?: ReadonlyArray<RecordPartSummary>
   pinned: boolean
   onPinChange: (pinned: boolean) => void
+  // The control of a person who can watch the Part: the count of the
+  // watchers, and if the person is one of them.
+  watch?: {
+    watching: boolean
+    count: number
+    onChange: (watching: boolean) => void
+  }
   // Opens the record of a card or of a record id in the body.
   onOpen?: OpenHandler
   // The first action is the button. The others are in its menu.
@@ -474,6 +493,7 @@ export function Record({
   bodyParts = [],
   pinned,
   onPinChange,
+  watch,
   onOpen,
   actions = [],
   pending,
@@ -508,6 +528,7 @@ export function Record({
   const [picking, setPicking] = useState<PartPick>()
   const run = (action: RecordAction) => {
     if ('pick' in action) setPicking(action.pick)
+    else if ('href' in action) window.location.assign(action.href)
     else if (action.confirm) setConfirming(action)
     else action.onClick()
   }
@@ -557,6 +578,18 @@ export function Record({
           <span>{partTypes[part.type]}</span>
           <span>{part.id}</span>
           <div className={styles.controls}>
+            {watch && (
+              <Button
+                kind="ghost"
+                size="sm"
+                renderIcon={watch.watching ? ViewFilled : View}
+                aria-label={`Watch ${watch.count}`}
+                aria-pressed={watch.watching}
+                onClick={() => watch.onChange(!watch.watching)}
+              >
+                {watch.count}
+              </Button>
+            )}
             {onEdit && (
               <IconButton
                 kind="ghost"
@@ -659,9 +692,12 @@ export function Record({
               ))}
             </ComboButton>
           ) : (
-            action && (
+            action &&
+            ('href' in action ? (
+              <Button href={action.href}>{action.label}</Button>
+            ) : (
               <Button onClick={() => run(action)}>{action.label}</Button>
-            )
+            ))
           )}
           {picking && pending === undefined && (
             <div className={styles.search}>

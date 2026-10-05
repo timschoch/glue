@@ -16,7 +16,7 @@ import { assignmentRoles, loopSteps } from './schema.ts'
 export { assignmentRoles, loopSteps } from './schema.ts'
 export type { AssignmentRole, LoopStep } from './schema.ts'
 
-const { assignments, concepts, members, parts, projects } = schema
+const { assignments, concepts, members, parts, projects, watchers } = schema
 
 // An account of Neon Auth.
 export type Account = { id: string; name: string; email: string }
@@ -44,6 +44,7 @@ export type Assignment = {
 export type People = {
   members: Member[]
   assignments: Assignment[]
+  watchers: Watcher[]
   me: number | null
 }
 
@@ -247,6 +248,10 @@ const foundSchema = z.object({
   ),
 })
 
+const ownedSchema = z.object({
+  rows: z.array(z.object({ owned: z.coerce.number() })),
+})
+
 // Refuses the write when the Project has no such member, Concept or Part.
 function validateFound(
   result: unknown,
@@ -264,7 +269,8 @@ function validateFound(
 
 // Makes the member Responsible or Co-Author of the Concept or the Part. A
 // Concept or a Part has one Responsible: the new one takes the place of the
-// old one. A member that has a role already changes the role.
+// old one. A member that has a role already changes the role. The owner of
+// a Part does not watch it: a new Responsible stops watching.
 export async function assign(
   db: ConceptDb,
   projectSlug: string,
@@ -281,6 +287,12 @@ export async function assign(
         and "assignments"."part_id" is not distinct from target."part_id"
         and "assignments"."member_id" <> (select "id" from member)
     ),
+    unwatched as (
+      delete from "watchers" using target
+      where ${assignment.role}::text = 'responsible'
+        and "watchers"."part_id" = target."part_id"
+        and "watchers"."member_id" = (select "id" from member)
+    ),
     written as (
       insert into "assignments" ("member_id", "concept_id", "part_id", "role")
       select member."id", target."concept_id", target."part_id", ${assignment.role}::text
@@ -292,6 +304,119 @@ export async function assign(
       (select count(*) from target) as "targets"
   `)
   validateFound(result, projectSlug, assignment)
+}
+
+// Only the owner answers a flag (D47). The owner of the Part, when the Part
+// has an open flag and the person with the e-mail address is not its owner:
+// that person asks the owner. Else nothing.
+export async function findFlagOwner(
+  db: ConceptDb,
+  partId: number,
+  email: string,
+): Promise<{ name: string; email: string } | undefined> {
+  const found = await db
+    .select({ name: members.name, email: members.email })
+    .from(assignments)
+    .innerJoin(members, eq(assignments.memberId, members.id))
+    .where(
+      and(
+        eq(assignments.partId, partId),
+        eq(assignments.role, 'responsible'),
+        sql`lower(${members.email}) <> lower(${email}::text)`,
+        sql`exists (
+          select 1 from "flags"
+          where "flags"."part_id" = ${partId}::integer
+            and "flags"."closed_at" is null
+        )`,
+      ),
+    )
+  return found.at(0)
+}
+
+// A member who watches a Part (D47). Watching is not owning: the owner of a
+// Part is its Responsible.
+export type Watcher = {
+  memberId: number
+  // The record id of the Part.
+  part: string
+}
+
+export const watcherSchema = z.strictObject({
+  member: target.member,
+  part: z.string().trim().min(1),
+})
+
+// The watchers of the Project, or of one Part of it, by Part and member.
+export function listWatchers(
+  db: ConceptDb,
+  projectSlug: string,
+  recordId?: string,
+): Promise<Watcher[]> {
+  return db
+    .select({ memberId: watchers.memberId, part: parts.recordId })
+    .from(watchers)
+    .innerJoin(parts, eq(watchers.partId, parts.id))
+    .innerJoin(projects, eq(parts.projectId, projects.id))
+    .where(
+      and(
+        eq(projects.slug, projectSlug),
+        recordId === undefined ? undefined : eq(parts.recordId, recordId),
+      ),
+    )
+    .orderBy(asc(watchers.partId), asc(watchers.memberId))
+}
+
+// The member watches the Part. A member who watches it already stays one
+// watcher. The owner of the Part does not watch it.
+export async function watch(
+  db: ConceptDb,
+  projectSlug: string,
+  input: unknown,
+): Promise<void> {
+  const watcher = parseInput(watcherSchema, input)
+  const result = await db.execute(sql`
+    with ${selectTarget(projectSlug, watcher)},
+    owned as (
+      select 1 from "assignments", member, target
+      where "assignments"."part_id" = target."part_id"
+        and "assignments"."member_id" = member."id"
+        and "assignments"."role" = 'responsible'
+    ),
+    written as (
+      insert into "watchers" ("part_id", "member_id")
+      select target."part_id", member."id" from member, target
+      where not exists (select 1 from owned)
+      on conflict do nothing
+    )
+    select (select count(*) from member) as "members",
+      (select count(*) from target) as "targets",
+      (select count(*) from owned) as "owned"
+  `)
+  validateFound(result, projectSlug, watcher)
+  if (ownedSchema.parse(result).rows[0].owned > 0)
+    throw new InvalidRecordError(
+      `${watcher.member} owns "${watcher.part}": the owner does not watch it`,
+    )
+}
+
+// The member stops watching the Part.
+export async function unwatch(
+  db: ConceptDb,
+  projectSlug: string,
+  input: unknown,
+): Promise<void> {
+  const watcher = parseInput(watcherSchema, input)
+  const result = await db.execute(sql`
+    with ${selectTarget(projectSlug, watcher)},
+    removed as (
+      delete from "watchers" using target
+      where "watchers"."member_id" = (select "id" from member)
+        and "watchers"."part_id" = target."part_id"
+    )
+    select (select count(*) from member) as "members",
+      (select count(*) from target) as "targets"
+  `)
+  validateFound(result, projectSlug, watcher)
 }
 
 // Takes the Concept or the Part from the member.

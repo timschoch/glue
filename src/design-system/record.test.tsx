@@ -170,6 +170,43 @@ describe('Record', () => {
     )
   })
 
+  it('lets a member watch and stop, with the count of the watchers in the control', async () => {
+    const onChange = vi.fn()
+    renderRecord({}, { watch: { watching: false, count: 2, onChange } })
+
+    const watch = screen.getByRole('button', { name: 'Watch 2' })
+
+    expect(watch.textContent).toBe('2')
+    expect(watch.getAttribute('aria-pressed')).toBe('false')
+
+    await userEvent.click(watch)
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(true)
+
+    cleanup()
+    renderRecord({}, { watch: { watching: true, count: 3, onChange } })
+
+    const stop = screen.getByRole('button', { name: 'Watch 3' })
+
+    expect(stop.textContent).toBe('3')
+    expect(stop.getAttribute('aria-pressed')).toBe('true')
+
+    await userEvent.click(stop)
+
+    expect(onChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('shows an action with an address as a link', () => {
+    renderRecord(
+      {},
+      { actions: [{ label: 'Ask Mara', href: 'mailto:mara@example.com' }] },
+    )
+
+    expect(
+      screen.getByRole('link', { name: 'Ask Mara' }).getAttribute('href'),
+    ).toBe('mailto:mara@example.com')
+  })
+
   it.each([
     ['insight', 'Insight'],
     ['goal', 'Goal'],

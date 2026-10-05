@@ -32,6 +32,7 @@ const MEMBERS: PeopleProps['members'] = [
       ],
     },
     coAuthor: nothing,
+    watches: nothing,
   },
   {
     id: 2,
@@ -48,6 +49,18 @@ const MEMBERS: PeopleProps['members'] = [
           title: 'Bakers want step videos',
           trust: 'not-ready',
           href: '/glue/checkout/I7',
+        },
+      ],
+    },
+    watches: {
+      concepts: [],
+      parts: [
+        {
+          id: 'D12',
+          type: 'decision',
+          title: 'Show the video of the creator',
+          trust: 'solid',
+          href: '/glue/checkout/D12',
         },
       ],
     },
@@ -89,6 +102,17 @@ describe('People', () => {
         { name: /Bakers want step videos/ },
       ),
     ).toBeTruthy()
+  })
+
+  it('shows the Parts that a member watches', () => {
+    render(<People members={MEMBERS} me={null} />)
+
+    expect(
+      within(member('Bo').getByRole('list', { name: 'Watcher' }))
+        .getByRole('link', { name: /Show the video of the creator/ })
+        .getAttribute('href'),
+    ).toBe('/glue/checkout/D12')
+    expect(member('Ada').queryByRole('list', { name: 'Watcher' })).toBeNull()
   })
 
   it('lets the member set the own loop steps, and no other ones', async () => {
