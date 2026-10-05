@@ -63,6 +63,10 @@ export const fetchMine = createServerFn({ method: 'GET' })
   .validator(projectInputSchema)
   .handler(({ data }) => actions.listMine(data))
 
+export const fetchWatched = createServerFn({ method: 'GET' })
+  .validator(projectInputSchema)
+  .handler(({ data }) => actions.listWatched(data))
+
 export const fetchMeasured = createServerFn({ method: 'GET' })
   .validator(projectInputSchema)
   .handler(({ data }) => actions.listMeasured(data))
@@ -134,3 +138,11 @@ export const submitAssign = createServerFn({ method: 'POST' })
 export const submitUnassign = createServerFn({ method: 'POST' })
   .validator(unassignInputSchema)
   .handler(({ data }) => actions.unassign(data))
+
+export const submitWatch = createServerFn({ method: 'POST' })
+  .validator(partReadInputSchema)
+  .handler(({ data }) => actions.watch(data))
+
+export const submitUnwatch = createServerFn({ method: 'POST' })
+  .validator(partReadInputSchema)
+  .handler(({ data }) => actions.unwatch(data))

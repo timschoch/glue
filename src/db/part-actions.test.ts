@@ -138,6 +138,9 @@ const requests = {
       project,
       assignment: { member: ada.email, part: 'G1' },
     }),
+  watch: () => actions.watch({ project, recordId: 'G1' }),
+  unwatch: () => actions.unwatch({ project, recordId: 'G1' }),
+  listWatched: () => actions.listWatched({ project }),
 } satisfies Record<keyof typeof actions, () => Promise<unknown>>
 
 async function readProject() {
@@ -679,6 +682,8 @@ const writes = [
   'setLoopSteps',
   'assign',
   'unassign',
+  'watch',
+  'unwatch',
 ] as const
 
 describe('a write of a person who is no member of the Project', () => {
@@ -707,8 +712,10 @@ describe('a write of a person who is no member of the Project', () => {
     expect(await actions.findPeople({ project })).toEqual({
       members: [],
       assignments: [],
+      watchers: [],
       me: null,
     })
+    expect(await actions.listWatched({ project })).toEqual([])
   })
 })
 
@@ -786,6 +793,65 @@ describe('the people of a Project', () => {
     const mine = await actions.listMine({ project })
 
     expect(mine.map(({ id }) => id)).toEqual(['G1'])
+  })
+
+  it('makes the member who adds a Part its owner', async () => {
+    await requests.addPart()
+
+    expect((await actions.findPeople({ project })).assignments).toEqual([
+      { id: 1, memberId: 1, role: 'responsible', concept: null, part: 'F1' },
+    ])
+  })
+
+  it('lets the member of the session watch a Part and stop', async () => {
+    await requests.addMember()
+    await actions.assign({
+      project,
+      assignment: { member: 'bo@example.com', role: 'responsible', part: 'G1' },
+    })
+
+    await requests.watch()
+
+    expect((await actions.findPeople({ project })).watchers).toEqual([
+      { memberId: 1, part: 'G1' },
+    ])
+    expect(await actions.listWatched({ project })).toMatchObject([
+      { id: 'G1', flags: [] },
+    ])
+
+    await requests.unwatch()
+
+    expect((await actions.findPeople({ project })).watchers).toEqual([])
+  })
+
+  it('answers with a failure for a watcher who answers a flag', async () => {
+    await requests.addMember()
+    await addPart(db, project, {
+      type: 'entity',
+      title: 'Build',
+      needs: ['I1'],
+      responsible: 'bo@example.com',
+    })
+    await actions.answerPart({
+      project,
+      recordId: 'E1',
+      answer: { answer: 'supersede' },
+    })
+    await actions.updatePart({
+      project,
+      recordId: 'I1',
+      change: { title: 'The build failed on a lint error' },
+    })
+
+    const refused = await actions.answerPart({
+      project,
+      recordId: 'E1',
+      answer: { answer: 'fine' },
+    })
+
+    expect(refused).toEqual({
+      message: '"E1" has a flag: only its owner Bo answers it',
+    })
   })
 })
 

@@ -39,6 +39,9 @@ describe('GET /api/v1/openapi.json', () => {
             'get /assignments',
             'post /assignments',
             'delete /assignments',
+            'get /watchers',
+            'post /watchers',
+            'delete /watchers',
             'post /measure',
           ].map((route) => route.replace(' ', ' /api/v1/projects/{project}')),
         )
@@ -307,6 +310,26 @@ describe('GET /api/v1/openapi.json', () => {
       { $ref: '#/components/schemas/FunnelMeasure' },
       { $ref: '#/components/schemas/MeanMeasure' },
     ])
+  })
+
+  it('describes the owner of a new Part and the watchers of a Part', async () => {
+    const document = await handleGetOpenApi().json()
+    const { schemas } = document.components
+    const watchers = document.paths['/api/v1/projects/{project}/watchers']
+
+    expect(JSON.stringify(schemas.PartInput)).toContain('"responsible"')
+    expect(watchers.get.parameters).toContainEqual(
+      expect.objectContaining({ in: 'query', name: 'part' }),
+    )
+    expect(
+      watchers.post.requestBody.content['application/json'].schema,
+    ).toEqual({ $ref: '#/components/schemas/WatcherInput' })
+    expect(
+      watchers.post.responses[201].content['application/json'].schema,
+    ).toEqual({
+      type: 'array',
+      items: { $ref: '#/components/schemas/Watcher' },
+    })
   })
 
   it('describes the Decision that a new Decision supersedes', async () => {

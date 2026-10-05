@@ -16,6 +16,9 @@ import {
   assignmentRoles,
   listAssignments,
   listMembers,
+  listWatchers,
+  unwatch,
+  watch,
 } from '../src/db/members.ts'
 import { createPartOperations } from '../src/db/part-operations.ts'
 import type { DecisionStatusChange } from '../src/db/part-operations.ts'
@@ -501,6 +504,9 @@ function formatHelp() {
     'pnpm concept member list',
     'pnpm concept assign <id or Concept slug> --responsible <e-mail>',
     'pnpm concept assign <id or Concept slug> --co-author <e-mail>',
+    'pnpm concept watch <id> --member <e-mail>',
+    'pnpm concept unwatch <id> --member <e-mail>',
+    'pnpm concept watchers [<id>]',
     'pnpm concept concept add <slug> --title <title> [--kind <kind>] [--parent <slug>]',
     'pnpm concept concept set <slug> [--title <title>] [--parent <slug>]',
     'pnpm concept concept remove <slug>',
@@ -515,7 +521,7 @@ function formatHelp() {
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set, move, downstream, answer, mine, signals, builds, member, assign, concept, contract and joint take --project <slug>. The default is GLUE_PROJECT, then glue-build when that Project exists, then glue.',
+    'list, show, add, set, move, downstream, answer, mine, signals, builds, member, assign, watch, unwatch, watchers, concept, contract and joint take --project <slug>. The default is GLUE_PROJECT, then glue-build when that Project exists, then glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -526,6 +532,7 @@ function formatHelp() {
     '  guardrails, entities, flows and metrics also take --source',
     '  entities, flows and metrics also take --owner',
     '  each type takes --concept <slug>: its home Concept. The default is the root.',
+    '  each type takes --responsible <e-mail>: the member who owns the new record.',
     '  decisions, entities, flows and metrics take --needs: the records that it needs',
     '  --evidence and --needs take ids with commas between them: I1,I2',
     '',
@@ -553,6 +560,8 @@ function formatHelp() {
     'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
     'With --member: the records of the member, and the records that nobody has.',
     'member add takes the e-mail address of an account. A record or a Concept has one Responsible.',
+    'The Responsible of a record is its owner: assign <id> --responsible sets the owner.',
+    'watch makes a member a watcher of a record. A watcher is not the owner. watchers lists who watches, of one record or of the Project.',
   ].join('\n')
 }
 
@@ -791,6 +800,30 @@ export async function runConcept(
       }
       const target = typeOfRecordId(id) ? { part: id } : { concept: id }
       await assign(db, project, { member, role, ...target })
+      return
+    }
+    case 'watch':
+    case 'unwatch': {
+      const [id, ...flagArgs] = rest
+      const flags = parseFlags(flagArgs)
+      const project = await readProject(db, flags)
+      const member = flags.member as string | undefined
+      if (!id || id.startsWith('--') || !member) {
+        throw new Error(`${command} needs <id> --member <e-mail>`)
+      }
+      const change = command === 'watch' ? watch : unwatch
+      await change(db, project, { member, part: id })
+      return
+    }
+    case 'watchers': {
+      const recordId = rest[0]?.startsWith('--') ? undefined : rest[0]
+      const flags = parseFlags(recordId ? rest.slice(1) : rest)
+      const project = await readProject(db, flags)
+      const members = await listMembers(db, project)
+      for (const watcher of await listWatchers(db, project, recordId)) {
+        const member = members.find(({ id }) => id === watcher.memberId)
+        console.log(`${watcher.part}  ${member?.name}  ${member?.email}`)
+      }
       return
     }
     case 'product':

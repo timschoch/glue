@@ -34,6 +34,7 @@ const meta = {
           ],
         },
         coAuthor: { concepts: [], parts: [] },
+        watches: { concepts: [], parts: [] },
       },
       {
         id: 2,
@@ -48,6 +49,18 @@ const meta = {
               id: 'D4',
               type: 'decision',
               title: 'The Concept lives in the database',
+              trust: 'solid',
+              href: '#',
+            },
+          ],
+        },
+        watches: {
+          concepts: [],
+          parts: [
+            {
+              id: 'G1',
+              type: 'goal',
+              title: 'Agents build from the Concept',
               trust: 'solid',
               href: '#',
             },

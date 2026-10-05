@@ -26,7 +26,10 @@ import {
   handleAssign,
   handleListAssignments,
   handleListMembers,
+  handleListWatchers,
   handleUnassign,
+  handleUnwatch,
+  handleWatch,
 } from './people-api.ts'
 import { handleAddSignalInsight, handleListSignals } from './signal-api.ts'
 import { handleListBuilds } from './build-api.ts'
@@ -127,6 +130,12 @@ export const assignmentsHandlers = {
   GET: (route: RouteRequest) => handleListAssignments(toApiRequest(route)),
   POST: (route: RouteRequest) => handleAssign(toApiRequest(route)),
   DELETE: (route: RouteRequest) => handleUnassign(toApiRequest(route)),
+}
+
+export const watchersHandlers = {
+  GET: (route: RouteRequest) => handleListWatchers(toApiRequest(route)),
+  POST: (route: RouteRequest) => handleWatch(toApiRequest(route)),
+  DELETE: (route: RouteRequest) => handleUnwatch(toApiRequest(route)),
 }
 
 // The deprecated `/api/v1/products/{product}/measure` shares this handler,

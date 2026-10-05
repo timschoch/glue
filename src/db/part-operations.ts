@@ -77,8 +77,10 @@ export function createPartOperations({
   return {
     getPart,
 
-    async addPart(project: string, part: NewPart) {
-      return toChangedPart(project, await addPart(db, project, part))
+    // `addedBy` is the e-mail address of the member who adds the Part: its
+    // owner, when the Part names no other.
+    async addPart(project: string, part: NewPart, addedBy?: string) {
+      return toChangedPart(project, await addPart(db, project, part, addedBy))
     },
 
     // `expected` holds the values that the person saw. The Part with other
@@ -144,8 +146,15 @@ export function createPartOperations({
       return toChangedPart(project, recordId)
     },
 
-    async answerPart(project: string, recordId: string, answer: PartAnswer) {
-      await answerPart(db, project, recordId, answer)
+    // `answeredBy` is the e-mail address of the member who answers. Only
+    // the owner answers a flag.
+    async answerPart(
+      project: string,
+      recordId: string,
+      answer: PartAnswer,
+      answeredBy?: string,
+    ) {
+      await answerPart(db, project, recordId, answer, answeredBy)
       return toChangedPart(project, recordId)
     },
 

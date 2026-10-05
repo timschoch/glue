@@ -49,6 +49,8 @@ export type PeopleMember = {
   loopSteps: ReadonlyArray<LoopStep>
   responsible: PeopleHeld
   coAuthor: PeopleHeld
+  // A member watches Parts only.
+  watches: PeopleHeld
 }
 
 export type PeopleProps = {
@@ -165,6 +167,7 @@ function Member({
       )}
       <Held title="Responsible" held={member.responsible} onOpen={onOpen} />
       <Held title="Co-Author" held={member.coAuthor} onOpen={onOpen} />
+      <Held title="Watcher" held={member.watches} onOpen={onOpen} />
     </section>
   )
 }

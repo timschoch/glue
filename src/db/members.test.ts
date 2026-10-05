@@ -7,8 +7,11 @@ import {
   joinProject,
   listAssignments,
   listMembers,
+  listWatchers,
   setLoopSteps,
   unassign,
+  unwatch,
+  watch,
 } from './members.ts'
 import { listMine } from './parts.ts'
 import * as schema from './schema.ts'
@@ -241,5 +244,57 @@ describe('assignments', () => {
     expect(await ids('tim@example.com')).toEqual(['D1', 'I1'])
     expect(await ids('ada@example.com')).toEqual(['D1', 'D2', 'I1'])
     expect(await ids()).toEqual(['D1', 'D2', 'I1'])
+  })
+})
+
+describe('watchers', () => {
+  const adaWatchesD1 = { member: 'ada@example.com', part: 'D1' }
+
+  beforeEach(async () => {
+    await joinProject(db, 'glue', ada)
+  })
+
+  it('keeps one watcher for a member who watches a Part two times', async () => {
+    await watch(db, 'glue', adaWatchesD1)
+    await watch(db, 'glue', adaWatchesD1)
+
+    expect(await listWatchers(db, 'glue')).toEqual([
+      { memberId: 2, part: 'D1' },
+    ])
+  })
+
+  it('lists the watchers of one Part', async () => {
+    await watch(db, 'glue', adaWatchesD1)
+    await watch(db, 'glue', { member: 'tim@example.com', part: 'D1' })
+    await watch(db, 'glue', { member: 'tim@example.com', part: 'I1' })
+
+    expect(await listWatchers(db, 'glue', 'D1')).toEqual([
+      { memberId: 1, part: 'D1' },
+      { memberId: 2, part: 'D1' },
+    ])
+  })
+
+  it('stops watching, also for a member who does not watch', async () => {
+    await watch(db, 'glue', adaWatchesD1)
+
+    await unwatch(db, 'glue', adaWatchesD1)
+    await unwatch(db, 'glue', adaWatchesD1)
+
+    expect(await listWatchers(db, 'glue')).toEqual([])
+  })
+
+  it('does not make the watcher the owner', async () => {
+    await watch(db, 'glue', adaWatchesD1)
+
+    expect(await listAssignments(db, 'glue')).toEqual([])
+  })
+
+  it('refuses a member or a Part that the Project does not have', async () => {
+    await expect(
+      watch(db, 'glue', { member: 'nobody@example.com', part: 'D1' }),
+    ).rejects.toThrow('nobody@example.com is no member of glue.')
+    await expect(
+      watch(db, 'glue', { member: 'ada@example.com', part: 'D9' }),
+    ).rejects.toThrow('D9 not found')
   })
 })

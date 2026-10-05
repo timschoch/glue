@@ -7,6 +7,7 @@ import type { ContractState } from '../db/contracts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
 import { PartCards } from '../design-system/part-cards.tsx'
+import { flagReasons } from '../design-system/record.tsx'
 import { Signals } from '../design-system/signals.tsx'
 import { AssigneesControl } from './assignees-control.tsx'
 import { ContractSection } from './contract-screen.tsx'
@@ -27,7 +28,7 @@ const projectRoute = getRouteApi('/_signed-in/$project')
 // builds. The form that the address
 // names takes the place of the Concept. So does the form of the Insight that
 // grows from the picked Signals. The section Mine shows the Parts of the
-// whole Project that need the owner. The section Use shows its Metrics and
+// whole Project that need the owner, and the Parts that the person watches. The section Use shows its Metrics and
 // its measured Goals, each with its newest value against its target. The
 // section People shows the members of the Project in place of a Concept.
 export function ConceptScreen({
@@ -44,7 +45,7 @@ export function ConceptScreen({
   builds?: ProjectBuilds
 }) {
   const router = useRouter()
-  const { parts, mine, measured } = projectRoute.useLoaderData()
+  const { parts, mine, watched, measured } = projectRoute.useLoaderData()
   const { removeConcept } = projectRoute.useRouteContext()
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
@@ -95,6 +96,17 @@ export function ConceptScreen({
       <PartCards
         title="Mine"
         parts={mine.map(toCard)}
+        // A flag of a watched Part is a note: only the owner answers it.
+        watched={watched.map((part) => ({
+          ...toCard(part),
+          note:
+            part.flags
+              .map(
+                ({ reason, cause }) =>
+                  `${flagReasons[reason]}: ${cause.id} ${cause.title}`,
+              )
+              .join('\n') || undefined,
+        }))}
         onOpen={({ href }, event) => open(href, event)}
       />
     )

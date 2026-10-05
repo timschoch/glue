@@ -1,5 +1,5 @@
-// The people of a Project in the HTTP API: its members and their
-// assignments. The handlers stay free of TanStack and of `process.env`, so
+// The people of a Project in the HTTP API: its members, their assignments
+// and the Parts that they watch. The handlers stay free of TanStack and of `process.env`, so
 // a test calls them with a `Request` and a PGlite database.
 import { z } from 'zod'
 
@@ -10,9 +10,13 @@ import {
   assignmentTargetSchema,
   listAssignments,
   listMembers,
+  listWatchers,
   loopSteps,
   newAssignmentSchema,
   unassign,
+  unwatch,
+  watch,
+  watcherSchema,
 } from '../db/members.ts'
 import { handleApiRequest, parseJson } from './api-request.ts'
 import type { ApiRequest } from './api-request.ts'
@@ -60,6 +64,23 @@ export const assignmentInputSchema = newAssignmentSchema.meta({
     'The e-mail address of the member, the role, and a Concept or a Part',
 })
 
+export const watcherOutputSchema = z
+  .object({
+    memberId: z.number(),
+    part: z.string().meta({ description: 'The record id of the Part' }),
+  })
+  .meta({ id: 'Watcher' })
+
+export const watcherInputSchema = watcherSchema.meta({
+  id: 'WatcherInput',
+  description: 'The e-mail address of the member and the record id of a Part',
+})
+
+// With `part`: the watchers of that Part only.
+export const watchersQuerySchema = z.object({
+  part: z.string().optional().meta({ description: 'The record id of a Part' }),
+})
+
 export function handleListMembers(input: ApiRequest) {
   return handleApiRequest(input, async () =>
     Response.json(await listMembers(input.db, input.params.project)),
@@ -97,6 +118,35 @@ export function handleUnassign(input: ApiRequest) {
     const { db, request, params } = input
     const query = Object.fromEntries(new URL(request.url).searchParams)
     await unassign(db, params.project, assignmentTargetSchema.parse(query))
+    return new Response(null, { status: 204 })
+  })
+}
+
+export function handleListWatchers(input: ApiRequest) {
+  return handleApiRequest(input, async () => {
+    const { db, request, params } = input
+    const query = Object.fromEntries(new URL(request.url).searchParams)
+    const { part } = watchersQuerySchema.parse(query)
+    return Response.json(await listWatchers(db, params.project, part))
+  })
+}
+
+export function handleWatch(input: ApiRequest) {
+  return handleApiRequest(input, async () => {
+    const { db, request, params } = input
+    const watcher = watcherInputSchema.parse(await parseJson(request))
+    await watch(db, params.project, watcher)
+    return Response.json(await listWatchers(db, params.project, watcher.part), {
+      status: 201,
+    })
+  })
+}
+
+export function handleUnwatch(input: ApiRequest) {
+  return handleApiRequest(input, async () => {
+    const { db, request, params } = input
+    const query = Object.fromEntries(new URL(request.url).searchParams)
+    await unwatch(db, params.project, watcherSchema.parse(query))
     return new Response(null, { status: 204 })
   })
 }

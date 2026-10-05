@@ -1,5 +1,15 @@
 import type { SQL } from 'drizzle-orm'
-import { and, count, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import type { ConceptDb } from './client.ts'
@@ -17,6 +27,7 @@ import type {
   WorkState,
 } from './schema.ts'
 import { kinds } from './kinds.ts'
+import { findFlagOwner } from './members.ts'
 import { listAnswers } from './part-trust.ts'
 import type { Answer } from './part-trust.ts'
 import { sortById } from './record-id.ts'
@@ -179,8 +190,11 @@ export type Part = PartSummary & {
   waitsOn: PartSummary | null
   // The Signals that an Insight grew from, in the order they were picked.
   signals: { url: string; title: string }[]
-  // The answers that the Work state takes, the usual one first.
+  // The answers that the Work state takes, the usual one first. None for a
+  // reader who is not the owner of a Part with a flag.
   answers: Answer[]
+  // The owner that such a reader asks for the answer.
+  answeredBy?: { name: string; email: string }
   // What happened to the Part, newest first.
   activity: Activity[]
 }
@@ -521,6 +535,81 @@ export function listMine(
     .orderBy(desc(parts.changedAt), desc(parts.id))
 }
 
+// A Part that a member watches, with its open flags, oldest first.
+export type WatchedPart = PartSummary & { flags: Flag[] }
+
+// The watched group of Mine (D47): the Parts of the Project that the member
+// watches, the newest change first. A Part that listMine gives the member
+// is not here: one where the member is Responsible or Co-Author, and one of
+// nobody that needs an owner.
+export async function listWatched(
+  db: ConceptDb,
+  projectSlug: string,
+  memberEmail: string,
+): Promise<WatchedPart[]> {
+  const isMember = sql`lower("members"."email") = lower(${memberEmail}::text)`
+  const found = await db
+    .select({ partId: parts.id, part: summary })
+    .from(parts)
+    .innerJoin(concepts, eq(parts.conceptId, concepts.id))
+    .innerJoin(projects, eq(parts.projectId, projects.id))
+    .where(
+      and(
+        eq(projects.slug, projectSlug),
+        sql`exists (
+          select 1 from "watchers"
+          inner join "members" on "members"."id" = "watchers"."member_id"
+          where "watchers"."part_id" = ${parts.id} and ${isMember}
+        )`,
+        sql`not exists (
+          select 1 from "assignments"
+          inner join "members" on "members"."id" = "assignments"."member_id"
+          where "assignments"."part_id" = ${parts.id} and ${isMember}
+        )`,
+        // A Part of nobody that needs an owner is in listMine of each member.
+        sql`not (
+          ${parts.workState} in ('to-check', 'draft', 'review')
+          and not exists (
+            select 1 from "assignments"
+            where "assignments"."part_id" = ${parts.id}
+          )
+        )`,
+      ),
+    )
+    .orderBy(desc(parts.changedAt), desc(parts.id))
+  if (found.length === 0) return []
+
+  const open = await db
+    .select({
+      partId: flags.partId,
+      cause: { id: parts.recordId, title: parts.title },
+      reason: flags.reason,
+      createdAt: flags.createdAt,
+    })
+    .from(flags)
+    .innerJoin(parts, eq(flags.causePartId, parts.id))
+    .where(
+      and(
+        inArray(
+          flags.partId,
+          found.map(({ partId }) => partId),
+        ),
+        isNull(flags.closedAt),
+      ),
+    )
+    .orderBy(flags.id)
+  return found.map(({ partId, part }) => ({
+    ...part,
+    flags: open
+      .filter((flag) => flag.partId === partId)
+      .map(({ cause, reason, createdAt }) => ({
+        cause,
+        reason,
+        createdAt: createdAt.toISOString(),
+      })),
+  }))
+}
+
 // The flags of the Part, open and closed, oldest first.
 function listFlags(db: ConceptDb, partId: number) {
   return db
@@ -569,10 +658,14 @@ function listActivity(
   return entries.sort((one, other) => other.at.localeCompare(one.at))
 }
 
+// `readBy` is the e-mail address of the member who reads. Only the owner
+// answers a flag (D47): each other member gets no answers, and the owner to
+// ask.
 export async function findPart(
   db: ConceptDb,
   projectSlug: string,
   recordId: string,
+  readBy?: string,
 ): Promise<Part | undefined> {
   const found = await db
     .select({ part: parts, concept: concepts, measure: measures })
@@ -593,6 +686,7 @@ export async function findPart(
     jointRows,
     grownFrom,
     measured,
+    answeredBy,
   ] = await Promise.all([
     part.supersededById === null
       ? []
@@ -622,6 +716,7 @@ export async function findPart(
         )`,
       ),
     ),
+    readBy === undefined ? undefined : findFlagOwner(db, part.id, readBy),
   ])
 
   const openFlags = partFlags.filter(({ closedAt }) => closedAt === null)
@@ -687,7 +782,8 @@ export async function findPart(
     }),
     waitsOn: waitsOn.at(0) ?? null,
     signals: grownFrom,
-    answers: listAnswers(part.workState),
+    answers: answeredBy ? [] : listAnswers(part.workState),
+    ...(answeredBy && { answeredBy }),
     activity: listActivity(part, partFlags),
   }
 }
