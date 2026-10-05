@@ -126,7 +126,12 @@ A deliberate skip of a blocked shell command: `GLUE_OVERRIDE="<reason>"` in the 
 
 - Domain language: [GLOSSARY.md](GLOSSARY.md)
 - The target model: [docs/concept.md](docs/concept.md)
-- Glue's own Concept: Goals, Decisions, Insights, Guardrails, Entities, Flows, Metrics in the Neon database. Read it before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. Another Project: `--project <slug>`. Part types and their fields: [src/part-fields.ts](src/part-fields.ts). Every ticket and PR names its Decision id.
+- Three Projects in the Neon database, never mixed (D45):
+  - `glue`: the Glue concept. Test: is it still true for a customer team in two years that never saw this repo?
+  - `glue-build`: the build of Glue. Run Goals, the Decisions of tickets, findings of the run.
+  - `flexibeck`: the second product.
+  - A Part of `glue-build` or `flexibeck` can need a Part of `glue`, written `glue/D4`. Never the other way. An issue of `glue-build` or `flexibeck` can be a Signal in `glue`.
+- Read the Concept before a ticket: `pnpm concept list`, `pnpm concept show <id>` (needs `DATABASE_URL` from `.env.local`). Add records with `pnpm concept add`. The default Project is `glue-build`. Another Project: `--project <slug>`. Part types and their fields: [src/part-fields.ts](src/part-fields.ts). Every ticket and PR names its Decision id: `Decision: D46` for `glue-build`, `Decision: glue/D12` for `glue`.
 - Measure step: `pnpm collect-insights` turns failed checks, blocked reviews and overrides into draft Insights.
 - Decisions about the repo's tooling that serve no Goal: [docs/adr/](docs/adr/)
 
