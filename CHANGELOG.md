@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.15.0](https://github.com/timschoch/glue/compare/v1.14.0...v1.15.0) (2026-10-05)
+
+
+### Features
+
+* **contracts:** flag Parts that were built with an older Contract Version ([#275](https://github.com/timschoch/glue/issues/275)) ([fae0b1c](https://github.com/timschoch/glue/commit/fae0b1cd25372329a484225116c6511410bbf4a2)), closes [#271](https://github.com/timschoch/glue/issues/271)
+* **gate:** check a pull request of any Project against its Contract ([#287](https://github.com/timschoch/glue/issues/287)) ([ebaf283](https://github.com/timschoch/glue/commit/ebaf283472ade0286c5dc2fd3727ae4b7f9713be)), closes [#280](https://github.com/timschoch/glue/issues/280)
+* **map:** draw the Map with React Flow and ELK ([#278](https://github.com/timschoch/glue/issues/278)) ([5455248](https://github.com/timschoch/glue/commit/545524868d923e723c902ef25048dafb23ca621c))
+* **parts:** change the Goal, the title and the body of a Decision ([#279](https://github.com/timschoch/glue/issues/279)) ([3adad9a](https://github.com/timschoch/glue/commit/3adad9ad7cfc4a09cc3df3eca1acee8cd5b0d464)), closes [#274](https://github.com/timschoch/glue/issues/274) [#273](https://github.com/timschoch/glue/issues/273)
+* **parts:** give each Part one owner and let members watch it ([#276](https://github.com/timschoch/glue/issues/276)) ([3d4e316](https://github.com/timschoch/glue/commit/3d4e316be7e8e65d8940ae7bb83e6a5fcf74e781))
+* **signals:** read Signals from support and analytics ([#288](https://github.com/timschoch/glue/issues/288)) ([da80e1b](https://github.com/timschoch/glue/commit/da80e1b3be9d0b8c0d26b6141125f3b5858b1c8e))
+
+
+### Bug Fixes
+
+* **concepts:** add a top level Concept from the left panel ([#299](https://github.com/timschoch/glue/issues/299)) ([4634d84](https://github.com/timschoch/glue/commit/4634d84996f6c2b83e97ab70de1fa6aaea546bcf)), closes [#297](https://github.com/timschoch/glue/issues/297)
+
 ## [1.14.0](https://github.com/timschoch/glue/compare/v1.13.0...v1.14.0) (2026-10-05)
 
 
