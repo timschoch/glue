@@ -1,6 +1,7 @@
 import type { GithubClient } from '../github/client.ts'
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import type { DownstreamIssue } from '../github/downstream-issue.ts'
+import { createSignalSources } from '../signals/signal-sources.server.ts'
 import type { ConceptDb } from './client.ts'
 import { movePartsToProject } from './part-move.ts'
 import type { MoveTarget } from './part-move.ts'
@@ -170,7 +171,12 @@ export function createPartOperations({
     async addSignalInsight(project: string, insight: SignalInsight) {
       return toChangedPart(
         project,
-        await addSignalInsight(db, github, project, insight),
+        await addSignalInsight(
+          db,
+          createSignalSources(github),
+          project,
+          insight,
+        ),
       )
     },
   }

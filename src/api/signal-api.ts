@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { createPartOperations } from '../db/part-operations.ts'
 import { listSignals, signalInsightSchema } from '../db/signals.ts'
 import type { ProjectSignals } from '../db/signals.ts'
+import { createSignalSources } from '../signals/signal-sources.server.ts'
 import { handleApiRequest, parseJson } from './api-request.ts'
 import type { ChangeRequest } from './api-request.ts'
 import { toChangedPartResponse } from './part-api.ts'
@@ -14,19 +15,26 @@ export const projectSignalsSchema = z
   .object({
     signals: z.array(
       z.object({
-        url: z.string().meta({ description: 'The address of the issue' }),
+        url: z
+          .string()
+          .meta({ description: 'The address of the Signal in its tool' }),
         title: z.string(),
-        date: z.iso.date().meta({ description: 'The day it was opened' }),
+        text: z.string().meta({
+          description: 'What the user said or did. Empty: the tool has none',
+        }),
+        date: z.iso.date().meta({ description: 'The day it came in' }),
+        source: z
+          .string()
+          .meta({ description: 'The source: github, support or analytics' }),
         insight: z
           .object({ id: z.string(), title: z.string() })
           .nullable()
           .meta({ description: 'The Insight that grew from the Signal' }),
       }),
     ),
-    reason: z.string().nullable().meta({
-      description:
-        'Why there are no Signals: the Project has no repository, or GitHub failed',
-    }),
+    failures: z
+      .array(z.object({ source: z.string(), reason: z.string() }))
+      .meta({ description: 'The sources that did not answer, and why' }),
   })
   .meta({ id: 'ProjectSignals' }) satisfies z.ZodType<ProjectSignals>
 
@@ -35,11 +43,18 @@ export const signalInsightInputSchema = signalInsightSchema.meta({
 })
 
 export function handleListSignals(input: ChangeRequest) {
-  return handleApiRequest(input, async () =>
-    Response.json(
-      await listSignals(input.db, input.github, input.params.project),
-    ),
-  )
+  return handleApiRequest(input, async () => {
+    const source =
+      new URL(input.request.url).searchParams.get('source') ?? undefined
+    return Response.json(
+      await listSignals(
+        input.db,
+        createSignalSources(input.github),
+        input.params.project,
+        { source },
+      ),
+    )
+  })
 }
 
 export function handleAddSignalInsight(input: ChangeRequest) {

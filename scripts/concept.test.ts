@@ -28,6 +28,7 @@ describe('runConcept', () => {
   const signal = {
     url: 'https://github.com/timschoch/flexibeck-next/issues/7',
     title: 'The list is slow',
+    body: 'It takes five seconds to open.',
     createdAt: '2026-10-02T08:00:00Z',
   }
 

@@ -26,14 +26,24 @@
   flex-direction: column;
 }
 
-// One Signal: the checkbox, the title, the date, the Insight. The checkbox
-// column keeps its width when a Signal has no checkbox.
+// The filters by source, in one row at the start.
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+// One Signal: the checkbox, the title, the source, the date, the Insight.
+// The checkbox column keeps its width when a Signal has no checkbox, and the
+// source column has one width in each row.
 .signal {
   display: grid;
   align-items: center;
   border-block-end: 1px solid $border-subtle-01;
   gap: $spacing-03 $spacing-05;
-  grid-template-columns: $spacing-06 minmax(0, 2fr) max-content minmax(0, 1fr);
+  grid-template-columns:
+    $spacing-06 minmax(0, 2fr) $spacing-11 max-content
+    minmax(0, 1fr);
   min-block-size: $spacing-08;
   overflow-wrap: anywhere;
   padding-block: $spacing-03;

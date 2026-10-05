@@ -2,7 +2,7 @@
 
 A Mock of PostHog (see [CONTEXT.md](../../CONTEXT.md)). Products send events with `posthog-js` or `posthog-node`, `api_host` pointed here. Glue reads funnels, means and values over HTTP. Decisions D13, D21.
 
-Must not import from Glue's `src/`, and `src/` must not import from it.
+Must not import from Glue's `src/`. Glue's `src/` reads it over HTTP only. Exception: the test of the analytics adapter imports `createApp`, so the adapter and the Mock cannot drift apart.
 
 ## API
 
@@ -18,6 +18,7 @@ Query, `Authorization: Bearer $MOCK_ANALYTICS_READ_KEY`:
 - `POST /api/funnel` with `{ project, steps, from, to, breakdown?, window_hours? }`. Returns `{ results: [{ breakdown, steps: [{ event, count, conversion_from_previous, conversion_from_first }] }] }`. A person counts once, at the deepest step reached in order within `window_hours` (default 336, PostHog's 14 days) of their first step. `breakdown` reads that first step's property.
 - `POST /api/mean` with `{ project, event, property, from, to, where?, breakdown? }`. Returns `{ results: [{ breakdown, count, mean, last_seen_at }] }`, like HogQL `avg()` and `max(timestamp)`. `where` is `{ property, value }`: only events whose property equals the value. A number string counts as its number, any other value that is not a number is skipped. `count` is the number of values read, `mean` is `null` when it is 0. `last_seen_at` is the time of the newest event read, `null` when `count` is 0. `breakdown` reads each event's property. Most values first.
 - `POST /api/values` with `{ project, event, property, from, to, where?, breakdown?, limit? }`. Returns `{ results: [{ breakdown, values: [{ value, count }] }] }`: each value as text with its event count, most frequent first. For free text like survey comments. Empty values are skipped. `limit` is per breakdown, default 100, 1 to 1000. `where` and `breakdown` as in `/api/mean`.
+- `POST /api/low-values` with `{ project, event, property, at_most, from, to, limit? }`. Returns `{ results: [{ id, distinct_id, timestamp, value, properties }] }`: the events whose property is a number of `at_most` or less, newest first. For survey answers with a low score. `limit` default 100, 1 to 1000.
 - `GET /api/events?project&event&from&to`: `{ days: [{ date, count }] }`, UTC days.
 
 ## Env

@@ -44,6 +44,7 @@ describe('listIssues', () => {
           {
             html_url: 'https://github.com/timschoch/glue/issues/7',
             title: 'The list is slow',
+            body: 'It takes five seconds to open.',
             created_at: '2026-10-02T08:00:00Z',
           },
           {
@@ -65,6 +66,7 @@ describe('listIssues', () => {
       {
         url: 'https://github.com/timschoch/glue/issues/7',
         title: 'The list is slow',
+        body: 'It takes five seconds to open.',
         createdAt: '2026-10-02T08:00:00Z',
       },
     ])

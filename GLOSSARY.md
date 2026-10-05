@@ -37,6 +37,7 @@ The target model. Diagrams and rules: [docs/concept.md](docs/concept.md). The ap
 | Joint          | The glue between two Parts. One-way (A needs B) or two-way. Across a Concept edge it is a link, never a copy.                                   |
 | Loop           | Understand, Decide, Design, Build, Use, then Understand again. Each Concept runs its own loop. A step is not a job role.                        |
 | Signal         | One raw observation from an outside tool. Many Signals become few Insights.                                                                     |
+| Signal source  | An outside tool that Glue reads Signals from: GitHub, support, analytics.                                                                       |
 | Evidence level | How sure an Insight is: Signal, Hunch, Pattern, Confirmed.                                                                                      |
 | Trust          | What a reader can rely on, shown as a light: Solid (green), Flagged (yellow), Not ready (red), Wrong (black). Only Trust travels along a Joint. |
 | Work state     | What the owner of a Part has to do: To check, Waiting, Draft, Review, Published, Sunk. Not the Draft in [Cycle](#cycle).                        |
