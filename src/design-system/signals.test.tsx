@@ -61,17 +61,17 @@ afterEach(cleanup)
 
 function renderSignals(props: Partial<Parameters<typeof Signals>[0]> = {}) {
   const onMakeInsight = vi.fn()
-  const toList = (changed: typeof props) => (
+  const toSignals = (changed: typeof props) => (
     <Signals
       signals={[SLOW, LOST, GROWN]}
       onMakeInsight={onMakeInsight}
       {...changed}
     />
   )
-  const { rerender } = render(toList(props))
+  const { rerender } = render(toSignals(props))
   return {
     onMakeInsight,
-    rerender: (changed: typeof props) => rerender(toList(changed)),
+    rerender: (changed: typeof props) => rerender(toSignals(changed)),
   }
 }
 
