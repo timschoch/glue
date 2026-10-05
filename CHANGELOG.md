@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/timschoch/glue/compare/v1.12.0...v1.13.0) (2026-10-05)
+
+
+### Features
+
+* **projects:** move Parts and reference across Projects ([#264](https://github.com/timschoch/glue/issues/264)) ([c6e6487](https://github.com/timschoch/glue/commit/c6e64878d5452e87071304075ea381819b4fa972)), closes [#263](https://github.com/timschoch/glue/issues/263)
+
 ## [1.12.0](https://github.com/timschoch/glue/compare/v1.11.2...v1.12.0) (2026-10-05)
 
 
