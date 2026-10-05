@@ -192,7 +192,7 @@ export function ConceptScreen({
       {signals && listed && (
         <Signals
           signals={listed}
-          reason={signals.reason}
+          failures={signals.failures}
           onMakeInsight={(urls) =>
             setPicked(signals.signals.filter(({ url }) => urls.includes(url)))
           }

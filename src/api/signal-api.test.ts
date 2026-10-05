@@ -20,6 +20,7 @@ let github: GithubClient
 const signal = {
   url: 'https://github.com/timschoch/glue/issues/7',
   title: 'The list is slow',
+  body: 'It takes five seconds to open.',
   createdAt: '2026-10-02T08:00:00Z',
 }
 
@@ -43,11 +44,16 @@ afterAll(async () => {
 
 type Handler = (input: ChangeRequest) => Promise<Response>
 
-async function call(handler: Handler, method: string, body?: unknown) {
+async function call(
+  handler: Handler,
+  method: string,
+  body?: unknown,
+  query = '',
+) {
   const response = await handler({
     db,
     github,
-    request: new Request('http://localhost/api/v1', {
+    request: new Request(`http://localhost/api/v1${query}`, {
       method,
       headers: {
         'content-type': 'application/json',
@@ -66,25 +72,56 @@ describe('GET /projects/{project}/signals', () => {
 
     expect(status).toBe(200)
     expect(body).toEqual({
-      reason: null,
+      failures: [],
       signals: [
         {
           url: signal.url,
           title: signal.title,
+          text: 'It takes five seconds to open.',
           date: '2026-10-02',
+          source: 'github',
           insight: null,
         },
       ],
     })
   })
 
-  it('answers an empty list with the reason when GitHub fails', async () => {
+  it('lists the Signals of the source in the query only', async () => {
+    const { status, body } = await call(
+      handleListSignals,
+      'GET',
+      undefined,
+      '?source=support',
+    )
+
+    expect(status).toBe(200)
+    expect(body).toEqual({ failures: [], signals: [] })
+  })
+
+  it('answers 400 for a source that Glue does not have', async () => {
+    const { status, body } = await call(
+      handleListSignals,
+      'GET',
+      undefined,
+      '?source=crm',
+    )
+
+    expect(status).toBe(400)
+    expect(body.error.message).toBe(
+      '"crm" is no Signal source: github, support, analytics',
+    )
+  })
+
+  it('names the source that failed', async () => {
     github = failingGithub
 
     const { status, body } = await call(handleListSignals, 'GET')
 
     expect(status).toBe(200)
-    expect(body).toEqual({ signals: [], reason: 'GitHub answered 503' })
+    expect(body).toEqual({
+      signals: [],
+      failures: [{ source: 'github', reason: 'GitHub answered 503' }],
+    })
   })
 
   it('refuses a request without a token', async () => {

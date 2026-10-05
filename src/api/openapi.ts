@@ -310,8 +310,16 @@ function listPartPaths() {
       get: {
         operationId: 'listSignals',
         summary:
-          'List the Signals of the Project: the issues with the label user-feedback in its repository',
-        requestParams: { path },
+          'List the Signals of the Project: the issues with the label user-feedback, the support tickets and the survey answers with a low score',
+        requestParams: {
+          path,
+          query: z.object({
+            source: z.string().optional().meta({
+              description:
+                'Only the Signals of this source: github, support or analytics',
+            }),
+          }),
+        },
         responses: {
           200: {
             description:

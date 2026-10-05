@@ -1,138 +1,188 @@
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { setProductRepository } from './projects.ts'
 import { addProject } from './part-records.ts'
 import { findPart } from './parts.ts'
 import { InvalidRecordError } from './record-errors.ts'
 import * as schema from './schema.ts'
-import { createFakeGithub, failingGithub } from '../test/github.ts'
 import { addSignalInsight, listSignals } from './signals.ts'
+import type { SignalProject, SignalSource, SourceSignal } from './signals.ts'
+import { createTestDatabase } from './test-database.ts'
 
-let client: PGlite
-let db: ReturnType<typeof drizzle<typeof schema>>
-let fake: ReturnType<typeof createFakeGithub>
+const { db } = createTestDatabase(schema)
 
-const slow = {
+const slow: SourceSignal = {
   url: 'https://github.com/timschoch/glue/issues/7',
   title: 'The list is slow',
-  createdAt: '2026-10-02T08:00:00Z',
+  text: 'It takes five seconds to open.',
+  date: '2026-10-02',
 }
-const lost = {
+const lost: SourceSignal = {
   url: 'https://github.com/timschoch/glue/issues/5',
   title: 'I lose my place in the list',
-  createdAt: '2026-10-01T08:00:00Z',
+  text: '',
+  date: '2026-09-30',
+}
+const refund: SourceSignal = {
+  url: 'https://support.test/agent/tickets/3',
+  title: 'Where is my refund?',
+  text: 'I asked two weeks ago.',
+  date: '2026-10-01',
 }
 
-beforeAll(async () => {
-  client = new PGlite()
-  db = drizzle(client, { schema })
-  await migrate(db, { migrationsFolder: './drizzle' })
-})
+// A source that gives the same Signals for each Project, and keeps the
+// Projects that it was asked for.
+function createFakeSource(name: string, signals: SourceSignal[]) {
+  const asked: SignalProject[] = []
+  const source: SignalSource = {
+    name,
+    listSignals: async (project) => {
+      asked.push(project)
+      return signals
+    },
+  }
+  return { source, asked }
+}
 
-// The Project glue has a repository with two issues that carry the label.
-// The Project flexibeck has no repository.
-beforeEach(async () => {
-  await client.exec('truncate projects restart identity cascade')
-  fake = createFakeGithub([slow, lost])
+const github = createFakeSource('github', [slow, lost]).source
+const support = createFakeSource('support', [refund]).source
+const failing: SignalSource = {
+  name: 'analytics',
+  listSignals: () => Promise.reject(new Error('mock analytics answered 503')),
+}
+
+async function addGlue() {
   await addProject(db, 'glue')
   await setProductRepository(db, 'glue', 'timschoch/glue')
-  await addProject(db, 'flexibeck')
-})
-
-afterAll(async () => {
-  await client.close()
-})
+}
 
 describe('listSignals', () => {
-  it('reads the issues with the label user-feedback of the repository of the Project', async () => {
-    const found = await listSignals(db, fake.github, 'glue')
+  it('lists the Signals of each source with its name, the newest first', async () => {
+    await addGlue()
 
-    expect(fake.listed).toEqual([
-      { repository: 'timschoch/glue', label: 'user-feedback' },
-    ])
+    const found = await listSignals(db, [github, support], 'glue')
+
     expect(found).toEqual({
-      reason: null,
+      failures: [],
       signals: [
-        { url: slow.url, title: slow.title, date: '2026-10-02', insight: null },
-        { url: lost.url, title: lost.title, date: '2026-10-01', insight: null },
+        { ...slow, source: 'github', insight: null },
+        { ...refund, source: 'support', insight: null },
+        { ...lost, source: 'github', insight: null },
       ],
     })
   })
 
-  it('gives no Signal and the reason for a Project without a repository', async () => {
-    const found = await listSignals(db, fake.github, 'flexibeck')
+  it('asks each source with the settings of the Project', async () => {
+    await addGlue()
+    const fake = createFakeSource('github', [])
 
-    expect(found).toEqual({
-      signals: [],
-      reason: 'The Project has no repository',
-    })
-    expect(fake.listed).toEqual([])
+    await listSignals(db, [fake.source], 'glue')
+
+    expect(fake.asked).toMatchObject([
+      { repository: 'timschoch/glue', analyticsProject: null },
+    ])
   })
 
-  it('gives no Signal and the reason when GitHub fails', async () => {
-    const found = await listSignals(db, failingGithub, 'glue')
+  it('lists only the Signals of the named source', async () => {
+    await addGlue()
 
-    expect(found).toEqual({ signals: [], reason: 'GitHub answered 503' })
+    const found = await listSignals(db, [github, support, failing], 'glue', {
+      source: 'support',
+    })
+
+    expect(found).toEqual({
+      failures: [],
+      signals: [{ ...refund, source: 'support', insight: null }],
+    })
+  })
+
+  it('keeps the Signals of the other sources when one source fails, and names it', async () => {
+    await addGlue()
+
+    const found = await listSignals(db, [failing, support], 'glue')
+
+    expect(found).toEqual({
+      failures: [
+        { source: 'analytics', reason: 'mock analytics answered 503' },
+      ],
+      signals: [{ ...refund, source: 'support', insight: null }],
+    })
+  })
+
+  it('refuses a name that no source has', async () => {
+    await addGlue()
+
+    await expect(
+      listSignals(db, [github, support], 'glue', { source: 'crm' }),
+    ).rejects.toThrow('"crm" is no Signal source: github, support')
   })
 })
 
 describe('addSignalInsight', () => {
-  it('adds a draft Insight at the level hunch that shows its Signals', async () => {
-    const id = await addSignalInsight(db, fake.github, 'glue', {
-      signals: [slow.url, lost.url],
-      title: 'Long lists are hard to use',
+  const sources = [github, support]
+
+  it('adds a draft Insight at the level hunch that shows its Signals of each source', async () => {
+    await addGlue()
+
+    const id = await addSignalInsight(db, sources, 'glue', {
+      signals: [slow.url, refund.url],
+      title: 'People wait too long',
     })
 
     expect(await findPart(db, 'glue', id)).toMatchObject({
       id: 'I1',
       type: 'insight',
-      title: 'Long lists are hard to use',
+      title: 'People wait too long',
       evidenceLevel: 'hunch',
       workState: 'draft',
-      source: 'https://github.com/timschoch/glue/labels/user-feedback',
+      source:
+        'https://github.com/timschoch/glue/issues/7 https://support.test/agent/tickets/3',
       signals: [
         { url: slow.url, title: slow.title },
-        { url: lost.url, title: lost.title },
+        { url: refund.url, title: refund.title },
       ],
     })
   })
 
   it('takes the source, the date and the level that the form gives', async () => {
-    const id = await addSignalInsight(db, fake.github, 'glue', {
+    await addGlue()
+
+    const id = await addSignalInsight(db, sources, 'glue', {
       signals: [slow.url],
       title: 'The list is slow',
-      source: slow.url,
+      source: 'A talk with Ada',
       date: '2026-10-04',
       evidenceLevel: 'pattern',
     })
 
     expect(await findPart(db, 'glue', id)).toMatchObject({
-      source: slow.url,
+      source: 'A talk with Ada',
       date: '2026-10-04',
       evidenceLevel: 'pattern',
     })
   })
 
   it('shows the Insight on each Signal that it grew from', async () => {
-    await addSignalInsight(db, fake.github, 'glue', {
-      signals: [lost.url],
-      title: 'People lose their place',
+    await addGlue()
+    await addSignalInsight(db, sources, 'glue', {
+      signals: [refund.url],
+      title: 'Refunds take too long',
     })
 
-    const { signals } = await listSignals(db, fake.github, 'glue')
+    const { signals } = await listSignals(db, sources, 'glue')
 
     expect(signals.map(({ insight }) => insight)).toEqual([
       null,
-      { id: 'I1', title: 'People lose their place' },
+      { id: 'I1', title: 'Refunds take too long' },
+      null,
     ])
   })
 
   it('refuses an address that is not a Signal of the Project', async () => {
+    await addGlue()
+
     await expect(
-      addSignalInsight(db, fake.github, 'glue', {
+      addSignalInsight(db, sources, 'glue', {
         signals: ['https://github.com/timschoch/glue/issues/99'],
         title: 'A guess',
       }),
@@ -141,13 +191,14 @@ describe('addSignalInsight', () => {
   })
 
   it('refuses a Signal that grew into an Insight already', async () => {
-    await addSignalInsight(db, fake.github, 'glue', {
+    await addGlue()
+    await addSignalInsight(db, sources, 'glue', {
       signals: [slow.url],
       title: 'The list is slow',
     })
 
     await expect(
-      addSignalInsight(db, fake.github, 'glue', {
+      addSignalInsight(db, sources, 'glue', {
         signals: [slow.url],
         title: 'The list is slow again',
       }),
@@ -156,14 +207,15 @@ describe('addSignalInsight', () => {
   })
 
   it('adds no Insight when the write of its Signals fails', async () => {
+    await addGlue()
     // Two requests at the same time grow the same Signal. The second one
     // breaks the rule that a Signal grows into one Insight.
     const results = await Promise.allSettled([
-      addSignalInsight(db, fake.github, 'glue', {
+      addSignalInsight(db, sources, 'glue', {
         signals: [slow.url],
         title: 'The list is slow',
       }),
-      addSignalInsight(db, fake.github, 'glue', {
+      addSignalInsight(db, sources, 'glue', {
         signals: [slow.url],
         title: 'The list is slow again',
       }),
@@ -178,14 +230,5 @@ describe('addSignalInsight', () => {
       signals: [{ url: slow.url, title: slow.title }],
     })
     expect(await findPart(db, 'glue', 'I2')).toBeUndefined()
-  })
-
-  it('refuses a Project without a repository', async () => {
-    await expect(
-      addSignalInsight(db, fake.github, 'flexibeck', {
-        signals: [slow.url],
-        title: 'A guess',
-      }),
-    ).rejects.toThrow(/has no repository/)
   })
 })

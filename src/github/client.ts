@@ -5,9 +5,14 @@ import { getSetting } from '../settings.server.ts'
 
 export type IssueInput = { title: string; body: string; labels: string[] }
 
-// An issue as Glue reads it: its web address, its title and when it was
-// opened.
-export type Issue = { url: string; title: string; createdAt: string }
+// An issue as Glue reads it: its web address, its title, its text and when
+// it was opened.
+export type Issue = {
+  url: string
+  title: string
+  body: string
+  createdAt: string
+}
 
 // A pull request as Glue reads it. One that was closed with no merge is not
 // a build, so Glue does not read it.
@@ -45,6 +50,7 @@ const PAGE_SIZE = 100
 type ListedIssue = {
   html_url: string
   title: string
+  body: string | null
   created_at: string
   pull_request?: unknown
 }
@@ -137,6 +143,7 @@ export function createGithubClient(): GithubClient {
         .map((issue) => ({
           url: issue.html_url,
           title: issue.title,
+          body: issue.body ?? '',
           createdAt: issue.created_at,
         }))
     },

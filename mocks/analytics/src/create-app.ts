@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bearerAuth } from 'hono/bearer-auth'
 import { bodyLimit } from 'hono/body-limit'
@@ -7,7 +7,7 @@ import { cors } from 'hono/cors'
 import { PayloadTooLargeError, parsePayload, toEventRows } from './capture.ts'
 import { toFunnelResults } from './funnel.ts'
 import type { FunnelQuery } from './funnel.ts'
-import { toMeanResults } from './mean.ts'
+import { parseNumber, toMeanResults } from './mean.ts'
 import type { MeanQuery, PropertyFilter } from './mean.ts'
 import { toPersonIds } from './persons.ts'
 import { events } from './schema.ts'
@@ -31,6 +31,20 @@ const DEFAULT_WINDOW_HOURS = 336
 // Values per breakdown that /api/values returns without and at most with a limit.
 const DEFAULT_VALUES_LIMIT = 100
 const MAX_VALUES_LIMIT = 1000
+
+// Events that /api/low-values returns without and at most with a limit.
+const DEFAULT_EVENTS_LIMIT = 100
+const MAX_EVENTS_LIMIT = 1000
+
+type LowValuesQuery = {
+  project: string
+  event: string
+  property: string
+  atMost: number
+  from: Date
+  to: Date
+  limit: number
+}
 
 export function createApp(options: {
   database: AnalyticsDatabase
@@ -152,6 +166,35 @@ export function createApp(options: {
     return context.json({ results: toValuesResults(rows, query) })
   })
 
+  app.post('/api/low-values', async (context) => {
+    const query = parseLowValuesQuery(
+      await context.req.json().catch(() => null),
+    )
+    if (typeof query === 'string') return context.json({ error: query }, 400)
+
+    const rows = await database
+      .select()
+      .from(events)
+      .where(
+        and(
+          eq(events.project, query.project),
+          eq(events.name, query.event),
+          gte(events.timestamp, query.from),
+          lt(events.timestamp, query.to),
+        ),
+      )
+      .orderBy(desc(events.timestamp))
+    const results = rows
+      .flatMap(({ id, distinctId, timestamp, properties }) => {
+        const value = parseNumber(properties[query.property])
+        return value !== null && value <= query.atMost
+          ? [{ id, distinct_id: distinctId, timestamp, value, properties }]
+          : []
+      })
+      .slice(0, query.limit)
+    return context.json({ results })
+  })
+
   app.get('/api/events', async (context) => {
     const { project, event } = context.req.query()
     const from = parseDate(context.req.query('from'))
@@ -265,6 +308,36 @@ function parseValuesQuery(body: unknown): ValuesQuery | string {
     return `limit must be a whole number from 1 to ${MAX_VALUES_LIMIT}`
   }
   return { ...query, limit }
+}
+
+// Returns the query, or the reason it is invalid.
+function parseLowValuesQuery(body: unknown): LowValuesQuery | string {
+  if (typeof body !== 'object' || body === null) return 'body must be JSON'
+  const {
+    project,
+    event,
+    property,
+    at_most: atMost,
+    from,
+    to,
+    limit = DEFAULT_EVENTS_LIMIT,
+  } = body as Record<string, unknown>
+  if (typeof project !== 'string') return 'project must be a string'
+  if (typeof event !== 'string') return 'event must be an event name'
+  if (typeof property !== 'string') return 'property must be a property name'
+  if (typeof atMost !== 'number') return 'at_most must be a number'
+  const fromDate = parseDate(from)
+  const toDate = parseDate(to)
+  if (!fromDate || !toDate) return 'from and to must be ISO dates'
+  if (
+    typeof limit !== 'number' ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > MAX_EVENTS_LIMIT
+  ) {
+    return `limit must be a whole number from 1 to ${MAX_EVENTS_LIMIT}`
+  }
+  return { project, event, property, atMost, from: fromDate, to: toDate, limit }
 }
 
 function isPropertyFilter(value: unknown): value is PropertyFilter {

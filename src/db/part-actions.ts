@@ -18,6 +18,7 @@ import {
   watch,
 } from './members.ts'
 import type { People } from './members.ts'
+import { createSignalSources } from '../signals/signal-sources.server.ts'
 import { listSignals, signalInsightSchema } from './signals.ts'
 import type { ConceptDb } from './client.ts'
 import { createPartOperations } from './part-operations.ts'
@@ -269,7 +270,7 @@ export function createPartActions(request: ActionRequest) {
     ),
 
     listSignals: withSession((db, { project }: ProjectInput) =>
-      listSignals(db, getGithub(), project),
+      listSignals(db, createSignalSources(getGithub()), project),
     ),
 
     listBuilds: withSession((db, { project, named }: BuildsInput) =>
