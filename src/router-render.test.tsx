@@ -1676,6 +1676,50 @@ describe('a new Concept and a new Project', () => {
     })
   })
 
+  it('adds a second Concept at the top level from the start of the Project', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model')
+
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByRole(
+        'link',
+        { name: 'Glue' },
+      ),
+    )
+    await expectAddress('/glue')
+    await userEvent.click(button('Add Concept'))
+    await userEvent.type(field('Title'), 'Write model')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/write-model')
+    expect(server.addConcept).toHaveBeenCalledWith({
+      project: 'glue',
+      concept: { slug: 'write-model', title: 'Write model', parent: 'glue' },
+    })
+  })
+
+  it.each(['/glue/part-model', '/glue/part-model/D4', '/glue?section=Mine'])(
+    'adds a Concept at the top level from the left panel at %s, and opens it',
+    async (path) => {
+      const { expectAddress, server } = await renderPage(path)
+
+      await userEvent.click(
+        within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
+          'button',
+          { name: 'Add Concept' },
+        ),
+      )
+      await expectAddress('/glue', { add: 'concept' })
+      await userEvent.type(field('Title'), 'Write model')
+      await userEvent.click(button('Save'))
+
+      await expectAddress('/glue/write-model')
+      expect(server.addConcept).toHaveBeenCalledWith({
+        project: 'glue',
+        concept: { slug: 'write-model', title: 'Write model', parent: 'glue' },
+      })
+    },
+  )
+
   it('adds a Project from the Project switcher, and opens it', async () => {
     const { expectAddress, server } = await renderPage('/glue/part-model')
 

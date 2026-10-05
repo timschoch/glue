@@ -55,6 +55,9 @@ export type FrameProps = {
   onProjectChange: (project: string) => void
   // With the callback the switcher holds one button that adds a Project.
   onAddProject?: () => void
+  // With the callback the Concepts end with one button that adds a Concept
+  // at the top level.
+  onAddConcept?: () => void
   // With the callback the left panel ends with one button that signs out.
   onSignOut?: () => void
   // No section while the main window shows every Part type.
@@ -96,6 +99,7 @@ export function Frame({
   projects,
   onProjectChange,
   onAddProject,
+  onAddConcept,
   onSignOut,
   section,
   mineCount = 0,
@@ -254,6 +258,21 @@ export function Frame({
                     {concept.name}
                   </SideNavLink>
                 ),
+              )}
+              {onAddConcept && (
+                <li>
+                  <Button
+                    kind="ghost"
+                    size="sm"
+                    renderIcon={Add}
+                    onClick={() => {
+                      onAddConcept()
+                      setPanelOpen(false)
+                    }}
+                  >
+                    Add Concept
+                  </Button>
+                </li>
               )}
               {onSignOut && <SideNavDivider />}
               {onSignOut && (
