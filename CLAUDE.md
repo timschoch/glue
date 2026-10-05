@@ -55,6 +55,9 @@ Agents build Glue in a run. The Orchestrator plans and merges, Workers build, th
 - A circle report is no stop. After it, start the next work in the same turn. One open proof does not block the run.
   - Bad: circle report, then "Blocked: the nightly run has not run yet" and no Worker until the Owner writes.
   - Good: circle report, then "I started the gap check against `docs/concept.md` and two Workers."
+- Never open a window on the Owner's machine: it takes the Owner's focus. Playwright runs headless. Never run `open <file or URL>`: give the path or URL in the chat. Put this rule in each Worker and subagent prompt.
+  - Bad: `chromium.launch({ headless: false })`, `playwright test --headed`, `open report.html`, a ticket that asks for a screenshot "in a real window".
+  - Good: `chromium.launch()`, then "The report is at `.temp/report.html`."
 
 ### Build concentric
 
