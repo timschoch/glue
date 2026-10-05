@@ -52,6 +52,9 @@ Agents build Glue in a run. The Orchestrator plans and merges, Workers build, th
   - Bad: "Not checked: the signed-in screens. Please open the app and tell me if a screen is broken."
   - Good: "I walked the live app signed in. The record page had a page error. The fix is in PR 204."
 - Halt the run only when all work is blocked or something broke badly. Halt: issue labelled `ready-for-human`, title starts with `HALT:`.
+- A circle report is no stop. After it, start the next work in the same turn. One open proof does not block the run.
+  - Bad: circle report, then "Blocked: the nightly run has not run yet" and no Worker until the Owner writes.
+  - Good: circle report, then "I started the gap check against `docs/concept.md` and two Workers."
 
 ### Build concentric
 
