@@ -654,3 +654,167 @@ describe('the downstream issue of a Decision', () => {
     expect(fake.issues).toHaveLength(1)
   })
 })
+
+// The record ids of the Goals that the Part needs.
+function listGoals(part: { needs: { part: { id: string; type: string } }[] }) {
+  return part.needs
+    .filter((end) => end.part.type === 'goal')
+    .map((end) => end.part.id)
+}
+
+describe('another Goal for a Decision', () => {
+  beforeEach(async () => {
+    await addPart(db, project, {
+      type: 'goal',
+      title: 'Break less',
+      metric: 'failed releases',
+      source: 'okr',
+    })
+    await operations.addPart(project, { ...decision, status: 'accepted' })
+  })
+
+  it('gives the Decision the new Goal in the place of the old one', async () => {
+    const changed = await operations.updatePart(project, 'D1', { goal: 'G2' })
+
+    expect(listGoals(changed.part)).toEqual(['G2'])
+    expect(changed.part.needs.map((end) => end.part.id)).toEqual(['I1', 'G2'])
+  })
+
+  it('writes one line in the activity of the Decision', async () => {
+    const changed = await operations.updatePart(project, 'D1', { goal: 'G2' })
+
+    expect(changed.part.activity.map(({ kind }) => kind)).toEqual([
+      'changed',
+      'published',
+    ])
+  })
+
+  it('writes nothing for the Goal that the Decision has already', async () => {
+    const changed = await operations.updatePart(project, 'D1', { goal: 'G1' })
+
+    expect(listGoals(changed.part)).toEqual(['G1'])
+    expect(changed.part.activity.map(({ kind }) => kind)).toEqual(['published'])
+  })
+
+  it('refuses a Part that is not a Goal, and keeps the Goal', async () => {
+    const refused = operations.updatePart(project, 'D1', { goal: 'I1' })
+
+    await expect(refused).rejects.toThrow(
+      new InvalidRecordError('"I1" is not a Goal'),
+    )
+    expect(listGoals(await operations.getPart(project, 'D1'))).toEqual(['G1'])
+  })
+
+  it('refuses a Goal on each other Part type', async () => {
+    const refused = operations.updatePart(project, 'I1', { goal: 'G2' })
+
+    await expect(refused).rejects.toThrow('Unrecognized key: "goal"')
+  })
+
+  describe('of another Project', () => {
+    beforeEach(async () => {
+      await addProject(db, 'glue')
+      await addPart(db, 'glue', {
+        type: 'goal',
+        title: 'Glue builds Glue',
+        metric: 'circles',
+        source: 'run goal',
+      })
+      await operations.answerPart('glue', 'G1', { answer: 'supersede' })
+    })
+
+    it('refuses the Goal of a Project that is not referenced, and keeps the Goal', async () => {
+      const refused = operations.updatePart(project, 'D1', { goal: 'glue/G1' })
+
+      await expect(refused).rejects.toThrow(
+        new InvalidRecordError(
+          'a Part of Project "flexibeck" cannot need a Part of Project "glue"',
+        ),
+      )
+      expect(
+        (await operations.getPart(project, 'D1')).needs.map((end) => [
+          end.project?.slug,
+          end.part.id,
+        ]),
+      ).toEqual([
+        [undefined, 'G1'],
+        [undefined, 'I1'],
+      ])
+    })
+
+    it('takes the Goal of a Project that is referenced', async () => {
+      await addProjectReference(db, project, 'glue')
+
+      const changed = await operations.updatePart(project, 'D1', {
+        goal: 'glue/G1',
+      })
+
+      expect(
+        changed.part.needs.map((end) => [end.project?.slug, end.part.id]),
+      ).toEqual([
+        [undefined, 'I1'],
+        ['glue', 'G1'],
+      ])
+    })
+  })
+})
+
+describe('another body for a Part', () => {
+  beforeEach(async () => {
+    await operations.addPart(project, { ...decision, status: 'accepted' })
+    await operations.addPart(project, { type: 'flow', title: 'Push' })
+    await operations.addPart(project, {
+      type: 'guardrail',
+      title: 'CI takes ten minutes at most',
+      enforcedBy: 'verify ci',
+    })
+    await operations.addPart(project, { type: 'entity', title: 'Check' })
+    await operations.addPart(project, { type: 'metric', title: 'Lead time' })
+  })
+
+  it.each(['G1', 'I1', 'D1', 'F1', 'R1', 'E1', 'M1'])(
+    'changes the body of %s',
+    async (id) => {
+      const changed = await operations.updatePart(project, id, {
+        body: 'The push waits for the types.',
+      })
+
+      expect(changed.part.body).toBe('The push waits for the types.')
+    },
+  )
+
+  it('changes the title of a Decision, and its issue keeps the old title', async () => {
+    const changed = await operations.updatePart(project, 'D1', {
+      title: 'Check the types in CI',
+    })
+
+    expect(changed.part.title).toBe('Check the types in CI')
+    expect(changed.issue).toEqual({ kind: 'existing', url: ISSUE_URL })
+    expect(fake.issues.map(({ issue }) => issue.title)).toEqual([
+      'D1: Check the types before the push',
+    ])
+  })
+
+  it('glues the Decision to a Part that the new body names', async () => {
+    const changed = await operations.updatePart(project, 'D1', {
+      body: 'The push follows #F1.',
+    })
+
+    expect(changed.part.needs.map((end) => end.part.id)).toEqual([
+      'G1',
+      'I1',
+      'F1',
+    ])
+  })
+
+  it('writes one line in the activity of the Decision', async () => {
+    const changed = await operations.updatePart(project, 'D1', {
+      body: 'The push waits for the types.',
+    })
+
+    expect(changed.part.activity.map(({ kind }) => kind)).toEqual([
+      'changed',
+      'published',
+    ])
+  })
+})

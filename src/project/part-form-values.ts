@@ -90,11 +90,17 @@ export function toNewPart(
   }
 }
 
+// The change of the form. `start` are the values that the form started
+// with: a Decision gets a Goal only when the person picked another one.
 export function toPartChange(
   type: PartType,
   values: PartFormValues,
+  start: Pick<PartFormValues, 'goal'>,
 ): PartChange {
-  return pickFields(type, { ...values, date: values.date.trim() })
+  const fields = pickFields(type, { ...values, date: values.date.trim() })
+  return type === 'decision' && values.goal && values.goal !== start.goal
+    ? { ...fields, goal: values.goal }
+    : fields
 }
 
 // The values that the person saw in the form. The write changes nothing

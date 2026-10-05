@@ -155,14 +155,24 @@ describe('PartForm', () => {
     expect(labels()).toEqual(names)
   })
 
-  it('has no field for the Joints of a Decision that exists', () => {
-    renderForm({
-      recordId: 'D12',
-      values: { title: 'Loop', owner: 'Mara', date: '2026-10-03' },
-    })
+  it('has the Goal of a Decision that exists, and no field for its evidence', () => {
+    renderForm({ recordId: 'D12', values: DECISION })
 
     expect(labels()).toEqual(['Title', 'Body', 'Owner', 'Date'])
+    expect(picks('Goal')).toEqual(['First bake feels easy'])
+    expect(screen.queryByRole('list', { name: 'Evidence' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Evidence' })).toBeNull()
     expect(saveButton().disabled).toBe(false)
+  })
+
+  it('saves a Decision that exists with another Goal', async () => {
+    const { onSave } = renderForm({ recordId: 'D12', values: DECISION })
+
+    await userEvent.click(iconButton('Remove G2'))
+    await pick('Goal', 'G3', 'G3 Bakers come back')
+    await userEvent.click(saveButton())
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ goal: 'G3' }))
   })
 
   it('names the Part type as text, not as a field', () => {

@@ -485,7 +485,7 @@ function formatHelp() {
     'pnpm concept list [<type>]',
     'pnpm concept show <id>',
     'pnpm concept add <type> <flags of the type> [--body <text>, or - for stdin]',
-    'pnpm concept set <id> <flags of the type>',
+    'pnpm concept set <id> <flags of the type> [--body <text>, or - for stdin]',
     'pnpm concept move <id> [<id> ...] --concept <slug>',
     'pnpm concept move <id> [<id> ...] --concept <slug> --to-project <slug> [--drop-refused-joints]',
     'pnpm concept downstream <id>',
@@ -529,7 +529,9 @@ function formatHelp() {
     '  decisions, entities, flows and metrics take --needs: the records that it needs',
     '  --evidence and --needs take ids with commas between them: I1,I2',
     '',
-    'set on a Decision takes --status and --superseded-by.',
+    'set on a Decision takes --status, --superseded-by, --title, --goal <id> and --body.',
+    '--goal gives the Decision another Goal in the place of the one that it has.',
+    'The issue of a Decision keeps the title that it has.',
     'On each other type it takes the flags of the type.',
     'set and move take --concept <slug>: the new home Concept of the record, in the same Project. The record keeps its id and its Joints.',
     'move with --to-project moves the records to a Concept of another Project. A record id that the Project has already refuses the move.',
@@ -699,9 +701,15 @@ export async function runConcept(
         await operations.updatePart(product, id, change)
         return
       }
-      const concept = flags.concept as string | undefined
-      if (concept !== undefined) {
-        await operations.moveParts(product, [id], concept)
+      // The home, the title, the Goal and the body change without a status.
+      const change = {
+        concept: flags.concept,
+        title: flags.title,
+        goal: flags.goal,
+        body: await readBody(flags),
+      }
+      if (Object.values(change).some((value) => value !== undefined)) {
+        await operations.updatePart(product, id, change as PartChange)
         if (flags.status === undefined) return
       }
       // The operation holds the rule of the status and of the successor.

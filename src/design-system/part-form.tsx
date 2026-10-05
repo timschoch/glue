@@ -171,7 +171,7 @@ export type PartFormProps = {
   // The caller gives the Part type. It is not a field.
   type: PartType
   // The record id of the Part that the form edits. None: the form adds a
-  // Part. A Part that exists has no field for its Joints.
+  // Part. A Part that exists has no field for its Joints, but for its Goal.
   recordId?: string
   // The values that the form starts with.
   values?: Partial<PartFormValues>
@@ -204,9 +204,11 @@ export function PartForm({
 }: PartFormProps) {
   const formId = useId()
   const [values, setValues] = useState({ ...EMPTY, ...startValues })
-  // A Part that exists changes its Joints on its record.
+  // A Part that exists changes its Joints on its record. A Decision has
+  // one Goal, so the form gives it another one in its place.
   const fields = listFormFields(type).filter(
-    ({ kind }) => recordId === undefined || kind !== 'joint',
+    ({ name, kind }) =>
+      recordId === undefined || kind !== 'joint' || name === 'goal',
   )
   const canSave = fields.every(
     ({ name, required }) => !required || hasValue(values[name]),

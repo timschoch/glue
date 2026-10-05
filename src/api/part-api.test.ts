@@ -706,6 +706,27 @@ describe('PATCH a Part', () => {
     })
   })
 
+  it('gives a Decision the Goal and the body that the request names', async () => {
+    await call(handleAddPart, 'POST', { body: decision })
+    await addPart(db, 'flexibeck', {
+      type: 'goal',
+      title: 'Break less',
+      metric: 'failed releases',
+      source: 'okr',
+    })
+
+    const response = await call(handleUpdatePart, 'PATCH', {
+      params: { recordId: 'D1' },
+      body: { goal: 'G2', body: 'The cache holds the list.' },
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body.body).toBe('The cache holds the list.')
+    expect(
+      response.body.needs.map((end: { part: { id: string } }) => end.part.id),
+    ).toEqual(['I1', 'G2'])
+  })
+
   it('moves the Part to the Concept that the request names', async () => {
     await addConcept(db, 'flexibeck', { slug: 'checkout', title: 'Checkout' })
 

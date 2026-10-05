@@ -192,6 +192,21 @@ describe('GET /api/v1/openapi.json', () => {
     expect(JSON.stringify(schemas.PartUpdate)).not.toContain('issueUrl')
   })
 
+  it('describes the Goal and the body that a change gives a Decision', async () => {
+    const { schemas } = (await handleGetOpenApi().json()).components
+    const decisionChange = schemas.PartUpdate.anyOf.find(
+      (change: { properties: object }) => 'goal' in change.properties,
+    )
+
+    expect(decisionChange.properties.goal.type).toBe('string')
+    expect(decisionChange.properties.body.type).toBe('string')
+    expect(
+      schemas.PartUpdate.anyOf.filter(
+        (change: { properties: object }) => 'goal' in change.properties,
+      ),
+    ).toHaveLength(1)
+  })
+
   it('describes the Evidence level of an Insight and the source of a Guardrail', async () => {
     const { schemas } = (await handleGetOpenApi().json()).components
 

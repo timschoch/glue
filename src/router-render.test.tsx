@@ -671,6 +671,50 @@ describe('the edit of a Part', () => {
     })
   })
 
+  it('saves another title, another body and another Goal of a Decision', async () => {
+    const G2: PartSummary = {
+      ...parts[1],
+      id: 'G2',
+      title: 'Agents merge faster',
+    }
+    const { expectAddress, server } = await renderPage(
+      '/glue/part-model/D4?edit=true',
+      {
+        fetchParts: vi.fn(() => Promise.resolve([...parts, G2])),
+        fetchPart: vi.fn(
+          changedPart('D4', { owner: 'Ada', date: '2026-01-15' }),
+        ),
+      },
+    )
+
+    await userEvent.clear(field('Title'))
+    await userEvent.type(field('Title'), 'The Concept lives in Glue')
+    await userEvent.clear(field('Body'))
+    await userEvent.type(field('Body'), 'Agents read it there.')
+    await userEvent.click(
+      within(screen.getByRole('list', { name: 'Goal' })).getByRole('button'),
+    )
+    await userEvent.type(screen.getByRole('combobox', { name: 'Goal' }), 'G2')
+    await userEvent.click(
+      screen.getByRole('option', { name: 'G2 Agents merge faster' }),
+    )
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/part-model/D4')
+    expect(server.updatePart).toHaveBeenCalledWith({
+      project: 'glue',
+      recordId: 'D4',
+      change: {
+        title: 'The Concept lives in Glue',
+        body: 'Agents read it there.',
+        owner: 'Ada',
+        date: '2026-01-15',
+        goal: 'G2',
+      },
+      expected: expect.objectContaining({ title: D4 }),
+    })
+  })
+
   it('tells the person that a second person changed the Part', async () => {
     const changed = '"R1" changed since you opened it'
     await renderPage('/glue/read-model/R1?edit=true', {

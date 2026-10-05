@@ -78,7 +78,7 @@ export function PartFormScreen({
           updatePart({
             project,
             recordId: edited.id,
-            change: toPartChange(type, values),
+            change: toPartChange(type, values, toFormValues(edited)),
             expected: toExpectedPart(edited),
           }),
         () => changeSearch(closed),
