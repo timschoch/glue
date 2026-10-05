@@ -49,6 +49,7 @@ describe('the Parts of the stories', () => {
       './frame.stories.tsx',
       './part-cards.stories.tsx',
       './record.stories.tsx',
+      './section-view.stories.tsx',
     ])
     expect(wrong).toEqual([])
   })

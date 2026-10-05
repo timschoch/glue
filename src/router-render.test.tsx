@@ -313,13 +313,107 @@ describe('a section', () => {
     await userEvent.click(section('Understand'))
 
     await expectAddress('/glue/part-model', { section: 'Understand' })
-    expect(groups()).toEqual(['Insights', 'Signals'])
+    // The one Insight is Strategic: it is in a row, with no group.
+    expect(groups()).toEqual(['Signals'])
+    button('Add Insight')
     expect(section('Understand').getAttribute('aria-current')).toBe('page')
 
     await userEvent.click(section('Understand'))
 
     await expectAddress('/glue/part-model')
     expect(groups()).toEqual(all)
+  })
+
+  it('lists the Parts of the whole Project at the root Concept, and of the Concept in the address after a click in the left panel', async () => {
+    const { expectAddress } = await renderPage(
+      '/glue?section=Decide&detail=true',
+    )
+    const cards = () =>
+      within(screen.getByRole('main'))
+        .queryAllByRole('link')
+        .map((link) => link.textContent)
+
+    expect(pageTitle()).toBe('Decide')
+    expect(cards()).toEqual([
+      'Solid Goal G1 Agents build from the Concept Published Glue',
+      `Solid Decision D4 ${D4} Published Part model`,
+    ])
+    expect(
+      within(screen.getByRole('main')).queryByRole('group', {
+        name: 'Concepts',
+      }),
+    ).toBeNull()
+
+    const panel = within(screen.getByRole('navigation', { name: 'Main' }))
+    await userEvent.click(panel.getByRole('button', { name: 'Part model' }))
+    await userEvent.click(panel.getByRole('link', { name: 'Read model' }))
+
+    // The click keeps the detail.
+    await expectAddress('/glue/read-model', { section: 'Decide', detail: true })
+    expect(items('Breadcrumb')).toEqual(['Glue', 'Part model', 'Read model'])
+    expect(cards()).toEqual([])
+    screen.getByRole('tab', { name: 'Summary' })
+
+    await userEvent.click(button('Add Decision'))
+
+    await expectAddress('/glue/read-model', {
+      section: 'Decide',
+      detail: true,
+      add: 'decision',
+    })
+  })
+
+  it('lists the Parts of the Concepts in the Concept too, and no Part of another Concept', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model?section=Build')
+    const rows = () =>
+      within(screen.getByRole('main'))
+        .queryAllByRole('button', { expanded: false })
+        .map((row) => row.textContent)
+
+    expect(rows()).toEqual(['Solid Read model 1'])
+
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
+        'link',
+        { name: 'Flows' },
+      ),
+    )
+
+    await expectAddress('/glue/flows', { section: 'Build' })
+    expect(rows()).toEqual([])
+  })
+
+  it('shows the Concept screen after one click on the section where the member lands', async () => {
+    const { expectAddress } = await renderPage('/')
+
+    await expectAddress('/glue', { section: 'Decide' })
+    expect(pageTitle()).toBe('Decide')
+    expect(section('Decide').getAttribute('aria-current')).toBe('page')
+
+    await userEvent.click(section('Decide'))
+
+    await expectAddress('/glue')
+    expect(pageTitle()).toBe('Glue')
+    button('Add Concept')
+    screen.getByRole('tab', { name: 'Map' })
+  })
+
+  it('shows a Strategic Part in the row of its Concept, and as a card after the switch to detail', async () => {
+    const { expectAddress } = await renderPage('/glue?section=Build')
+    const main = within(screen.getByRole('main'))
+
+    expect(main.queryByRole('link')).toBeNull()
+    expect(main.getByRole('button', { expanded: false }).textContent).toBe(
+      'Solid Read model 1',
+    )
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Detail' }))
+
+    await expectAddress('/glue', { section: 'Build', detail: true })
+    expect(card('R1').textContent).toBe(
+      `Solid Guardrail R1 ${R1} Published Read model`,
+    )
+    expect(main.queryByRole('button', { expanded: false })).toBeNull()
   })
 
   it('reads the Signals only in the section Understand', async () => {
@@ -676,7 +770,7 @@ describe('the edit of a Part', () => {
   })
 
   it('saves another title, another body and another Goal of a Decision', async () => {
-    const G2: PartSummary = {
+    const G2 = {
       ...parts[1],
       id: 'G2',
       title: 'Agents merge faster',
@@ -860,9 +954,10 @@ describe('the section Use', () => {
   ]
 
   it('lists each Metric and each measured Goal with its newest value against its target', async () => {
-    const { expectAddress } = await renderPage('/glue?section=Use', {
-      fetchMeasured: vi.fn(() => Promise.resolve(measured)),
-    })
+    const { expectAddress } = await renderPage(
+      '/glue?section=Use&detail=true',
+      { fetchMeasured: vi.fn(() => Promise.resolve(measured)) },
+    )
 
     expect(pageTitle()).toBe('Use')
     expect(card('G1').textContent).toContain('30% Target 25%')
@@ -876,7 +971,7 @@ describe('the section Use', () => {
   })
 
   it('shows an empty slot for a Metric with no reading', async () => {
-    await renderPage('/glue?section=Use', {
+    await renderPage('/glue?section=Use&detail=true', {
       fetchMeasured: vi.fn(() => Promise.resolve(measured)),
     })
 

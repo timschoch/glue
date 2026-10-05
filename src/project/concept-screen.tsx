@@ -2,12 +2,19 @@ import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import type { ProjectBuilds } from '../db/builds.ts'
-import type { Concept, MapJoint, Part, PartSummary } from '../db/parts.ts'
+import type {
+  Concept,
+  ConceptNode,
+  MapJoint,
+  Part,
+  PartSummary,
+} from '../db/parts.ts'
 import type { ContractState } from '../db/contracts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
 import { PartCards } from '../design-system/part-cards.tsx'
 import { flagReasons } from '../design-system/record.tsx'
+import { SectionView } from '../design-system/section-view.tsx'
 import { Signals } from '../design-system/signals.tsx'
 import { AssigneesControl } from './assignees-control.tsx'
 import { ContractSection } from './contract-screen.tsx'
@@ -24,14 +31,23 @@ import { useWrite } from './use-write.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
 
-// One Concept in the main window, with the lens of the section. The section
-// Understand shows the Signals of the Project too, and the section Build its
-// builds. The form that the address
-// names takes the place of the Concept. So does the form of the Insight that
-// grows from the picked Signals. The section Mine shows the Parts of the
-// whole Project that need the owner, and the Parts that the person watches. The section Use shows its Metrics and
-// its measured Goals, each with its newest value against its target. The
-// section People shows the members of the Project in place of a Concept.
+// The slugs of the Concepts and of each Concept in them.
+function listSlugs(concepts: ReadonlyArray<ConceptNode>): Array<string> {
+  return concepts.flatMap((node) => [node.slug, ...listSlugs(node.concepts)])
+}
+
+// One Concept in the main window, or one section. The Concept in the address
+// is the filter of a section: the section lists the Parts of the Concept and
+// of the Concepts in it for its Part types, so the whole Project at the root
+// Concept. The Operational ones show in detail, the Strategic ones as a
+// summary. The section Understand shows the Signals
+// of the Project too, and the section Build its builds. The section Use
+// shows its Metrics and its measured Goals, each with its newest value
+// against its target. The section Mine shows the Parts that need the owner,
+// and the Parts that the person watches. The section People shows the
+// members of the Project. The form that the address names takes the place of
+// the screen. So does the form of the Insight that grows from the picked
+// Signals. The Map keeps the lens of the section.
 export function ConceptScreen({
   concept,
   contract,
@@ -88,6 +104,31 @@ export function ConceptScreen({
     },
   }))
 
+  const levels = new Map(parts.map(({ id, flightLevel }) => [id, flightLevel]))
+  // What comes live from the tools of a section, after its Parts.
+  const live = (
+    <>
+      {builds && search.section === 'Build' && (
+        <LinkedBuilds builds={builds.builds} reason={builds.reason} />
+      )}
+      {signals && listed && (
+        <Signals
+          signals={listed}
+          failures={signals.failures}
+          onMakeInsight={(urls) =>
+            setPicked(signals.signals.filter(({ url }) => urls.includes(url)))
+          }
+          onOpenInsight={(recordId, event) => {
+            const opened = listed.find(
+              ({ insight }) => insight?.id === recordId,
+            )
+            if (opened?.insight) open(opened.insight.href, event)
+          }}
+        />
+      )}
+    </>
+  )
+
   const toCard = (part: PartSummary) => ({
     id: part.id,
     type: part.type,
@@ -95,6 +136,8 @@ export function ConceptScreen({
     trust: part.trust,
     workState: part.workState,
     concept: part.conceptTitle,
+    home: part.concept,
+    flightLevel: levels.get(part.id) ?? 'strategic',
     href: recordHref(part),
   })
 
@@ -118,16 +161,33 @@ export function ConceptScreen({
       />
     )
   }
-  if (search.section === 'Use') {
+  const types = lensTypes(search.section)
+  if (search.section && types && search.view !== 'map') {
+    const homes = new Set([concept.slug, ...listSlugs(concept.concepts)])
+    const isListed = (part: PartSummary) => homes.has(part.concept)
     return (
-      <PartCards
-        title="Use"
-        parts={measured.map((part) => ({
-          ...toCard(part),
-          reading: toReading(part.measure),
-        }))}
+      <SectionView
+        title={search.section}
+        types={types}
+        parts={
+          search.section === 'Use'
+            ? measured.filter(isListed).map((part) => ({
+                ...toCard(part),
+                reading: toReading(part.measure),
+              }))
+            : parts
+                .filter((part) => types.includes(part.type) && isListed(part))
+                .map(toCard)
+        }
+        detail={search.detail}
+        onDetailChange={(detail) =>
+          void changeSearch({ ...search, detail: detail || undefined })
+        }
         onOpen={({ href }, event) => open(href, event)}
-      />
+        onAddPart={(type) => void changeSearch({ ...search, add: type })}
+      >
+        {live}
+      </SectionView>
     )
   }
 
@@ -161,7 +221,6 @@ export function ConceptScreen({
       }
       map={mapJoints && <MapScreen focus={concept.slug} joints={mapJoints} />}
       panel={<MapPanelScreen part={panelPart} />}
-      types={lensTypes(search.section)}
       partHref={recordHref}
       conceptHref={({ slug }) => conceptHref(slug)}
       onOpenPart={(part, event) => open(recordHref(part), event)}
@@ -186,24 +245,7 @@ export function ConceptScreen({
       }
       assignees={<AssigneesControl target={{ concept: concept.slug }} />}
     >
-      {builds && search.section === 'Build' && (
-        <LinkedBuilds builds={builds.builds} reason={builds.reason} />
-      )}
-      {signals && listed && (
-        <Signals
-          signals={listed}
-          failures={signals.failures}
-          onMakeInsight={(urls) =>
-            setPicked(signals.signals.filter(({ url }) => urls.includes(url)))
-          }
-          onOpenInsight={(recordId, event) => {
-            const opened = listed.find(
-              ({ insight }) => insight?.id === recordId,
-            )
-            if (opened?.insight) open(opened.insight.href, event)
-          }}
-        />
-      )}
+      {live}
     </ConceptView>
   )
 }

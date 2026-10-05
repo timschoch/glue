@@ -1,0 +1,60 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The width of a card: the width of the pinned column.
+$card-width: $spacing-13 * 2;
+
+// The head, the type groups, the summary and the add buttons are separate
+// groups.
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-07;
+}
+
+// The head: the name at the start, the switch of the detail at the end.
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: $spacing-05;
+}
+
+.title {
+  @include type-style('heading-03');
+
+  color: $text-primary;
+  overflow-wrap: anywhere;
+}
+
+.switch {
+  inline-size: $spacing-13 + $spacing-09;
+}
+
+// The add buttons of the types with no card, in one row at the start.
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+// A summary row: the sign, the Concept and the count on one line.
+.row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.count {
+  color: $text-secondary;
+}
+
+// The cards of an open row, in columns of one width.
+.items {
+  display: grid;
+  align-items: start;
+  gap: $spacing-03;
+  grid-template-columns: repeat(auto-fill, minmax(min($card-width, 100%), 1fr));
+}

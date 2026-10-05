@@ -484,12 +484,6 @@ describe('ConceptView', () => {
     ).toBeTruthy()
   })
 
-  it('shows only the Part types of a lens', () => {
-    renderView({ concept: BRIEF, types: ['goal', 'decision'] })
-
-    expect(groups()).toEqual(['Goals', 'Decisions'])
-  })
-
   it('shows each type of an empty Concept as its title and its add control', () => {
     renderView({ concept: { ...CONCEPT, parts: [] } })
 
@@ -516,14 +510,6 @@ describe('ConceptView', () => {
 
     expect(getComputedStyle(words).color).toBe(TEXT_SECONDARY)
     expect(screen.queryByRole('region')).toBeNull()
-    expect(screen.queryByRole('button')).toBeNull()
-  })
-
-  it('shows no words for a lens with no Part type: no Part is missing', () => {
-    renderView({ types: [] })
-
-    expect(screen.queryByText('No Parts')).toBeNull()
-    expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
     expect(screen.queryByRole('button')).toBeNull()
   })
 

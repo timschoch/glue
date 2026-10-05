@@ -62,6 +62,13 @@ describe('GET /api/v1/openapi.json', () => {
     expect(parts.get.parameters).toContainEqual(
       expect.objectContaining({ in: 'query', name: 'type' }),
     )
+    expect(parts.get.parameters).toContainEqual(
+      expect.objectContaining({ in: 'query', name: 'member' }),
+    )
+    expect(schemas.LeveledPart.properties.flightLevel.enum).toEqual([
+      'operational',
+      'strategic',
+    ])
     expect(Object.keys(schemas)).toEqual(
       expect.arrayContaining([
         'Project',
