@@ -38,6 +38,8 @@ export function ConceptScreen({
   concept: Concept
   contract: ContractState
   signals?: ProjectSignals
+  // In the section Build: the builds of the Project. With no section: the
+  // builds that name the Contract of the Concept.
   builds?: ProjectBuilds
 }) {
   const { parts, mine, measured } = projectRoute.useLoaderData()

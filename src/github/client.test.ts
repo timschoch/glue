@@ -79,6 +79,78 @@ describe('listIssues', () => {
   })
 })
 
+describe('searchPullRequests', () => {
+  const SEARCH_URL =
+    'https://api.github.com/search/issues?q=repo%3Atimschoch%2Fglue+is%3Apr+in%3Abody+%22D44%22&sort=created&order=desc&per_page=100'
+
+  it('reads in one request the open and the merged pull requests with the text in their body', async () => {
+    stubGithub({
+      [`GET ${SEARCH_URL}`]: [
+        200,
+        {
+          items: [
+            {
+              number: 256,
+              html_url: 'https://github.com/timschoch/glue/pull/256',
+              title: 'Show each build of a Decision',
+              state: 'open',
+              body: 'Decision: D44',
+              pull_request: { merged_at: null },
+            },
+            {
+              number: 240,
+              html_url: 'https://github.com/timschoch/glue/pull/240',
+              title: 'Read the builds',
+              state: 'closed',
+              body: null,
+              pull_request: { merged_at: '2026-10-04T10:00:00Z' },
+            },
+            {
+              number: 239,
+              html_url: 'https://github.com/timschoch/glue/pull/239',
+              title: 'A try that nobody merged',
+              state: 'closed',
+              body: 'Decision: D44',
+              pull_request: { merged_at: null },
+            },
+          ],
+        },
+      ],
+    })
+
+    const found = await createGithubClient().searchPullRequests(
+      'timschoch/glue',
+      'D44',
+    )
+
+    expect(found).toEqual([
+      {
+        number: 256,
+        url: 'https://github.com/timschoch/glue/pull/256',
+        title: 'Show each build of a Decision',
+        state: 'open',
+        body: 'Decision: D44',
+      },
+      {
+        number: 240,
+        url: 'https://github.com/timschoch/glue/pull/240',
+        title: 'Read the builds',
+        state: 'merged',
+        body: '',
+      },
+    ])
+    expect(calls).toEqual([{ method: 'GET', url: SEARCH_URL }])
+  })
+
+  it('throws with the status when GitHub refuses', async () => {
+    stubGithub({ [`GET ${SEARCH_URL}`]: [403, { message: 'rate limit' }] })
+
+    await expect(
+      createGithubClient().searchPullRequests('timschoch/glue', 'D44'),
+    ).rejects.toThrow(/GitHub search pull requests: 403/)
+  })
+})
+
 describe('createIssue', () => {
   it('creates a missing label, then the issue, and returns its address', async () => {
     stubGithub({

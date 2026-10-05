@@ -131,6 +131,62 @@ export async function addConcept(
   return added[0].slug
 }
 
+export const conceptChangeSchema = z.strictObject({
+  title: text.optional(),
+  parent: z.string().optional().meta({
+    description: 'The slug of the Concept that holds it from now on',
+  }),
+})
+
+export type ConceptChange = z.input<typeof conceptChangeSchema>
+
+// Gives a Concept a new title, a new parent, or both. Its Concepts and its
+// Parts go with it. A Concept is never its own ancestor, and the root stays
+// the root.
+export async function updateConcept(
+  db: ConceptDb,
+  projectSlug: string,
+  slug: string,
+  change: ConceptChange,
+): Promise<void> {
+  const { title, parent } = parseInput(conceptChangeSchema, change)
+  if (title === undefined && parent === undefined)
+    throw new InvalidRecordError('send at least one field')
+  const { concepts } = schema
+  const projectId = await getProjectId(db, projectSlug)
+  const found = await db
+    .select({
+      id: concepts.id,
+      parentId: concepts.parentId,
+      slug: concepts.slug,
+    })
+    .from(concepts)
+    .where(eq(concepts.projectId, projectId))
+  const findBySlug = (wanted: string) => {
+    const concept = found.find((row) => row.slug === wanted)
+    if (!concept) throw new InvalidRecordError(`concept "${wanted}" not found`)
+    return concept
+  }
+  const concept = findBySlug(slug)
+  const nextParent = parent === undefined ? undefined : findBySlug(parent)
+  if (nextParent && concept.parentId === null)
+    throw new InvalidRecordError('the root Concept has no parent')
+  // The walk goes from the new parent to the root.
+  let ancestor = nextParent
+  while (ancestor) {
+    if (ancestor.id === concept.id)
+      throw new InvalidRecordError(
+        `concept "${slug}" cannot be its own ancestor`,
+      )
+    const { parentId } = ancestor
+    ancestor = found.find(({ id }) => id === parentId)
+  }
+  await db
+    .update(concepts)
+    .set({ title, parentId: nextParent?.id })
+    .where(eq(concepts.id, concept.id))
+}
+
 const date = z.iso.date()
 
 const commonFields = {
@@ -187,19 +243,32 @@ const fieldSchemas = {
   metric: z.strictObject({ ...commonFields, measure }),
 }
 
+// A change moves a Part of each type to another Concept of its Project. Its
+// id, its Joints, its Trust and its Work state stay.
+const homeChange = {
+  concept: z.string().optional().meta({
+    description: 'The slug of the new home Concept, of the same Project',
+  }),
+}
+
 // A Decision that exists becomes superseded through supersedeDecision, so
 // that status is not a value of a change. Its options stay as they went in.
 const changeSchemas = {
-  insight: fieldSchemas.insight.partial(),
-  goal: fieldSchemas.goal.partial().extend(measureChange),
+  insight: fieldSchemas.insight.partial().extend(homeChange),
+  goal: fieldSchemas.goal.partial().extend({ ...measureChange, ...homeChange }),
   decision: fieldSchemas.decision
     .omit({ options: true, pick: true })
     .partial()
-    .extend({ status: z.enum(['proposed', 'accepted']).optional() }),
-  guardrail: fieldSchemas.guardrail.partial(),
-  entity: plainSchema.partial(),
-  flow: plainSchema.partial(),
-  metric: fieldSchemas.metric.partial().extend(measureChange),
+    .extend({
+      status: z.enum(['proposed', 'accepted']).optional(),
+      ...homeChange,
+    }),
+  guardrail: fieldSchemas.guardrail.partial().extend(homeChange),
+  entity: plainSchema.partial().extend(homeChange),
+  flow: plainSchema.partial().extend(homeChange),
+  metric: fieldSchemas.metric
+    .partial()
+    .extend({ ...measureChange, ...homeChange }),
 }
 
 // The fields of all types as one shape: what a row of `parts` takes, and
@@ -226,7 +295,7 @@ const partSchemas: Record<
 > = fieldSchemas
 const partChangeSchemas: Record<
   schema.PartType,
-  z.ZodType<Partial<PartFields>>
+  z.ZodType<Partial<PartFields> & { concept?: string }>
 > = changeSchemas
 
 // Where a new Part goes, and what it is glued to.
@@ -756,7 +825,8 @@ function isExpected(partId: number, expected: ExpectedPart) {
 // the change travels to the Parts that need this one: see spreadTrust. A new
 // body glues the Part to each Part that it names, and removes the Joint of a
 // mention that is gone (D37). A Joint that a person added stays, and so does
-// the last evidence of a Decision. false: the Part was not in the expected
+// the last evidence of a Decision. `concept` moves the Part to that Concept
+// of its Project (D44). false: the Part was not in the expected
 // state, and nothing changed.
 export async function updatePart(
   db: ConceptDb,
@@ -767,11 +837,16 @@ export async function updatePart(
 ): Promise<boolean> {
   const projectId = await getProjectId(db, projectSlug)
   const part = await getPart(db, projectId, recordId)
-  const { measure: nextMeasure, ...columns } = parseInput(
-    partChangeSchemas[part.type],
-    change,
-  )
-  const values: unknown[] = Object.values(columns)
+  const {
+    measure: nextMeasure,
+    concept,
+    ...columns
+  } = parseInput(partChangeSchemas[part.type], change)
+  const conceptId =
+    concept === undefined
+      ? undefined
+      : await findConceptId(db, projectId, concept)
+  const values: unknown[] = [conceptId, ...Object.values(columns)]
   const hasColumns = values.some((value) => value !== undefined)
   if (!hasColumns && nextMeasure === undefined)
     throw new InvalidRecordError('send at least one field')
@@ -796,6 +871,7 @@ export async function updatePart(
         .update(parts)
         .set({
           ...columns,
+          conceptId,
           ...(part.type === 'decision' &&
             columns.status !== undefined && { supersededById: null }),
           ...(moved && {

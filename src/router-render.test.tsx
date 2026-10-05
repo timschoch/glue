@@ -511,6 +511,34 @@ describe('a record', () => {
     expect(pageTitle()).toBe('No record D9')
     screen.getByRole('navigation', { name: 'Main' })
   })
+
+  it('moves to the Concept that the person picks', async () => {
+    const { server } = await renderPage('/glue/part-model/D4')
+    const home = screen.getByRole<HTMLSelectElement>('combobox', {
+      name: 'Concept',
+    })
+
+    expect(home.value).toBe('part-model')
+    expect(within(home).getAllByRole('option')).toHaveLength(4)
+
+    await userEvent.selectOptions(home, 'Flows')
+
+    await waitFor(() =>
+      expect(server.updatePart).toHaveBeenCalledWith({
+        project: 'glue',
+        recordId: 'D4',
+        change: { concept: 'flows' },
+      }),
+    )
+  })
+
+  it('has no control for its Concept for a person who is no member', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchPeople: vi.fn(() => Promise.resolve({ ...people, me: null })),
+    })
+
+    expect(screen.queryByRole('combobox', { name: 'Concept' })).toBeNull()
+  })
 })
 
 describe('a new Part', () => {

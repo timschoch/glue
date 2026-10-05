@@ -61,6 +61,16 @@ export const partReadInputSchema = projectInputSchema.extend({
   recordId: z.string(),
 })
 
+// Without `named`: the builds of the Project.
+export const buildsInputSchema = projectInputSchema.extend({
+  named: z
+    .union([
+      z.object({ decision: z.string() }),
+      z.object({ concept: z.string() }),
+    ])
+    .optional(),
+})
+
 export const conceptAddInputSchema = projectInputSchema.extend({
   concept: newConceptSchema,
 })
@@ -127,6 +137,7 @@ export type SignalInsightAddInput = z.input<typeof signalInsightAddInputSchema>
 type ConceptReadInput = z.infer<typeof conceptReadInputSchema>
 type PartListInput = z.infer<typeof partListInputSchema>
 type PartReadInput = z.infer<typeof partReadInputSchema>
+type BuildsInput = z.infer<typeof buildsInputSchema>
 export type ConceptAddInput = z.infer<typeof conceptAddInputSchema>
 export type PartAddInput = z.infer<typeof partAddInputSchema>
 export type PartUpdateInput = z.infer<typeof partUpdateInputSchema>
@@ -232,8 +243,8 @@ export function createPartActions(request: ActionRequest) {
       listSignals(db, getGithub(), project),
     ),
 
-    listBuilds: withSession((db, { project }: ProjectInput) =>
-      listBuilds(db, getGithub(), project),
+    listBuilds: withSession((db, { project, named }: BuildsInput) =>
+      listBuilds(db, getGithub(), project, named),
     ),
 
     addSignalInsight: withMember(

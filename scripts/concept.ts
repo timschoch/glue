@@ -24,6 +24,7 @@ import {
   addJoint,
   addProject,
   removeJoint,
+  updateConcept,
 } from '../src/db/part-records.ts'
 import type {
   NewPart,
@@ -449,6 +450,7 @@ function formatHelp() {
     'pnpm concept show <id>',
     'pnpm concept add <type> <flags of the type> [--body <text>, or - for stdin]',
     'pnpm concept set <id> <flags of the type>',
+    'pnpm concept move <id> [<id> ...] --concept <slug>',
     'pnpm concept downstream <id>',
     'pnpm concept answer <id> <answer> [--waits-on <id>] [--words <text> --by <name>]',
     'pnpm concept answer <id> --option <number> --by <name>',
@@ -462,6 +464,7 @@ function formatHelp() {
     'pnpm concept assign <id or Concept slug> --responsible <e-mail>',
     'pnpm concept assign <id or Concept slug> --co-author <e-mail>',
     'pnpm concept concept add <slug> --title <title> [--kind <kind>] [--parent <slug>]',
+    'pnpm concept concept set <slug> [--title <title>] [--parent <slug>]',
     'pnpm concept contract show <concept> [--version <number>]',
     'pnpm concept contract sign <concept> --owner <name>',
     'pnpm concept joint add <id> <needed id> [--two-way]',
@@ -472,7 +475,7 @@ function formatHelp() {
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set, downstream, answer, mine, signals, builds, member, assign, concept, contract and joint take --project <slug>. The default is glue.',
+    'list, show, add, set, move, downstream, answer, mine, signals, builds, member, assign, concept, contract and joint take --project <slug>. The default is glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -488,6 +491,7 @@ function formatHelp() {
     '',
     'set on a Decision takes --status and --superseded-by.',
     'On each other type it takes the flags of the type.',
+    'set and move take --concept <slug>: the new home Concept of the record, in the same Project. The record keeps its id and its Joints.',
     'An empty value clears the field: --status "".',
     '',
     `answer takes ${answers.join(', ')}. The Work state of the record says which ones.`,
@@ -647,12 +651,30 @@ export async function runConcept(
         await operations.updatePart(product, id, change)
         return
       }
+      const concept = flags.concept as string | undefined
+      if (concept !== undefined) {
+        await operations.moveParts(product, [id], concept)
+        if (flags.status === undefined) return
+      }
       // The operation holds the rule of the status and of the successor.
       const { issue } = await operations.setDecisionStatus(product, id, {
         status: flags.status,
         supersededBy: flags.superseded_by || undefined,
       } as DecisionStatusChange)
       console.error(formatDownstreamIssue(product, id, issue))
+      return
+    }
+    case 'move': {
+      const firstFlag = rest.findIndex((arg) => arg.startsWith('--'))
+      const ids = rest.slice(0, firstFlag === -1 ? undefined : firstFlag)
+      const flags = parseFlags(rest)
+      const product = (flags.project as string | undefined) ?? 'glue'
+      const concept = flags.concept as string | undefined
+      if (ids.length === 0 || concept === undefined) {
+        throw new Error('move needs <id> and --concept <slug>')
+      }
+      const operations = createPartOperations({ db, github: getGithub() })
+      await operations.moveParts(product, ids, concept)
       return
     }
     case 'downstream': {
@@ -766,16 +788,24 @@ async function handleBuildsCommand(
 }
 
 // `concept add <slug> --title <title>`: nests a Concept in the Concept of
-// `--parent`, or in the root.
+// `--parent`, or in the root. `concept set <slug>` gives a Concept that
+// exists a new title, a new parent, or both.
 async function handleConceptCommand(
   db: ConceptDb,
   [command, slug, ...rest]: string[],
 ) {
-  if (command !== 'add') {
+  if (command !== 'add' && command !== 'set') {
     throw new Error(`unknown concept command "${command}"`)
   }
   const flags = parseFlags(rest)
   const project = (flags.project as string | undefined) ?? 'glue'
+  if (command === 'set') {
+    await updateConcept(db, project, slug, {
+      title: flags.title as string | undefined,
+      parent: flags.parent as string | undefined,
+    })
+    return
+  }
   console.log(
     await addConcept(db, project, {
       slug,

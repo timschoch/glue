@@ -87,13 +87,35 @@ describe('the builds of a Project', () => {
   })
 
   it('shows on the record of a Decision the builds that name it', async () => {
-    await renderPage('/glue/part-model/D4')
+    const { server } = await renderPage('/glue/part-model/D4', {
+      fetchBuilds: vi.fn(() =>
+        Promise.resolve({ builds: [builds[0]], reason: null }),
+      ),
+    })
 
+    expect(server.fetchBuilds).toHaveBeenCalledTimes(1)
+    expect(server.fetchBuilds).toHaveBeenCalledWith('glue', { decision: 'D4' })
     expect(listed()).toEqual(['Read the Concept from the database'])
   })
 
+  it('shows on the record of a Decision no builds when GitHub fails', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchBuilds: vi.fn(() =>
+        Promise.resolve({ builds: [], reason: 'GitHub answered 503' }),
+      ),
+    })
+
+    screen.getByRole('heading', { name: 'The Concept lives in the database' })
+    expect(screen.queryByRole('region', { name: 'Builds' })).toBeNull()
+    expect(screen.queryByText('GitHub answered 503')).toBeNull()
+  })
+
   it('shows on the record of a Decision no card of this Decision in a build', async () => {
-    await renderPage('/glue/part-model/D4')
+    await renderPage('/glue/part-model/D4', {
+      fetchBuilds: vi.fn(() =>
+        Promise.resolve({ builds: [builds[0]], reason: null }),
+      ),
+    })
 
     const list = within(screen.getByRole('region', { name: 'Builds' }))
 
@@ -101,15 +123,24 @@ describe('the builds of a Project', () => {
   })
 
   it('shows in the Contract of a Concept the builds that name it', async () => {
-    await renderPage('/glue/part-model')
+    const { server } = await renderPage('/glue/part-model', {
+      fetchBuilds: vi.fn(() =>
+        Promise.resolve({ builds: [builds[1]], reason: null }),
+      ),
+    })
 
     const contract = within(screen.getByRole('region', { name: 'Contract' }))
 
+    expect(server.fetchBuilds).toHaveBeenCalledTimes(1)
+    expect(server.fetchBuilds).toHaveBeenCalledWith('glue', {
+      concept: 'part-model',
+    })
     contract.getByRole('link', { name: 'Add the Part tables' })
-    expect(
-      contract.queryByRole('link', {
-        name: 'Read the Concept from the database',
-      }),
-    ).toBeNull()
+  })
+
+  it('reads in the section Build only the builds of the Project', async () => {
+    const { server } = await renderPage('/glue/part-model?section=Build')
+
+    expect(vi.mocked(server.fetchBuilds).mock.calls).toEqual([['glue']])
   })
 })

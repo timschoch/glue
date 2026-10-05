@@ -34,7 +34,7 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
       // name it.
       const builds =
         part.type === 'decision'
-          ? await context.fetchBuilds(project)
+          ? await context.fetchBuilds(project, { decision: part.id })
           : undefined
       return { part, builds }
     },

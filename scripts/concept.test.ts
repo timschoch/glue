@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createPartOperations } from '../src/db/part-operations.ts'
 import { addPart, addProject, setReading } from '../src/db/part-records.ts'
-import { findPart } from '../src/db/parts.ts'
+import { findConcept, findPart } from '../src/db/parts.ts'
 import { setProductRepository } from '../src/db/projects.ts'
 import * as schema from '../src/db/schema.ts'
 import { createTestDatabase } from '../src/db/test-database.ts'
@@ -604,6 +604,69 @@ describe('runConcept', () => {
     ])
   })
 
+  describe('a new home', () => {
+    const project = ['--project', 'flexibeck']
+    const showHome = async (id: string) =>
+      (await findPart(db, 'flexibeck', id))?.concept
+
+    beforeEach(async () => {
+      await run('concept', 'add', 'checkout', '--title', 'Checkout', ...project)
+    })
+
+    it('moves a Part with set --concept', async () => {
+      await run('set', 'R1', '--concept', 'checkout', ...project)
+
+      expect(await showHome('R1')).toBe('checkout')
+    })
+
+    it('moves a Decision with set --concept, and keeps its status', async () => {
+      await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
+
+      await run('set', 'D1', '--concept', 'checkout', ...project)
+
+      expect(await findPart(db, 'flexibeck', 'D1')).toMatchObject({
+        concept: 'checkout',
+        status: 'proposed',
+      })
+    })
+
+    it('moves many Parts with move', async () => {
+      await run('move', 'G1', 'R1', '--concept', 'checkout', ...project)
+
+      expect(await showHome('G1')).toBe('checkout')
+      expect(await showHome('R1')).toBe('checkout')
+    })
+
+    it('refuses a move without a Concept', async () => {
+      await expect(run('move', 'G1', ...project)).rejects.toThrow(
+        'move needs <id> and --concept <slug>',
+      )
+    })
+
+    it('gives a Concept a new title and a new parent with concept set', async () => {
+      await run('concept', 'add', 'pay', '--title', 'Pay', ...project)
+
+      await run(
+        'concept',
+        'set',
+        'pay',
+        '--title',
+        'Payment',
+        '--parent',
+        'checkout',
+        ...project,
+      )
+
+      expect(await findConcept(db, 'flexibeck', 'pay')).toMatchObject({
+        title: 'Payment',
+        path: [
+          { slug: 'flexibeck', title: 'flexibeck' },
+          { slug: 'checkout', title: 'Checkout' },
+        ],
+      })
+    })
+  })
+
   it('names the issue that the answer to a Decision opened', async () => {
     await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
 
@@ -759,6 +822,8 @@ describe('main', () => {
       'show <id>',
       'add <type>',
       'set <id>',
+      'move <id> [<id> ...] --concept <slug>',
+      'concept set <slug>',
       'downstream <id>',
       'project set <slug>',
       'project add <slug>',
