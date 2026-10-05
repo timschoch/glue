@@ -2,10 +2,11 @@
 // in the repository of its Product, so the builders of the Product build it.
 import type { ConceptDb } from '../db/client.ts'
 import { setIssueUrl } from '../db/part-records.ts'
-import { evidenceTypes, findPart } from '../db/parts.ts'
-import type { Part, PartSummary, PartType } from '../db/parts.ts'
+import { findPart } from '../db/parts.ts'
+import type { Part, PartSummary } from '../db/parts.ts'
 import { findProduct } from '../db/projects.ts'
 import { typeOfRecordId } from '../db/record-id.ts'
+import { isEvidence } from '../part-fields.ts'
 import type { GithubClient, IssueInput } from './client.ts'
 
 export type DownstreamIssue =
@@ -15,8 +16,6 @@ export type DownstreamIssue =
   | { kind: 'failed'; message: string }
 
 const READY_LABEL = 'ready-for-agent'
-
-const EVIDENCE_TYPES: readonly PartType[] = evidenceTypes
 
 function formatReferences(heading: string, references: PartSummary[]) {
   if (references.length === 0) return []
@@ -33,7 +32,7 @@ function toIssue(decision: Part, goal: PartSummary): IssueInput {
     [`Goal: ${goal.id} ${goal.title}`],
     formatReferences(
       'Evidence',
-      needed.filter((part) => EVIDENCE_TYPES.includes(part.type)),
+      needed.filter((part) => isEvidence(part.type)),
     ),
     formatReferences('Supersedes', decision.supersedes),
     [`Decision: ${decision.id}`],

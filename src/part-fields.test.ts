@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { newPartSchema } from './db/part-records.ts'
-import { listFormFields, partFields } from './part-fields.ts'
+import { isEvidence, listFormFields, partFields } from './part-fields.ts'
 
 type PartType = keyof typeof partFields
 
@@ -62,5 +62,19 @@ describe('the fields of each Part type', () => {
     ['metric', ['title', 'body']],
   ] as const)('give the Part form the fields of the type %s', (type, shown) => {
     expect(listFormFields(type).map(({ name }) => name)).toEqual(shown)
+  })
+})
+
+describe('the evidence of a Decision', () => {
+  it.each([
+    ['insight', true],
+    ['guardrail', true],
+    ['goal', false],
+    ['decision', false],
+    ['entity', false],
+    ['flow', false],
+    ['metric', false],
+  ] as const)('a Part of the type %s is evidence: %s', (type, evidence) => {
+    expect(isEvidence(type)).toBe(evidence)
   })
 })

@@ -33,7 +33,6 @@ import type {
 } from '../src/db/part-records.ts'
 import {
   evidenceLevels,
-  evidenceTypes,
   findPart,
   listMine,
   listParts,
@@ -53,7 +52,7 @@ import type { GithubClient } from '../src/github/client.ts'
 import { createDownstreamIssue } from '../src/github/downstream-issue.ts'
 import type { DownstreamIssue } from '../src/github/downstream-issue.ts'
 import { listSignals } from '../src/db/signals.ts'
-import { partFields } from '../src/part-fields.ts'
+import { evidenceTypes, isEvidence, partFields } from '../src/part-fields.ts'
 import type { PartField } from '../src/part-fields.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
@@ -93,8 +92,6 @@ const PART_FOLDERS = {
 type PartFolder = keyof typeof PART_FOLDERS
 
 const PART_TYPES: readonly PartType[] = Object.values(PART_FOLDERS)
-
-const EVIDENCE_TYPES: readonly PartType[] = evidenceTypes
 
 const KNOWN_FIELDS = new Set([
   'title',
@@ -216,7 +213,7 @@ function toDecisionInput({
     needs: [
       requireType(String(goal), ['goal'], 'goal'),
       ...(Array.isArray(evidence) ? evidence : []).map((id) =>
-        requireType(id, EVIDENCE_TYPES, 'evidence'),
+        requireType(id, evidenceTypes, 'evidence'),
       ),
       ...(Array.isArray(needs) ? needs : []),
     ],
@@ -386,13 +383,12 @@ function listShownFields(part: Part): Record<string, unknown> {
 function printDecisionLinks(decision: Part) {
   const needed = decision.needs.map((end) => end.part)
   const goal = needed.find(({ type }) => type === 'goal')
-  const isEvidence = ({ type }: PartSummary) => EVIDENCE_TYPES.includes(type)
   if (goal) console.log(`goal: ${goal.id} ${goal.title}`)
-  for (const item of needed.filter(isEvidence)) {
+  for (const item of needed.filter(({ type }) => isEvidence(type))) {
     console.log(`evidence: ${item.id} ${item.title}`)
   }
   for (const item of needed) {
-    if (item.type !== 'goal' && !isEvidence(item))
+    if (item.type !== 'goal' && !isEvidence(item.type))
       console.log(`needs: ${item.id} ${item.title}`)
   }
   if (decision.supersededBy)

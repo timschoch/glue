@@ -1100,6 +1100,61 @@ describe('the common flow of a record', () => {
     within(screen.getByRole('main')).getByText('Agents build from the Concept')
   })
 
+  it('adds the Decision that has the Insight as its evidence', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model/I3', {
+      fetchPart: vi.fn(
+        changedPart('I3', { evidenceLevel: 'confirmed', neededBy: [] }),
+      ),
+    })
+
+    await act('Add Decision')
+    await expectAddress('/glue/part-model/I3', { add: 'decision' })
+    within(screen.getByRole('list', { name: 'Evidence' })).getByText(I3)
+    await userEvent.type(field('Title'), 'Agents read the Concept')
+    await userEvent.type(screen.getByRole('combobox', { name: 'Goal' }), 'g1')
+    await userEvent.click(await screen.findByRole('option', { name: /G1/ }))
+    await userEvent.click(button('Save'))
+
+    await waitFor(() =>
+      expect(server.addPart).toHaveBeenCalledWith({
+        project: 'glue',
+        part: expect.objectContaining({
+          type: 'decision',
+          status: 'proposed',
+          needs: ['G1', 'I3'],
+        }),
+      }),
+    )
+  })
+
+  it('adds the Decision that needs the Part of another type as a Joint', async () => {
+    const { server } = await renderPage('/glue/part-model/D4?add=decision', {
+      fetchPart: vi.fn(changedPart('D4', { status: 'superseded' })),
+    })
+
+    expect(screen.queryByRole('list', { name: 'Evidence' })).toBeNull()
+    await userEvent.type(field('Title'), 'Agents read the Concept')
+    await userEvent.type(screen.getByRole('combobox', { name: 'Goal' }), 'g1')
+    await userEvent.click(await screen.findByRole('option', { name: /G1/ }))
+    await userEvent.type(
+      screen.getByRole('combobox', { name: 'Evidence' }),
+      'i3',
+    )
+    await userEvent.click(await screen.findByRole('option', { name: /I3/ }))
+    await userEvent.click(button('Save'))
+
+    await waitFor(() =>
+      expect(server.addPart).toHaveBeenCalledWith({
+        project: 'glue',
+        part: expect.objectContaining({
+          type: 'decision',
+          status: 'proposed',
+          needs: ['G1', 'I3', 'D4'],
+        }),
+      }),
+    )
+  })
+
   it('opens the form of an Insight to raise its level', async () => {
     const { expectAddress } = await renderPage('/glue/part-model/I3')
 

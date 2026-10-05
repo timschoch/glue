@@ -11,7 +11,7 @@ import {
 import { useId, useState } from 'react'
 import type { FormEvent, MouseEvent } from 'react'
 
-import { listFormFields } from '../part-fields.ts'
+import { isEvidence, listFormFields } from '../part-fields.ts'
 import type { FormField } from '../part-fields.ts'
 import { Card, evidenceLevels, partTypes } from './card.tsx'
 import { PartFormBody } from './part-form-body.tsx'
@@ -59,10 +59,6 @@ const EMPTY: PartFormValues = {
   goal: null,
   evidence: [],
 }
-
-// The Part types that the evidence of a Decision offers. The server wants
-// one Insight or Guardrail among them.
-const evidenceTypes = new Set<PartType>(['insight', 'guardrail', 'decision'])
 
 const hasValue = (value: PartFormValues[Field]) =>
   typeof value === 'string' ? value.trim() !== '' : Boolean(value?.length)
@@ -288,7 +284,7 @@ export function PartForm({
             key={field}
             id={shared.id}
             label={label}
-            parts={parts.filter((part) => evidenceTypes.has(part.type))}
+            parts={parts.filter((part) => isEvidence(part.type))}
             picks={values.evidence}
             invalidText={errors[field]}
             onPick={(pick) =>

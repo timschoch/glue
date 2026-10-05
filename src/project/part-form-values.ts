@@ -1,7 +1,7 @@
 import type { ExpectedPart, NewPart, PartChange } from '../db/part-records.ts'
 import type { Part, PartType } from '../db/parts.ts'
 import type { PartFormValues } from '../design-system/part-form.tsx'
-import { listFormFields } from '../part-fields.ts'
+import { isEvidence, listFormFields } from '../part-fields.ts'
 import { todayUtc } from '../today-utc.ts'
 
 // What goes between the Part form and the writes of the Part model.
@@ -40,8 +40,8 @@ export function findProblems(
 
 // The new Part of the form. A new Decision is proposed. One that supersedes
 // a Decision is accepted, and the old one becomes superseded with it.
-// `needs` are the Parts that a Part of another type needs: a Decision
-// needs the Goal and the evidence of the form.
+// `needs` are the Parts that the Part needs as Joints. A Decision needs the
+// Goal and the evidence of the form before them.
 export function toNewPart(
   type: PartType,
   values: PartFormValues,
@@ -76,7 +76,11 @@ export function toNewPart(
         owner: values.owner,
         date,
         status: supersedes ? 'accepted' : 'proposed',
-        needs: [...(values.goal ? [values.goal] : []), ...values.evidence],
+        needs: [
+          ...(values.goal ? [values.goal] : []),
+          ...values.evidence,
+          ...(needs ?? []),
+        ],
         supersedes,
       }
     case 'guardrail':
@@ -113,8 +117,6 @@ export function toFormValues(part: Part): PartFormValues {
     evidenceLevel: part.evidenceLevel,
     enforcedBy: part.enforcedBy ?? '',
     goal: needed.find(({ type }) => type === 'goal')?.id ?? null,
-    evidence: needed
-      .filter(({ type }) => type === 'insight' || type === 'guardrail')
-      .map(({ id }) => id),
+    evidence: needed.filter(({ type }) => isEvidence(type)).map(({ id }) => id),
   }
 }
