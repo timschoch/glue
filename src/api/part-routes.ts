@@ -5,6 +5,7 @@ import { createMetricSource } from '../measure/metric-source.server.ts'
 import { getSetting } from '../settings.server.ts'
 import type { ApiRequest } from './api-request.ts'
 import { handleMeasureProject } from './measure-api.ts'
+import { handleAddAsk, handleListAsks, handleUpdateAsk } from './ask-api.ts'
 import { handleGetContract, handleSignContract } from './contract-api.ts'
 import {
   handleAddConcept,
@@ -38,6 +39,7 @@ type PathParams = {
   recordId?: string
   concept?: string
   jointId?: string
+  askId?: string
 } & ({ project: string } | { product: string })
 
 type RouteRequest = { request: Request; params: PathParams }
@@ -107,6 +109,15 @@ export const jointsHandlers = {
 
 export const jointHandlers = {
   DELETE: (route: RouteRequest) => handleRemoveJoint(toApiRequest(route)),
+}
+
+export const asksHandlers = {
+  GET: (route: RouteRequest) => handleListAsks(toApiRequest(route)),
+  POST: (route: RouteRequest) => handleAddAsk(toApiRequest(route)),
+}
+
+export const askHandlers = {
+  PATCH: (route: RouteRequest) => handleUpdateAsk(toApiRequest(route)),
 }
 
 export const signalsHandlers = {
