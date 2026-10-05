@@ -12,12 +12,14 @@ import {
   vi,
 } from 'vitest'
 
+import { signContract } from './contracts.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import {
   addConcept,
   addJoint,
   addPart,
   addProject,
+  removeConcept,
   removeJoint,
   removePart,
   setIssueUrl,
@@ -339,6 +341,74 @@ describe('updateConcept', () => {
   it('refuses a change without a field', async () => {
     await expect(updateConcept(db, 'glue', 'loop', {})).rejects.toThrow(
       new InvalidRecordError('send at least one field'),
+    )
+  })
+})
+
+describe('removeConcept', () => {
+  // The Concept 1 is the root of glue. It holds `part-model` (2) with
+  // `joints` (3) in it, and `loop` (4).
+  beforeEach(async () => {
+    await addProject(db, 'glue')
+    await addConcept(db, 'glue', { slug: 'part-model', title: 'Part model' })
+    await addConcept(db, 'glue', {
+      slug: 'joints',
+      title: 'Joints',
+      parent: 'part-model',
+    })
+    await addConcept(db, 'glue', { slug: 'loop', title: 'Loop' })
+  })
+
+  const listSlugs = async () => (await listConcepts()).map(({ slug }) => slug)
+
+  it('removes a Concept that holds nothing', async () => {
+    await removeConcept(db, 'glue', 'loop')
+
+    expect(await listSlugs()).toEqual(['glue', 'part-model', 'joints'])
+  })
+
+  it('refuses a Concept with Parts, and says how many it holds', async () => {
+    await addPart(db, 'glue', { ...goal, concept: 'loop' })
+    await addPart(db, 'glue', { ...guardrail, concept: 'loop' })
+
+    await expect(removeConcept(db, 'glue', 'loop')).rejects.toThrow(
+      new InvalidRecordError('concept "loop" holds 2 Parts'),
+    )
+    expect(await listSlugs()).toEqual(['glue', 'part-model', 'joints', 'loop'])
+  })
+
+  it('refuses a Concept with a Concept in it, and says so', async () => {
+    await expect(removeConcept(db, 'glue', 'part-model')).rejects.toThrow(
+      new InvalidRecordError('concept "part-model" holds 1 Concept'),
+    )
+    expect(await listSlugs()).toEqual(['glue', 'part-model', 'joints', 'loop'])
+  })
+
+  it('refuses the root Concept of a Project', async () => {
+    await removeConcept(db, 'glue', 'joints')
+    await removeConcept(db, 'glue', 'part-model')
+    await removeConcept(db, 'glue', 'loop')
+
+    await expect(removeConcept(db, 'glue', 'glue')).rejects.toThrow(
+      new InvalidRecordError('the root Concept stays with its Project'),
+    )
+    expect(await listSlugs()).toEqual(['glue'])
+  })
+
+  it('refuses a Concept with a signed Contract Version, and keeps the Version', async () => {
+    await addPart(db, 'glue', { ...insight, concept: 'loop' })
+    await signContract(db, 'glue', 'loop', 'Ada')
+    await updatePart(db, 'glue', 'I1', { concept: 'glue' })
+
+    await expect(removeConcept(db, 'glue', 'loop')).rejects.toThrow(
+      new InvalidRecordError('concept "loop" holds 1 Contract Version'),
+    )
+    expect(await db.select().from(schema.contractVersions)).toHaveLength(1)
+  })
+
+  it('refuses a Concept that the Project does not have', async () => {
+    await expect(removeConcept(db, 'glue', 'videos')).rejects.toThrow(
+      new InvalidRecordError('concept "videos" not found'),
     )
   })
 })

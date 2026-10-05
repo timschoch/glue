@@ -16,6 +16,7 @@ import {
   partAnswerSchema,
   partChangeSchema,
   questionAnswerSchema,
+  removeConcept,
   removeJoint,
 } from '../db/part-records.ts'
 import type { PartChange } from '../db/part-records.ts'
@@ -62,7 +63,7 @@ const conceptNodeSchema = z
     kind,
     partCount: z.number().meta({
       description:
-        'The Parts with their home in this Concept, without the Parts of the Concepts in it',
+        'The Parts with their home in this Concept or in a Concept in it',
     }),
     get concepts() {
       return z.array(conceptNodeSchema)
@@ -316,6 +317,14 @@ export function handleAddConcept(input: ApiRequest) {
     return Response.json(await findConcept(db, params.project, slug), {
       status: 201,
     })
+  })
+}
+
+export function handleRemoveConcept(input: ApiRequest) {
+  return handleApiRequest(input, async () => {
+    const { project, concept = '' } = input.params
+    await removeConcept(input.db, project, concept)
+    return new Response(null, { status: 204 })
   })
 }
 

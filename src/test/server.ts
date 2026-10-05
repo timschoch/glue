@@ -41,6 +41,7 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
     fetchPeople: vi.fn(() => Promise.resolve(people)),
     addProject: vi.fn(({ slug }) => Promise.resolve({ slug })),
     addConcept: vi.fn(({ concept }) => Promise.resolve({ slug: concept.slug })),
+    removeConcept: vi.fn(() => Promise.resolve(undefined)),
     addPart: vi.fn(() => Promise.resolve(saved('D4'))),
     updatePart: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),
     answerPart: vi.fn(({ recordId }) => Promise.resolve(saved(recordId))),

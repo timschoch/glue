@@ -29,7 +29,7 @@ const partModel: ConceptNode = {
   slug: 'part-model',
   title: 'Part model',
   kind: 'brief',
-  partCount: 2,
+  partCount: 3,
   concepts: [readModel],
 }
 
@@ -65,7 +65,7 @@ function rootOf(project: { slug: string; name: string }): ConceptNode {
     slug: project.slug,
     title: project.name,
     kind: null,
-    partCount: 1,
+    partCount: project.slug === 'glue' ? 4 : 0,
     concepts: project.slug === 'glue' ? [partModel, flows] : [],
   }
 }

@@ -46,6 +46,7 @@ import {
   submitAnswer,
   submitAssign,
   submitQuestionAnswer,
+  submitRemoveConcept,
   submitRemoveJoint,
   submitSetLoopSteps,
   submitUnassign,
@@ -79,6 +80,8 @@ export const server = {
   // happen and the message says why.
   addProject: (project: ProjectAddInput) => submitAddProject({ data: project }),
   addConcept: (concept: ConceptAddInput) => submitAddConcept({ data: concept }),
+  removeConcept: (concept: ConceptInput) =>
+    submitRemoveConcept({ data: concept }),
   addPart: (part: PartAddInput) => submitAddPart({ data: part }),
   updatePart: (part: PartUpdateInput) => submitUpdatePart({ data: part }),
   answerPart: (answer: AnswerInput) => submitAnswer({ data: answer }),

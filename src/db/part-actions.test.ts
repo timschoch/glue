@@ -91,6 +91,7 @@ const requests = {
       project,
       concept: { slug: 'checkout', title: 'Checkout' },
     }),
+  removeConcept: () => actions.removeConcept({ project, concept: 'checkout' }),
   addPart: () =>
     actions.addPart({ project, part: { type: 'flow', title: 'Push' } }),
   updatePart: () =>

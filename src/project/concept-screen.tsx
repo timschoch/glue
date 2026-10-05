@@ -1,4 +1,4 @@
-import { getRouteApi } from '@tanstack/react-router'
+import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import type { ProjectBuilds } from '../db/builds.ts'
@@ -18,6 +18,7 @@ import { PeopleScreen } from './people-screen.tsx'
 import { UNKNOWN_CONCEPT, isPartType, lensTypes } from './project-search.ts'
 import { SignalInsightScreen } from './signal-insight-screen.tsx'
 import { useProjectLinks } from './use-project-links.ts'
+import { useWrite } from './use-write.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
 
@@ -42,9 +43,12 @@ export function ConceptScreen({
   // builds that name the Contract of the Concept.
   builds?: ProjectBuilds
 }) {
+  const router = useRouter()
   const { parts, mine, measured } = projectRoute.useLoaderData()
-  const { search, conceptHref, recordHref, open, changeSearch } =
+  const { removeConcept } = projectRoute.useRouteContext()
+  const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
+  const { failure, write } = useWrite()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
 
   if (isPartType(search.add)) {
@@ -116,6 +120,16 @@ export function ConceptScreen({
       concept.parts.length > 0 ||
       concept.concepts.length > 0)
 
+  // The root stays. A Concept goes only when it holds nothing: no Part, no
+  // Concept and no Contract Version.
+  const isRemovable =
+    concept.slug !== project &&
+    concept.parts.length === 0 &&
+    concept.concepts.length === 0 &&
+    contract.versions.length === 0
+  // After the removal the screen shows the parent Concept.
+  const parent = concept.path.at(-1)?.slug ?? project
+
   return (
     <ConceptView
       concept={concept}
@@ -133,6 +147,17 @@ export function ConceptScreen({
       onOpenConcept={({ slug }, event) => open(conceptHref(slug), event)}
       onAddPart={(type) => void changeSearch({ ...search, add: type })}
       onAddConcept={() => void changeSearch({ ...search, add: 'concept' })}
+      onRemove={
+        isRemovable
+          ? () =>
+              void write(
+                'Removing',
+                () => removeConcept({ project, concept: concept.slug }),
+                () => router.navigate({ href: conceptHref(parent) }),
+              )
+          : undefined
+      }
+      removeFailure={failure}
       contract={
         hasContract && (
           <ContractSection contract={contract} builds={builds?.builds} />

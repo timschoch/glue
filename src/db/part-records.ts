@@ -192,6 +192,53 @@ export async function updateConcept(
     .where(eq(concepts.id, concept.id))
 }
 
+function formatCount(count: number, thing: string) {
+  return `${count} ${thing}${count === 1 ? '' : 's'}`
+}
+
+// Removes a Concept that holds nothing: no Part, no Concept and no signed
+// Contract Version. A Version is a stored copy that would go with its
+// Concept, so it refuses the removal. The root stays with its Project. The
+// assignments of the Concept go with it.
+export async function removeConcept(
+  db: ConceptDb,
+  projectSlug: string,
+  slug: string,
+): Promise<void> {
+  const { concepts, parts, contractVersions } = schema
+  const projectId = await getProjectId(db, projectSlug)
+  const found = await db
+    .select({ id: concepts.id, parentId: concepts.parentId })
+    .from(concepts)
+    .where(and(eq(concepts.projectId, projectId), eq(concepts.slug, slug)))
+  const concept = found.at(0)
+  if (!concept) throw new InvalidRecordError(`concept "${slug}" not found`)
+  if (concept.parentId === null)
+    throw new InvalidRecordError('the root Concept stays with its Project')
+  const held = [
+    {
+      thing: 'Part',
+      count: await db.$count(parts, eq(parts.conceptId, concept.id)),
+    },
+    {
+      thing: 'Concept',
+      count: await db.$count(concepts, eq(concepts.parentId, concept.id)),
+    },
+    {
+      thing: 'Contract Version',
+      count: await db.$count(
+        contractVersions,
+        eq(contractVersions.conceptId, concept.id),
+      ),
+    },
+  ].filter(({ count }) => count > 0)
+  if (held.length > 0)
+    throw new InvalidRecordError(
+      `concept "${slug}" holds ${held.map(({ count, thing }) => formatCount(count, thing)).join(', ')}`,
+    )
+  await db.delete(concepts).where(eq(concepts.id, concept.id))
+}
+
 const date = z.iso.date()
 
 const commonFields = {

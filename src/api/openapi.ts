@@ -141,6 +141,17 @@ function listPartPaths() {
           ...readErrorResponses,
         },
       },
+      delete: {
+        operationId: 'removeConcept',
+        summary:
+          'Remove a Concept that holds no Part, no Concept and no Contract Version. The root Concept stays',
+        requestParams: { path: path.extend({ concept: conceptSlug }) },
+        responses: {
+          204: { description: 'The Concept is gone' },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
     },
     [`${root}/concepts/{concept}/contract`]: {
       get: {

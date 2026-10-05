@@ -71,6 +71,10 @@ export const submitAddConcept = createServerFn({ method: 'POST' })
   .validator(conceptAddInputSchema)
   .handler(({ data }) => actions.addConcept(data))
 
+export const submitRemoveConcept = createServerFn({ method: 'POST' })
+  .validator(conceptReadInputSchema)
+  .handler(({ data }) => actions.removeConcept(data))
+
 export const submitAddPart = createServerFn({ method: 'POST' })
   .validator(partAddInputSchema)
   .handler(({ data }) => actions.addPart(data))

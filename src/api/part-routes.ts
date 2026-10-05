@@ -17,6 +17,7 @@ import {
   handleGetProjectConcept,
   handleListMine,
   handleListParts,
+  handleRemoveConcept,
   handleRemoveJoint,
   handleUpdatePart,
 } from './part-api.ts'
@@ -67,6 +68,7 @@ export const projectConceptsHandlers = {
 
 export const projectConceptHandlers = {
   GET: (route: RouteRequest) => handleGetProjectConcept(toApiRequest(route)),
+  DELETE: (route: RouteRequest) => handleRemoveConcept(toApiRequest(route)),
 }
 
 export const contractHandlers = {

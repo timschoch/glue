@@ -18,8 +18,8 @@ import type {
   PartChange,
   QuestionAnswer,
 } from './part-records.ts'
-import { findPart } from './parts.ts'
-import type { Part } from './parts.ts'
+import { findPart, listPartsByRecordId } from './parts.ts'
+import type { Part, PartSummary } from './parts.ts'
 import { InvalidRecordError, PartNotFoundError } from './record-errors.ts'
 import { addSignalInsight } from './signals.ts'
 import type { SignalInsight } from './signals.ts'
@@ -60,6 +60,20 @@ export function createPartOperations({
     return { part: await getPart(project, recordId), issue }
   }
 
+  // The Parts of a move, in the order of the ids. One statement reads them:
+  // a read of each Part at the same time is more requests than Neon takes.
+  async function listMoved(
+    project: string,
+    recordIds: string[],
+  ): Promise<PartSummary[]> {
+    const found = await listPartsByRecordId(db, project, recordIds)
+    return recordIds.map((recordId) => {
+      const part = found.find(({ id }) => id === recordId)
+      if (!part) throw new PartNotFoundError(recordId)
+      return part
+    })
+  }
+
   return {
     getPart,
 
@@ -86,12 +100,10 @@ export function createPartOperations({
     // Moves the Parts to the Concept of their Project, and gives them back
     // as they are now. One of them does not exist: no Part moves.
     async moveParts(project: string, recordIds: string[], concept: string) {
-      for (const recordId of recordIds) await getPart(project, recordId)
+      await listMoved(project, recordIds)
       for (const recordId of recordIds)
         await updatePart(db, project, recordId, { concept })
-      return Promise.all(
-        recordIds.map((recordId) => getPart(project, recordId)),
-      )
+      return listMoved(project, recordIds)
     },
 
     // Moves the Parts to a Concept of another Project: see
@@ -108,9 +120,7 @@ export function createPartOperations({
         recordIds,
         target,
       )
-      const parts = await Promise.all(
-        recordIds.map((recordId) => getPart(target.project, recordId)),
-      )
+      const parts = await listMoved(target.project, recordIds)
       return { parts, droppedJoints }
     },
 

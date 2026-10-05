@@ -349,6 +349,21 @@ describe('a move of Parts to another Project', () => {
     )
   })
 
+  // A read of each moved Part at the same time is more requests than Neon
+  // takes: the move of 113 Parts failed on a read after its write (I99).
+  it('reads the moved Parts with one statement, however many they are', async () => {
+    await addPart(db, 'glue', { type: 'entity', title: 'Check' })
+    await addPart(db, 'glue', { type: 'entity', title: 'Gate' })
+    await addPart(db, 'glue', { type: 'entity', title: 'Override' })
+
+    const reads = await countPartReads(() =>
+      operations.movePartsToProject('glue', ['E1', 'E2', 'E3'], target),
+    )
+
+    // One read before the write, one after it.
+    expect(reads).toBe(2)
+  })
+
   it('refuses the whole move when the target Project has one of the ids, and names it', async () => {
     await addPart(db, 'glue-build', {
       type: 'insight',
