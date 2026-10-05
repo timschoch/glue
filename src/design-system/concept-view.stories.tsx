@@ -173,11 +173,6 @@ export const MapView: Story = {
   },
 }
 
-// The lens of the section Decide.
-export const Lens: Story = {
-  args: { concept: brief, types: ['goal', 'decision', 'guardrail'] },
-}
-
 export const NarrowWindow: Story = {
   args: { concept: { ...brief, concepts } },
   globals: { viewport: { value: 'mobile1' } },

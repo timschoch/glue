@@ -7,6 +7,8 @@ import type { ConceptDb } from '../src/db/client.ts'
 import { listBuilds } from '../src/db/builds.ts'
 import { findContract, signContract } from '../src/db/contracts.ts'
 import type { FrozenPart } from '../src/db/contracts.ts'
+import { listLeveledParts } from '../src/db/flight-level.ts'
+import type { LeveledPart } from '../src/db/flight-level.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
 import type { GoalMeasure } from '../src/db/goal-measure.ts'
 import type { Kind } from '../src/db/kinds.ts'
@@ -331,10 +333,13 @@ function formatRow({
   status,
   trust,
   workState,
+  flightLevel,
   title,
 }: Pick<PartSummary, 'id' | 'status' | 'title'> &
-  Partial<Pick<PartSummary, 'trust' | 'workState'>>) {
-  return [id, status, trust, workState, title].filter(Boolean).join('  ')
+  Partial<Pick<LeveledPart, 'trust' | 'workState' | 'flightLevel'>>) {
+  return [id, status, trust, workState, flightLevel, title]
+    .filter(Boolean)
+    .join('  ')
 }
 
 // The Trust and the Work state of the Part, its open flags and the Part
@@ -491,7 +496,7 @@ function formatHelp() {
     ([folder, type]) => `  ${folder}: ${formatNeededFlags(type)}`,
   )
   return [
-    'pnpm concept list [<type>]',
+    'pnpm concept list [<type>] [--member <e-mail>]',
     'pnpm concept show <id>',
     'pnpm concept add <type> <flags of the type> [--body <text>, or - for stdin]',
     'pnpm concept set <id> <flags of the type> [--body <text>, or - for stdin]',
@@ -566,7 +571,8 @@ function formatHelp() {
     'concept remove removes a Concept that holds nothing: no record, no Concept and no Contract Version. The root Concept stays.',
     'contract sign freezes the records of a Concept as its next Contract Version. Each record needs Trust solid.',
     'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
-    'With --member: the records of the member, and the records that nobody has.',
+    'mine with --member: the records of the member, and the records that nobody has.',
+    'list with --member: each record with its flight level for the member. operational: the record is of a loop step of the member, or the member is Responsible or Co-Author of the record or of its Concept. strategic: each other record.',
     'member add takes the e-mail address of an account. A record or a Concept has one Responsible.',
     'The Responsible of a record is its owner: assign <id> --responsible sets the owner.',
     'watch makes a member a watcher of a record. A watcher is not the owner. watchers lists who watches, of one record or of the Project.',
@@ -633,7 +639,11 @@ export async function runConcept(
       if (!isPartFolder(folder)) await getProjectId(db, product)
       const folders = { ...CONCEPT_FOLDERS, ...PART_FOLDERS }
       const types = folder ? [folders[folder]] : Object.values(folders)
-      const parts = await listParts(db, product, types)
+      const member = flags.member as string | undefined
+      const parts: Array<PartSummary | LeveledPart> =
+        member === undefined
+          ? await listParts(db, product, types)
+          : await listLeveledParts(db, product, member, types)
       for (const type of types) {
         for (const part of parts.filter((listed) => listed.type === type)) {
           console.log(formatRow(part))

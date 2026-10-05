@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import type { Failure } from '../authentication/session.ts'
 import { listBuilds } from './builds.ts'
+import { listLeveledParts } from './flight-level.ts'
 import {
   addMember,
   assign,
@@ -44,7 +45,6 @@ import {
   listMapJoints,
   listMeasured,
   listMine,
-  listParts,
   listProjects,
   listWatched,
 } from './parts.ts'
@@ -184,8 +184,9 @@ export function createPartActions(request: ActionRequest) {
       findConcept(db, project, concept),
     ),
 
-    listParts: withSession((db, { project, types }: PartListInput) =>
-      listParts(db, project, types),
+    // Each Part has its flight level for the person of the session.
+    listParts: withReader((db, { project, types }: PartListInput, member) =>
+      listLeveledParts(db, project, member?.email, types),
     ),
 
     // A member who is not the owner of a Part with a flag gets no answers.

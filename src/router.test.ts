@@ -86,12 +86,13 @@ describe('a Project route with a session', () => {
       ...overrides,
     })
 
-  it('shows the start of Glue at /', async () => {
+  it('shows Glue at /, in the section of the first loop step of the member', async () => {
     const server = signedIn()
 
     const location = await load('/', server)
 
     expect(location.pathname).toBe('/glue')
+    expect(location.search).toEqual({ section: 'Decide' })
   })
 
   it('reads the Project, its Parts and its root Concept at the start of the Project', async () => {

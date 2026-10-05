@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   changePin,
+  landingSection,
   lensTypes,
   openRecord,
   parseProjectSearch,
@@ -49,6 +50,16 @@ describe('the search parameters of a Project', () => {
     ).toEqual({ expanded: ['build-run', 'people'] })
     expect(parseProjectSearch({ expanded: [] })).toEqual({})
     expect(parseProjectSearch({ expanded: ['Build run', 7] })).toEqual({})
+  })
+
+  it('reads the Concept of the filter and the detail of a section', () => {
+    expect(parseProjectSearch({ home: 'part-model', detail: true })).toEqual({
+      home: 'part-model',
+      detail: true,
+    })
+    expect(parseProjectSearch({ home: 'Part model', detail: 'yes' })).toEqual(
+      {},
+    )
   })
 
   it('reads the record or the Concept of the panel', () => {
@@ -149,5 +160,19 @@ describe('the lens of a section', () => {
 
   it.each(['Mine', 'People'] as const)('shows no Part in %s', (section) => {
     expect(lensTypes(section)).toEqual([])
+  })
+})
+
+describe('the section after sign-in', () => {
+  it('is Mine for a member with open items', () => {
+    expect(landingSection(2, ['build', 'use'])).toBe('Mine')
+  })
+
+  it('is the first loop step of a member with no open item', () => {
+    expect(landingSection(0, ['build', 'use'])).toBe('Build')
+  })
+
+  it('is no section for a member with no loop step', () => {
+    expect(landingSection(0, [])).toBeUndefined()
   })
 })

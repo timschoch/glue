@@ -1,5 +1,7 @@
+import type { LoopStep } from '../db/members.ts'
 import type { PartType } from '../db/parts.ts'
 import { isRecordId } from '../db/record-id.ts'
+import { stepTypes } from '../db/step-types.ts'
 import { partTypes } from '../design-system/card.tsx'
 import type { Section } from '../design-system/frame.tsx'
 
@@ -8,6 +10,11 @@ import type { Section } from '../design-system/frame.tsx'
 export type ProjectSearch = {
   // The lens. Without it the Concept shows all its Parts.
   section?: Section
+  // The slug of the one Concept whose Parts the section lists. Without it
+  // the section lists the Parts of the whole Project.
+  home?: string
+  // The section shows each Part in detail, the Strategic ones too.
+  detail?: true
   // The pinned records, newest first.
   pins?: Array<string>
   // The records opened on the way to the open record, oldest first.
@@ -47,12 +54,32 @@ export const UNKNOWN_CONCEPT = 'concept'
 // the Project that need the owner. People has no Parts yet.
 const lenses: Record<Section, ReadonlyArray<PartType>> = {
   Mine: [],
-  Understand: ['insight'],
-  Decide: ['goal', 'decision'],
-  Design: ['flow', 'entity'],
-  Build: ['guardrail'],
-  Use: ['metric'],
+  Understand: stepTypes.understand,
+  Decide: stepTypes.decide,
+  Design: stepTypes.design,
+  Build: stepTypes.build,
+  Use: stepTypes.use,
   People: [],
+}
+
+const stepSections = {
+  understand: 'Understand',
+  decide: 'Decide',
+  design: 'Design',
+  build: 'Build',
+  use: 'Use',
+} as const satisfies Record<LoopStep, Section>
+
+// The section that a member sees after sign-in: Mine while it has open
+// items, then the first loop step of the member. A member with no loop step
+// sees the Concept with no lens.
+export function landingSection(
+  mineCount: number,
+  loopSteps: ReadonlyArray<LoopStep>,
+): Section | undefined {
+  if (mineCount > 0) return 'Mine'
+  const first = loopSteps.at(0)
+  return first && stepSections[first]
 }
 
 export function lensTypes(
@@ -88,6 +115,8 @@ export function parseProjectSearch(
 ): ProjectSearch {
   return {
     section: isSection(search.section) ? search.section : undefined,
+    home: isSlug(search.home) ? search.home : undefined,
+    detail: search.detail === true ? true : undefined,
     pins: parseRecordIds(search.pins),
     trail: parseRecordIds(search.trail),
     add: isAdded(search.add) ? search.add : undefined,

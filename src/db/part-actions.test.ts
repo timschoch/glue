@@ -220,6 +220,18 @@ describe('a server function of the Part model with a session', () => {
     expect(goals.map(({ id }) => id)).toEqual(['G1'])
   })
 
+  it('lists each Part with its flight level for the person of the session', async () => {
+    await signIn()
+    await actions.setLoopSteps({ project, loopSteps: ['decide'] })
+
+    const all = await actions.listParts({ project })
+
+    expect(all.map(({ id, flightLevel }) => [id, flightLevel])).toEqual([
+      ['I1', 'strategic'],
+      ['G1', 'operational'],
+    ])
+  })
+
   it('reads a Part with its Joints', async () => {
     await addJoint(db, project, { part: 'I1', needs: 'G1' })
 

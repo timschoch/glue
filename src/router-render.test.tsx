@@ -322,6 +322,46 @@ describe('a section', () => {
     expect(groups()).toEqual(all)
   })
 
+  it('lists the Parts of the whole Project, and of one Concept after a click on its tag', async () => {
+    const { expectAddress } = await renderPage('/glue/flows?section=Decide')
+    const cards = () =>
+      within(screen.getByRole('main'))
+        .getAllByRole('link')
+        .map((link) => link.textContent)
+
+    expect(pageTitle()).toBe('Decide')
+    expect(cards()).toEqual([
+      'Solid Goal G1 Agents build from the Concept Published Glue',
+      `Solid Decision D4 ${D4} Published Part model`,
+    ])
+
+    await userEvent.click(button('Part model 1'))
+
+    await expectAddress('/glue/flows', {
+      section: 'Decide',
+      home: 'part-model',
+    })
+    expect(cards()).toEqual([`Solid Decision D4 ${D4} Published Part model`])
+  })
+
+  it('shows a Strategic Part in the row of its Concept, and as a card after the switch to detail', async () => {
+    const { expectAddress } = await renderPage('/glue?section=Build')
+    const main = within(screen.getByRole('main'))
+
+    expect(main.queryByRole('link')).toBeNull()
+    expect(main.getByRole('button', { expanded: false }).textContent).toBe(
+      'Solid Read model 1',
+    )
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Detail' }))
+
+    await expectAddress('/glue', { section: 'Build', detail: true })
+    expect(card('R1').textContent).toBe(
+      `Solid Guardrail R1 ${R1} Published Read model`,
+    )
+    expect(main.queryByRole('button', { expanded: false })).toBeNull()
+  })
+
   it('reads the Signals only in the section Understand', async () => {
     const { server } = await renderPage('/glue/part-model?section=Decide')
 
@@ -676,7 +716,7 @@ describe('the edit of a Part', () => {
   })
 
   it('saves another title, another body and another Goal of a Decision', async () => {
-    const G2: PartSummary = {
+    const G2 = {
       ...parts[1],
       id: 'G2',
       title: 'Agents merge faster',
@@ -860,9 +900,10 @@ describe('the section Use', () => {
   ]
 
   it('lists each Metric and each measured Goal with its newest value against its target', async () => {
-    const { expectAddress } = await renderPage('/glue?section=Use', {
-      fetchMeasured: vi.fn(() => Promise.resolve(measured)),
-    })
+    const { expectAddress } = await renderPage(
+      '/glue?section=Use&detail=true',
+      { fetchMeasured: vi.fn(() => Promise.resolve(measured)) },
+    )
 
     expect(pageTitle()).toBe('Use')
     expect(card('G1').textContent).toContain('30% Target 25%')
@@ -876,7 +917,7 @@ describe('the section Use', () => {
   })
 
   it('shows an empty slot for a Metric with no reading', async () => {
-    await renderPage('/glue?section=Use', {
+    await renderPage('/glue?section=Use&detail=true', {
       fetchMeasured: vi.fn(() => Promise.resolve(measured)),
     })
 
