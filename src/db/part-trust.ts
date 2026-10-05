@@ -226,17 +226,22 @@ export function spreadTrust(
         )
     ),
     flagged as (
-      update "parts" set
-        "trust" = case when "trust" = 'solid' then 'flagged' else "trust" end,
-        "work_state" = case
-          when "work_state" = 'review' then 'review'
-          else 'to-check'
-        end,
-        "awaited_part_id" = null,
-        "changed_at" = now()
-      where "id" in (
-          select "part_id" from added_flags union select "id" from woken
-        )
+      ${flagParts(sql`select "part_id" from added_flags union select "id" from woken`)}
         and "id" not in (select "id" from ${newParts})
     )`
+}
+
+// The write that turns the Parts of the ids flagged and to-check. A Part in
+// review stays there, and red stays red: automatic is yellow only.
+export function flagParts(partIds: SQL): SQL {
+  return sql`
+    update "parts" set
+      "trust" = case when "trust" = 'solid' then 'flagged' else "trust" end,
+      "work_state" = case
+        when "work_state" = 'review' then 'review'
+        else 'to-check'
+      end,
+      "awaited_part_id" = null,
+      "changed_at" = now()
+    where "id" in (${partIds})`
 }

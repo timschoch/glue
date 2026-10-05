@@ -50,6 +50,7 @@ function neededBy(...types: Array<PartSummary['type']>): Part['neededBy'] {
     jointId,
     twoWay: false,
     link: false,
+    contractVersion: null,
     part: { ...summary, id: `X${jointId}`, type },
   }))
 }

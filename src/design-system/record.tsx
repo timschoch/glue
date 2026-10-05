@@ -77,12 +77,41 @@ const flagReasons = {
   'not-ready': 'Not ready',
   wrong: 'Wrong',
   'off-target': 'Off target',
+  'new-version': 'New Version',
+} as const
+
+// The fields of a Part that a Contract Version holds.
+const frozenFields = {
+  type: 'Type',
+  title: 'Title',
+  body: 'Body',
+  concept: 'Concept',
+  status: 'Status',
+  owner: 'Owner',
+  date: 'Date',
+  source: 'Source',
+  metric: 'Metric',
+  enforcedBy: 'Enforced by',
+  evidenceLevel: 'Evidence level',
+  needs: 'Needs',
 } as const
 
 // An open flag: its reason and the Part that caused it.
 export type RecordFlag = {
   reason: keyof typeof flagReasons
   part: RecordPartSummary
+  // Only a flag of a new Contract Version has it: the Version that the
+  // Joint was built with, the newest Version, and each field of the needed
+  // Part that the two hold with another value.
+  contract?: {
+    builtWith: number
+    newest: number
+    changes: ReadonlyArray<{
+      field: keyof typeof frozenFields
+      before: string | null
+      after: string | null
+    }>
+  }
 }
 
 // What happened to a Part: an edit, its first sign-off, or a flag that
@@ -418,6 +447,9 @@ export type RecordProps = {
   // Adds a Joint from this Part to the Part of the record id.
   onAddJoint?: (recordId: string) => void
   onRemoveJoint?: (jointId: number) => void
+  // Answers the flag of a new Contract Version: the Joint to the needed
+  // Part of the record id moves to that Version.
+  onMoveToVersion?: (recordId: string, version: number) => void
   // What the tools outside Glue have on the Part. It comes before the
   // activity.
   children?: ReactNode
@@ -452,6 +484,7 @@ export function Record({
   jointParts = [],
   onAddJoint,
   onRemoveJoint,
+  onMoveToVersion,
   children,
   assignees,
   home,
@@ -656,7 +689,7 @@ export function Record({
       )}
       {part.flags.length > 0 && (
         <ul aria-label="Flags" className={styles.flags}>
-          {part.flags.map(({ reason, part: cause }) => (
+          {part.flags.map(({ reason, part: cause, contract }) => (
             <li key={`${cause.id} ${reason}`} className={styles.flag}>
               <span className={styles.reason}>{flagReasons[reason]}</span>
               <Card
@@ -668,6 +701,40 @@ export function Record({
                 href={cause.href}
                 onOpen={onOpen && ((event) => onOpen(cause.id, event))}
               />
+              {contract && (
+                <dl className={styles.changes}>
+                  {[
+                    {
+                      label: 'Version',
+                      before: contract.builtWith,
+                      after: contract.newest,
+                    },
+                    ...contract.changes.map(({ field, before, after }) => ({
+                      label: frozenFields[field],
+                      before,
+                      after,
+                    })),
+                  ].map(({ label, before, after }) => (
+                    <div key={label} className={styles.change}>
+                      <dt>{label}</dt>
+                      <dd>
+                        {before !== null && <del>{before}</del>}
+                        {after !== null && <ins>{after}</ins>}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {contract && onMoveToVersion && (
+                <Button
+                  kind="tertiary"
+                  size="sm"
+                  className={styles.move}
+                  onClick={() => onMoveToVersion(cause.id, contract.newest)}
+                >
+                  Move to Version {contract.newest}
+                </Button>
+              )}
             </li>
           ))}
         </ul>

@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import { signContract } from '../db/contracts.ts'
 import { addProjectReference, setProductRepository } from '../db/projects.ts'
 import type { GoalMeasure } from '../db/goal-measure.ts'
 import {
@@ -970,6 +971,63 @@ describe('Trust and the Work state', () => {
     })
   })
 
+  it('returns the Contract Version of a Joint and the flag of a new Version, and takes the move to it', async () => {
+    await addConcept(db, 'flexibeck', { slug: 'rules', title: 'Rules' })
+    await addConcept(db, 'flexibeck', { slug: 'shop', title: 'Shop' })
+    await addPart(db, 'flexibeck', {
+      type: 'guardrail',
+      title: 'Pay in two steps',
+      enforcedBy: 'review',
+      concept: 'rules',
+    })
+    await answerPart(db, 'flexibeck', 'R2', { answer: 'supersede' })
+    await signContract(db, 'flexibeck', 'rules', 'Ada')
+    await addPart(db, 'flexibeck', {
+      type: 'flow',
+      title: 'Buy a course',
+      concept: 'shop',
+      needs: ['R2'],
+    })
+    await answerPart(db, 'flexibeck', 'F1', { answer: 'supersede' })
+    await call(handleUpdatePart, 'PATCH', {
+      params: { recordId: 'R2' },
+      body: { title: 'Pay in one step' },
+    })
+    await signContract(db, 'flexibeck', 'rules', 'Ada')
+
+    const flagged = await call(handleGetPart, 'GET', {
+      params: { recordId: 'F1' },
+    })
+    const moved = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'F1' },
+      body: { answer: 'move-to-version', needs: 'R2', version: 2 },
+    })
+
+    expect(flagged.body.needs).toMatchObject([{ contractVersion: 1 }])
+    expect(flagged.body.flags).toContainEqual({
+      cause: expect.objectContaining({ id: 'R2' }),
+      reason: 'new-version',
+      createdAt: expect.any(String),
+      contract: {
+        concept: 'rules',
+        builtWith: 1,
+        newest: 2,
+        changes: [
+          {
+            field: 'title',
+            before: 'Pay in two steps',
+            after: 'Pay in one step',
+          },
+        ],
+      },
+    })
+    expect(moved.status).toBe(200)
+    expect(moved.body.needs).toMatchObject([{ contractVersion: 2 }])
+    expect(
+      moved.body.flags.map(({ reason }: { reason: string }) => reason),
+    ).toEqual(['changed'])
+  })
+
   it('answers 400 for an answer that the Work state does not take, and names the ones that it takes', async () => {
     const response = await call(handleAnswerPart, 'POST', {
       params: { recordId: 'I1' },
@@ -1075,6 +1133,7 @@ describe('Joints', () => {
         jointId: 1,
         twoWay: false,
         link: false,
+        contractVersion: null,
         part: expect.objectContaining({ id: 'I1' }),
       },
     ])
@@ -1083,6 +1142,7 @@ describe('Joints', () => {
         jointId: 1,
         twoWay: false,
         link: false,
+        contractVersion: null,
         part: expect.objectContaining({ id: 'R1' }),
       },
     ])
@@ -1167,6 +1227,7 @@ describe('Joints', () => {
         jointId: 1,
         twoWay: false,
         link: true,
+        contractVersion: null,
         project: { slug: 'glue', name: 'glue' },
         part: expect.objectContaining({
           id: 'E1',

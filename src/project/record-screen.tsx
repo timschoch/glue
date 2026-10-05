@@ -206,6 +206,9 @@ export function RecordScreen({
       onRemoveJoint={(jointId) =>
         void write('Saving', () => removeJoint({ project, jointId }))
       }
+      onMoveToVersion={(needs, version) =>
+        answer({ answer: 'move-to-version', needs, version })
+      }
       pinned={search.pins?.includes(part.id) ?? false}
       onPinChange={(pinned) =>
         void changeSearch(changePin(search, part.id, pinned))

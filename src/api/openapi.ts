@@ -246,7 +246,7 @@ function listPartPaths() {
       post: {
         operationId: 'answerPart',
         summary:
-          'Answer a Part as its owner: fine, wait, need time, not ready, supersede or sink',
+          'Answer a Part as its owner: fine, wait, need time, not ready, supersede or sink. Or answer its flag of a new Contract Version: move to version',
         requestParams: { path: path.extend({ recordId }) },
         requestBody: jsonContent(answerInputSchema),
         responses: {

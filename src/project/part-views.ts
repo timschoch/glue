@@ -106,9 +106,9 @@ export function toRecordPart(
     signals: part.signals,
     question: part.question,
     unchosen: part.unchosen,
-    flags: part.flags.flatMap(({ cause, reason }) => {
+    flags: part.flags.flatMap(({ cause, reason, contract }) => {
       const found = findCause(cause.id)
-      return found ? { reason, part: found } : []
+      return found ? { reason, part: found, contract } : []
     }),
     activity: part.activity.map((entry) => {
       const cause = 'cause' in entry ? findCause(entry.cause.id) : undefined

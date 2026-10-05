@@ -267,10 +267,13 @@ function formatNeededId({ project, part }: JointEnd) {
   return project ? `${project.slug}/${part.id}` : part.id
 }
 
-// A needed Part in a line of `show`. A reference has its Trust too.
+// A needed Part in a line of `show`. A reference has its Trust too. A Joint
+// that was built with a Contract Version has that Version.
 function formatNeeded(end: JointEnd) {
   const { title, trust } = end.part
-  return [formatNeededId(end), end.project && trust, title]
+  const version =
+    end.contractVersion !== null && `version ${end.contractVersion}`
+  return [formatNeededId(end), version, end.project && trust, title]
     .filter(Boolean)
     .join(' ')
 }
@@ -337,9 +340,18 @@ function printTrust(part: Part) {
     if (onTarget !== null) console.log(`on_target: ${onTarget}`)
     if (measuredAt) console.log(`measured_at: ${measuredAt}`)
   }
-  for (const { cause, reason, createdAt } of part.flags) {
+  for (const { cause, reason, createdAt, contract } of part.flags) {
     const date = createdAt.slice(0, 10)
     console.log(`flag: ${cause.id} ${reason} ${date} ${cause.title}`)
+    if (!contract) continue
+    console.log(
+      `version: ${cause.id} ${contract.builtWith} -> ${contract.newest}`,
+    )
+    for (const { field, before, after } of contract.changes) {
+      console.log(
+        `change: ${cause.id} ${field}: ${before ?? ''} -> ${after ?? ''}`,
+      )
+    }
   }
   if (part.waitsOn) {
     console.log(`waits_on: ${part.waitsOn.id} ${part.waitsOn.title}`)
@@ -478,6 +490,7 @@ function formatHelp() {
     'pnpm concept move <id> [<id> ...] --concept <slug> --to-project <slug> [--drop-refused-joints]',
     'pnpm concept downstream <id>',
     'pnpm concept answer <id> <answer> [--waits-on <id>] [--words <text> --by <name>]',
+    'pnpm concept answer <id> move-to-version --needs <needed id> --version <number>',
     'pnpm concept answer <id> --option <number> --by <name>',
     'pnpm concept answer <id> --text <answer> --by <name>',
     'pnpm concept signals',
@@ -526,6 +539,7 @@ function formatHelp() {
     '',
     `answer takes ${answers.join(', ')}. The Work state of the record says which ones.`,
     'wait needs --waits-on: the record that it waits on.',
+    'answer move-to-version answers the flag new-version: the Joint to the needed record moves to the newest Contract Version, and the flag closes.',
     '--words is an answer in words: it goes to the end of the body with the name of --by and the date.',
     'answer with --option or --text answers the question of a proposed Decision: the Decision keeps the answer and becomes accepted.',
     'mine lists what needs the owner: the records in to-check, draft or review.',
@@ -592,7 +606,8 @@ export async function runConcept(
       const asksQuestion = rest.length > 1 && answer.startsWith('--')
       const flags = parseFlags(asksQuestion ? rest.slice(1) : flagArgs)
       const product = await readProject(db, flags)
-      const { waits_on: waitsOn, words, by } = flags
+      const { waits_on: waitsOn, words, by, version } = flags
+      const needs = flags.needs as string[] | undefined
       const operations = createPartOperations({ db, github: getGithub() })
       const options = flags.option as string[] | undefined
       // The operation reads the answer with its schema.
@@ -606,6 +621,8 @@ export async function runConcept(
         : await operations.answerPart(product, id, {
             answer,
             ...(waitsOn !== undefined && { waitsOn }),
+            ...(needs && { needs: needs[0] }),
+            ...(version !== undefined && { version: Number(version) }),
             ...(words !== undefined && { words }),
             ...(by !== undefined && { by }),
           } as PartAnswer)

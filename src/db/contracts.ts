@@ -1,9 +1,11 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
 import { kinds } from './kinds.ts'
 import type { Kind } from './kinds.ts'
+import { flagParts } from './part-trust.ts'
 import type { PartSummary } from './parts.ts'
 import { ConceptNotFoundError, InvalidRecordError } from './record-errors.ts'
 import { sortById } from './record-id.ts'
@@ -281,14 +283,131 @@ export async function findContract(
   }
 }
 
+// The fields of a Part that two Contract Versions can hold with another
+// value, in the order that a change lists them.
+export const frozenFields = [
+  'type',
+  'title',
+  'body',
+  'concept',
+  'status',
+  'owner',
+  'date',
+  'source',
+  'metric',
+  'enforcedBy',
+  'evidenceLevel',
+  'needs',
+] as const satisfies Exclude<keyof FrozenPart, 'id'>[]
+
+// What a new Contract Version changed for a Joint (D46).
+export type VersionChange = {
+  // The slug of the Concept of the needed Part.
+  concept: string
+  // The Version that the Joint has.
+  builtWith: number
+  newest: number
+  // The fields of the needed Part that the two Versions hold with another
+  // value. `before` is null for each field when Version `builtWith` does
+  // not hold the Part.
+  changes: {
+    field: (typeof frozenFields)[number]
+    before: string | null
+    after: string | null
+  }[]
+}
+
+const versionChangesSchema = z.object({
+  rows: z.array(
+    z.object({
+      record_id: z.string(),
+      concept: z.string(),
+      built_with: z.number(),
+      newest: z.number(),
+      before: z.custom<FrozenPart>().nullable(),
+      after: z.custom<FrozenPart>().nullable(),
+    }),
+  ),
+})
+
+function formatFrozenValue(value: FrozenPart[keyof FrozenPart] | undefined) {
+  if (value == null) return null
+  return Array.isArray(value) ? value.join(', ') : value
+}
+
+function listChanges(before: FrozenPart | null, after: FrozenPart | null) {
+  return frozenFields.flatMap((field) => {
+    const change = {
+      field,
+      before: formatFrozenValue(before?.[field]),
+      after: formatFrozenValue(after?.[field]),
+    }
+    return change.before === change.after ? [] : [change]
+  })
+}
+
+// For each Joint of the Part with a Contract Version: what the newest
+// Version of the Concept of the needed Part changed in that Part, by the
+// record id of the needed Part.
+export async function listVersionChanges(
+  db: ConceptDb,
+  partId: number,
+): Promise<Map<string, VersionChange>> {
+  const result = await db.execute(sql`
+    select
+      needed."record_id",
+      concept."slug" as "concept",
+      joint."contract_version" as "built_with",
+      newest."version" as "newest",
+      ${selectFrozenPart(sql`built."parts"`, sql`needed."record_id"`)} as "before",
+      ${selectFrozenPart(sql`newest."parts"`, sql`needed."record_id"`)} as "after"
+    from "joints" as joint
+    join "parts" as needed on needed."id" = joint."needed_part_id"
+    join "concepts" as concept on concept."id" = needed."concept_id"
+    join "contract_versions" as built
+      on built."concept_id" = needed."concept_id"
+      and built."version" = joint."contract_version"
+    cross join lateral (
+      select "version", "parts" from "contract_versions"
+      where "concept_id" = needed."concept_id"
+      order by "version" desc
+      limit 1
+    ) as newest
+    where joint."part_id" = ${partId}::integer
+  `)
+  return new Map(
+    versionChangesSchema.parse(result).rows.map((row) => [
+      row.record_id,
+      {
+        concept: row.concept,
+        builtWith: row.built_with,
+        newest: row.newest,
+        changes: listChanges(row.before, row.after),
+      },
+    ]),
+  )
+}
+
 const signedSchema = z.object({
   rows: z.array(z.object({ version: z.number() })),
 })
+
+// The Part of the record id as the Version holds it. null: it does not.
+function selectFrozenPart(frozenParts: SQL, recordId: SQL) {
+  return sql`(
+    select item from jsonb_array_elements(${frozenParts}) as item
+    where item->>'id' = ${recordId}
+  )`
+}
 
 // Signs off the Concept: freezes its Parts as the next Contract Version, and
 // gives back the number. One statement reads the Parts and writes the
 // Version, so a Version never holds a Part that was not solid. Of two
 // sign-offs at the same time, the database refuses the second number.
+// The new Version flags each Part that a Joint with an older Version glues
+// to a Part of the Concept, when the new Version holds that Part in another
+// state than the Version of the Joint (D46). Trust goes one step far, as in
+// spreadTrust: a draft and a sunk Part get no flag.
 export async function signContract(
   db: ConceptDb,
   projectSlug: string,
@@ -314,7 +433,32 @@ export async function signContract(
         and not exists (select 1 from live where live."trust" <> 'solid')
         and ${liveChecksum} is distinct from (select "checksum" from newest)
       returning "version"
-    )
+    ),
+    added_flags as (
+      insert into "flags" ("part_id", "cause_part_id", "reason")
+      select needing."id", needed."id", 'new-version'
+      from signed
+      cross join frozen
+      join "parts" as needed on needed."concept_id" = ${concept.id}::integer
+      join "joints" as joint
+        on joint."needed_part_id" = needed."id"
+        and joint."contract_version" < signed."version"
+      join "parts" as needing on needing."id" = joint."part_id"
+      join "contract_versions" as built
+        on built."concept_id" = needed."concept_id"
+        and built."version" = joint."contract_version"
+      cross join lateral (
+        select ${selectFrozenPart(sql`frozen."parts"`, sql`needed."record_id"`)}
+      ) as signed_part ("part")
+      where needing."work_state" not in ('draft', 'sunk')
+        and signed_part."part" is not null
+        and signed_part."part" is distinct from ${selectFrozenPart(sql`built."parts"`, sql`needed."record_id"`)}
+      on conflict ("part_id", "cause_part_id", "reason")
+        where "closed_at" is null
+        do update set "created_at" = now()
+      returning "part_id"
+    ),
+    flagged as (${flagParts(sql`select "part_id" from added_flags`)})
     select "version" from signed
   `)
   const signed = signedSchema.parse(result).rows.at(0)

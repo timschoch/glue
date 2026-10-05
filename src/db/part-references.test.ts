@@ -31,6 +31,7 @@ const reference = {
   jointId: 1,
   twoWay: false,
   link: true,
+  contractVersion: null,
   project: { slug: 'glue', name: 'Glue' },
   part: {
     id: 'F1',

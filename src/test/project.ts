@@ -204,6 +204,7 @@ function part(
       jointId: first + index,
       twoWay: false,
       link: end.concept !== found.concept,
+      contractVersion: null,
       part: end,
     }))
 

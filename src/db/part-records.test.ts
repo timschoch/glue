@@ -80,8 +80,13 @@ async function showPart(recordId: string) {
   return part
 }
 
+// The Joints without their Contract Version: joint-versions.test.ts reads it.
 function listJoints() {
-  return db.select().from(schema.joints).orderBy(schema.joints.id)
+  const { id, partId, neededPartId, twoWay, mentioned } = schema.joints
+  return db
+    .select({ id, partId, neededPartId, twoWay, mentioned })
+    .from(schema.joints)
+    .orderBy(id)
 }
 
 const goal = {

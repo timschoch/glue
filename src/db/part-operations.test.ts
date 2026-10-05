@@ -419,6 +419,7 @@ describe('a move of Parts to another Project', () => {
         jointId: 1,
         twoWay: false,
         link: true,
+        contractVersion: null,
         project: { slug: 'glue', name: 'glue' },
         part: {
           id: 'I1',

@@ -892,6 +892,46 @@ describe('a flagged record', () => {
   })
 })
 
+describe('a record with a flag of a new Contract Version', () => {
+  const flagged = {
+    fetchPart: vi.fn(
+      changedPart('D4', {
+        trust: 'flagged',
+        workState: 'to-check',
+        flags: [
+          {
+            cause: { id: 'I3', title: I3 },
+            reason: 'new-version',
+            createdAt: '2026-10-03T08:00:00.000Z',
+            contract: {
+              concept: 'part-model',
+              builtWith: 1,
+              newest: 2,
+              changes: [
+                { field: 'title', before: 'Agents read docs', after: I3 },
+              ],
+            },
+          },
+        ],
+      }),
+    ),
+  }
+
+  it('moves the Joint to the new Version with the button of the flag', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', flagged)
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Move to Version 2' }),
+    )
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('D4', { answer: 'move-to-version', needs: 'I3', version: 2 }),
+      ),
+    )
+  })
+})
+
 describe('the question of a Decision', () => {
   const asked = {
     fetchPart: vi.fn(
