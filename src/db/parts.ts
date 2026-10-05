@@ -141,6 +141,8 @@ export type JointEnd = {
   twoWay: boolean
   link: boolean
   part: PartSummary
+  // Only a reference has it: the Project of the Part at the other end.
+  project?: { slug: string; name: string }
 }
 
 export type Part = PartSummary & {
@@ -182,6 +184,7 @@ const { partTypes } = schema
 // The Part that a Joint needs, and the home Concept of that Part.
 const neededParts = alias(parts, 'needed_parts')
 const neededConcepts = alias(concepts, 'needed_concepts')
+const neededProjects = alias(projects, 'needed_projects')
 
 const summary = {
   id: parts.recordId,
@@ -277,7 +280,8 @@ export function listMeasured(
 }
 
 // The Joints that match, in the order of their ids, each with the Parts at
-// both ends. A Joint between Parts of two Concepts is a link.
+// both ends. A Joint between Parts of two Concepts is a link. A Joint
+// between Parts of two Projects is a reference.
 function listJoints(db: ConceptDb, matches: SQL | undefined) {
   return db
     .select({
@@ -287,12 +291,15 @@ function listJoints(db: ConceptDb, matches: SQL | undefined) {
       partId: joints.partId,
       part: summary,
       needed: neededSummary,
+      reference: sql<boolean>`${parts.projectId} <> ${neededParts.projectId}`,
+      neededProject: { slug: neededProjects.slug, name: neededProjects.name },
     })
     .from(joints)
     .innerJoin(parts, eq(joints.partId, parts.id))
     .innerJoin(concepts, eq(parts.conceptId, concepts.id))
     .innerJoin(neededParts, eq(joints.neededPartId, neededParts.id))
     .innerJoin(neededConcepts, eq(neededParts.conceptId, neededConcepts.id))
+    .innerJoin(neededProjects, eq(neededParts.projectId, neededProjects.id))
     .where(matches)
     .orderBy(joints.id)
 }
@@ -386,11 +393,16 @@ export async function findConcept(
 
   const [homeParts, jointRows] = await Promise.all([
     listSummaries(db, eq(parts.conceptId, concept.id)),
+    // A reference is not a Joint of the Concept: its Parts are of two
+    // Projects.
     listJoints(
       db,
-      or(
-        eq(parts.conceptId, concept.id),
-        eq(neededParts.conceptId, concept.id),
+      and(
+        eq(parts.projectId, neededParts.projectId),
+        or(
+          eq(parts.conceptId, concept.id),
+          eq(neededParts.conceptId, concept.id),
+        ),
       ),
     ),
   ])
@@ -571,11 +583,14 @@ export async function findPart(
       .orderBy(signals.id),
     listMeasuredParts(
       db,
-      sql`${parts.id} in (
-        select "needed_part_id" from "joints" where "part_id" = ${part.id}
-        union
-        select "part_id" from "joints" where "needed_part_id" = ${part.id}
-      )`,
+      and(
+        eq(parts.projectId, part.projectId),
+        sql`${parts.id} in (
+          select "needed_part_id" from "joints" where "part_id" = ${part.id}
+          union
+          select "part_id" from "joints" where "needed_part_id" = ${part.id}
+        )`,
+      ),
     ),
   ])
 
@@ -583,11 +598,15 @@ export async function findPart(
   const neededBy: JointEnd[] = []
   for (const joint of jointRows) {
     const needing = joint.partId === part.id
+    // A reference shows on the Part that needs. The Project of the needed
+    // Part does not list the Parts of other Projects.
+    if (joint.reference && !needing) continue
     const end = {
       jointId: joint.id,
       twoWay: joint.twoWay,
       link: joint.link,
       part: needing ? joint.needed : joint.part,
+      ...(joint.reference && { project: joint.neededProject }),
     }
     if (needing || joint.twoWay) needs.push(end)
     else neededBy.push(end)

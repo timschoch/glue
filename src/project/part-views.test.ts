@@ -166,6 +166,41 @@ describe('a Part in the record view', () => {
     ])
   })
 
+  it('gives a reference the name of its Project and the address in that Project', () => {
+    const record = toRecordPart(
+      {
+        ...decision,
+        needs: [
+          {
+            jointId: 1,
+            twoWay: false,
+            link: true,
+            project: { slug: 'glue', name: 'Glue' },
+            part: goal,
+          },
+        ],
+      },
+      ({ id }, project = 'glue-build') => `/${project}/${id}`,
+    )
+
+    expect(record.href).toBe('/glue-build/D1')
+    expect(record.needs).toEqual([
+      {
+        jointId: 1,
+        link: true,
+        project: 'Glue',
+        part: {
+          id: 'G1',
+          type: 'goal',
+          title: 'More users pay',
+          concept: 'Glue',
+          trust: 'solid',
+          href: '/glue/G1',
+        },
+      },
+    ])
+  })
+
   it('has the Trust and the Work state of the Part, not a guess from the status', () => {
     const record = toRecordPart(
       {

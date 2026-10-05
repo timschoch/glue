@@ -3,13 +3,14 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { setProductRepository } from '../db/projects.ts'
+import { addProjectReference, setProductRepository } from '../db/projects.ts'
 import type { GoalMeasure } from '../db/goal-measure.ts'
 import {
   addConcept,
   addJoint,
   addPart,
   addProject,
+  answerPart,
   setReading,
 } from '../db/part-records.ts'
 import * as schema from '../db/schema.ts'
@@ -1114,6 +1115,48 @@ describe('Joints', () => {
       expect(await db.select().from(schema.joints)).toEqual([])
     },
   )
+
+  it('adds a reference as <project>/<record id>, and the Part shows it with its Project', async () => {
+    await addPart(db, 'glue', { type: 'entity', title: 'Technique' })
+    await answerPart(db, 'glue', 'E1', { answer: 'supersede' })
+    await addProjectReference(db, 'flexibeck', 'glue')
+
+    const added = await call(handleAddJoint, 'POST', {
+      body: { part: 'R1', needs: 'glue/E1' },
+    })
+    const needing = await call(handleGetPart, 'GET', {
+      params: { recordId: 'R1' },
+    })
+
+    expect(added.status).toBe(201)
+    expect(needing.body.needs).toEqual([
+      {
+        jointId: 1,
+        twoWay: false,
+        link: true,
+        project: { slug: 'glue', name: 'glue' },
+        part: expect.objectContaining({
+          id: 'E1',
+          title: 'Technique',
+          trust: 'solid',
+        }),
+      },
+    ])
+  })
+
+  it('answers 400 for a reference to a Project that the Project may not reference', async () => {
+    await addPart(db, 'glue', { type: 'entity', title: 'Technique' })
+    await answerPart(db, 'glue', 'E1', { answer: 'supersede' })
+
+    const response = await call(handleAddJoint, 'POST', {
+      body: { part: 'R1', needs: 'glue/E1' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe(
+      'a Part of Project "flexibeck" cannot need a Part of Project "glue"',
+    )
+  })
 
   it('answers 404 for a Joint of another Project, and the Joint stays', async () => {
     await addPart(db, 'glue', { type: 'entity', title: 'Technique' })

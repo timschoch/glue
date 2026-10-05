@@ -5,16 +5,21 @@ import type { RecordPart, RecordPartSummary } from '../design-system/record.tsx'
 // The length of the day in an ISO time: 2026-10-02.
 const DAY_LENGTH = 10
 
-type PartHref = (part: PartSummary) => string
+// The address of a Part. With a slug: the Part is in that other Project.
+type PartHref = (part: PartSummary, project?: string) => string
 
-function toRecordSummary(part: PartSummary, href: PartHref): RecordPartSummary {
+function toRecordSummary(
+  part: PartSummary,
+  href: PartHref,
+  project?: string,
+): RecordPartSummary {
   return {
     id: part.id,
     type: part.type,
     title: part.title,
     concept: part.conceptTitle,
     trust: part.trust,
-    href: href(part),
+    href: href(part, project),
   }
 }
 
@@ -60,11 +65,17 @@ export function toRecordPart(
   const readings = new Map(
     part.measured.map((end) => [end.id, toReading(end.measure)]),
   )
+  // A reference has the name of its Project, and no reading: the readings
+  // are the ones of this Project.
   const toEnds = (ends: Part['needs']) =>
-    ends.map(({ jointId, link, part: end }) => ({
+    ends.map(({ jointId, link, project, part: end }) => ({
       jointId,
       link,
-      part: { ...toRecordSummary(end, href), reading: readings.get(end.id) },
+      ...(project && { project: project.name }),
+      part: {
+        ...toRecordSummary(end, href, project?.slug),
+        reading: project ? undefined : readings.get(end.id),
+      },
     }))
   const findCause = (recordId: string) => {
     const found = parts.find(({ id }) => id === recordId)

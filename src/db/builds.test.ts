@@ -122,6 +122,17 @@ describe('listBuilds', () => {
     ])
   })
 
+  it('reads <project>/<id> as a Decision of that Project only', async () => {
+    const fake = createFakeGithub(
+      [],
+      [toPullRequest(12, 'Fixes #3\n\nDecision: glue/D1, flexibeck/D2')],
+    )
+
+    const found = await listBuilds(db, fake.github, 'glue')
+
+    expect(found.builds[0].decisions.map(({ id }) => id)).toEqual(['D1'])
+  })
+
   it('marks a build stale when a Decision that it names is sunk', async () => {
     await answerPart(db, 'glue', 'D2', { answer: 'sink' })
     const { github } = createFakeGithub(

@@ -48,13 +48,21 @@ export function useProjectLinks() {
   )
 
   // A record opens in its home Concept. The open record joins the trail.
-  // A form that is open does not go with it.
+  // A form that is open does not go with it. A record of another Project
+  // opens there, without the lens, the pins and the trail of this one.
   const recordHref = useCallback(
-    (part: { id: string; concept: string }) =>
+    (part: { id: string; concept: string }, otherProject?: string) =>
       router.buildLocation({
         to: '/$project/$concept/$recordId',
-        params: { project, concept: part.concept, recordId: part.id },
-        search: openRecord({ section, pins, trail }, recordId, part.id),
+        params: {
+          project: otherProject ?? project,
+          concept: part.concept,
+          recordId: part.id,
+        },
+        search:
+          otherProject === undefined
+            ? openRecord({ section, pins, trail }, recordId, part.id)
+            : {},
       }).href,
     [router, project, section, pins, trail, recordId],
   )

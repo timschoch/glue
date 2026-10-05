@@ -6,7 +6,12 @@ import { findMentions } from '../mention.ts'
 import { evidenceTypes, isEvidence } from '../part-fields.ts'
 import { todayUtc } from '../today-utc.ts'
 import type { ConceptDb } from './client.ts'
-import { getProjectId } from './projects.ts'
+import {
+  findProduct,
+  getProjectId,
+  listProjectReferences,
+  toRefusedReferenceMessage,
+} from './projects.ts'
 import { goalMeasureSchema, isOnTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import { kinds } from './kinds.ts'
@@ -27,7 +32,7 @@ import {
   PartNotFoundError,
   toNotFoundMessage,
 } from './record-errors.ts'
-import { RECORD_LETTERS } from './record-id.ts'
+import { parseRecordReference, RECORD_LETTERS } from './record-id.ts'
 import * as schema from './schema.ts'
 
 // The write side of the Part model.
@@ -90,7 +95,7 @@ export const newConceptSchema = z.strictObject({
 export type NewConcept = z.input<typeof newConceptSchema>
 
 // The Concept of the slug, or the root Concept of the Project.
-async function findConceptId(
+export async function findConceptId(
   db: ConceptDb,
   projectId: number,
   slug: string | undefined,
@@ -386,6 +391,59 @@ async function findParts(
   })
 }
 
+// A Project as the writes that cross its edge know it.
+type ProjectRow = { id: number; slug: string }
+
+function isOwn(project: ProjectRow, named: { project?: string }) {
+  return named.project === undefined || named.project === project.slug
+}
+
+// The Parts that a write glues a Part of the Project to, in the order of
+// the ids. `glue/D4` names a Part of another Project: a reference (D45).
+// The Project must be one that this Project may reference, and the Part
+// must be published.
+async function findNeededParts(
+  db: ConceptDb,
+  project: ProjectRow,
+  references: string[],
+) {
+  const named = references.map((reference) => ({
+    reference,
+    ...parseRecordReference(reference),
+  }))
+  const own = named.filter((item) => isOwn(project, item))
+  const others = named.filter((item) => !isOwn(project, item))
+  const ownParts = await findParts(
+    db,
+    project.id,
+    own.map(({ recordId }) => recordId),
+  )
+  const found = new Map(
+    own.map(({ reference }, index) => [
+      reference,
+      { ...ownParts[index], reference: false },
+    ]),
+  )
+  const allowed = others.length === 0 ? [] : await listProjectReferences(db)
+  for (const { reference, project: slug = '', recordId } of others) {
+    const other = await findProduct(db, slug)
+    if (!other) throw new InvalidRecordError(`project "${slug}" not found`)
+    const isAllowed = allowed.some(
+      ({ projectId, referencedProjectId }) =>
+        projectId === project.id && referencedProjectId === other.id,
+    )
+    if (!isAllowed)
+      throw new InvalidRecordError(
+        toRefusedReferenceMessage(project.slug, slug),
+      )
+    const [part] = await findParts(db, other.id, [recordId])
+    if (part.workState !== 'published')
+      throw new InvalidRecordError(`"${reference}" is not published`)
+    found.set(reference, { ...part, reference: true })
+  }
+  return references.flatMap((reference) => found.get(reference) ?? [])
+}
+
 // The Part that a read or a write is for.
 async function getPart(db: ConceptDb, projectId: number, recordId: string) {
   const part = (await selectParts(db, projectId, [recordId])).at(0)
@@ -414,26 +472,79 @@ async function getDecision(db: ConceptDb, projectId: number, recordId: string) {
   return toDecision(await getPart(db, projectId, recordId))
 }
 
-// The record ids that the body names in its own Project (D37). A Joint glues
-// two Parts of one Project, so a Part of another Project gets none.
-function findMentionedRecordIds(projectSlug: string, body = '') {
-  return findMentions(body)
-    .filter(({ project }) => project === undefined || project === projectSlug)
+// The record ids that a body names: the ones of its own Project (D37), and
+// the ones of each Project that its Project may reference (D45).
+type Mentioned = {
+  recordIds: string[]
+  references: { projectId: number; recordIds: string[] }[]
+}
+
+// A mention of a Part of a Project that this Project may not reference
+// glues nothing: it stays text.
+async function findMentioned(
+  db: ConceptDb,
+  project: ProjectRow,
+  body = '',
+): Promise<Mentioned> {
+  const mentions = findMentions(body)
+  const recordIds = mentions
+    .filter((mention) => isOwn(project, mention))
     .map(({ recordId }) => recordId)
+  const others = mentions.filter((mention) => !isOwn(project, mention))
+  if (others.length === 0) return { recordIds, references: [] }
+
+  const { projects } = schema
+  const slugs = others.flatMap(({ project: slug }) => slug ?? [])
+  const [found, allowed] = await Promise.all([
+    db
+      .select({ id: projects.id, slug: projects.slug })
+      .from(projects)
+      .where(inArray(projects.slug, slugs)),
+    listProjectReferences(db),
+  ])
+  const references = found
+    .filter((other) =>
+      allowed.some(
+        ({ projectId, referencedProjectId }) =>
+          projectId === project.id && referencedProjectId === other.id,
+      ),
+    )
+    .map((other) => ({
+      projectId: other.id,
+      recordIds: others
+        .filter((mention) => mention.project === other.slug)
+        .map(({ recordId }) => recordId),
+    }))
+  return { recordIds, references }
 }
 
 // The Parts that a body of a Part of the type glues it to: a query with
 // their row id and their type. An id that the Project does not have gives no
-// Part. A Decision has one Goal, so a mention gives it no Goal.
+// Part, and so does a Part of another Project that is not published. A
+// Decision has one Goal, so a mention gives it no Goal.
 function selectMentionedParts(
   projectId: number,
   type: schema.PartType,
-  recordIds: string[],
+  { recordIds, references }: Mentioned,
 ) {
+  const places = [
+    ...(recordIds.length === 0
+      ? []
+      : [
+          sql`("project_id" = ${projectId}::integer and "record_id" in ${recordIds})`,
+        ]),
+    ...references.map(
+      (reference) =>
+        sql`(
+          "project_id" = ${reference.projectId}::integer
+          and "record_id" in ${reference.recordIds}
+          and "work_state" = 'published'
+        )`,
+    ),
+  ]
   return sql`
     select "id", "type" from "parts"
-    where "project_id" = ${projectId}::integer
-      and ${recordIds.length === 0 ? sql`false` : sql`"record_id" in ${recordIds}`}
+    where ${places.length === 0 ? sql`false` : sql`(${sql.join(places, sql` or `)})`}
       ${type === 'decision' ? sql`and "type" <> 'goal'` : sql``}
   `
 }
@@ -463,8 +574,8 @@ type PartRow = {
   question?: schema.Question
   // The row ids of the Parts that it needs, in the order of their Joints.
   neededPartIds?: number[]
-  // The record ids that its body names: see findMentionedRecordIds.
-  mentionedRecordIds?: string[]
+  // The record ids that its body names: see findMentioned.
+  mentioned?: Mentioned
   // The row id of the Decision that it supersedes.
   supersedesId?: number
   // The row id of the Decision that superseded it.
@@ -482,7 +593,7 @@ async function addPartRow(
   gate?: SQL,
 ): Promise<string | null> {
   const { projectId, conceptId, type, fields, neededPartIds = [] } = row
-  const { mentionedRecordIds = [], supersedesId, supersededById } = row
+  const { mentioned, supersedesId, supersededById } = row
   const { signals = [] } = row
   const question = row.question ? JSON.stringify(row.question) : null
   const status = fields.status ?? (type === 'goal' ? 'open' : null)
@@ -508,12 +619,13 @@ async function addPartRow(
       sql`select ${position}::integer, ${neededPartId}::integer, false`,
   )
   const mentionedRows =
-    mentionedRecordIds.length === 0
+    mentioned === undefined ||
+    mentioned.recordIds.length + mentioned.references.length === 0
       ? []
       : [
           sql`
             select 0, "id", true
-            from (${selectMentionedParts(projectId, type, mentionedRecordIds)})
+            from (${selectMentionedParts(projectId, type, mentioned)})
               as mentioned_parts
             ${neededPartIds.length === 0 ? sql`` : sql`where "id" not in ${neededPartIds}`}
           `,
@@ -672,7 +784,8 @@ export async function addPart(
 
   const projectId = await getProjectId(db, projectSlug)
   const conceptId = await findConceptId(db, projectId, concept)
-  const neededParts = await findParts(db, projectId, [...new Set(needs)])
+  const project = { id: projectId, slug: projectSlug }
+  const neededParts = await findNeededParts(db, project, [...new Set(needs)])
   if (type === 'decision') {
     const goals = neededParts.filter((needed) => needed.type === 'goal')
     if (goals.length === 0)
@@ -702,7 +815,7 @@ export async function addPart(
     fields,
     question: options && { options, pick: pick ?? null, answer: null },
     neededPartIds: neededParts.map((needed) => needed.id),
-    mentionedRecordIds: findMentionedRecordIds(projectSlug, fields.body),
+    mentioned: await findMentioned(db, project, fields.body),
     supersedesId,
     supersededById: successor?.id,
   })
@@ -735,7 +848,11 @@ export async function addCommentInsight(
       conceptId,
       type: 'insight',
       fields,
-      mentionedRecordIds: findMentionedRecordIds(projectSlug, fields.body),
+      mentioned: await findMentioned(
+        db,
+        { id: projectId, slug: projectSlug },
+        fields.body,
+      ),
     },
     sql`gate as (
       update "projects"
@@ -769,7 +886,11 @@ export async function addInsightOfSignals(
     conceptId,
     type: 'insight',
     fields,
-    mentionedRecordIds: findMentionedRecordIds(projectSlug, fields.body),
+    mentioned: await findMentioned(
+      db,
+      { id: projectId, slug: projectSlug },
+      fields.body,
+    ),
     signals,
   })
   return z.string().parse(recordId)
@@ -901,13 +1022,17 @@ export async function updatePart(
             "latest_breakdown_value" = null,
             "measured_at" = null
         )`
-  const mentionedParts = selectMentionedParts(
-    projectId,
-    part.type,
-    findMentionedRecordIds(projectSlug, columns.body).filter(
+  const mentioned = await findMentioned(
+    db,
+    { id: projectId, slug: projectSlug },
+    columns.body,
+  )
+  const mentionedParts = selectMentionedParts(projectId, part.type, {
+    ...mentioned,
+    recordIds: mentioned.recordIds.filter(
       (mentionedRecordId) => mentionedRecordId !== recordId,
     ),
-  )
+  })
   const keepsEvidence = sql`and (
     "needed_part_id" not in (
       select "id" from "parts" where "type" in ${evidenceTypes}
@@ -1010,7 +1135,10 @@ export const newJointSchema = z.strictObject({
   part: z
     .string()
     .meta({ description: 'The record id of the Part that needs' }),
-  needs: z.string().meta({ description: 'The record id of the needed Part' }),
+  needs: z.string().meta({
+    description:
+      'The record id of the needed Part. A reference names a published Part of another Project: glue/D4',
+  }),
   twoWay: z.boolean().optional(),
 })
 
@@ -1018,6 +1146,8 @@ export type NewJoint = z.input<typeof newJointSchema>
 
 // Glues two Parts of the Project, and gives back the id of the Joint. Parts
 // with different home Concepts make a link: the same Joint, never a copy.
+// A needed Part of another Project makes a reference: see findNeededParts.
+// A reference goes one way.
 // A Decision has one Goal, so the statement adds no second one. A two-way
 // Joint shows on both sides, so it gives the Decision a Goal in either
 // direction. The Joint of a mention between the two Parts becomes the Joint
@@ -1030,10 +1160,14 @@ export async function addJoint(
   const { part, needs, twoWay = false } = parseInput(newJointSchema, joint)
   if (part === needs) throw new InvalidRecordError('a Part cannot need itself')
   const projectId = await getProjectId(db, projectSlug)
-  const [needingPart, neededPart] = await findParts(db, projectId, [
-    part,
-    needs,
-  ])
+  const [needingPart] = await findParts(db, projectId, [part])
+  const [neededPart] = await findNeededParts(
+    db,
+    { id: projectId, slug: projectSlug },
+    [needs],
+  )
+  if (neededPart.reference && twoWay)
+    throw new InvalidRecordError('a reference goes one way')
   const ends = [
     [needingPart, neededPart],
     ...(twoWay ? [[neededPart, needingPart]] : []),

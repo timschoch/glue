@@ -8,6 +8,7 @@ import { findProduct } from './projects.ts'
 import { listParts } from './parts.ts'
 import type { PartSummary } from './parts.ts'
 import { ProductNotFoundError } from './record-errors.ts'
+import { parseRecordReference } from './record-id.ts'
 import * as schema from './schema.ts'
 import type { GithubClient } from '../github/client.ts'
 import { findContractLine, findDecisionIds } from '../github/pr-body.mjs'
@@ -126,7 +127,12 @@ export async function listBuilds(
     builds: pullRequests
       .filter((pull) => named || pull.state === 'open' || merged.includes(pull))
       .map(({ body, ...pull }): Build => {
-        const ids = findDecisionIds(body) ?? []
+        // A bare id is a Decision of this Project, and so is its own
+        // `<project>/<id>`. The id of another Project names nothing here.
+        const ids = (findDecisionIds(body) ?? []).flatMap((reference) => {
+          const { project: slug, recordId } = parseRecordReference(reference)
+          return slug === undefined || slug === projectSlug ? [recordId] : []
+        })
         const decided = decisions.filter(({ id }) => ids.includes(id))
         const line = findContractLine(body)
         const newest = line && newestVersions.get(line.concept)
