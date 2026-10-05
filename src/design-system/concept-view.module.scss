@@ -19,7 +19,8 @@ $card-width: $spacing-13 * 2;
   gap: $spacing-03;
 }
 
-// The head: the name at the start, the switch of the view at the end.
+// The head: the name at the start, the remove button and the switch of the
+// view at the end.
 .head {
   display: flex;
   flex-wrap: wrap;
@@ -83,7 +84,8 @@ $card-width: $spacing-13 * 2;
   align-self: flex-start;
 }
 
-// The buttons after the list of a group: the fold and the add control.
+// The buttons of the head, and the ones after the list of a group: the fold
+// and the add control.
 .buttons {
   display: flex;
   flex-wrap: wrap;

@@ -23,6 +23,7 @@ import {
   addConcept,
   addJoint,
   addProject,
+  removeConcept,
   removeJoint,
   updateConcept,
 } from '../src/db/part-records.ts'
@@ -489,6 +490,7 @@ function formatHelp() {
     'pnpm concept assign <id or Concept slug> --co-author <e-mail>',
     'pnpm concept concept add <slug> --title <title> [--kind <kind>] [--parent <slug>]',
     'pnpm concept concept set <slug> [--title <title>] [--parent <slug>]',
+    'pnpm concept concept remove <slug>',
     'pnpm concept contract show <concept> [--version <number>]',
     'pnpm concept contract sign <concept> --owner <name>',
     'pnpm concept joint add <id> <needed id> [--two-way]',
@@ -530,6 +532,7 @@ function formatHelp() {
     'signals lists the issues with the label user-feedback in the repository of the Project.',
     'signals insight adds a draft Insight at the level hunch that grows from the Signals.',
     'builds lists the pull requests of the repository of the Project, each with the Decisions or the Contract Version that it names. stale: the Contract Version is old, or a Decision is sunk.',
+    'concept remove removes a Concept that holds nothing: no record, no Concept and no Contract Version. The root Concept stays.',
     'contract sign freezes the records of a Concept as its next Contract Version. Each record needs Trust solid.',
     'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
     'With --member: the records of the member, and the records that nobody has.',
@@ -832,16 +835,21 @@ async function handleBuildsCommand(
 
 // `concept add <slug> --title <title>`: nests a Concept in the Concept of
 // `--parent`, or in the root. `concept set <slug>` gives a Concept that
-// exists a new title, a new parent, or both.
+// exists a new title, a new parent, or both. `concept remove <slug>` removes
+// a Concept that holds nothing.
 async function handleConceptCommand(
   db: ConceptDb,
   [command, slug, ...rest]: string[],
 ) {
-  if (command !== 'add' && command !== 'set') {
+  if (command !== 'add' && command !== 'set' && command !== 'remove') {
     throw new Error(`unknown concept command "${command}"`)
   }
   const flags = parseFlags(rest)
   const project = await readProject(db, flags)
+  if (command === 'remove') {
+    await removeConcept(db, project, slug)
+    return
+  }
   if (command === 'set') {
     await updateConcept(db, project, slug, {
       title: flags.title as string | undefined,

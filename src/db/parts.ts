@@ -97,8 +97,7 @@ export type ConceptNode = {
   slug: string
   title: string
   kind: Kind | null
-  // The Parts that have their home in this Concept, without the Parts of
-  // the Concepts in it.
+  // The Parts that have their home in this Concept or in a Concept in it.
   partCount: number
   concepts: ConceptNode[]
 }
@@ -357,7 +356,17 @@ async function listConcepts(db: ConceptDb, projectSlug: string) {
     if (concept.parentId === null) continue
     found.get(concept.parentId)?.node.concepts.push(concept.node)
   }
+  for (const concept of found.values()) {
+    if (concept.parentId === null) addChildCounts(concept.node)
+  }
   return [...found.values()]
+}
+
+// Adds to the count of each Concept the Parts of the Concepts in it, and
+// gives back the count of the node.
+function addChildCounts(node: ConceptNode): number {
+  for (const child of node.concepts) node.partCount += addChildCounts(child)
+  return node.partCount
 }
 
 // The Project with the tree of its Concepts. A Project always has a root
@@ -451,6 +460,18 @@ export function listParts(
       eq(projects.slug, projectSlug),
       types === undefined ? undefined : inArray(parts.type, types),
     ),
+  )
+}
+
+// The Parts of the record ids that the Project has, with one statement.
+export function listPartsByRecordId(
+  db: ConceptDb,
+  projectSlug: string,
+  recordIds: string[],
+): Promise<PartSummary[]> {
+  return listSummaries(
+    db,
+    and(eq(projects.slug, projectSlug), inArray(parts.recordId, recordIds)),
   )
 }
 

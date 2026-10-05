@@ -30,6 +30,7 @@ import {
   partAnswerSchema,
   partChangeSchema,
   questionAnswerSchema,
+  removeConcept,
   removeJoint,
 } from './part-records.ts'
 import {
@@ -134,7 +135,7 @@ export type UnassignInput = z.infer<typeof unassignInputSchema>
 
 type ProjectInput = z.infer<typeof projectInputSchema>
 export type SignalInsightAddInput = z.input<typeof signalInsightAddInputSchema>
-type ConceptReadInput = z.infer<typeof conceptReadInputSchema>
+export type ConceptReadInput = z.infer<typeof conceptReadInputSchema>
 type PartListInput = z.infer<typeof partListInputSchema>
 type PartReadInput = z.infer<typeof partReadInputSchema>
 type BuildsInput = z.infer<typeof buildsInputSchema>
@@ -187,6 +188,10 @@ export function createPartActions(request: ActionRequest) {
 
     addConcept: withMember((db, { project, concept }: ConceptAddInput) =>
       addConcept(db, project, concept).then((slug) => ({ slug }), toFailure),
+    ),
+
+    removeConcept: withMember((db, { project, concept }: ConceptReadInput) =>
+      removeConcept(db, project, concept).then(() => undefined, toFailure),
     ),
 
     addPart: withMember((db, { project, part }: PartAddInput) =>

@@ -154,7 +154,7 @@ describe('the start of a Project', () => {
 
     expect(pageTitle()).toBe('Glue')
     expect(items('Breadcrumb')).toEqual(['Glue'])
-    expect(items('Concepts')).toEqual(['Part model2 Parts', 'Flows0 Parts'])
+    expect(items('Concepts')).toEqual(['Part model3 Parts', 'Flows0 Parts'])
     card('G1')
     expect(
       panel.getByRole('combobox', { name: 'Project' }).firstChild?.textContent,
@@ -173,6 +173,24 @@ describe('the start of a Project', () => {
       'button',
       { name: 'Add Metric' },
     )
+  })
+
+  it('removes an empty Concept with its button, and shows the parent Concept', async () => {
+    const { expectAddress, server } = await renderPage('/glue/flows')
+
+    await userEvent.click(button('Remove Concept'))
+
+    expect(server.removeConcept).toHaveBeenCalledExactlyOnceWith({
+      project: 'glue',
+      concept: 'flows',
+    })
+    await expectAddress('/glue')
+  })
+
+  it('has no button that removes a Concept with a Part', async () => {
+    await renderPage('/glue/read-model')
+
+    expect(screen.queryByRole('button', { name: 'Remove Concept' })).toBeNull()
   })
 
   it('switches a Concept to the map and back, and the address keeps the view', async () => {

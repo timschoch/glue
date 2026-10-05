@@ -29,6 +29,7 @@ import {
   handleGetProjectConcept,
   handleListMine,
   handleListParts,
+  handleRemoveConcept,
   handleRemoveJoint,
   handleUpdatePart,
 } from './part-api.ts'
@@ -140,6 +141,11 @@ describe('every endpoint of the Part model', () => {
       handleAddConcept,
       'POST',
       { body: { slug: 'checkout', title: 'Checkout' } },
+    ],
+    'DELETE a Concept': [
+      handleRemoveConcept,
+      'DELETE',
+      { params: { concept: 'checkout' } },
     ],
     'POST a Part': [
       handleAddPart,
@@ -295,6 +301,33 @@ describe('Concepts', () => {
 
     expect(response.status).toBe(404)
     expect(response.body.error.message).toBe('concept "nope" not found')
+  })
+
+  it('removes a Concept that holds nothing', async () => {
+    await call(handleAddConcept, 'POST', {
+      body: { slug: 'checkout', title: 'Checkout' },
+    })
+
+    const removed = await call(handleRemoveConcept, 'DELETE', {
+      params: { concept: 'checkout' },
+    })
+    const read = await call(handleGetProjectConcept, 'GET', {
+      params: { concept: 'checkout' },
+    })
+
+    expect(removed).toEqual({ status: 204, body: undefined })
+    expect(read.status).toBe(404)
+  })
+
+  it('answers 400 for the removal of the root Concept', async () => {
+    const response = await call(handleRemoveConcept, 'DELETE', {
+      params: { concept: 'flexibeck' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe(
+      'the root Concept stays with its Project',
+    )
   })
 
   it('answers 400 for a slug that is not lowercase words with hyphens', async () => {

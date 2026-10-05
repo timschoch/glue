@@ -18,6 +18,7 @@ describe('GET /api/v1/openapi.json', () => {
           [
             'get ',
             'get /concepts/{concept}',
+            'delete /concepts/{concept}',
             'post /concepts',
             'get /concepts/{concept}/contract',
             'post /concepts/{concept}/contract',

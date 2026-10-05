@@ -152,7 +152,7 @@ const partModel = {
   slug: 'part-model',
   title: 'Part model',
   kind: 'brief',
-  partCount: 3,
+  partCount: 5,
   concepts: [readModel],
 }
 
@@ -174,10 +174,42 @@ describe('findProject', () => {
         slug: 'glue',
         title: 'Glue',
         kind: null,
-        partCount: 2,
+        partCount: 7,
         concepts: [partModel],
       },
     })
+  })
+
+  it('counts the Parts of a Concept with the Parts of the Concepts in it', async () => {
+    await client.exec(`
+      insert into concepts (project_id, parent_id, slug, title) values
+        (2, 4, 'build-run', 'Build run'),
+        (2, 5, 'gates', 'Gates');
+      insert into parts (project_id, concept_id, type, record_id, title) values
+        (2, 6, 'flow', 'F1', 'Merge gate'),
+        (2, 6, 'flow', 'F2', 'Push gate'),
+        (2, 6, 'entity', 'E1', 'Check');
+    `)
+
+    const project = await findProject(db, 'flexibeck')
+
+    expect(project?.concept.concepts).toEqual([
+      {
+        slug: 'build-run',
+        title: 'Build run',
+        kind: null,
+        partCount: 3,
+        concepts: [
+          {
+            slug: 'gates',
+            title: 'Gates',
+            kind: null,
+            partCount: 3,
+            concepts: [],
+          },
+        ],
+      },
+    ])
   })
 
   it('returns nothing for an unknown Project', async () => {

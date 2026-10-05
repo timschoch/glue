@@ -665,6 +665,12 @@ describe('runConcept', () => {
         ],
       })
     })
+
+    it('removes an empty Concept with concept remove', async () => {
+      await run('concept', 'remove', 'checkout', ...project)
+
+      expect(await findConcept(db, 'flexibeck', 'checkout')).toBeUndefined()
+    })
   })
 
   it('names the issue that the answer to a Decision opened', async () => {
@@ -828,6 +834,7 @@ describe('main', () => {
       'project set <slug>',
       'project add <slug>',
       'concept add <slug>',
+      'concept remove <slug>',
       'joint add <id> <needed id>',
       'joint remove <id> <needed id>',
       'token create',

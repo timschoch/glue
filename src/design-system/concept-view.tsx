@@ -1,5 +1,11 @@
 import { Add } from '@carbon/icons-react'
-import { Button, ClickableTile, ContentSwitcher, Switch } from '@carbon/react'
+import {
+  Button,
+  ClickableTile,
+  ContentSwitcher,
+  InlineNotification,
+  Switch,
+} from '@carbon/react'
 import { useState } from 'react'
 import type { MouseEvent, ReactElement, ReactNode, SyntheticEvent } from 'react'
 
@@ -162,6 +168,10 @@ export type ConceptViewProps = {
   // With the callback the row of Concepts holds one button that adds a
   // Concept inside this one.
   onAddConcept?: () => void
+  // With the callback the head holds the button that removes the Concept.
+  onRemove?: () => void
+  // Why the Concept was not removed.
+  removeFailure?: string
   // One more group, after the Parts.
   children?: ReactNode
   // The Contract of the Concept, below the head.
@@ -188,6 +198,8 @@ export function ConceptView({
   onOpenConcept,
   onAddPart,
   onAddConcept,
+  onRemove,
+  removeFailure,
   children,
   contract,
   assignees,
@@ -233,20 +245,36 @@ export function ConceptView({
           )}
           <h1 className={styles.title}>{concept.title}</h1>
         </div>
-        {onViewChange && (
-          <ContentSwitcher
-            size="sm"
-            selectedIndex={view === 'map' ? 1 : 0}
-            onChange={({ name }) =>
-              onViewChange(name === 'map' ? 'map' : 'list')
-            }
-            className={styles.switch}
-          >
-            <Switch name="list" text="List" />
-            <Switch name="map" text="Map" />
-          </ContentSwitcher>
-        )}
+        <div className={styles.buttons}>
+          {onRemove && (
+            <Button kind="danger" size="sm" onClick={onRemove}>
+              Remove Concept
+            </Button>
+          )}
+          {onViewChange && (
+            <ContentSwitcher
+              size="sm"
+              selectedIndex={view === 'map' ? 1 : 0}
+              onChange={({ name }) =>
+                onViewChange(name === 'map' ? 'map' : 'list')
+              }
+              className={styles.switch}
+            >
+              <Switch name="list" text="List" />
+              <Switch name="map" text="Map" />
+            </ContentSwitcher>
+          )}
+        </div>
       </header>
+      {removeFailure && (
+        <InlineNotification
+          lowContrast
+          hideCloseButton
+          role="alert"
+          kind="error"
+          title={removeFailure}
+        />
+      )}
       {assignees}
       {contract}
       {view === 'map' && (
