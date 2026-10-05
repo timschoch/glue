@@ -608,6 +608,29 @@ const supersededFields = sql`
 // The fields of a Part that spreadTrust reads after a write.
 const trustFields = sql`"id", "title", "body", "trust", "work_state"`
 
+// The Contract Version that a new Joint takes (D46): the newest one of the
+// home Concept of the needed Part. `conceptId` is the home Concept of the
+// Part that needs. null: the Joint stays inside one Concept, or it is a
+// reference, or the Concept of the needed Part has no Version.
+function selectContractVersion(neededPartId: SQL, conceptId: SQL) {
+  return sql`(
+    select max(contract."version")
+    from "parts" as glued
+    join "contract_versions" as contract
+      on contract."concept_id" = glued."concept_id"
+    where glued."id" = ${neededPartId}
+      and glued."concept_id" <> ${conceptId}
+      and glued."project_id" = (
+        select "project_id" from "concepts" where "id" = ${conceptId}
+      )
+  )`
+}
+
+// The home Concept of the Part.
+function selectConceptId(partId: number) {
+  return sql`(select "concept_id" from "parts" where "id" = ${partId}::integer)`
+}
+
 const addedPartSchema = z.object({
   rows: z.array(z.object({ record_id: z.string() })),
 })
@@ -733,8 +756,14 @@ async function addPartRow(
       jointRows.length === 0
         ? sql``
         : sql`, added_joints as (
-            insert into "joints" ("part_id", "needed_part_id", "mentioned")
-            select added_part."id", needed."id", needed."mentioned"
+            insert into "joints" (
+              "part_id", "needed_part_id", "mentioned", "contract_version"
+            )
+            select
+              added_part."id",
+              needed."id",
+              needed."mentioned",
+              ${selectContractVersion(sql`needed."id"`, sql`${conceptId}::integer`)}
             from added_part,
               (${sql.join(jointRows, sql` union all `)})
                 as needed ("position", "id", "mentioned")
@@ -1104,8 +1133,19 @@ export async function updatePart(
         ${part.type === 'decision' ? keepsEvidence : sql``}
     ),
     added_joints as (
-      insert into "joints" ("part_id", "needed_part_id", "mentioned")
-      select changed."id", mentioned_parts."id", true
+      insert into "joints" (
+        "part_id", "needed_part_id", "mentioned", "contract_version"
+      )
+      select
+        changed."id",
+        mentioned_parts."id",
+        true,
+        ${selectContractVersion(
+          sql`mentioned_parts."id"`,
+          conceptId === undefined
+            ? selectConceptId(part.id)
+            : sql`${conceptId}::integer`,
+        )}
       from changed, mentioned_parts
       order by mentioned_parts."id"
       on conflict do nothing
@@ -1239,11 +1279,17 @@ export async function addJoint(
       )
   )`
   const result = await db.execute(sql`
-    insert into "joints" ("part_id", "needed_part_id", "two_way")
+    insert into "joints" (
+      "part_id", "needed_part_id", "two_way", "contract_version"
+    )
     select
       ${needingPart.id}::integer,
       ${neededPart.id}::integer,
-      ${twoWay}::boolean
+      ${twoWay}::boolean,
+      ${selectContractVersion(
+        sql`${neededPart.id}::integer`,
+        selectConceptId(needingPart.id),
+      )}
     ${decision ? hasNoGoal : sql``}
     on conflict (
       least("part_id", "needed_part_id"),
@@ -1403,6 +1449,18 @@ export const partAnswerSchema = z.discriminatedUnion('answer', [
       .meta({ description: 'The record id of the awaited Part' }),
     ...answerWords,
   }),
+  z.strictObject({
+    answer: z.literal('move-to-version'),
+    needs: z.string().meta({
+      description:
+        'The record id of the needed Part with the flag of a new Contract Version',
+    }),
+    version: z.int().min(1).meta({
+      description:
+        'The newest Contract Version of the Concept of the needed Part',
+    }),
+    by: answerWords.by,
+  }),
 ])
 
 export type PartAnswer = z.input<typeof partAnswerSchema>
@@ -1416,6 +1474,7 @@ export type PartAnswer = z.input<typeof partAnswerSchema>
 // in between writes nothing, so it closes no flag that the owner did
 // not see, and of two answers at the same time only the first one writes.
 // `wait` locks the awaited Part and asks that it is not sunk.
+// `move-to-version` answers one flag only: see moveToVersion.
 export async function answerPart(
   db: ConceptDb,
   projectSlug: string,
@@ -1425,7 +1484,72 @@ export async function answerPart(
   const given = parseInput(partAnswerSchema, input)
   const projectId = await getProjectId(db, projectSlug)
   const part = await getPart(db, projectId, recordId)
-  await writeAnswer(db, projectId, part, given)
+  if (given.answer === 'move-to-version')
+    await moveToVersion(db, projectId, part, given)
+  else await writeAnswer(db, projectId, part, given)
+}
+
+// Moves the Joint from the Part to the needed Part to the Contract Version,
+// and closes the flag of that Version (D46). The Version must be the newest
+// one of the Concept of the needed Part, so the owner moves to what the flag
+// showed. A Part in to-check with no other open flag is published and solid
+// again.
+async function moveToVersion(
+  db: ConceptDb,
+  projectId: number,
+  part: FoundPart,
+  given: { needs: string; version: number },
+): Promise<void> {
+  const [needed] = await findParts(db, projectId, [given.needs])
+  const isFlag = sql`"part_id" = ${part.id}::integer
+    and "cause_part_id" = ${needed.id}::integer
+    and "reason" = 'new-version'`
+  const hasOtherFlag = sql`exists (
+    select 1 from "flags"
+    where "part_id" = ${part.id}::integer
+      and "closed_at" is null
+      and not (${isFlag})
+  )`
+  const result = await db.execute(sql`
+    with moved as (
+      update "joints" set "contract_version" = ${given.version}::integer
+      where "part_id" = ${part.id}::integer
+        and "needed_part_id" = ${needed.id}::integer
+        and ${given.version}::integer = ${selectContractVersion(
+          sql`${needed.id}::integer`,
+          selectConceptId(part.id),
+        )}
+        and exists (
+          select 1 from "flags" where "closed_at" is null and ${isFlag}
+        )
+      returning "id"
+    ),
+    closed as (
+      update "flags" set "closed_at" = now()
+      where "closed_at" is null
+        and ${isFlag}
+        and exists (select 1 from moved)
+    ),
+    answered as (
+      update "parts" set
+        "trust" = case
+          when "trust" = 'flagged' and not ${hasOtherFlag} then 'solid'
+          else "trust"
+        end,
+        "work_state" = case
+          when "work_state" = 'to-check' and not ${hasOtherFlag} then 'published'
+          else "work_state"
+        end,
+        "changed_at" = now()
+      where "id" = ${part.id}::integer and exists (select 1 from moved)
+      returning ${trustFields}
+    )${spreadTrust('answered', sql`false`)}
+    select "id" from answered
+  `)
+  if (idRowsSchema.parse(result).rows.length === 0)
+    throw new InvalidRecordError(
+      `"${part.recordId}" has no flag of Version ${given.version} of "${given.needs}"`,
+    )
 }
 
 // The write of answerPart and of answerQuestion. With a question, the same
@@ -1434,7 +1558,10 @@ async function writeAnswer(
   db: ConceptDb,
   projectId: number,
   part: Awaited<ReturnType<typeof findParts>>[number],
-  given: z.output<typeof partAnswerSchema>,
+  given: Exclude<
+    z.output<typeof partAnswerSchema>,
+    { answer: 'move-to-version' }
+  >,
   question?: schema.Question,
 ): Promise<void> {
   const { recordId } = part

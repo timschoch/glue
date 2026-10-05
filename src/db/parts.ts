@@ -3,6 +3,8 @@ import { and, count, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import type { ConceptDb } from './client.ts'
+import { listVersionChanges } from './contracts.ts'
+import type { VersionChange } from './contracts.ts'
 import { isOnTarget, toTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import type { Kind } from './kinds.ts'
@@ -80,6 +82,9 @@ export type Flag = {
   cause: { id: string; title: string }
   reason: FlagReason
   createdAt: string
+  // Only a flag of a new Contract Version has it: the Version that the
+  // Joint has, the newest one, and what they changed in the cause.
+  contract?: VersionChange
 }
 
 // One thing that happened to a Part: an edit, its first sign-off, or a flag
@@ -139,6 +144,9 @@ export type JointEnd = {
   jointId: number
   twoWay: boolean
   link: boolean
+  // The Contract Version of the Concept of the needed Part that the Joint
+  // was built with. null: the Joint is glued to the live Part.
+  contractVersion: number | null
   part: PartSummary
   // Only a reference has it: the Project of the Part at the other end.
   project?: { slug: string; name: string }
@@ -286,6 +294,7 @@ function listJoints(db: ConceptDb, matches: SQL | undefined) {
     .select({
       id: joints.id,
       twoWay: joints.twoWay,
+      contractVersion: joints.contractVersion,
       link: sql<boolean>`${parts.conceptId} <> ${neededParts.conceptId}`,
       partId: joints.partId,
       part: summary,
@@ -615,6 +624,13 @@ export async function findPart(
     ),
   ])
 
+  const openFlags = partFlags.filter(({ closedAt }) => closedAt === null)
+  const versionChanges = openFlags.some(
+    ({ reason }) => reason === 'new-version',
+  )
+    ? await listVersionChanges(db, part.id)
+    : new Map<string, VersionChange>()
+
   const needs: JointEnd[] = []
   const neededBy: JointEnd[] = []
   for (const joint of jointRows) {
@@ -626,6 +642,7 @@ export async function findPart(
       jointId: joint.id,
       twoWay: joint.twoWay,
       link: joint.link,
+      contractVersion: joint.contractVersion,
       part: needing ? joint.needed : joint.part,
       ...(joint.reference && { project: joint.neededProject }),
     }
@@ -658,13 +675,16 @@ export async function findPart(
     supersedes,
     needs,
     neededBy,
-    flags: partFlags
-      .filter(({ closedAt }) => closedAt === null)
-      .map(({ cause, reason, createdAt }) => ({
+    flags: openFlags.map(({ cause, reason, createdAt }) => {
+      const contract =
+        reason === 'new-version' ? versionChanges.get(cause.id) : undefined
+      return {
         cause,
         reason,
         createdAt: createdAt.toISOString(),
-      })),
+        ...(contract && { contract }),
+      }
+    }),
     waitsOn: waitsOn.at(0) ?? null,
     signals: grownFrom,
     answers: listAnswers(part.workState),

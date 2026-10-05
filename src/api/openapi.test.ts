@@ -142,9 +142,17 @@ describe('GET /api/v1/openapi.json', () => {
       'not-ready',
       'supersede',
       'sink',
+      'move-to-version',
     ]) {
       expect(JSON.stringify(schemas.AnswerInput)).toContain(`"${answer}"`)
     }
+    expect(schemas.JointEnd.properties.contractVersion.type).toEqual([
+      'number',
+      'null',
+    ])
+    expect(
+      schemas.Part.properties.flags.items.properties.contract.required,
+    ).toEqual(['concept', 'builtWith', 'newest', 'changes'])
     expect(answers.responses[200].content['application/json'].schema).toEqual({
       $ref: '#/components/schemas/ChangedPart',
     })

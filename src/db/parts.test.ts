@@ -360,10 +360,30 @@ describe('findPart', () => {
       supersededBy: replacement,
       supersedes: [],
       needs: [
-        { jointId: 1, twoWay: false, link: true, part: goal },
-        { jointId: 2, twoWay: false, link: false, part: insight },
+        {
+          jointId: 1,
+          twoWay: false,
+          link: true,
+          contractVersion: null,
+          part: goal,
+        },
+        {
+          jointId: 2,
+          twoWay: false,
+          link: false,
+          contractVersion: null,
+          part: insight,
+        },
       ],
-      neededBy: [{ jointId: 4, twoWay: false, link: true, part: flow }],
+      neededBy: [
+        {
+          jointId: 4,
+          twoWay: false,
+          link: true,
+          contractVersion: null,
+          part: flow,
+        },
+      ],
       measured: [{ ...goal, measure: goalMeasure }],
       flags: [],
       waitsOn: null,

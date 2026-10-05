@@ -141,6 +141,13 @@
       "when": 1791185727097,
       "tag": "0019_project_references",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791191102290,
+      "tag": "0020_joint_contract_version",
+      "breakpoints": true
     }
   ]
 }

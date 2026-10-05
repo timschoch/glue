@@ -116,6 +116,48 @@ $text-width: $card-width * 2;
   gap: $spacing-02;
 }
 
+// The answer of a flag is as wide as its words.
+.move {
+  align-self: flex-start;
+}
+
+// What a new Contract Version changed: each field is a label above its old
+// and its new value.
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  padding-block: $spacing-03;
+}
+
+.change {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+
+  dt {
+    @include type-style('label-01');
+
+    color: $text-secondary;
+  }
+
+  dd {
+    @include type-style('body-compact-01');
+
+    display: flex;
+    flex-direction: column;
+    overflow-wrap: anywhere;
+  }
+
+  del {
+    color: $text-secondary;
+  }
+
+  ins {
+    text-decoration: none;
+  }
+}
+
 .reason {
   @include type-style('label-01');
 

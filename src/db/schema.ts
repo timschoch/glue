@@ -421,6 +421,10 @@ export const joints = pgTable(
     // The body of `partId` names `neededPartId`, and that added the Joint
     // (D37). It goes with the mention. A Joint that a person added stays.
     mentioned: boolean('mentioned').notNull().default(false),
+    // The Contract Version of the home Concept of `neededPartId` that
+    // `partId` was built with (D46). Only a Joint to a Part of a different
+    // Concept has one. null: the Joint is glued to the live Part.
+    contractVersion: integer('contract_version'),
   },
   (table) => [
     check(
@@ -442,12 +446,14 @@ export const flagReasons = [
   'not-ready',
   'wrong',
   'off-target',
+  'new-version',
 ] as const
 export type FlagReason = (typeof flagReasons)[number]
 
 // A flag tells the owner of `partId` to look: `causePartId`, a Part that it
 // needs, changed, or is not ready, or is wrong, or has a reading that misses
-// its target. An answer closes the flag.
+// its target, or is different in a new Contract Version of its Concept. An
+// answer closes the flag.
 export const flags = pgTable(
   'flags',
   {
@@ -467,7 +473,7 @@ export const flags = pgTable(
   (table) => [
     check(
       'flags_reason_check',
-      sql`${table.reason} in ('changed', 'not-ready', 'wrong', 'off-target')`,
+      sql`${table.reason} in ('changed', 'not-ready', 'wrong', 'off-target', 'new-version')`,
     ),
     // One open flag per cause and reason. A second reason is a second flag.
     uniqueIndex('flags_open_unique')

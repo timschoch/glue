@@ -110,6 +110,58 @@ describe('pnpm concept contract', () => {
     expect(lines).toContain('F1  flow  Watch a technique')
   })
 
+  it('show prints the Version of a Joint and what a new Version changed, and answer moves the Joint to it', async () => {
+    await run('answer', 'F1', 'supersede')
+    await run('contract', 'sign', 'videos', '--owner', 'Tim')
+    await run('concept', 'add', 'shop', '--title', 'Shop')
+    await run(
+      'add',
+      'flows',
+      '--title',
+      'Buy a course',
+      '--concept',
+      'shop',
+      '--needs',
+      'F1',
+    )
+    await run('answer', 'F2', 'supersede')
+    await run('set', 'F1', '--title', 'Watch a step')
+    await run('contract', 'sign', 'videos', '--owner', 'Tim')
+    printed.mockClear()
+
+    await run('show', 'F2')
+
+    expect(listPrinted()).toEqual(
+      expect.arrayContaining([
+        'needs: F1 version 1 Watch a step',
+        expect.stringMatching(
+          /^flag: F1 new-version \d{4}-\d{2}-\d{2} Watch a step$/,
+        ),
+        'version: F1 1 -> 2',
+        'change: F1 title: Watch a technique -> Watch a step',
+      ]),
+    )
+    printed.mockClear()
+
+    await run(
+      'answer',
+      'F2',
+      'move-to-version',
+      '--needs',
+      'F1',
+      '--version',
+      '2',
+    )
+    await run('show', 'F2')
+
+    const lines = listPrinted()
+    expect(lines).toContain('needs: F1 version 2 Watch a step')
+    expect(lines.filter((line) => line.includes('new-version'))).toEqual([
+      expect.stringMatching(/^activity: \S+ flag-closed F1 new-version$/),
+      expect.stringMatching(/^activity: \S+ flag-opened F1 new-version$/),
+    ])
+  })
+
   it('show fails for a Concept without a Contract Version', async () => {
     await expect(run('contract', 'show', 'videos')).rejects.toThrow(
       '"videos" has no Contract Version',

@@ -1127,4 +1127,67 @@ describe('the flags of a record', () => {
 
     expect(screen.queryByRole('list', { name: 'Flags' })).toBeNull()
   })
+
+  const newVersion = [
+    {
+      reason: 'new-version',
+      part: INSIGHT,
+      contract: {
+        builtWith: 1,
+        newest: 2,
+        changes: [
+          {
+            field: 'title',
+            before: 'Bakers want videos',
+            after: INSIGHT.title,
+          },
+          { field: 'owner', before: null, after: 'Mara' },
+        ],
+      },
+    },
+  ] as const
+
+  it('shows the two Versions of a new Contract Version and what changed in the needed Part', () => {
+    renderRecord({ trust: 'flagged', flags: newVersion })
+
+    const [flag] = within(
+      screen.getByRole('list', { name: 'Flags' }),
+    ).getAllByRole('listitem')
+
+    expect(within(flag).getByText('New Version')).toBeDefined()
+    expect(
+      within(flag)
+        .getAllByRole('term')
+        .map((term) => term.textContent),
+    ).toEqual(['Version', 'Title', 'Owner'])
+    expect(
+      within(flag)
+        .getAllByRole('definition')
+        .map((value) => [
+          within(value).queryByRole('deletion')?.textContent,
+          within(value).queryByRole('insertion')?.textContent,
+        ]),
+    ).toEqual([
+      ['1', '2'],
+      ['Bakers want videos', 'Bakers want step videos'],
+      [undefined, 'Mara'],
+    ])
+  })
+
+  it('answers a new Contract Version with a move to it', async () => {
+    const onMoveToVersion = vi.fn()
+    renderRecord({ flags: newVersion }, { onMoveToVersion })
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Move to Version 2' }),
+    )
+
+    expect(onMoveToVersion).toHaveBeenCalledWith('I7', 2)
+  })
+
+  it('has no answer on a flag of another reason', () => {
+    renderRecord({ flags }, { onMoveToVersion: () => {} })
+
+    expect(screen.queryByRole('button', { name: /^Move to/ })).toBeNull()
+  })
 })

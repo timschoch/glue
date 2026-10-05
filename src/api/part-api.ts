@@ -4,6 +4,7 @@
 // in openapi.ts.
 import { z } from 'zod'
 
+import { frozenFields } from '../db/contracts.ts'
 import { goalMeasureSchema } from '../db/goal-measure.ts'
 import { createPartOperations } from '../db/part-operations.ts'
 import type { ChangedPart } from '../db/part-operations.ts'
@@ -141,6 +142,10 @@ const jointEndSchema = z
     link: z.boolean().meta({
       description: 'The two Parts have their home in different Concepts',
     }),
+    contractVersion: z.number().nullable().meta({
+      description:
+        'The Contract Version of the Concept of the needed Part that the Joint was built with. null: the Joint is glued to the live Part',
+    }),
     project: z.object({ slug: z.string(), name: z.string() }).optional().meta({
       description:
         'The Project of the Part at the other end. Only a reference has one: a Joint to a Part of another Project, written glue/D4',
@@ -212,6 +217,28 @@ export const partSchema = z
           cause: flagCauseSchema,
           reason: z.enum(flagReasons),
           createdAt: z.iso.datetime(),
+          contract: z
+            .object({
+              concept: z.string().meta({
+                description: 'The slug of the Concept of the cause',
+              }),
+              builtWith: z.number().meta({
+                description: 'The Contract Version that the Joint has',
+              }),
+              newest: z.number(),
+              changes: z.array(
+                z.object({
+                  field: z.enum(frozenFields),
+                  before: z.string().nullable(),
+                  after: z.string().nullable(),
+                }),
+              ),
+            })
+            .optional()
+            .meta({
+              description:
+                'Only a flag with the reason new-version has it: what the newest Contract Version changed in the cause. The answer move-to-version takes `newest`',
+            }),
         }),
       )
       .meta({ description: 'The open flags, oldest first' }),
