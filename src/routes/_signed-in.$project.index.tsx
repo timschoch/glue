@@ -13,12 +13,15 @@ export const Route = createFileRoute('/_signed-in/$project/')({
     const [concept, contract, builds, signals] = await Promise.all([
       context.fetchConcept(root),
       state,
-      // The builds come live from GitHub. The section Build lists them, and
-      // a Contract shows the ones that name it.
+      // The builds come live from GitHub. The section Build lists the ones
+      // of the Project. With no section, a Contract shows the ones that name
+      // it.
       state.then((found) =>
-        deps.section === 'Build' || found?.versions.length
+        deps.section === 'Build'
           ? context.fetchBuilds(project)
-          : undefined,
+          : deps.section === undefined && found?.versions.length
+            ? context.fetchBuilds(project, { concept: project })
+            : undefined,
       ),
       // The Signals come live from their tool, so only their section reads them.
       deps.section === 'Understand' ? context.fetchSignals(project) : undefined,

@@ -15,10 +15,16 @@ export function createFakeGithub(
   const issues: { repository: string; issue: IssueInput }[] = []
   const listed: { repository: string; label: string }[] = []
   const pullRequestsListed: string[] = []
+  const pullRequestsSearched: { repository: string; text: string }[] = []
   const github: GithubClient = {
     listPullRequests: async (repository) => {
       pullRequestsListed.push(repository)
       return pullRequests
+    },
+    // Like the search of GitHub: each pull request with the text in its body.
+    searchPullRequests: async (repository, text) => {
+      pullRequestsSearched.push({ repository, text })
+      return pullRequests.filter(({ body }) => body.includes(text))
     },
     listIssues: async (repository, label) => {
       listed.push({ repository, label })
@@ -29,11 +35,12 @@ export function createFakeGithub(
       return `https://github.com/${repository}/issues/${issues.length}`
     },
   }
-  return { github, issues, listed, pullRequestsListed }
+  return { github, issues, listed, pullRequestsListed, pullRequestsSearched }
 }
 
 export const failingGithub: GithubClient = {
   createIssue: () => Promise.reject(new Error('GitHub answered 503')),
   listIssues: () => Promise.reject(new Error('GitHub answered 503')),
   listPullRequests: () => Promise.reject(new Error('GitHub answered 503')),
+  searchPullRequests: () => Promise.reject(new Error('GitHub answered 503')),
 }

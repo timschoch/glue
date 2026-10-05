@@ -43,7 +43,7 @@ export function RecordScreen({
 }: {
   part: Part
   parts: ReadonlyArray<PartSummary>
-  // The builds of the Project: the record shows the ones that name it.
+  // The builds that name the record.
   builds?: ReadonlyArray<Build>
 }) {
   const router = useRouter()
@@ -91,12 +91,10 @@ export function RecordScreen({
   }
 
   // The record is the Decision: a build shows only the other Decisions.
-  const named = builds
-    .filter(({ decisions }) => decisions.some(({ id }) => id === part.id))
-    .map((build) => ({
-      ...build,
-      decisions: build.decisions.filter(({ id }) => id !== part.id),
-    }))
+  const named = builds.map((build) => ({
+    ...build,
+    decisions: build.decisions.filter(({ id }) => id !== part.id),
+  }))
   const name = `${partTypes[part.type]} ${part.id}`
   // A Decision in review takes an answer in words. The server adds the name
   // of the person and the date.

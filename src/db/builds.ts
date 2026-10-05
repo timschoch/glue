@@ -61,19 +61,48 @@ async function listNewestVersions(db: ConceptDb, projectId: number) {
   return new Map(found.map((row) => [row.concept, row]))
 }
 
-// The open pull requests and the newest merged ones, the newest first.
+// What the builds must name: one Decision, by its record id, or a Contract
+// Version of one Concept, by the slug of the Concept.
+export type BuildsNamed = { decision: string } | { concept: string }
+
+// The word in the body of each pull request that names a Contract Version.
+const CONTRACT_WORD = 'Contract'
+
+// The open pull requests and the newest merged ones, the newest first. With
+// `named`: each open or merged pull request that names it, from one search
+// of GitHub.
 export async function listBuilds(
   db: ConceptDb,
   github: GithubClient,
   projectSlug: string,
+  named?: BuildsNamed,
 ): Promise<ProjectBuilds> {
   const project = await findProduct(db, projectSlug)
   if (!project) throw new ProductNotFoundError(projectSlug)
   if (!project.repository) return { builds: [], reason: NO_REPOSITORY }
 
+  const [decisions, newestVersions] = await Promise.all([
+    listParts(db, projectSlug, ['decision']),
+    listNewestVersions(db, project.id),
+  ])
+  // The text of a search is the id of a Decision of the Project or the word
+  // for a Contract, never the words of the person.
+  if (
+    named &&
+    'decision' in named &&
+    !decisions.some(({ id }) => id === named.decision)
+  ) {
+    return { builds: [], reason: null }
+  }
+
   let pullRequests
   try {
-    pullRequests = await github.listPullRequests(project.repository)
+    pullRequests = !named
+      ? await github.listPullRequests(project.repository)
+      : await github.searchPullRequests(
+          project.repository,
+          'decision' in named ? named.decision : CONTRACT_WORD,
+        )
   } catch (error) {
     return {
       builds: [],
@@ -81,21 +110,24 @@ export async function listBuilds(
     }
   }
 
-  const [decisions, newestVersions] = await Promise.all([
-    listParts(db, projectSlug, ['decision']),
-    listNewestVersions(db, project.id),
-  ])
   const merged = pullRequests
     .filter(({ state }) => state === 'merged')
     .slice(0, MERGED_LIMIT)
+  // The search finds the text at each place of the body: only the line that
+  // names says what the build names.
+  const names = (build: Build) =>
+    !named ||
+    ('decision' in named
+      ? build.decisions.some(({ id }) => id === named.decision)
+      : build.contract?.concept === named.concept)
 
   return {
     reason: null,
     builds: pullRequests
-      .filter((pull) => pull.state === 'open' || merged.includes(pull))
-      .map(({ body, ...pull }) => {
+      .filter((pull) => named || pull.state === 'open' || merged.includes(pull))
+      .map(({ body, ...pull }): Build => {
         const ids = findDecisionIds(body) ?? []
-        const named = decisions.filter(({ id }) => ids.includes(id))
+        const decided = decisions.filter(({ id }) => ids.includes(id))
         const line = findContractLine(body)
         const newest = line && newestVersions.get(line.concept)
         const contract =
@@ -109,12 +141,13 @@ export async function listBuilds(
             : null
         return {
           ...pull,
-          decisions: named,
+          decisions: decided,
           contract,
           stale:
             (contract !== null && contract.version < contract.newestVersion) ||
-            named.some(({ workState }) => workState === 'sunk'),
+            decided.some(({ workState }) => workState === 'sunk'),
         }
-      }),
+      })
+      .filter(names),
   }
 }

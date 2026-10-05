@@ -95,8 +95,8 @@ export function createRouterContext(
       ),
     fetchSignals: (project) =>
       keepSignInTarget(server.fetchSignals(project), `/${project}`),
-    fetchBuilds: (project) =>
-      keepSignInTarget(server.fetchBuilds(project), `/${project}`),
+    fetchBuilds: (...read) =>
+      keepSignInTarget(server.fetchBuilds(...read), `/${read[0]}`),
     // The record route sends the record to its home Concept.
     fetchPart: (part) =>
       keepSignInTarget(

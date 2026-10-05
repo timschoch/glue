@@ -26,6 +26,12 @@ export type GithubClient = {
   listIssues: (repository: string, label: string) => Promise<Issue[]>
   // The open and the merged pull requests, the newest first.
   listPullRequests: (repository: string) => Promise<PullRequest[]>
+  // The open and the merged pull requests with the text in their body, the
+  // newest first. One request of the search of GitHub.
+  searchPullRequests: (
+    repository: string,
+    text: string,
+  ) => Promise<PullRequest[]>
 }
 
 const API_URL = 'https://api.github.com'
@@ -50,6 +56,25 @@ type ListedPullRequest = {
   state: 'open' | 'closed'
   merged_at: string | null
   body: string | null
+}
+
+// The search of GitHub gives a pull request as an issue: when it was merged
+// is under the key `pull_request`.
+type FoundPullRequest = Omit<ListedPullRequest, 'merged_at'> & {
+  pull_request: { merged_at: string | null }
+}
+
+// A pull request that was closed with no merge is not a build.
+function toPullRequests(listed: ListedPullRequest[]): PullRequest[] {
+  return listed
+    .filter((pull) => pull.state === 'open' || pull.merged_at !== null)
+    .map((pull) => ({
+      number: pull.number,
+      url: pull.html_url,
+      title: pull.title,
+      state: pull.state === 'open' ? 'open' : 'merged',
+      body: pull.body ?? '',
+    }))
 }
 
 export function createGithubClient(): GithubClient {
@@ -122,16 +147,24 @@ export function createGithubClient(): GithubClient {
       })
       const response = await fetchGithub(`/repos/${repository}/pulls?${query}`)
       await validateResponse(response, 'list pull requests')
-      const listed: ListedPullRequest[] = await response.json()
-      return listed
-        .filter((pull) => pull.state === 'open' || pull.merged_at !== null)
-        .map((pull) => ({
-          number: pull.number,
-          url: pull.html_url,
-          title: pull.title,
-          state: pull.state === 'open' ? 'open' : 'merged',
-          body: pull.body ?? '',
-        }))
+      return toPullRequests(await response.json())
+    },
+    searchPullRequests: async (repository, text) => {
+      const query = new URLSearchParams({
+        q: `repo:${repository} is:pr in:body "${text}"`,
+        sort: 'created',
+        order: 'desc',
+        per_page: String(PAGE_SIZE),
+      })
+      const response = await fetchGithub(`/search/issues?${query}`)
+      await validateResponse(response, 'search pull requests')
+      const found: { items: FoundPullRequest[] } = await response.json()
+      return toPullRequests(
+        found.items.map(({ pull_request, ...pull }) => ({
+          ...pull,
+          merged_at: pull_request.merged_at,
+        })),
+      )
     },
   }
 }
