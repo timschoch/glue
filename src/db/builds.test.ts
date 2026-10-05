@@ -188,6 +188,89 @@ describe('listBuilds', () => {
     ])
   })
 
+  it('gives each build that names the Decision, also one older than the ten newest merged ones', async () => {
+    const merged = Array.from({ length: 12 }, (_, index) =>
+      toPullRequest(30 - index, 'Decision: D2', 'merged'),
+    )
+    const fake = createFakeGithub(
+      [],
+      [
+        toPullRequest(31, 'Decision: D2, D1'),
+        ...merged,
+        toPullRequest(5, 'Decision: D1', 'merged'),
+      ],
+    )
+
+    const { builds } = await listBuilds(db, fake.github, 'glue', {
+      decision: 'D1',
+    })
+
+    expect(builds.map(({ number }) => number)).toEqual([31, 5])
+    expect(fake.pullRequestsSearched).toEqual([
+      { repository: 'timschoch/glue', text: 'D1' },
+    ])
+    expect(fake.pullRequestsListed).toEqual([])
+  })
+
+  it('gives no build that has the id of the Decision outside its "Decision:" line', async () => {
+    const { github } = createFakeGithub(
+      [],
+      [
+        toPullRequest(12, 'It follows D1.\n\nDecision: D2'),
+        toPullRequest(11, 'Decision: D11'),
+      ],
+    )
+
+    const { builds } = await listBuilds(db, github, 'glue', { decision: 'D1' })
+
+    expect(builds).toEqual([])
+  })
+
+  it('searches GitHub only for a Decision that the Project has', async () => {
+    const fake = createFakeGithub([], [toPullRequest(12, 'Decision: D1')])
+
+    const found = await listBuilds(db, fake.github, 'glue', {
+      decision: 'D1" repo:timschoch/flexibeck-next "',
+    })
+
+    expect(found).toEqual({ builds: [], reason: null })
+    expect(fake.pullRequestsSearched).toEqual([])
+  })
+
+  it('gives each build that names a Contract Version of the Concept', async () => {
+    await addConcept(db, 'glue', { slug: 'flows', title: 'Flows' })
+    await addPart(db, 'glue', {
+      type: 'entity',
+      concept: 'flows',
+      title: 'Step',
+    })
+    await answerPart(db, 'glue', 'E2', { answer: 'supersede' })
+    await signContract(db, 'glue', 'videos', 'Tim')
+    await signContract(db, 'glue', 'flows', 'Tim')
+    const merged = Array.from({ length: 12 }, (_, index) =>
+      toPullRequest(30 - index, 'Contract: flows@1', 'merged'),
+    )
+    const fake = createFakeGithub(
+      [],
+      [...merged, toPullRequest(5, 'Contract: videos@1', 'merged')],
+    )
+
+    const { builds } = await listBuilds(db, fake.github, 'glue', {
+      concept: 'videos',
+    })
+
+    expect(builds.map(({ number }) => number)).toEqual([5])
+    expect(fake.pullRequestsSearched).toEqual([
+      { repository: 'timschoch/glue', text: 'Contract' },
+    ])
+  })
+
+  it('gives no build and the reason when the search of GitHub fails', async () => {
+    expect(
+      await listBuilds(db, failingGithub, 'glue', { decision: 'D1' }),
+    ).toEqual({ builds: [], reason: 'GitHub answered 503' })
+  })
+
   it('gives no build and the reason for a Project without a repository', async () => {
     const fake = createFakeGithub([], [toPullRequest(12, '')])
 
