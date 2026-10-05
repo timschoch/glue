@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
 import { setProductRepository } from './projects.ts'
 import { createPartOperations } from './part-operations.ts'
-import { addPart, addProject } from './part-records.ts'
+import { addConcept, addPart, addProject } from './part-records.ts'
 import { findPart } from './parts.ts'
 import { InvalidRecordError, PartNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
@@ -228,6 +228,76 @@ describe('a write of a Part', () => {
       signals: [{ url: signal.url, title: signal.title }],
     })
     expect(added.issue).toEqual({ kind: 'not-found' })
+  })
+})
+
+describe('a move of a Part to another Concept', () => {
+  beforeEach(async () => {
+    await addConcept(db, project, { slug: 'checkout', title: 'Checkout' })
+    await operations.addPart(project, {
+      type: 'flow',
+      title: 'Pay the cart',
+      needs: ['I1'],
+    })
+    await operations.answerPart(project, 'F1', { answer: 'supersede' })
+  })
+
+  it('gives the Part its new home, and keeps its id, its Joints, its Trust and its Work state', async () => {
+    const moved = await operations.updatePart(project, 'F1', {
+      concept: 'checkout',
+    })
+
+    expect(moved.part).toMatchObject({
+      id: 'F1',
+      title: 'Pay the cart',
+      concept: 'checkout',
+      conceptTitle: 'Checkout',
+      trust: 'solid',
+      workState: 'published',
+      needs: [{ jointId: 1, link: true, part: { id: 'I1' } }],
+      flags: [],
+    })
+    expect(await operations.getPart(project, 'I1')).toMatchObject({
+      concept: 'flexibeck',
+      trust: 'solid',
+      workState: 'published',
+      neededBy: [{ jointId: 1, link: true, part: { id: 'F1' } }],
+    })
+  })
+
+  it('refuses a move to a Concept of another Project, and keeps the home', async () => {
+    await addProject(db, 'glue')
+    await addConcept(db, 'glue', { slug: 'billing', title: 'Billing' })
+
+    const refused = operations.updatePart(project, 'F1', { concept: 'billing' })
+
+    await expect(refused).rejects.toThrow(
+      new InvalidRecordError('concept "billing" not found'),
+    )
+    expect(await operations.getPart(project, 'F1')).toMatchObject({
+      concept: 'flexibeck',
+    })
+  })
+
+  it('moves many Parts in one call', async () => {
+    const moved = await operations.moveParts(project, ['F1', 'I1'], 'checkout')
+
+    expect(moved.map(({ id, concept }) => [id, concept])).toEqual([
+      ['F1', 'checkout'],
+      ['I1', 'checkout'],
+    ])
+    expect(await operations.getPart(project, 'G1')).toMatchObject({
+      concept: 'flexibeck',
+    })
+  })
+
+  it('moves no Part when one of them does not exist', async () => {
+    const refused = operations.moveParts(project, ['F1', 'E7'], 'checkout')
+
+    await expect(refused).rejects.toThrow(PartNotFoundError)
+    expect(await operations.getPart(project, 'F1')).toMatchObject({
+      concept: 'flexibeck',
+    })
   })
 })
 
