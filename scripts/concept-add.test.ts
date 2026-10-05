@@ -5,7 +5,7 @@ import { findPart, listParts } from '../src/db/parts.ts'
 import * as schema from '../src/db/schema.ts'
 import { createTestDatabase } from '../src/db/test-database.ts'
 import { createFakeGithub } from '../src/test/github.ts'
-import { runConcept } from './concept.ts'
+import { main, runConcept } from './concept.ts'
 
 // The rules of `add` and of `set` on a Decision that the CLI checks itself,
 // before the Part model sees the record.
@@ -192,6 +192,49 @@ describe('pnpm concept add and set', () => {
         status: 'accepted',
         supersededBy: null,
       })
+    })
+
+    it('gives the Decision the Goal of --goal and the body of --body', async () => {
+      await addPart(db, 'glue', {
+        type: 'goal',
+        title: 'Break less',
+        metric: 'failed releases',
+        source: 'okr',
+      })
+
+      await run('set', 'D1', '--goal', 'G2', '--body', 'A click opens it.')
+
+      const changed = await findPart(db, 'glue', 'D1')
+      expect(changed).toMatchObject({
+        status: 'accepted',
+        body: 'A click opens it.',
+      })
+      expect(changed?.needs.map((end) => end.part.id)).toEqual([
+        'I1',
+        'R1',
+        'G2',
+      ])
+    })
+
+    it('gives the Decision the title of --title, and keeps its status', async () => {
+      await run('set', 'D1', '--title', 'Cache the start page')
+
+      expect(await findPart(db, 'glue', 'D1')).toMatchObject({
+        title: 'Cache the start page',
+        status: 'accepted',
+      })
+    })
+
+    it('names --goal and --body in the help', async () => {
+      await main(['--help'], undefined)
+
+      const help = vi.mocked(console.log).mock.calls.flat().join('\n')
+      expect(help).toContain(
+        'pnpm concept set <id> <flags of the type> [--body <text>, or - for stdin]',
+      )
+      expect(help).toContain(
+        'set on a Decision takes --status, --superseded-by, --title, --goal <id> and --body.',
+      )
     })
   })
 })

@@ -114,7 +114,7 @@ export const BodyWithRecords: Story = {
   },
 }
 
-// A Decision that exists has no field for its Joints.
+// A Decision that exists has its Goal, and no field for its evidence.
 export const EditDecision: Story = {
   args: { ...AddDecisionWithPicks.args, recordId: 'D12' },
 }

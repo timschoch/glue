@@ -114,11 +114,28 @@ describe('the Part that the form edits', () => {
   })
 
   it('changes the fields of its type only', () => {
-    expect(toPartChange('decision', values)).toEqual({
+    expect(toPartChange('decision', values, { goal: 'G1' })).toEqual({
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
       owner: 'Ada',
       date: '2026-10-04',
+    })
+  })
+
+  it('gives a Decision the Goal that the person picked in the place of its Goal', () => {
+    expect(toPartChange('decision', values, { goal: 'G2' })).toEqual({
+      title: 'Show the video of the creator',
+      body: 'It follows #I3.',
+      owner: 'Ada',
+      date: '2026-10-04',
+      goal: 'G1',
+    })
+  })
+
+  it('gives no other type a Goal', () => {
+    expect(toPartChange('flow', values, { goal: null })).toEqual({
+      title: 'Show the video of the creator',
+      body: 'It follows #I3.',
     })
   })
 

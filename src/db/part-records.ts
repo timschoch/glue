@@ -306,6 +306,7 @@ const homeChange = {
 
 // A Decision that exists becomes superseded through supersedeDecision, so
 // that status is not a value of a change. Its options stay as they went in.
+// `goal` gives it another Goal in the place of the one that it has.
 const changeSchemas = {
   insight: fieldSchemas.insight.partial().extend(homeChange),
   goal: fieldSchemas.goal.partial().extend({ ...measureChange, ...homeChange }),
@@ -314,6 +315,10 @@ const changeSchemas = {
     .partial()
     .extend({
       status: z.enum(['proposed', 'accepted']).optional(),
+      goal: z.string().optional().meta({
+        description:
+          'The record id of the Goal that it serves from now on. A reference names a published Goal of another Project: glue/G2',
+      }),
       ...homeChange,
     }),
   guardrail: fieldSchemas.guardrail.partial().extend(homeChange),
@@ -348,7 +353,7 @@ const partSchemas: Record<
 > = fieldSchemas
 const partChangeSchemas: Record<
   schema.PartType,
-  z.ZodType<Partial<PartFields> & { concept?: string }>
+  z.ZodType<Partial<PartFields> & { concept?: string; goal?: string }>
 > = changeSchemas
 
 // Where a new Part goes, and what it is glued to.
@@ -1064,6 +1069,48 @@ function isExpected(partId: number, expected: ExpectedPart) {
   )
 }
 
+// The Joints that give a Decision its Goal, with the row id of the Goal. A
+// two-way Joint gives it the Goal in either direction: see addJoint.
+function selectGoalJoints(decisionId: number) {
+  return sql`
+    select joint."id", goal."id" as "goal_id"
+    from "joints" as joint, "parts" as goal
+    where goal."type" = 'goal'
+      and (
+        (
+          joint."part_id" = ${decisionId}::integer
+          and joint."needed_part_id" = goal."id"
+        )
+        or (
+          joint."two_way"
+          and joint."needed_part_id" = ${decisionId}::integer
+          and joint."part_id" = goal."id"
+        )
+      )
+  `
+}
+
+const goalJointRowsSchema = z.object({
+  rows: z.array(z.object({ goal_id: z.number() })),
+})
+
+// The Goal that a change gives a Decision: one that the Decision may need,
+// see findNeededParts. undefined: the Decision has that Goal already.
+async function findNextGoal(
+  db: ConceptDb,
+  project: ProjectRow,
+  decisionId: number,
+  reference: string,
+) {
+  const [goal] = await findNeededParts(db, project, [reference])
+  if (goal.type !== 'goal')
+    throw new InvalidRecordError(`"${reference}" is not a Goal`)
+  const current = goalJointRowsSchema.parse(
+    await db.execute(selectGoalJoints(decisionId)),
+  ).rows
+  return current.some((row) => row.goal_id === goal.id) ? undefined : goal
+}
+
 // Sets the fields that the change names, and the measure with them as one
 // statement. A superseded Decision that gets another status has no successor
 // any more. A new status moves the Trust and the Work state with it, and
@@ -1071,8 +1118,10 @@ function isExpected(partId: number, expected: ExpectedPart) {
 // body glues the Part to each Part that it names, and removes the Joint of a
 // mention that is gone (D37). A Joint that a person added stays, and so does
 // the last evidence of a Decision. `concept` moves the Part to that Concept
-// of its Project (D44). false: the Part was not in the expected
-// state, and nothing changed.
+// of its Project (D44). `goal` gives a Decision another Goal: the old Goal
+// Joint goes and the new one comes in the same statement, so the Decision
+// never has no Goal. The Goal that it has already writes nothing. false: the
+// Part was not in the expected state, and nothing changed.
 export async function updatePart(
   db: ConceptDb,
   projectSlug: string,
@@ -1085,16 +1134,24 @@ export async function updatePart(
   const {
     measure: nextMeasure,
     concept,
+    goal,
     ...columns
   } = parseInput(partChangeSchemas[part.type], change)
+  const project = { id: projectId, slug: projectSlug }
   const conceptId =
     concept === undefined
       ? undefined
       : await findConceptId(db, projectId, concept)
-  const values: unknown[] = [conceptId, ...Object.values(columns)]
+  const nextGoal =
+    goal === undefined
+      ? undefined
+      : await findNextGoal(db, project, part.id, goal)
+  const values: unknown[] = [conceptId, nextGoal, ...Object.values(columns)]
   const hasColumns = values.some((value) => value !== undefined)
-  if (!hasColumns && nextMeasure === undefined)
+  if (!hasColumns && nextMeasure === undefined) {
+    if (goal !== undefined) return true
     throw new InvalidRecordError('send at least one field')
+  }
 
   const { parts } = schema
   const matches = isExpected(part.id, expected)
@@ -1146,11 +1203,18 @@ export async function updatePart(
             "latest_breakdown_value" = null,
             "measured_at" = null
         )`
-  const mentioned = await findMentioned(
-    db,
-    { id: projectId, slug: projectSlug },
-    columns.body,
-  )
+  const changedGoal = sql`, removed_goal as (
+      delete from "joints"
+      where "id" in (
+          select "id" from (${selectGoalJoints(part.id)}) as goal_joints
+        )
+        and exists (select 1 from changed)
+    ),
+    added_goal as (
+      insert into "joints" ("part_id", "needed_part_id")
+      select "id", ${nextGoal?.id}::integer from changed
+    )`
+  const mentioned = await findMentioned(db, project, columns.body)
   const mentionedParts = selectMentionedParts(projectId, part.type, {
     ...mentioned,
     recordIds: mentioned.recordIds.filter(
@@ -1202,6 +1266,7 @@ export async function updatePart(
     with changed as ${changed}
     ${hasColumns ? spreadTrust('changed') : sql``}
     ${nextMeasure === undefined ? sql`` : changedMeasure}
+    ${nextGoal === undefined ? sql`` : changedGoal}
     ${columns.body === undefined ? sql`` : changedJoints}
     select "id" from changed
   `)
