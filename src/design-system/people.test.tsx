@@ -108,11 +108,11 @@ describe('People', () => {
     render(<People members={MEMBERS} me={null} />)
 
     expect(
-      within(member('Bo').getByRole('list', { name: 'Watches' }))
+      within(member('Bo').getByRole('list', { name: 'Watcher' }))
         .getByRole('link', { name: /Show the video of the creator/ })
         .getAttribute('href'),
     ).toBe('/glue/checkout/D12')
-    expect(member('Ada').queryByRole('list', { name: 'Watches' })).toBeNull()
+    expect(member('Ada').queryByRole('list', { name: 'Watcher' })).toBeNull()
   })
 
   it('lets the member set the own loop steps, and no other ones', async () => {

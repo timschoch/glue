@@ -425,8 +425,12 @@ type ClickAction = {
 // the record id of the pick.
 type PartPick = { label: string; onPick: (recordId: string) => void }
 
-// One action on the record. An action with a pick asks for a Part first.
-export type RecordAction = ClickAction | { label: string; pick: PartPick }
+// One action on the record. An action with a pick asks for a Part first. An
+// action with an address is a link: it goes to a person, not to Glue.
+export type RecordAction =
+  | ClickAction
+  | { label: string; pick: PartPick }
+  | { label: string; href: string }
 
 export type RecordProps = {
   part: RecordPart
@@ -436,12 +440,12 @@ export type RecordProps = {
   bodyParts?: ReadonlyArray<RecordPartSummary>
   pinned: boolean
   onPinChange: (pinned: boolean) => void
-  // The watchers of the Part: their count, and if the person who reads is
-  // one of them. Only a member of the Project watches and stops.
+  // The control of a person who can watch the Part: the count of the
+  // watchers, and if the person is one of them.
   watch?: {
     watching: boolean
     count: number
-    onChange?: (watching: boolean) => void
+    onChange: (watching: boolean) => void
   }
   // Opens the record of a card or of a record id in the body.
   onOpen?: OpenHandler
@@ -524,6 +528,7 @@ export function Record({
   const [picking, setPicking] = useState<PartPick>()
   const run = (action: RecordAction) => {
     if ('pick' in action) setPicking(action.pick)
+    else if ('href' in action) window.location.assign(action.href)
     else if (action.confirm) setConfirming(action)
     else action.onClick()
   }
@@ -574,23 +579,16 @@ export function Record({
           <span>{part.id}</span>
           <div className={styles.controls}>
             {watch && (
-              <>
-                <output aria-label="Watchers" className={styles.count}>
-                  {watch.count}
-                </output>
-                {watch.onChange && (
-                  <IconButton
-                    kind="ghost"
-                    size="sm"
-                    align="bottom-end"
-                    label="Watch"
-                    aria-pressed={watch.watching}
-                    onClick={() => watch.onChange?.(!watch.watching)}
-                  >
-                    {watch.watching ? <ViewFilled /> : <View />}
-                  </IconButton>
-                )}
-              </>
+              <Button
+                kind="ghost"
+                size="sm"
+                renderIcon={watch.watching ? ViewFilled : View}
+                aria-label={`Watch ${watch.count}`}
+                aria-pressed={watch.watching}
+                onClick={() => watch.onChange(!watch.watching)}
+              >
+                {watch.count}
+              </Button>
             )}
             {onEdit && (
               <IconButton
@@ -694,9 +692,12 @@ export function Record({
               ))}
             </ComboButton>
           ) : (
-            action && (
+            action &&
+            ('href' in action ? (
+              <Button href={action.href}>{action.label}</Button>
+            ) : (
               <Button onClick={() => run(action)}>{action.label}</Button>
-            )
+            ))
           )}
           {picking && pending === undefined && (
             <div className={styles.search}>

@@ -109,8 +109,11 @@ $action-height: $spacing-07;
   @include type-style('heading-compact-01');
 }
 
+// A summary with lines keeps them: one flag per line.
 .summary {
   @include type-style('body-compact-01');
+
+  white-space: pre-line;
 }
 
 // The newest value against its target: the sign, the value, the target.

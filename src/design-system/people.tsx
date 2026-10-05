@@ -167,7 +167,7 @@ function Member({
       )}
       <Held title="Responsible" held={member.responsible} onOpen={onOpen} />
       <Held title="Co-Author" held={member.coAuthor} onOpen={onOpen} />
-      <Held title="Watches" held={member.watches} onOpen={onOpen} />
+      <Held title="Watcher" held={member.watches} onOpen={onOpen} />
     </section>
   )
 }

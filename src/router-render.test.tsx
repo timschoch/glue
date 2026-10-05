@@ -757,6 +757,11 @@ describe('the section Mine', () => {
                 reason: 'changed' as const,
                 createdAt: '2026-10-03T08:00:00.000Z',
               },
+              {
+                cause: { id: 'I3', title: I3 },
+                reason: 'wrong' as const,
+                createdAt: '2026-10-03T09:00:00.000Z',
+              },
             ],
           },
         ]),
@@ -769,7 +774,7 @@ describe('the section Mine', () => {
     expect(
       watched.getAllByRole('link').map((link) => link.textContent),
     ).toEqual([
-      `Flagged Guardrail R1 ${R1} Changed D4 ${D4} To check Read model`,
+      `Flagged Guardrail R1 ${R1} Changed: D4 ${D4}\nWrong: I3 ${I3} To check Read model`,
     ])
   })
 
@@ -1472,21 +1477,35 @@ describe('the people of a Project', () => {
     const bo = within(screen.getByRole('region', { name: 'Bo' }))
 
     expect(
-      within(bo.getByRole('list', { name: 'Watches' }))
+      within(bo.getByRole('list', { name: 'Watcher' }))
         .getByRole('link')
         .getAttribute('href'),
     ).toBe('/glue/part-model/D4?section=People')
   })
 
-  it('watches a record, and stops', async () => {
-    const { server } = await renderPage('/glue/part-model/D4')
-    const watchers = () =>
-      screen.getByRole('status', { name: 'Watchers' }).textContent
+  // Bo owns D4 and Ada reads.
+  const ownedByBo = {
+    ...people,
+    assignments: [
+      {
+        id: 1,
+        memberId: 2,
+        role: 'responsible' as const,
+        concept: null,
+        part: 'D4',
+      },
+    ],
+    watchers: [],
+  }
 
-    expect(watchers()).toBe('1')
-    expect(button('Watch').getAttribute('aria-pressed')).toBe('false')
+  it('watches a record of another owner', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', {
+      fetchPeople: vi.fn(() => Promise.resolve(ownedByBo)),
+    })
 
-    await userEvent.click(button('Watch'))
+    expect(button('Watch 0').getAttribute('aria-pressed')).toBe('false')
+
+    await userEvent.click(button('Watch 0'))
 
     await waitFor(() =>
       expect(server.watch).toHaveBeenCalledWith({
@@ -1501,15 +1520,15 @@ describe('the people of a Project', () => {
     const { server } = await renderPage('/glue/part-model/D4', {
       fetchPeople: vi.fn(() =>
         Promise.resolve({
-          ...people,
-          watchers: [...people.watchers, { memberId: 1, part: 'D4' }],
+          ...ownedByBo,
+          watchers: [{ memberId: 1, part: 'D4' }],
         }),
       ),
     })
 
-    expect(button('Watch').getAttribute('aria-pressed')).toBe('true')
+    expect(button('Watch 1').getAttribute('aria-pressed')).toBe('true')
 
-    await userEvent.click(button('Watch'))
+    await userEvent.click(button('Watch 1'))
 
     await waitFor(() =>
       expect(server.unwatch).toHaveBeenCalledWith({
@@ -1517,6 +1536,31 @@ describe('the people of a Project', () => {
         recordId: 'D4',
       }),
     )
+  })
+
+  it('gives the owner of a record no Watch control', async () => {
+    await renderPage('/glue/part-model/D4')
+
+    expect(screen.queryByRole('button', { name: /^Watch/ })).toBeNull()
+  })
+
+  it('gives a member who is not the owner of a flagged record the owner to ask, and no answer', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchPeople: vi.fn(() => Promise.resolve(ownedByBo)),
+      fetchPart: vi.fn(
+        changedPart('D4', {
+          answers: [],
+          answeredBy: { name: 'Bo', email: 'bo@example.com' },
+        }),
+      ),
+    })
+
+    expect(
+      screen.getByRole('link', { name: 'Ask Bo' }).getAttribute('href'),
+    ).toBe(
+      'mailto:bo@example.com?subject=D4%20The%20Concept%20lives%20in%20the%20database',
+    )
+    expect(screen.queryByRole('button', { name: 'Not ready' })).toBeNull()
   })
 
   it('gives a record another Responsible', async () => {
@@ -1564,10 +1608,7 @@ describe('the people of a Project', () => {
 
     expect(screen.getByText('Responsible').nextSibling?.textContent).toBe('Ada')
     expect(screen.queryByRole('combobox', { name: 'Responsible' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Watch' })).toBeNull()
-    expect(screen.getByRole('status', { name: 'Watchers' }).textContent).toBe(
-      '1',
-    )
+    expect(screen.queryByRole('button', { name: /^Watch/ })).toBeNull()
   })
 })
 

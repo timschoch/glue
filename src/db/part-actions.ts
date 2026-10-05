@@ -186,8 +186,9 @@ export function createPartActions(request: ActionRequest) {
       listParts(db, project, types),
     ),
 
-    findPart: withSession((db, { project, recordId }: PartReadInput) =>
-      findPart(db, project, recordId),
+    // A member who is not the owner of a Part with a flag gets no answers.
+    findPart: withReader((db, { project, recordId }: PartReadInput, member) =>
+      findPart(db, project, recordId, member?.email),
     ),
 
     addConcept: withMember((db, { project, concept }: ConceptAddInput) =>

@@ -27,6 +27,7 @@ import type {
   WorkState,
 } from './schema.ts'
 import { kinds } from './kinds.ts'
+import { findFlagOwner } from './members.ts'
 import { listAnswers } from './part-trust.ts'
 import type { Answer } from './part-trust.ts'
 import { sortById } from './record-id.ts'
@@ -189,8 +190,11 @@ export type Part = PartSummary & {
   waitsOn: PartSummary | null
   // The Signals that an Insight grew from, in the order they were picked.
   signals: { url: string; title: string }[]
-  // The answers that the Work state takes, the usual one first.
+  // The answers that the Work state takes, the usual one first. None for a
+  // reader who is not the owner of a Part with a flag.
   answers: Answer[]
+  // The owner that such a reader asks for the answer.
+  answeredBy?: { name: string; email: string }
   // What happened to the Part, newest first.
   activity: Activity[]
 }
@@ -654,10 +658,14 @@ function listActivity(
   return entries.sort((one, other) => other.at.localeCompare(one.at))
 }
 
+// `readBy` is the e-mail address of the member who reads. Only the owner
+// answers a flag (D47): each other member gets no answers, and the owner to
+// ask.
 export async function findPart(
   db: ConceptDb,
   projectSlug: string,
   recordId: string,
+  readBy?: string,
 ): Promise<Part | undefined> {
   const found = await db
     .select({ part: parts, concept: concepts, measure: measures })
@@ -678,6 +686,7 @@ export async function findPart(
     jointRows,
     grownFrom,
     measured,
+    answeredBy,
   ] = await Promise.all([
     part.supersededById === null
       ? []
@@ -707,6 +716,7 @@ export async function findPart(
         )`,
       ),
     ),
+    readBy === undefined ? undefined : findFlagOwner(db, part.id, readBy),
   ])
 
   const openFlags = partFlags.filter(({ closedAt }) => closedAt === null)
@@ -772,7 +782,8 @@ export async function findPart(
     }),
     waitsOn: waitsOn.at(0) ?? null,
     signals: grownFrom,
-    answers: listAnswers(part.workState),
+    answers: answeredBy ? [] : listAnswers(part.workState),
+    ...(answeredBy && { answeredBy }),
     activity: listActivity(part, partFlags),
   }
 }

@@ -66,7 +66,7 @@ describe('PartCards', () => {
       <PartCards
         title="Mine"
         parts={[GOAL]}
-        watched={[{ ...DECISION, note: 'Changed I7 Bakers want step videos' }]}
+        watched={[{ ...DECISION, note: 'Changed: I7 Bakers want step videos' }]}
       />,
     )
 
@@ -81,7 +81,7 @@ describe('PartCards', () => {
     ])
     expect(screen.getByRole('list', { name: 'Watched' })).toBe(watched)
     expect(cards(watched)).toEqual([
-      'Not ready Decision D12 Show the video of the creator Changed I7 Bakers want step videos Review Technique videos',
+      'Not ready Decision D12 Show the video of the creator Changed: I7 Bakers want step videos Review Technique videos',
     ])
   })
 

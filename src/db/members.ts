@@ -248,6 +248,10 @@ const foundSchema = z.object({
   ),
 })
 
+const ownedSchema = z.object({
+  rows: z.array(z.object({ owned: z.coerce.number() })),
+})
+
 // Refuses the write when the Project has no such member, Concept or Part.
 function validateFound(
   result: unknown,
@@ -265,7 +269,8 @@ function validateFound(
 
 // Makes the member Responsible or Co-Author of the Concept or the Part. A
 // Concept or a Part has one Responsible: the new one takes the place of the
-// old one. A member that has a role already changes the role.
+// old one. A member that has a role already changes the role. The owner of
+// a Part does not watch it: a new Responsible stops watching.
 export async function assign(
   db: ConceptDb,
   projectSlug: string,
@@ -282,6 +287,12 @@ export async function assign(
         and "assignments"."part_id" is not distinct from target."part_id"
         and "assignments"."member_id" <> (select "id" from member)
     ),
+    unwatched as (
+      delete from "watchers" using target
+      where ${assignment.role}::text = 'responsible'
+        and "watchers"."part_id" = target."part_id"
+        and "watchers"."member_id" = (select "id" from member)
+    ),
     written as (
       insert into "assignments" ("member_id", "concept_id", "part_id", "role")
       select member."id", target."concept_id", target."part_id", ${assignment.role}::text
@@ -293,6 +304,33 @@ export async function assign(
       (select count(*) from target) as "targets"
   `)
   validateFound(result, projectSlug, assignment)
+}
+
+// Only the owner answers a flag (D47). The owner of the Part, when the Part
+// has an open flag and the person with the e-mail address is not its owner:
+// that person asks the owner. Else nothing.
+export async function findFlagOwner(
+  db: ConceptDb,
+  partId: number,
+  email: string,
+): Promise<{ name: string; email: string } | undefined> {
+  const found = await db
+    .select({ name: members.name, email: members.email })
+    .from(assignments)
+    .innerJoin(members, eq(assignments.memberId, members.id))
+    .where(
+      and(
+        eq(assignments.partId, partId),
+        eq(assignments.role, 'responsible'),
+        sql`lower(${members.email}) <> lower(${email}::text)`,
+        sql`exists (
+          select 1 from "flags"
+          where "flags"."part_id" = ${partId}::integer
+            and "flags"."closed_at" is null
+        )`,
+      ),
+    )
+  return found.at(0)
 }
 
 // A member who watches a Part (D47). Watching is not owning: the owner of a
@@ -329,7 +367,7 @@ export function listWatchers(
 }
 
 // The member watches the Part. A member who watches it already stays one
-// watcher.
+// watcher. The owner of the Part does not watch it.
 export async function watch(
   db: ConceptDb,
   projectSlug: string,
@@ -338,15 +376,27 @@ export async function watch(
   const watcher = parseInput(watcherSchema, input)
   const result = await db.execute(sql`
     with ${selectTarget(projectSlug, watcher)},
+    owned as (
+      select 1 from "assignments", member, target
+      where "assignments"."part_id" = target."part_id"
+        and "assignments"."member_id" = member."id"
+        and "assignments"."role" = 'responsible'
+    ),
     written as (
       insert into "watchers" ("part_id", "member_id")
       select target."part_id", member."id" from member, target
+      where not exists (select 1 from owned)
       on conflict do nothing
     )
     select (select count(*) from member) as "members",
-      (select count(*) from target) as "targets"
+      (select count(*) from target) as "targets",
+      (select count(*) from owned) as "owned"
   `)
   validateFound(result, projectSlug, watcher)
+  if (ownedSchema.parse(result).rows[0].owned > 0)
+    throw new InvalidRecordError(
+      `${watcher.member} owns "${watcher.part}": the owner does not watch it`,
+    )
 }
 
 // The member stops watching the Part.

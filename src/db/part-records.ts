@@ -16,6 +16,7 @@ import { goalMeasureSchema, isOnTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import { kinds } from './kinds.ts'
 import type { Kind } from './kinds.ts'
+import { findFlagOwner } from './members.ts'
 import {
   listAnswers,
   answerRules,
@@ -1536,8 +1537,8 @@ export async function answerPart(
   const projectId = await getProjectId(db, projectSlug)
   const part = await getPart(db, projectId, recordId)
   if (answeredBy !== undefined) {
-    const owner = await findFlagOwner(db, part.id)
-    if (owner && owner.email.toLowerCase() !== answeredBy.toLowerCase())
+    const owner = await findFlagOwner(db, part.id, answeredBy)
+    if (owner)
       throw new InvalidRecordError(
         `"${recordId}" has a flag: only its owner ${owner.name} answers it`,
       )
@@ -1608,27 +1609,6 @@ async function moveToVersion(
     throw new InvalidRecordError(
       `"${part.recordId}" has no flag of Version ${given.version} of "${given.needs}"`,
     )
-}
-
-// The owner of the Part, when the Part has an open flag.
-async function findFlagOwner(db: ConceptDb, partId: number) {
-  const { assignments, members } = schema
-  const found = await db
-    .select({ name: members.name, email: members.email })
-    .from(assignments)
-    .innerJoin(members, eq(assignments.memberId, members.id))
-    .where(
-      and(
-        eq(assignments.partId, partId),
-        eq(assignments.role, 'responsible'),
-        sql`exists (
-          select 1 from "flags"
-          where "flags"."part_id" = ${partId}::integer
-            and "flags"."closed_at" is null
-        )`,
-      ),
-    )
-  return found.at(0)
 }
 
 // The write of answerPart and of answerQuestion. With a question, the same

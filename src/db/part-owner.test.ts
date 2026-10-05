@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { createFakeGithub } from '../test/github.ts'
-import { joinProject, listAssignments, watch } from './members.ts'
+import {
+  assign,
+  joinProject,
+  listAssignments,
+  listWatchers,
+  watch,
+} from './members.ts'
 import { createPartOperations } from './part-operations.ts'
 import { addProject } from './part-records.ts'
-import { listMine, listWatched } from './parts.ts'
+import { findPart, listMine, listWatched } from './parts.ts'
 import * as schema from './schema.ts'
 import { createTestDatabase } from './test-database.ts'
 
@@ -127,10 +133,42 @@ describe('a Part with a flag that a member watches', () => {
     ])
   })
 
-  it('leaves a Part that the watcher holds out of the watched group', async () => {
-    await watch(db, project, { member: tim, part: 'E1' })
+  it('gives the watcher no answer and the owner to ask, and the owner the answers', async () => {
+    expect(await findPart(db, project, 'E1', ada)).toMatchObject({
+      answers: [],
+      answeredBy: { name: 'Tim', email: tim },
+    })
+    const own = await findPart(db, project, 'E1', tim)
 
-    expect(await listWatched(db, project, tim)).toEqual([])
+    expect(own?.answers).toEqual([
+      'fine',
+      'wait',
+      'need-time',
+      'not-ready',
+      'sink',
+    ])
+    expect(own?.answeredBy).toBeUndefined()
+  })
+
+  it('refuses the owner as a watcher', async () => {
+    await expect(
+      watch(db, project, { member: tim, part: 'E1' }),
+    ).rejects.toThrow('tim@example.com owns "E1": the owner does not watch it')
+    expect(await listWatchers(db, project, 'E1')).toEqual([
+      { memberId: 2, part: 'E1' },
+    ])
+  })
+
+  it('stops the watch of a watcher who becomes the owner', async () => {
+    await assign(db, project, { member: ada, part: 'E1', role: 'responsible' })
+
+    expect(await listWatchers(db, project, 'E1')).toEqual([])
+  })
+
+  it('leaves a Part that the watcher holds out of the watched group', async () => {
+    await assign(db, project, { member: ada, part: 'E1', role: 'co-author' })
+
+    expect(await listWatched(db, project, ada)).toEqual([])
   })
 
   it('leaves a Part of nobody that Mine lists out of the watched group', async () => {

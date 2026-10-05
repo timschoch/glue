@@ -98,6 +98,12 @@ export function RecordScreen({
   }
 
   const watchers = people.watchers.filter((watcher) => watcher.part === part.id)
+  // The owner of a Part does not watch it, and only a member watches.
+  const owns = people.assignments.some(
+    ({ part: owned, role, memberId }) =>
+      owned === part.id && role === 'responsible' && memberId === people.me,
+  )
+  const watches = people.me !== null && !owns
 
   // The record is the Decision: a build shows only the other Decisions.
   const named = builds.map((build) => ({
@@ -174,9 +180,18 @@ export function RecordScreen({
   // The next step of the flow is the button. A next step that is an answer
   // is the usual answer, which comes first already. Each other next step
   // opens a form or the home Concept.
+  // A member who is not the owner of a Part with a flag has one step: to
+  // ask the owner. Only the owner answers a flag.
   const next = flow?.next
-  const actions =
-    next === undefined || next.kind === 'answer'
+  const { answeredBy } = part
+  const actions: Array<RecordAction> = answeredBy
+    ? [
+        {
+          label: `Ask ${answeredBy.name}`,
+          href: `mailto:${answeredBy.email}?subject=${encodeURIComponent(`${part.id} ${part.title}`)}`,
+        },
+      ]
+    : next === undefined || next.kind === 'answer'
       ? answerActions
       : [
           {
@@ -203,8 +218,14 @@ export function RecordScreen({
       actions={actions}
       pending={pending}
       error={failure}
-      words={takesWords ? { value: words, onChange: setWords } : undefined}
-      choice={asks ? { value: option, onChange: setOption } : undefined}
+      words={
+        takesWords && !answeredBy
+          ? { value: words, onChange: setWords }
+          : undefined
+      }
+      choice={
+        asks && !answeredBy ? { value: option, onChange: setOption } : undefined
+      }
       onEdit={() => void changeSearch({ ...search, edit: true })}
       jointParts={bodyParts}
       onAddJoint={(needed) =>
@@ -222,17 +243,18 @@ export function RecordScreen({
       onPinChange={(pinned) =>
         void changeSearch(changePin(search, part.id, pinned))
       }
-      watch={{
-        watching: watchers.some(({ memberId }) => memberId === people.me),
-        count: watchers.length,
-        onChange:
-          people.me === null
-            ? undefined
-            : (watching) =>
+      watch={
+        watches
+          ? {
+              watching: watchers.some(({ memberId }) => memberId === people.me),
+              count: watchers.length,
+              onChange: (watching) =>
                 void write('Saving', () =>
                   (watching ? watch : unwatch)({ project, recordId: part.id }),
                 ),
-      }}
+            }
+          : undefined
+      }
       onOpen={handleOpen}
       assignees={<AssigneesControl target={{ part: part.id }} />}
       home={

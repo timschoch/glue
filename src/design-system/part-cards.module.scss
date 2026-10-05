@@ -27,7 +27,7 @@ $card-width: $spacing-13 * 2;
 }
 
 .groupTitle {
-  @include type-style('heading-compact-01');
+  @include type-style('heading-compact-02');
 
   color: $text-primary;
 }

@@ -103,9 +103,9 @@ export function ConceptScreen({
             part.flags
               .map(
                 ({ reason, cause }) =>
-                  `${flagReasons[reason]} ${cause.id} ${cause.title}`,
+                  `${flagReasons[reason]}: ${cause.id} ${cause.title}`,
               )
-              .join(', ') || undefined,
+              .join('\n') || undefined,
         }))}
         onOpen={({ href }, event) => open(href, event)}
       />
