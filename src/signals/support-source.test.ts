@@ -72,7 +72,7 @@ describe('createSupportSource', () => {
     })
 
     await expect(source.listSignals(glue)).rejects.toThrow(
-      'support answered 503: down',
+      'Support answered 503: down',
     )
   })
 })

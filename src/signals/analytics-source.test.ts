@@ -150,7 +150,7 @@ describe('createAnalyticsSource', () => {
 
   it('fails with the status when the metric source refuses the read', async () => {
     await expect(createSource('wrong').listSignals(flexibeck)).rejects.toThrow(
-      'mock analytics answered 401',
+      'Analytics answered 401',
     )
   })
 })

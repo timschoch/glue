@@ -61,7 +61,7 @@ export function createAnalyticsSource(options: {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
       if (!response.ok) {
-        throw await createResponseError('mock analytics', response)
+        throw await createResponseError('Analytics', response)
       }
       const { results } = lowValuesResponseSchema.parse(await response.json())
       return results.map(({ id, timestamp, value, properties }) => {

@@ -60,15 +60,19 @@ export function Signals({
   const picked = signals.filter(
     ({ url, insight }) => insight === null && picks.has(url),
   )
-  // One order for the filters, whatever Signal is the newest.
-  const sources = [...new Set(signals.map(({ source }) => source))].sort(
-    (first, second) =>
-      toSourceLabel(first).localeCompare(toSourceLabel(second)),
+  // The sources that gave a Signal or failed. A source that failed keeps its
+  // filter. One order, whatever Signal is the newest.
+  const sources = [
+    ...new Set([...signals, ...failures].map(({ source }) => source)),
+  ].sort((first, second) =>
+    toSourceLabel(first).localeCompare(toSourceLabel(second)),
   )
+  // A filter of a source that went away filters nothing.
+  const active = new Set(sources.filter((source) => filters.has(source)))
   const shown =
-    filters.size === 0
+    active.size === 0
       ? signals
-      : signals.filter(({ source }) => filters.has(source))
+      : signals.filter(({ source }) => active.has(source))
 
   const toggle = (current: ReadonlySet<string>, key: string, on: boolean) => {
     const next = new Set(current)
@@ -77,21 +81,43 @@ export function Signals({
     return next
   }
 
+  // A Signal that the filters hide is not picked any more.
+  const changeFilter = (source: string, selected: boolean) => {
+    const next = toggle(active, source, selected)
+    setFilters(next)
+    if (next.size === 0) return
+    setPicks(
+      (current) =>
+        new Set(
+          signals
+            .filter((signal) => next.has(signal.source))
+            .map(({ url }) => url)
+            .filter((url) => current.has(url)),
+        ),
+    )
+  }
+
   return (
     <section aria-labelledby={listId} className={styles.group}>
       <h2 id={listId} className={styles.title}>
         Signals
       </h2>
-      {failures.map(({ source, reason }) => (
-        <InlineNotification
-          key={source}
-          kind="error"
-          lowContrast
-          hideCloseButton
-          title={toSourceLabel(source)}
-          subtitle={reason}
-        />
-      ))}
+      {failures.map(({ source, reason }) => {
+        const label = toSourceLabel(source)
+        // A reason that names its source stands alone.
+        const named = reason.toLowerCase().includes(label.toLowerCase())
+        return (
+          <InlineNotification
+            key={source}
+            kind="error"
+            lowContrast
+            hideCloseButton
+            className={styles.failure}
+            title={named ? reason : label}
+            subtitle={named ? undefined : reason}
+          />
+        )
+      })}
       {signals.length === 0 ? (
         failures.length === 0 && <p className={styles.label}>No Signals</p>
       ) : (
@@ -102,9 +128,9 @@ export function Signals({
                 <SelectableTag
                   key={source}
                   text={toSourceLabel(source)}
-                  selected={filters.has(source)}
+                  selected={active.has(source)}
                   onChange={(selected: boolean) =>
-                    setFilters((current) => toggle(current, source, selected))
+                    changeFilter(source, selected)
                   }
                 />
               ))}
@@ -131,16 +157,20 @@ export function Signals({
                   target="_blank"
                   rel="noreferrer"
                   renderIcon={Launch}
+                  className={styles.signalTitle}
                 >
                   {title}
                 </Link>
-                <span className={styles.label}>{toSourceLabel(source)}</span>
+                <span className={`${styles.label} ${styles.source}`}>
+                  {toSourceLabel(source)}
+                </span>
                 <time dateTime={date} className={styles.label}>
                   {date}
                 </time>
                 {insight && (
                   <Link
                     href={insight.href}
+                    className={styles.insight}
                     onClick={
                       onOpenInsight &&
                       ((event) => onOpenInsight(insight.id, event))

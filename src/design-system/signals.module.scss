@@ -1,3 +1,4 @@
+@use '@carbon/react/scss/breakpoint' as *;
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
 @use '@carbon/react/scss/type' as *;
@@ -47,6 +48,30 @@
   min-block-size: $spacing-08;
   overflow-wrap: anywhere;
   padding-block: $spacing-03;
+
+  // A narrow screen: the title has the row, the source and the date go
+  // under it, the Insight under them.
+  @include breakpoint-down('md') {
+    grid-template-columns: $spacing-06 max-content minmax(0, 1fr);
+
+    .signalTitle,
+    .insight {
+      grid-column: 2 / -1;
+    }
+
+    .source {
+      grid-column: 2;
+    }
+  }
+}
+
+// On a narrow screen the notice of a source that failed is as wide as the
+// list. Carbon gives it a fixed width there.
+.failure {
+  @include breakpoint-down('md') {
+    max-inline-size: 100%;
+    min-inline-size: 0;
+  }
 }
 
 .action {

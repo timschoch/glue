@@ -61,14 +61,18 @@ afterEach(cleanup)
 
 function renderSignals(props: Partial<Parameters<typeof Signals>[0]> = {}) {
   const onMakeInsight = vi.fn()
-  render(
+  const toList = (changed: typeof props) => (
     <Signals
       signals={[SLOW, LOST, GROWN]}
       onMakeInsight={onMakeInsight}
-      {...props}
-    />,
+      {...changed}
+    />
   )
-  return { onMakeInsight }
+  const { rerender } = render(toList(props))
+  return {
+    onMakeInsight,
+    rerender: (changed: typeof props) => rerender(toList(changed)),
+  }
 }
 
 function row(title: string): HTMLElement {
@@ -192,19 +196,74 @@ describe('Signals', () => {
       failures: [{ source: 'github', reason: 'GitHub answered 503' }],
     })
 
-    const failure = screen.getByRole('status')
-    within(failure).getByText('GitHub')
-    within(failure).getByText('GitHub answered 503')
+    // The reason names GitHub already: the notice names it one time.
+    expect(
+      within(screen.getByRole('status'))
+        .getAllByText(/GitHub/)
+        .map((named) => named.textContent),
+    ).toEqual(['GitHub answered 503'])
     expect(titles()).toEqual([TICKET.title])
+  })
+
+  it('names the source in front of a reason that does not name it', () => {
+    renderSignals({
+      signals: [SLOW],
+      failures: [{ source: 'support', reason: 'The read took too long' }],
+    })
+
+    const failure = within(screen.getByRole('status'))
+    failure.getByText('Support')
+    failure.getByText('The read took too long')
   })
 
   it('names the source that failed when there are no Signals', () => {
     renderSignals({
       signals: [],
-      failures: [{ source: 'support', reason: 'support answered 500' }],
+      failures: [{ source: 'support', reason: 'Support answered 500' }],
     })
 
-    within(screen.getByRole('status')).getByText('support answered 500')
+    within(screen.getByRole('status')).getByText('Support answered 500')
     expect(screen.queryByText('No Signals')).toBeNull()
+  })
+
+  it('keeps the filter of a source that failed', () => {
+    renderSignals({
+      signals: [TICKET, ANSWER],
+      failures: [{ source: 'github', reason: 'GitHub answered 503' }],
+    })
+
+    const filters = within(screen.getByRole('group', { name: 'Source' }))
+
+    expect(
+      filters.getAllByRole('button').map((button) => button.textContent),
+    ).toEqual(['Analytics', 'GitHub', 'Support'])
+  })
+
+  it('drops the filter of a source that went away', async () => {
+    const { rerender } = renderSignals({ signals: [SLOW, TICKET, ANSWER] })
+
+    await userEvent.click(filter('GitHub'))
+    rerender({ signals: [TICKET, ANSWER] })
+
+    expect(titles()).toEqual([TICKET.title, ANSWER.title])
+    expect(filter('Support').getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('drops the pick of a Signal that the filter hides', async () => {
+    const { onMakeInsight } = renderSignals({ signals: [SLOW, TICKET] })
+
+    await userEvent.click(screen.getByRole('checkbox', { name: SLOW.title }))
+    await userEvent.click(screen.getByRole('checkbox', { name: TICKET.title }))
+    await userEvent.click(filter('Support'))
+    await userEvent.click(screen.getByRole('button', { name: 'Make Insight' }))
+
+    expect(onMakeInsight).toHaveBeenCalledWith([TICKET.url])
+
+    await userEvent.click(filter('Support'))
+
+    expect(
+      screen.getByRole<HTMLInputElement>('checkbox', { name: SLOW.title })
+        .checked,
+    ).toBe(false)
   })
 })

@@ -30,7 +30,7 @@ export function createSupportSource(
       const response = await send(new URL('/api/v2/tickets.json', supportUrl), {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
-      if (!response.ok) throw await createResponseError('support', response)
+      if (!response.ok) throw await createResponseError('Support', response)
       const { tickets } = ticketsResponseSchema.parse(await response.json())
       return tickets.map((ticket) => ({
         // The page of the ticket for a person, not its address in the API.
