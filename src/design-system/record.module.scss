@@ -54,6 +54,20 @@ $text-width: $card-width * 2;
   gap: $spacing-03 $spacing-05;
 }
 
+// Where the Part lives and who holds it, side by side.
+.holders {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: $spacing-05 $spacing-07;
+}
+
+// The choice of the home Concept is as wide as one card.
+.home {
+  inline-size: $card-width;
+  max-inline-size: 100%;
+}
+
 // The place of the button, with the reason of a failed action below it.
 .action {
   display: flex;
