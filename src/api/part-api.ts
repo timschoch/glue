@@ -140,6 +140,10 @@ const jointEndSchema = z
     link: z.boolean().meta({
       description: 'The two Parts have their home in different Concepts',
     }),
+    project: z.object({ slug: z.string(), name: z.string() }).optional().meta({
+      description:
+        'The Project of the Part at the other end. Only a reference has one: a Joint to a Part of another Project, written glue/D4',
+    }),
     part: partSummarySchema.meta({ description: 'The Part at the other end' }),
   })
   .meta({ id: 'JointEnd' })

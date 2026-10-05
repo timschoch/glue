@@ -24,6 +24,80 @@ export async function getProjectId(db: ConceptDb, projectSlug: string) {
   return project.id
 }
 
+// Lets the Parts of the Project need the published Parts of the other
+// Project (D45). The reference goes one way.
+export async function addProjectReference(
+  db: ConceptDb,
+  projectSlug: string,
+  referencedSlug: string,
+): Promise<void> {
+  if (projectSlug === referencedSlug)
+    throw new InvalidRecordError('a Project cannot reference itself')
+  const projectId = await getProjectId(db, projectSlug)
+  const referencedProjectId = await getProjectId(db, referencedSlug)
+  await db
+    .insert(schema.projectReferences)
+    .values({ projectId, referencedProjectId })
+    .onConflictDoNothing()
+}
+
+// Each pair of Projects with a reference: the first may reference the
+// second.
+export function listProjectReferences(db: ConceptDb) {
+  return db.select().from(schema.projectReferences)
+}
+
+// Says if the Parts of the first Project may need the Parts of the second.
+export async function canReference(
+  db: ConceptDb,
+  projectSlug: string,
+  referencedSlug: string,
+): Promise<boolean> {
+  const [project, referenced] = await Promise.all([
+    findProduct(db, projectSlug),
+    findProduct(db, referencedSlug),
+  ])
+  if (!project || !referenced) return false
+  const { projectReferences } = schema
+  const found = await db
+    .select()
+    .from(projectReferences)
+    .where(
+      and(
+        eq(projectReferences.projectId, project.id),
+        eq(projectReferences.referencedProjectId, referenced.id),
+      ),
+    )
+  return found.length > 0
+}
+
+// The message of a Joint that crosses the edge of two Projects in a
+// direction that no reference allows.
+export function toRefusedReferenceMessage(
+  projectSlug: string,
+  neededSlug: string,
+) {
+  return `a Part of Project "${projectSlug}" cannot need a Part of Project "${neededSlug}"`
+}
+
+// The Project with the Glue concept, and the Project with the build of
+// Glue (D45).
+export const CONCEPT_PROJECT = 'glue'
+export const BUILD_PROJECT = 'glue-build'
+
+// The Project that the tools of the build run read and write: the one of
+// GLUE_PROJECT, or the build Project when it exists, or the one with the
+// Glue concept.
+export async function findBuildProject(
+  db: ConceptDb,
+  environment: Record<string, string | undefined> = process.env,
+): Promise<string> {
+  if (environment.GLUE_PROJECT) return environment.GLUE_PROJECT
+  return (await findProduct(db, BUILD_PROJECT))
+    ? BUILD_PROJECT
+    : CONCEPT_PROJECT
+}
+
 const REPOSITORY = /^[\w.-]+\/[\w.-]+$/
 
 export async function setProductRepository(

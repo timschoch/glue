@@ -65,6 +65,9 @@ export type RecordPartSummary = {
 export type RecordJointEnd = {
   jointId: number
   link: boolean
+  // The name of the Project of the Part. Only a reference has one: a Joint
+  // to a Part of another Project.
+  project?: string
   part: RecordPartSummary
 }
 
@@ -164,17 +167,20 @@ function linkRecordIds(node: MarkdownNode, hrefs: Map<string, string>) {
   })
 }
 
-// The card of a Part. A Part that a link joins shows its home Concept. The
-// minimal card is the one of a record id, whose link is the tab stop.
+// The card of a Part. A Part that a link joins shows its home Concept, and
+// a reference shows its Project in that place. The minimal card is the one
+// of a record id, whose link is the tab stop.
 function PartCard({
   part,
   link = false,
+  project,
   minimal = false,
   onOpen,
   action,
 }: {
   part: RecordPartSummary
   link?: boolean
+  project?: string
   minimal?: boolean
   onOpen?: OpenHandler
   action?: CardProps['action']
@@ -187,7 +193,7 @@ function PartCard({
       trust={part.trust}
       reading={part.reading}
       workState={part.workState}
-      concept={link ? part.concept : undefined}
+      concept={project ?? (link ? part.concept : undefined)}
       minimal={minimal}
       href={part.href}
       tabIndex={minimal ? -1 : undefined}
@@ -323,6 +329,7 @@ function Group({
     part: RecordPartSummary
     jointId?: number
     link?: boolean
+    project?: string
   }>
   onOpen?: OpenHandler
   onRemoveJoint?: (jointId: number) => void
@@ -338,12 +345,15 @@ function Group({
       </h2>
       {ends.length > 0 && (
         <ul className={styles.cards}>
-          {ends.map(({ part, jointId, link }) => (
+          {ends.map(({ part, jointId, link, project }) => (
             <li key={jointId ?? part.id}>
               <PartCard
                 part={part}
                 link={link}
-                onOpen={onOpen}
+                project={project}
+                // `onOpen` opens a record of this Project. A reference
+                // opens with its address.
+                onOpen={project === undefined ? onOpen : undefined}
                 action={
                   onRemoveJoint && jointId !== undefined
                     ? {
@@ -470,10 +480,13 @@ export function Record({
   }
   const action = actions.at(0)
   const otherActions = actions.slice(1)
-  // A Part has one Joint to another Part at most, and none to itself.
+  // A Part has one Joint to another Part at most, and none to itself. A
+  // reference holds a Part of another Project, which can have the same id.
   const joined = new Set([
     part.id,
-    ...[...part.needs, ...part.neededBy].map((end) => end.part.id),
+    ...[...part.needs, ...part.neededBy]
+      .filter((end) => end.project === undefined)
+      .map((end) => end.part.id),
   ])
   const { word, Glyph, className } = signs[part.trust]
   const { measure, issueUrl, question } = part

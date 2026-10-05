@@ -4,8 +4,10 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { findContract, findContractState, signContract } from './contracts.ts'
+import { addProjectReference } from './projects.ts'
 import {
   addConcept,
+  addJoint,
   addPart,
   addProject,
   answerPart,
@@ -125,6 +127,23 @@ describe('signContract', () => {
       expect.objectContaining({ id: 'E1', type: 'entity', concept: 'player' }),
     ])
     expect(contract?.tier2.map(({ id }) => id)).toEqual(['I1', 'D1'])
+  })
+
+  it('freezes a reference with its Project', async () => {
+    await addProject(db, 'core')
+    await addPart(db, 'core', { type: 'flow', title: 'Sign in' })
+    await answerPart(db, 'core', 'F1', { answer: 'supersede' })
+    await addProjectReference(db, 'glue', 'core')
+    await addJoint(db, 'glue', { part: 'E1', needs: 'core/F1' })
+    await publish('F1', 'E1')
+
+    await signContract(db, 'glue', 'videos', 'Tim')
+
+    const contract = await findContract(db, 'glue', 'videos')
+    expect(contract?.tier1.map(({ id, needs }) => ({ id, needs }))).toEqual([
+      { id: 'F1', needs: ['D1'] },
+      { id: 'E1', needs: ['core/F1'] },
+    ])
   })
 
   it('says which slots of a Brief are empty', async () => {

@@ -492,6 +492,49 @@ describe('Record', () => {
     expect(linked.children).toHaveLength(1)
   })
 
+  it('names the Project of a reference on its card, and leaves the open to its link', async () => {
+    const onOpen = vi.fn()
+    renderRecord(
+      {
+        needs: [
+          {
+            jointId: 2,
+            link: true,
+            project: 'Glue',
+            part: { ...GOAL, href: '/glue/first-bake/G2' },
+          },
+        ],
+      },
+      { onOpen },
+    )
+
+    const card = within(
+      screen.getByRole('region', { name: 'Needs' }),
+    ).getByRole('link', { name: /First bake feels easy/ })
+
+    within(card).getByText('Glue')
+    expect(within(card).queryByText('First bake')).toBeNull()
+    expect(card.getAttribute('href')).toBe('/glue/first-bake/G2')
+
+    card.addEventListener('click', (event) => event.preventDefault())
+    await userEvent.click(card)
+
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('offers a Part with the record id of a reference for a new Joint', async () => {
+    renderRecord(
+      { needs: [{ jointId: 2, link: true, project: 'Glue', part: GOAL }] },
+      { jointParts: [DECISION, GOAL], onAddJoint: () => {} },
+    )
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Add Joint' }))
+
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual(['G2 First bake feels easy'])
+  })
+
   it('shows the Decision that supersedes it and the Decisions it supersedes', () => {
     renderRecord({
       supersededBy: { ...GOAL, id: 'D14', type: 'decision', title: 'Newer' },

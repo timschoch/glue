@@ -17,6 +17,13 @@ describe('findMentions', () => {
     ])
   })
 
+  it('finds a record of another Project in the form of a reference', () => {
+    expect(findMentions('It follows #glue/D4 and #my-shop/g1.')).toEqual([
+      { project: 'glue', recordId: 'D4' },
+      { project: 'my-shop', recordId: 'G1' },
+    ])
+  })
+
   it('reads a lower case id as the upper case id', () => {
     expect(findMentions('See #d12 and flexibeck#f2.')).toEqual([
       { recordId: 'D12' },

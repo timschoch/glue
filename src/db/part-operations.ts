@@ -2,6 +2,8 @@ import type { GithubClient } from '../github/client.ts'
 import { createDownstreamIssue } from '../github/downstream-issue.ts'
 import type { DownstreamIssue } from '../github/downstream-issue.ts'
 import type { ConceptDb } from './client.ts'
+import { movePartsToProject } from './part-move.ts'
+import type { MoveTarget } from './part-move.ts'
 import {
   addPart,
   answerPart,
@@ -90,6 +92,26 @@ export function createPartOperations({
       return Promise.all(
         recordIds.map((recordId) => getPart(project, recordId)),
       )
+    },
+
+    // Moves the Parts to a Concept of another Project: see
+    // movePartsToProject. Gives them back as they are now, with the Joints
+    // that the move removed.
+    async movePartsToProject(
+      project: string,
+      recordIds: string[],
+      target: MoveTarget,
+    ) {
+      const droppedJoints = await movePartsToProject(
+        db,
+        project,
+        recordIds,
+        target,
+      )
+      const parts = await Promise.all(
+        recordIds.map((recordId) => getPart(target.project, recordId)),
+      )
+      return { parts, droppedJoints }
     },
 
     // Gives a Decision that exists its status: see supersedeDecision for

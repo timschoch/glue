@@ -128,6 +128,8 @@ export function toPublishedAt(workState: WorkState): SQL {
 // - A published Part with a new title or body, and a Part that turns
 //   not-ready or wrong, flags each Part that needs it over a Joint. A two-way
 //   Joint flags in both directions. A Part that is draft or sunk gets no flag.
+//   Trust does not travel along a reference: a Part of another Project gets
+//   no flag (D45).
 // - A draft or a Part in review that is published again flags them with
 //   `changed`: its edits reached nobody. The first sign-off flags nobody.
 // - A Part with a flag from the write turns flagged and to-check. A Part in
@@ -201,7 +203,9 @@ export function spreadTrust(
           when joint."needed_part_id" = causes."id" then joint."part_id"
           else joint."needed_part_id"
         end
+      join "parts" as cause on cause."id" = causes."id"
       where needing."work_state" not in ('draft', 'sunk')
+        and needing."project_id" = cause."project_id"
       on conflict ("part_id", "cause_part_id", "reason")
         where "closed_at" is null
         do update set "created_at" = now()

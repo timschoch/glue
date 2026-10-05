@@ -40,6 +40,28 @@ export const projects = pgTable('projects', {
   }),
 })
 
+// The Projects that a Project may reference (D45): a Part of `projectId`
+// can need a published Part of `referencedProjectId`. No row: no Joint
+// crosses the edge between the two Projects.
+export const projectReferences = pgTable(
+  'project_references',
+  {
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id),
+    referencedProjectId: integer('referenced_project_id')
+      .notNull()
+      .references(() => projects.id),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.referencedProjectId] }),
+    check(
+      'project_references_projects_differ_check',
+      sql`${table.projectId} <> ${table.referencedProjectId}`,
+    ),
+  ],
+)
+
 // The highest number that a record id of one folder had in the Product.
 // It only grows, so the id of a deleted record does not come back.
 export const recordCounters = pgTable(

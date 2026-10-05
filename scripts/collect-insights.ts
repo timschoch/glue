@@ -1,5 +1,5 @@
 // Ring 1 measure step (Decision D3, D5): turns GitHub findings into draft
-// Insights in the database, Product `glue`. Run:
+// Insights in the database, in the build Project. Run:
 // tsx --env-file=.env.local scripts/collect-insights.ts [--dry-run] [--since <date>]
 // Sources: failed `verify` and other required-check runs on PRs, PR comments
 // with "interface-review: Block", PR reviews requesting changes, and
@@ -13,9 +13,9 @@ import { createDb } from '../src/db/client.ts'
 import type { ConceptDb } from '../src/db/client.ts'
 import { listInsightSources } from '../src/db/measure-reads.ts'
 import { addPart, addProject } from '../src/db/part-records.ts'
+import { findBuildProject } from '../src/db/projects.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const PRODUCT_SLUG = 'glue'
 const FAIL_LINE = /FAIL .+/
 const FAILED_STEP_LINE = /FAILED .+/
 
@@ -282,7 +282,8 @@ async function main() {
     throw new Error('DATABASE_URL is required')
   }
   const db = createDb(databaseUrl)
-  const existingInsights = await loadExistingInsights(db, PRODUCT_SLUG)
+  const project = await findBuildProject(db)
+  const existingInsights = await loadExistingInsights(db, project)
   const findings = fetchFindings(since ?? defaultSince(existingInsights))
   const drafts = toInsights(findings, existingInsights)
   if (drafts.length === 0) {
@@ -297,7 +298,7 @@ async function main() {
     }
     return
   }
-  for (const id of await addInsights(db, PRODUCT_SLUG, drafts)) {
+  for (const id of await addInsights(db, project, drafts)) {
     console.log(`inserted Insight ${id}`)
   }
 }

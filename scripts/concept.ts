@@ -38,15 +38,17 @@ import {
   listMine,
   listParts,
 } from '../src/db/parts.ts'
-import type { Part, PartSummary, PartType } from '../src/db/parts.ts'
+import type { JointEnd, Part, PartSummary, PartType } from '../src/db/parts.ts'
 import { answers } from '../src/db/part-trust.ts'
 import {
+  addProjectReference,
+  findBuildProject,
   getProjectId,
   setAnalyticsProject,
   setProductRepository,
   setSocialHandle,
 } from '../src/db/projects.ts'
-import { typeOfRecordId } from '../src/db/record-id.ts'
+import { parseRecordReference, typeOfRecordId } from '../src/db/record-id.ts'
 import { createToken, deleteToken, listTokens } from '../src/db/tokens.ts'
 import { createGithubClient } from '../src/github/client.ts'
 import type { GithubClient } from '../src/github/client.ts'
@@ -62,6 +64,7 @@ const FLAG_TO_FIELD: Record<string, string> = {
   'enforced-by': 'enforced_by',
   'superseded-by': 'superseded_by',
   'waits-on': 'waits_on',
+  'to-project': 'to_project',
   'co-author': 'co_author',
   level: 'evidence_level',
 }
@@ -128,6 +131,8 @@ const KNOWN_FIELDS = new Set([
   'option',
   'pick',
   'text',
+  'to_project',
+  'references',
 ])
 
 type Flags = Record<string, string | string[] | GoalMeasure | undefined>
@@ -192,7 +197,7 @@ function requireFlags(type: PartType, flags: Flags) {
 // The letter of a record id names its type. An id with the letter of
 // another type is not a record of the type that the flag asks for.
 function requireType(id: string, types: readonly PartType[], name: string) {
-  const type = typeOfRecordId(id)
+  const type = typeOfRecordId(parseRecordReference(id).recordId)
   if (!type || !types.includes(type))
     throw new Error(`${name} "${id}" not found`)
   return id
@@ -249,6 +254,24 @@ export function parseFlags(args: string[]): Flags {
         : parseFlagValue(key, value)
   }
   return flags
+}
+
+// The Project of a command: the one of `--project`, or the build Project.
+function readProject(db: ConceptDb, flags: Flags) {
+  return (flags.project as string | undefined) ?? findBuildProject(db)
+}
+
+// A needed Part as a command names it. A reference has its Project first.
+function formatNeededId({ project, part }: JointEnd) {
+  return project ? `${project.slug}/${part.id}` : part.id
+}
+
+// A needed Part in a line of `show`. A reference has its Trust too.
+function formatNeeded(end: JointEnd) {
+  const { title, trust } = end.part
+  return [formatNeededId(end), end.project && trust, title]
+    .filter(Boolean)
+    .join(' ')
 }
 
 export function formatDownstreamIssue(
@@ -382,15 +405,15 @@ function listShownFields(part: Part): Record<string, unknown> {
 
 // What a Decision needs: its Goal, its evidence, then each other Part.
 function printDecisionLinks(decision: Part) {
-  const needed = decision.needs.map((end) => end.part)
-  const goal = needed.find(({ type }) => type === 'goal')
-  if (goal) console.log(`goal: ${goal.id} ${goal.title}`)
-  for (const item of needed.filter(({ type }) => isEvidence(type))) {
-    console.log(`evidence: ${item.id} ${item.title}`)
+  const needed = decision.needs
+  const goal = needed.find(({ part }) => part.type === 'goal')
+  if (goal) console.log(`goal: ${formatNeeded(goal)}`)
+  for (const item of needed.filter(({ part }) => isEvidence(part.type))) {
+    console.log(`evidence: ${formatNeeded(item)}`)
   }
   for (const item of needed) {
-    if (item.type !== 'goal' && !isEvidence(item.type))
-      console.log(`needs: ${item.id} ${item.title}`)
+    if (item.part.type !== 'goal' && !isEvidence(item.part.type))
+      console.log(`needs: ${formatNeeded(item)}`)
   }
   if (decision.supersededBy)
     console.log(`superseded_by: ${decision.supersededBy.id}`)
@@ -419,8 +442,8 @@ function printPart(part: Part) {
     console.log(`measure: ${JSON.stringify(part.measure.measure)}`)
   }
   console.log(`concept: ${part.concept}`)
-  for (const { part: needed } of part.needs) {
-    console.log(`needs: ${needed.id} ${needed.title}`)
+  for (const needed of part.needs) {
+    console.log(`needs: ${formatNeeded(needed)}`)
   }
   printTrust(part)
   if (part.body) console.log(`\n${part.body}`)
@@ -451,6 +474,7 @@ function formatHelp() {
     'pnpm concept add <type> <flags of the type> [--body <text>, or - for stdin]',
     'pnpm concept set <id> <flags of the type>',
     'pnpm concept move <id> [<id> ...] --concept <slug>',
+    'pnpm concept move <id> [<id> ...] --concept <slug> --to-project <slug> [--drop-refused-joints]',
     'pnpm concept downstream <id>',
     'pnpm concept answer <id> <answer> [--waits-on <id>] [--words <text> --by <name>]',
     'pnpm concept answer <id> --option <number> --by <name>',
@@ -468,14 +492,15 @@ function formatHelp() {
     'pnpm concept contract show <concept> [--version <number>]',
     'pnpm concept contract sign <concept> --owner <name>',
     'pnpm concept joint add <id> <needed id> [--two-way]',
+    'pnpm concept joint add <id> <project>/<needed id>',
     'pnpm concept joint remove <id> <needed id>',
     'pnpm concept project add <slug>',
-    'pnpm concept project set <slug> [--analytics-project <key>] [--repository <owner/name>] [--social-handle <handle>]',
+    'pnpm concept project set <slug> [--analytics-project <key>] [--repository <owner/name>] [--social-handle <handle>] [--references <slug>]',
     'pnpm concept token create --project <slug> --name <name>',
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set, move, downstream, answer, mine, signals, builds, member, assign, concept, contract and joint take --project <slug>. The default is glue.',
+    'list, show, add, set, move, downstream, answer, mine, signals, builds, member, assign, concept, contract and joint take --project <slug>. The default is GLUE_PROJECT, then glue-build when that Project exists, then glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -492,6 +517,9 @@ function formatHelp() {
     'set on a Decision takes --status and --superseded-by.',
     'On each other type it takes the flags of the type.',
     'set and move take --concept <slug>: the new home Concept of the record, in the same Project. The record keeps its id and its Joints.',
+    'move with --to-project moves the records to a Concept of another Project. A record id that the Project has already refuses the move.',
+    'A Joint to a record of another Project is a reference: glue/D4. project set <slug> --references <slug> lets the first Project reference the second.',
+    'A move that leaves a Joint that no reference allows is refused. --drop-refused-joints removes these Joints and prints them.',
     'An empty value clears the field: --status "".',
     '',
     `answer takes ${answers.join(', ')}. The Work state of the record says which ones.`,
@@ -534,7 +562,7 @@ export async function runConcept(
       const folder =
         isConceptFolder(first) || isPartFolder(first) ? first : undefined
       const flags = parseFlags(folder ? rest.slice(1) : rest)
-      const product = (flags.project as string | undefined) ?? 'glue'
+      const product = await readProject(db, flags)
       if (!isPartFolder(folder)) await getProjectId(db, product)
       const folders = { ...CONCEPT_FOLDERS, ...PART_FOLDERS }
       const types = folder ? [folders[folder]] : Object.values(folders)
@@ -548,7 +576,7 @@ export async function runConcept(
     }
     case 'mine': {
       const flags = parseFlags(rest)
-      const product = (flags.project as string | undefined) ?? 'glue'
+      const product = await readProject(db, flags)
       const member = flags.member as string | undefined
       for (const part of await listMine(db, product, member)) {
         console.log(formatRow(part))
@@ -560,7 +588,7 @@ export async function runConcept(
       // A flag in the place of the answer: the answer to a question.
       const asksQuestion = rest.length > 1 && answer.startsWith('--')
       const flags = parseFlags(asksQuestion ? rest.slice(1) : flagArgs)
-      const product = (flags.project as string | undefined) ?? 'glue'
+      const product = await readProject(db, flags)
       const { waits_on: waitsOn, words, by } = flags
       const operations = createPartOperations({ db, github: getGithub() })
       const options = flags.option as string[] | undefined
@@ -586,7 +614,7 @@ export async function runConcept(
     case 'show': {
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
-      const product = (flags.project as string | undefined) ?? 'glue'
+      const product = await readProject(db, flags)
       const type = typeOfRecordId(id)
       const isPlain = type !== undefined && PART_TYPES.includes(type)
       if (!isPlain) await getProjectId(db, product)
@@ -603,7 +631,7 @@ export async function runConcept(
         throw new Error(`"${folder}" is not a Concept type`)
       }
       const flags = parseFlags(flagArgs)
-      const product = (flags.project as string | undefined) ?? 'glue'
+      const product = await readProject(db, flags)
       const body = (await readBody(flags)) ?? ''
       delete flags.project
       delete flags.body
@@ -633,7 +661,7 @@ export async function runConcept(
     case 'set': {
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
-      const product = (flags.project as string | undefined) ?? 'glue'
+      const product = await readProject(db, flags)
       const type = typeOfRecordId(id)
       if (!type) throw new Error(`"${id}" is not a Concept id`)
       const operations = createPartOperations({ db, github: getGithub() })
@@ -667,20 +695,35 @@ export async function runConcept(
     case 'move': {
       const firstFlag = rest.findIndex((arg) => arg.startsWith('--'))
       const ids = rest.slice(0, firstFlag === -1 ? undefined : firstFlag)
-      const flags = parseFlags(rest)
-      const product = (flags.project as string | undefined) ?? 'glue'
+      const dropRefusedJoints = rest.includes('--drop-refused-joints')
+      const flags = parseFlags(
+        rest.filter((arg) => arg !== '--drop-refused-joints'),
+      )
+      const product = await readProject(db, flags)
       const concept = flags.concept as string | undefined
+      const toProject = flags.to_project as string | undefined
       if (ids.length === 0 || concept === undefined) {
         throw new Error('move needs <id> and --concept <slug>')
       }
       const operations = createPartOperations({ db, github: getGithub() })
-      await operations.moveParts(product, ids, concept)
+      if (toProject === undefined) {
+        await operations.moveParts(product, ids, concept)
+        return
+      }
+      const { droppedJoints } = await operations.movePartsToProject(
+        product,
+        ids,
+        { project: toProject, concept, dropRefusedJoints },
+      )
+      for (const { part, needs } of droppedJoints) {
+        console.log(`dropped: ${part} needs ${needs}`)
+      }
       return
     }
     case 'downstream': {
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
-      const product = (flags.project as string | undefined) ?? 'glue'
+      const product = await readProject(db, flags)
       const issue = await createDownstreamIssue(db, getGithub(), product, id)
       console.error(formatDownstreamIssue(product, id, issue))
       if (issue.kind === 'failed') process.exitCode = 1
@@ -710,7 +753,7 @@ export async function runConcept(
     case 'assign': {
       const [id, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
-      const project = (flags.project as string | undefined) ?? 'glue'
+      const project = await readProject(db, flags)
       const role = flags.responsible ? 'responsible' : 'co-author'
       const member = flags.responsible ?? flags.co_author
       if (!member) {
@@ -741,7 +784,7 @@ async function handleSignalsCommand(
   args: string[],
 ) {
   const flags = parseFlags(args)
-  const project = (flags.project as string | undefined) ?? 'glue'
+  const project = await readProject(db, flags)
   if (args[0] === 'insight') {
     const firstFlag = args.findIndex((arg) => arg.startsWith('--'))
     const operations = createPartOperations({ db, github: getGithub() })
@@ -768,7 +811,7 @@ async function handleBuildsCommand(
   getGithub: () => GithubClient,
   args: string[],
 ) {
-  const project = (parseFlags(args).project as string | undefined) ?? 'glue'
+  const project = await readProject(db, parseFlags(args))
   const { builds, reason } = await listBuilds(db, getGithub(), project)
   if (reason !== null) console.error(`no builds: ${reason}`)
   for (const { number, state, decisions, contract, stale, title } of builds) {
@@ -798,7 +841,7 @@ async function handleConceptCommand(
     throw new Error(`unknown concept command "${command}"`)
   }
   const flags = parseFlags(rest)
-  const project = (flags.project as string | undefined) ?? 'glue'
+  const project = await readProject(db, flags)
   if (command === 'set') {
     await updateConcept(db, project, slug, {
       title: flags.title as string | undefined,
@@ -829,7 +872,7 @@ async function handleContractCommand(
   [command, concept, ...rest]: string[],
 ) {
   const flags = parseFlags(rest)
-  const project = (flags.project as string | undefined) ?? 'glue'
+  const project = await readProject(db, flags)
   switch (command) {
     case 'sign': {
       const owner = flags.owner as string | undefined
@@ -887,7 +930,7 @@ async function handleMemberCommand(
     case 'add': {
       const [email, ...flagArgs] = rest
       const flags = parseFlags(flagArgs)
-      const project = (flags.project as string | undefined) ?? 'glue'
+      const project = await readProject(db, flags)
       if (!email) throw new Error('member add needs <e-mail>')
       const member = await addMember(db, project, email)
       console.log(`${member.name}  ${member.email}`)
@@ -895,7 +938,7 @@ async function handleMemberCommand(
     }
     case 'list': {
       const flags = parseFlags(rest)
-      const project = (flags.project as string | undefined) ?? 'glue'
+      const project = await readProject(db, flags)
       const assignments = await listAssignments(db, project)
       for (const member of await listMembers(db, project)) {
         const held = assignmentRoles.flatMap((role) => {
@@ -918,6 +961,7 @@ async function handleMemberCommand(
 }
 
 // `joint add <id> <needed id>` glues two Parts: the first needs the second.
+// `glue/D4` names a Part of another Project: a reference.
 // `--two-way`: they need each other. `joint remove` takes the Joint away.
 async function handleJointCommand(
   db: ConceptDb,
@@ -925,14 +969,14 @@ async function handleJointCommand(
 ) {
   const twoWay = rest.includes('--two-way')
   const flags = parseFlags(rest.filter((arg) => arg !== '--two-way'))
-  const project = (flags.project as string | undefined) ?? 'glue'
+  const project = await readProject(db, flags)
   switch (command) {
     case 'add':
       await addJoint(db, project, { part: id, needs: neededId, twoWay })
       return
     case 'remove': {
       const part = await findPart(db, project, id)
-      const joint = part?.needs.find((end) => end.part.id === neededId)
+      const joint = part?.needs.find((end) => formatNeededId(end) === neededId)
       if (!joint) throw new Error(`"${id}" and "${neededId}" have no Joint`)
       await removeJoint(db, project, joint.jointId)
       return
@@ -948,6 +992,7 @@ async function handleJointCommand(
 // --social-handle <handle>`: the analytics project the Product's Goals are
 // measured from, the GitHub repository that builds the Product, and its
 // handle in the social channel. An empty key or handle removes it.
+// `--references <slug>`: a Part of the Project may need a Part of that one.
 async function handleProjectCommand(
   db: ConceptDb,
   [command, slug, ...rest]: string[],
@@ -964,16 +1009,19 @@ async function handleProjectCommand(
   const analyticsProject = flags.analytics_project as string | undefined
   const repository = flags.repository as string | undefined
   const socialHandle = flags.social_handle as string | undefined
+  const references = flags.references as string | undefined
   if (
     !slug ||
     (analyticsProject === undefined &&
       !repository &&
-      socialHandle === undefined)
+      socialHandle === undefined &&
+      !references)
   ) {
     throw new Error(
-      'project set needs <slug> and --analytics-project, --repository owner/name or --social-handle',
+      'project set needs <slug> and --analytics-project, --repository owner/name, --social-handle or --references',
     )
   }
+  if (references) await addProjectReference(db, slug, references)
   if (analyticsProject !== undefined) {
     await setAnalyticsProject(db, slug, analyticsProject || null)
   }

@@ -119,7 +119,18 @@ function selectLiveParts(conceptId: number) {
             'evidenceLevel', live."evidence_level",
             'needs', (
               select coalesce(
-                jsonb_agg(needed."record_id" order by joint."id"),
+                jsonb_agg(
+                  case
+                    when needed."project_id" = live."project_id"
+                      then needed."record_id"
+                    -- A reference: glue/D4 (D45).
+                    else (
+                      select "slug" from "projects"
+                      where "id" = needed."project_id"
+                    ) || '/' || needed."record_id"
+                  end
+                  order by joint."id"
+                ),
                 '[]'::jsonb
               )
               from "joints" as joint

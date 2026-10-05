@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createFakeGithub, failingGithub } from '../test/github.ts'
-import { setProductRepository } from './projects.ts'
+import { addProjectReference, setProductRepository } from './projects.ts'
 import { createPartOperations } from './part-operations.ts'
-import { addConcept, addPart, addProject } from './part-records.ts'
+import { addConcept, addPart, addProject, removePart } from './part-records.ts'
 import { findPart } from './parts.ts'
 import { InvalidRecordError, PartNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
@@ -298,6 +298,142 @@ describe('a move of a Part to another Concept', () => {
     expect(await operations.getPart(project, 'F1')).toMatchObject({
       concept: 'flexibeck',
     })
+  })
+})
+
+describe('a move of Parts to another Project', () => {
+  const target = { project: 'glue-build', concept: 'run' }
+
+  beforeEach(async () => {
+    await addProject(db, 'glue')
+    await addProject(db, 'glue-build')
+    await addConcept(db, 'glue-build', { slug: 'run', title: 'Build run' })
+    await addProjectReference(db, 'glue-build', 'glue')
+    await addPart(db, 'glue', {
+      type: 'insight',
+      title: 'A red check blocks the merge',
+      source: 'verify ci',
+    })
+    await addPart(db, 'glue', {
+      type: 'flow',
+      title: 'Merge gate',
+      needs: ['I1'],
+    })
+  })
+
+  it('gives the Parts their new Project, and keeps their ids, their Joint, their Trust and their Work state', async () => {
+    const moved = await operations.movePartsToProject(
+      'glue',
+      ['F1', 'I1'],
+      target,
+    )
+
+    expect(moved.droppedJoints).toEqual([])
+    expect(moved.parts.map(({ id, concept }) => [id, concept])).toEqual([
+      ['F1', 'run'],
+      ['I1', 'run'],
+    ])
+    expect(await operations.getPart('glue-build', 'F1')).toMatchObject({
+      title: 'Merge gate',
+      trust: 'not-ready',
+      workState: 'draft',
+      needs: [{ jointId: 1, part: { id: 'I1' } }],
+    })
+    expect(await operations.getPart('glue-build', 'I1')).toMatchObject({
+      trust: 'solid',
+      workState: 'published',
+      neededBy: [{ jointId: 1, part: { id: 'F1' } }],
+    })
+    await expect(operations.getPart('glue', 'F1')).rejects.toThrow(
+      PartNotFoundError,
+    )
+  })
+
+  it('refuses the whole move when the target Project has one of the ids, and names it', async () => {
+    await addPart(db, 'glue-build', {
+      type: 'insight',
+      title: 'A Worker skipped the gate',
+      source: 'review',
+    })
+
+    const refused = operations.movePartsToProject('glue', ['F1', 'I1'], target)
+
+    await expect(refused).rejects.toThrow(
+      new InvalidRecordError('Project "glue-build" has "I1" already'),
+    )
+    expect(await operations.getPart('glue', 'F1')).toMatchObject({
+      concept: 'glue',
+    })
+  })
+
+  it('refuses a move that leaves a Joint in the refused direction, and names the pair', async () => {
+    const refused = operations.movePartsToProject('glue', ['I1'], target)
+
+    await expect(refused).rejects.toThrow(
+      new InvalidRecordError(
+        'the move leaves a Joint that no reference allows: glue/F1 needs glue-build/I1',
+      ),
+    )
+    expect(await operations.getPart('glue', 'I1')).toMatchObject({
+      concept: 'glue',
+    })
+  })
+
+  it('removes the refused Joint with the flag, and gives it back', async () => {
+    const moved = await operations.movePartsToProject('glue', ['I1'], {
+      ...target,
+      dropRefusedJoints: true,
+    })
+
+    expect(moved.droppedJoints).toEqual([
+      { part: 'glue/F1', needs: 'glue-build/I1' },
+    ])
+    expect((await operations.getPart('glue', 'F1')).needs).toEqual([])
+    expect(await operations.getPart('glue-build', 'I1')).toMatchObject({
+      concept: 'run',
+      neededBy: [],
+    })
+  })
+
+  it('keeps a Joint in the direction of the reference, and reads it with the Project of the needed Part', async () => {
+    const moved = await operations.movePartsToProject('glue', ['F1'], target)
+
+    expect(moved.droppedJoints).toEqual([])
+    expect((await operations.getPart('glue-build', 'F1')).needs).toEqual([
+      {
+        jointId: 1,
+        twoWay: false,
+        link: true,
+        project: { slug: 'glue', name: 'glue' },
+        part: {
+          id: 'I1',
+          type: 'insight',
+          title: 'A red check blocks the merge',
+          status: null,
+          trust: 'solid',
+          workState: 'published',
+          concept: 'glue',
+          conceptTitle: 'glue',
+        },
+      },
+    ])
+    expect((await operations.getPart('glue', 'I1')).neededBy).toEqual([])
+  })
+
+  it('gives the next Part of the target Project a number after the ones that came in', async () => {
+    await addPart(db, 'glue', {
+      type: 'flow',
+      title: 'Release',
+    })
+    await operations.movePartsToProject('glue', ['F2'], target)
+    await removePart(db, 'glue-build', 'F2')
+
+    const added = await operations.addPart('glue-build', {
+      type: 'flow',
+      title: 'Circle report',
+    })
+
+    expect(added.part.id).toBe('F3')
   })
 })
 

@@ -3,7 +3,8 @@
 // JavaScript: the PR gate in scripts/check-pr-workflow.mjs runs it with node,
 // and the builds of a Project read it in src/db/builds.ts.
 const DECISION_LINE = /^Decision:\s*(.+)$/im
-const DECISION_ID = /\bD\d+\b/g
+// `glue/D12` names a Decision of another Project (D45).
+const DECISION_ID = /\b(?:[a-z0-9]+(?:-[a-z0-9]+)*\/)?D\d+\b/g
 const CONTRACT_LINE = /^Contract:\s*(.*)$/im
 const CONTRACT_VERSION = /^([a-z0-9]+(?:-[a-z0-9]+)*)@(\d+)$/
 

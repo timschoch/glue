@@ -53,6 +53,24 @@ test('an unknown Decision id fails, naming it and where to list them', () => {
   assert.match(found, /pnpm concept list decisions/)
 })
 
+test('a Decision of another Project passes as <project>/<id>', () => {
+  const found = problems({
+    body: 'Closes #12\nDecision: D2, glue/D12',
+    files: [],
+    decisions: new Map([...decisions, ['glue/D12', { status: 'accepted' }]]),
+  })
+  assert.deepEqual(found, [])
+})
+
+test('an unknown Decision of another Project fails, naming it with its Project', () => {
+  const [found] = problems({
+    body: 'Closes #12\nDecision: glue/D2',
+    files: [],
+    decisions,
+  })
+  assert.match(found, /Decision "glue\/D2" does not exist/)
+})
+
 test('a superseded Decision fails with a hint to its replacement', () => {
   const [found] = problems({
     body: 'Closes #12\nDecision: D9',

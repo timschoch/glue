@@ -15,6 +15,8 @@ import { problems } from './check-pr-workflow.mjs'
 const TOKEN = 'glue_read_token'
 const PARTS_URL = 'https://glue-glue-glue.vercel.app/api/v1/projects/glue/parts'
 const DECISIONS_URL = `${PARTS_URL}?type=decision`
+const BUILD_PARTS_URL =
+  'https://glue-glue-glue.vercel.app/api/v1/projects/glue-build/parts'
 
 // The Glue API as the gate sees it: one JSON answer per URL. A URL without
 // an answer is a 404, as in the real API.
@@ -80,6 +82,46 @@ describe('loadDecisions', () => {
       D1: { status: 'superseded', superseded_by: 'D2' },
       D2: { status: 'accepted' },
       D3: { status: 'proposed' },
+      'glue/D1': { status: 'superseded', superseded_by: 'D2' },
+      'glue/D2': { status: 'accepted' },
+      'glue/D3': { status: 'proposed' },
+    })
+  })
+
+  it('reads a bare id in the build Project and glue/<id> in Project glue', async () => {
+    const fetchApi = fakeFetch({
+      [DECISIONS_URL]: [{ id: 'D12', status: 'accepted' }],
+      [`${BUILD_PARTS_URL}?type=decision`]: [
+        { id: 'D45', status: 'accepted' },
+        { id: 'D46', status: 'superseded' },
+      ],
+      [`${BUILD_PARTS_URL}/D46`]: { supersededBy: { id: 'D45' } },
+    })
+
+    const decisions = await loadDecisions({ GLUE_API_TOKEN: TOKEN }, fetchApi)
+
+    expect(Object.fromEntries(decisions)).toEqual({
+      D45: { status: 'accepted' },
+      D46: { status: 'superseded', superseded_by: 'D45' },
+      'glue/D12': { status: 'accepted' },
+    })
+  })
+
+  it('reads a bare id in the Project of GLUE_PROJECT', async () => {
+    const fetchApi = fakeFetch({
+      [DECISIONS_URL]: [{ id: 'D12', status: 'accepted' }],
+      'https://glue-glue-glue.vercel.app/api/v1/projects/flexibeck/parts?type=decision':
+        [{ id: 'D3', status: 'proposed' }],
+    })
+
+    const decisions = await loadDecisions(
+      { GLUE_API_TOKEN: TOKEN, GLUE_PROJECT: 'flexibeck' },
+      fetchApi,
+    )
+
+    expect(Object.fromEntries(decisions)).toEqual({
+      D3: { status: 'proposed' },
+      'glue/D12': { status: 'accepted' },
     })
   })
 
@@ -155,7 +197,7 @@ describe('loadDecisions', () => {
       fetchApi,
     )
 
-    expect([...decisions.keys()]).toEqual(['D7'])
+    expect([...decisions.keys()]).toEqual(['D7', 'glue/D7'])
   })
 
   it('fails without a token, naming the variable, before any request', async () => {

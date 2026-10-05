@@ -11,6 +11,7 @@ import {
   PartNotFoundError,
   ProductNotFoundError,
 } from '../db/record-errors.ts'
+import { canReference } from '../db/projects.ts'
 import { findProductByToken } from '../db/tokens.ts'
 import type { GithubClient } from '../github/client.ts'
 
@@ -97,8 +98,9 @@ function toErrorResponse(error: unknown): Response {
 
 const BEARER = /^Bearer (\S+)$/i
 
-// A token opens the Concept of its own Project only. Another Project
-// answers 404, so a token does not reveal which Projects exist.
+// A token opens the Concept of its own Project. It also reads a Project
+// that its Project may reference (D45). Each other Project answers 404, so
+// a token does not reveal which Projects exist.
 async function validateToken({ db, request, params }: ApiRequest) {
   const token = request.headers.get('authorization')?.match(BEARER)?.[1]
   const project = token ? await findProductByToken(db, token) : undefined
@@ -108,7 +110,11 @@ async function validateToken({ db, request, params }: ApiRequest) {
       'send a valid token as "Authorization: Bearer <token>"',
     )
   }
-  if (project !== params.project) {
+  if (project === params.project) return
+  const reads =
+    request.method === 'GET' &&
+    (await canReference(db, project, params.project))
+  if (!reads) {
     throw new ApiError('not-found', `project "${params.project}" not found`)
   }
 }

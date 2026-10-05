@@ -26,6 +26,21 @@ export function typeOfRecordId(recordId: string): PartType | undefined {
   return partTypes.find((type) => RECORD_LETTERS[type] === recordId[0])
 }
 
+// A record id as a write names it: `D4`, or `glue/D4` for the Part of
+// another Project (D45).
+export function parseRecordReference(reference: string): {
+  project?: string
+  recordId: string
+} {
+  const slash = reference.lastIndexOf('/')
+  return slash === -1
+    ? { recordId: reference }
+    : {
+        project: reference.slice(0, slash),
+        recordId: reference.slice(slash + 1),
+      }
+}
+
 // Ids sort by their number: D2 comes before D10.
 export function sortById<TItem extends { id: string }>(
   items: TItem[],

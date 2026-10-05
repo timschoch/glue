@@ -3,7 +3,8 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 
 // A record that a body names: `#D12`, or `flexibeck#F2` for a record of
-// another Project (D37).
+// another Project (D37). `#glue/D4` names one too, in the form of a
+// reference (D45).
 export type Mention = { project?: string; recordId: string }
 
 // A node of the Markdown tree, as far as the mentions need it.
@@ -16,8 +17,9 @@ export type MarkdownNode = {
 }
 
 // A record id with its `#`, in upper or lower case. The slug of a Project
-// can come before the `#`.
-const MENTION = /([a-z0-9]+(?:-[a-z0-9]+)*)?#([a-z]\d+)\b/gi
+// can come before the `#`, or after it with a `/`.
+const MENTION =
+  /([a-z0-9]+(?:-[a-z0-9]+)*)?#(?:([a-z0-9]+(?:-[a-z0-9]+)*)\/)?([a-z]\d+)\b/gi
 
 // A link has its own target, so a record id in it stays text.
 const LINK_TYPES = new Set(['link', 'linkReference'])
@@ -39,7 +41,9 @@ export function replaceMentions(
     const nodes: Array<MarkdownNode> = []
     let textStart = 0
     for (const match of value.matchAll(MENTION)) {
-      const [text, project, recordId] = match
+      const [text, slugBefore, slugAfter, recordId] = match
+      // A group that did not match is undefined, the type says string.
+      const project = slugAfter || slugBefore
       const mentionNode = toNode({
         ...(project && { project: project.toLowerCase() }),
         recordId: recordId.toUpperCase(),
