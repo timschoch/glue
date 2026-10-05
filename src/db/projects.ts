@@ -132,6 +132,24 @@ export async function setAnalyticsProject(
   if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 
+// The address of the help desk of the Product. null removes it: the Product
+// has no Signals from support.
+export async function setSupportUrl(
+  db: ConceptDb,
+  productSlug: string,
+  supportUrl: string | null,
+): Promise<void> {
+  if (supportUrl !== null && !URL.canParse(supportUrl)) {
+    throw new InvalidRecordError(`support "${supportUrl}" must be a URL`)
+  }
+  const updated = await db
+    .update(projects)
+    .set({ supportUrl })
+    .where(eq(projects.slug, productSlug))
+    .returning({ id: projects.id })
+  if (updated.length === 0) throw new ProductNotFoundError(productSlug)
+}
+
 // null removes it: Glue stops reading the Product's comments. A new handle is
 // read from its first comment; the same handle keeps its read position.
 export async function setSocialHandle(

@@ -38,6 +38,7 @@ const project = 'flexibeck'
 const signal = {
   url: 'https://github.com/timschoch/flexibeck-next/issues/7',
   title: 'The list is slow',
+  body: 'It takes five seconds to open.',
   createdAt: '2026-10-02T08:00:00Z',
 }
 
@@ -238,12 +239,14 @@ describe('a server function of the Part model with a session', () => {
       issueMissing: false,
     })
     expect(await actions.listSignals({ project })).toEqual({
-      reason: null,
+      failures: [],
       signals: [
         {
           url: signal.url,
           title: signal.title,
+          text: 'It takes five seconds to open.',
           date: '2026-10-02',
+          source: 'github',
           insight: { id: 'I2', title: 'Long lists are slow' },
         },
       ],

@@ -35,13 +35,17 @@ const signals = [
   {
     url: 'https://github.com/timschoch/glue/issues/7',
     title: 'The list is slow',
+    text: 'It takes five seconds to open.',
     date: '2026-10-02',
+    source: 'github',
     insight: null,
   },
   {
     url: 'https://github.com/timschoch/glue/issues/5',
     title: 'Agents open each file',
+    text: '',
     date: '2026-10-01',
+    source: 'github',
     insight: { id: 'I3', title: 'Agents read files' },
   },
 ]
@@ -69,7 +73,7 @@ const signedOut = () => ({
 // write.
 async function renderPage(path: string, changed: Partial<Server> = {}) {
   const server = createMemoryServer({
-    fetchSignals: vi.fn(() => Promise.resolve({ signals, reason: null })),
+    fetchSignals: vi.fn(() => Promise.resolve({ signals, failures: [] })),
     ...changed,
   })
   const router = createRouter({

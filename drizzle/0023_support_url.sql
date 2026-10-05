@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "support_url" text;

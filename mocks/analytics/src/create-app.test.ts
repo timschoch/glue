@@ -874,3 +874,128 @@ describe('capture in posthog-js formats', () => {
     }
   })
 })
+
+function queryLowValues(body: object) {
+  return app.request('/api/low-values', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${readKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      project,
+      event: 'survey sent',
+      property: 'answer',
+      at_most: 3,
+      from: '2026-09-01T00:00:00Z',
+      to: '2026-09-10T00:00:00Z',
+      ...body,
+    }),
+  })
+}
+
+describe('low values', () => {
+  it('lists the events with a number at or below `at_most`, the newest first', async () => {
+    await captureEvents([
+      {
+        event: 'survey sent',
+        user: 'ada',
+        at: '2026-09-01T10:00:00Z',
+        properties: { answer: 2, comment: 'Too many options' },
+      },
+      {
+        event: 'survey sent',
+        user: 'bob',
+        at: '2026-09-02T10:00:00Z',
+        properties: { answer: '3' },
+      },
+      {
+        event: 'survey sent',
+        user: 'cy',
+        at: '2026-09-02T11:00:00Z',
+        properties: { answer: 4 },
+      },
+      { event: 'survey sent', user: 'dee', at: '2026-09-02T12:00:00Z' },
+      {
+        event: 'survey sent',
+        user: 'eve',
+        at: '2026-09-11T10:00:00Z',
+        properties: { answer: 1 },
+      },
+      {
+        event: 'survey shown',
+        user: 'fay',
+        at: '2026-09-02T10:00:00Z',
+        properties: { answer: 1 },
+      },
+    ])
+
+    const response = await queryLowValues({})
+
+    expect(response.status).toBe(200)
+    const { results } = (await response.json()) as {
+      results: Array<{
+        id: string
+        distinct_id: string
+        timestamp: string
+        value: number
+        properties: Record<string, unknown>
+      }>
+    }
+    expect(
+      results.map(({ id, properties, ...event }) => ({
+        ...event,
+        hasId: /^[0-9a-f-]{36}$/.test(id),
+        comment: properties.comment,
+      })),
+    ).toEqual([
+      {
+        distinct_id: 'bob',
+        timestamp: '2026-09-02T10:00:00.000Z',
+        value: 3,
+        hasId: true,
+        comment: undefined,
+      },
+      {
+        distinct_id: 'ada',
+        timestamp: '2026-09-01T10:00:00.000Z',
+        value: 2,
+        hasId: true,
+        comment: 'Too many options',
+      },
+    ])
+  })
+
+  it('lists `limit` events at most', async () => {
+    await captureEvents([
+      {
+        event: 'survey sent',
+        user: 'ada',
+        at: '2026-09-01T10:00:00Z',
+        properties: { answer: 2 },
+      },
+      {
+        event: 'survey sent',
+        user: 'bob',
+        at: '2026-09-02T10:00:00Z',
+        properties: { answer: 1 },
+      },
+    ])
+
+    const response = await queryLowValues({ limit: 1 })
+
+    const { results } = (await response.json()) as {
+      results: Array<{ distinct_id: string }>
+    }
+    expect(results.map((event) => event.distinct_id)).toEqual(['bob'])
+  })
+
+  it('answers 400 to a query without a number as `at_most`', async () => {
+    const response = await queryLowValues({ at_most: 'low' })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: 'at_most must be a number',
+    })
+  })
+})

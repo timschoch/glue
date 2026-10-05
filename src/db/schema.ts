@@ -32,6 +32,8 @@ export const projects = pgTable('projects', {
   // The Product's handle in its social channel. The measure run reads the
   // public comments under this handle.
   socialHandle: text('social_handle'),
+  // The address of the Product's help desk. Its tickets are Signals.
+  supportUrl: text('support_url'),
   // When the newest comment the measure run counted was posted. The next run
   // reads after it, so a comment counts once. null: read from the start.
   commentsReadUntil: timestamp('comments_read_until', {

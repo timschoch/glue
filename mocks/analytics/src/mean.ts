@@ -24,7 +24,7 @@ export type MeanResult = {
 
 // Like PostHog's HogQL avg(): a number string counts as its number, any
 // other value that is not a finite number is skipped.
-function parseNumber(value: unknown): number | null {
+export function parseNumber(value: unknown): number | null {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
   if (typeof value !== 'string' || value.trim() === '') return null
   const number = Number(value)
