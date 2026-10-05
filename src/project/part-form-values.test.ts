@@ -52,6 +52,12 @@ describe('the Part that the form adds', () => {
     ).toMatchObject({ type: 'flow', needs: ['D4'] })
   })
 
+  it('is a Decision that needs the Part of the record after its Goal and its evidence', () => {
+    expect(
+      toNewPart('decision', values, { ...place, needs: ['E2'] }),
+    ).toMatchObject({ type: 'decision', needs: ['G1', 'I3', 'R1', 'E2'] })
+  })
+
   it.each([
     ['insight', ['source', 'date', 'evidenceLevel']],
     ['goal', ['metric', 'source']],

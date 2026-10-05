@@ -345,7 +345,7 @@ describe('PartForm', () => {
     expect(screen.queryByText('Saving')).toBeNull()
   })
 
-  it('offers the Goals to the Goal picker, and the Insights, the Guardrails and the Decisions to the evidence picker', async () => {
+  it('offers the Goals to the Goal picker, and the Insights and the Guardrails to the evidence picker, but no Decision', async () => {
     renderForm()
 
     await userEvent.click(picker('Goal'))
@@ -362,7 +362,6 @@ describe('PartForm', () => {
       'I7 Bakers want step videos',
       'I9 Videos are too long',
       'R4 Only the videos of the creator',
-      'D5 Bake with a video',
     ])
   })
 
@@ -416,11 +415,7 @@ describe('PartForm', () => {
 
     expect(
       screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual([
-      'I9 Videos are too long',
-      'R4 Only the videos of the creator',
-      'D5 Bake with a video',
-    ])
+    ).toEqual(['I9 Videos are too long', 'R4 Only the videos of the creator'])
   })
 
   it('removes a pick with the one icon button of its card, named with the record id', async () => {

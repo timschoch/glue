@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import type { Part, PartSummary, PartType } from '../db/parts.ts'
 import { PartForm } from '../design-system/part-form.tsx'
 import type { PartFormValues } from '../design-system/part-form.tsx'
+import { isEvidence } from '../part-fields.ts'
 import { todayUtc } from '../today-utc.ts'
 import {
   findProblems,
@@ -46,14 +47,19 @@ export function PartFormScreen({
     () => toRecordSummaries(parts, recordHref),
     [parts, recordHref],
   )
+  // A Decision needs a Goal and its evidence through the form. Each other
+  // needed Part is a Joint of the new Part.
+  const picked =
+    type !== 'decision' || !needed
+      ? undefined
+      : needed.type === 'goal'
+        ? { goal: needed.id }
+        : isEvidence(needed.type)
+          ? { evidence: [needed.id] }
+          : undefined
   const [startValues] = useState<Partial<PartFormValues>>(() => {
     if (edited) return toFormValues(edited)
-    const added = { owner: session.user.name, date: todayUtc() }
-    // A Decision needs its Goal and its evidence through the form.
-    if (needed?.type === 'goal') return { ...added, goal: needed.id }
-    if (needed?.type === 'insight' || needed?.type === 'guardrail') {
-      return { ...added, evidence: [needed.id] }
-    }
+    const added = { owner: session.user.name, date: todayUtc(), ...picked }
     if (!superseded) return added
     const { goal, evidence } = toFormValues(superseded)
     return { ...added, goal, evidence }
@@ -87,7 +93,7 @@ export function PartFormScreen({
           part: toNewPart(type, values, {
             concept: superseded?.concept ?? concept,
             supersedes: superseded?.id,
-            needs: needed && type !== 'decision' ? [needed.id] : undefined,
+            needs: needed && !picked ? [needed.id] : undefined,
           }),
         }),
       ({ id }) =>

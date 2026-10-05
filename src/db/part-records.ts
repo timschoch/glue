@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { findMentions } from '../mention.ts'
+import { evidenceTypes, isEvidence } from '../part-fields.ts'
 import { todayUtc } from '../today-utc.ts'
 import type { ConceptDb } from './client.ts'
 import { getProjectId } from './projects.ts'
@@ -413,8 +414,6 @@ async function getDecision(db: ConceptDb, projectId: number, recordId: string) {
   return toDecision(await getPart(db, projectId, recordId))
 }
 
-const evidenceTypes: readonly schema.PartType[] = schema.evidenceTypes
-
 // The record ids that the body names in its own Project (D37). A Joint glues
 // two Parts of one Project, so a Part of another Project gets none.
 function findMentionedRecordIds(projectSlug: string, body = '') {
@@ -680,7 +679,7 @@ export async function addPart(
       throw new InvalidRecordError('a Decision needs a Goal')
     if (goals.length > 1)
       throw new InvalidRecordError('a Decision needs one Goal')
-    if (!neededParts.some((needed) => evidenceTypes.includes(needed.type)))
+    if (!neededParts.some((needed) => isEvidence(needed.type)))
       throw new InvalidRecordError(
         'a Decision needs evidence: an Insight or a Guardrail',
       )
@@ -1087,7 +1086,7 @@ export async function addJoint(
   return added[0].id
 }
 
-const decisionNeedTypes = ['goal', ...schema.evidenceTypes]
+const decisionNeedTypes = ['goal', ...evidenceTypes]
 
 // Removes the Joint, but not the last Goal and not the last evidence that a
 // Decision needs: addPart refuses a Decision without them. The statement
