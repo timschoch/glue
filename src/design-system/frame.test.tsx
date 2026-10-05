@@ -491,12 +491,13 @@ describe('Frame', () => {
     expect(onProjectChange).toHaveBeenCalledWith('Flexibeck')
   })
 
-  it('has no button to add a Project and none to sign out without their callbacks', () => {
+  it('has no button to add a Project or a Concept and none to sign out without their callbacks', () => {
     renderFrame()
 
     const panel = within(screen.getByRole('navigation', { name: 'Main' }))
 
     expect(panel.queryByRole('button', { name: 'Add Project' })).toBeNull()
+    expect(panel.queryByRole('button', { name: 'Add Concept' })).toBeNull()
     expect(panel.queryByRole('button', { name: 'Sign out' })).toBeNull()
     expect(panel.getAllByRole('separator', { hidden: true })).toHaveLength(1)
   })
@@ -523,6 +524,35 @@ describe('Frame', () => {
     await userEvent.click(add)
 
     expect(onAddProject).toHaveBeenCalledOnce()
+    expect(menu.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('adds a Concept with the one ghost button after the Concepts, and closes the left panel', async () => {
+    const onAddConcept = vi.fn()
+    renderFrame([], undefined, undefined, {
+      onAddConcept,
+      onSignOut: () => {},
+    })
+
+    const menu = screen.getByRole('button', { name: 'Menu' })
+    const panel = screen.getByRole('navigation', { name: 'Main' })
+    await userEvent.click(menu)
+    const add = within(panel).getByRole('button', { name: 'Add Concept' })
+
+    // The last controls of the panel: the last Concept, the button, Sign out.
+    expect(
+      [...panel.querySelectorAll('a, button')]
+        .slice(-3)
+        .map(({ textContent }) => textContent),
+    ).toEqual(['First bake', 'Add Concept', 'Sign out'])
+    expect(add.closest('ul')).toBe(
+      within(panel).getByRole('link', { name: 'First bake' }).closest('ul'),
+    )
+    expect(add.querySelectorAll('svg')).toHaveLength(1)
+
+    await userEvent.click(add)
+
+    expect(onAddConcept).toHaveBeenCalledOnce()
     expect(menu.getAttribute('aria-expanded')).toBe('false')
   })
 

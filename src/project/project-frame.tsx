@@ -106,6 +106,14 @@ export function ProjectFrame({
           search: { add: 'project' },
         })
       }
+      // So does this form: the new Concept is at the top level.
+      onAddConcept={() =>
+        void navigate({
+          to: '/$project',
+          params: { project: project.slug },
+          search: { add: 'concept' },
+        })
+      }
       onSignOut={() => void signOut().then(() => navigate({ to: '/sign-in' }))}
     >
       {children}

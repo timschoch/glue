@@ -13,6 +13,7 @@ const meta = {
     projects: ['Bakeday', 'Flexibeck'],
     onProjectChange: () => {},
     onAddProject: () => {},
+    onAddConcept: () => {},
     onSignOut: () => {},
     onUnpin: () => {},
     onOpen: (_href, event) => event.preventDefault(),
@@ -82,9 +83,13 @@ export const Use: StoryObj<typeof meta> = {
   },
 }
 
-// No Project can be added and nobody is signed in.
+// No Project and no Concept can be added, and nobody is signed in.
 export const ReadOnly: StoryObj<typeof meta> = {
-  args: { onAddProject: undefined, onSignOut: undefined },
+  args: {
+    onAddProject: undefined,
+    onAddConcept: undefined,
+    onSignOut: undefined,
+  },
 }
 
 // A screen that has no Project.
