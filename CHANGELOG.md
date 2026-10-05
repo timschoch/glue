@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/timschoch/glue/compare/v1.13.0...v1.14.0) (2026-10-05)
+
+
+### Features
+
+* **concepts:** remove an empty Concept, count the Parts of sub Concepts ([#268](https://github.com/timschoch/glue/issues/268)) ([5216f01](https://github.com/timschoch/glue/commit/5216f0101dfba22969d91797e4b20a001883d727)), closes [#266](https://github.com/timschoch/glue/issues/266)
+
 ## [1.13.0](https://github.com/timschoch/glue/compare/v1.12.0...v1.13.0) (2026-10-05)
 
 
