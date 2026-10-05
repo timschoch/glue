@@ -10,9 +10,6 @@ import type { Section } from '../design-system/frame.tsx'
 export type ProjectSearch = {
   // The lens. Without it the Concept shows all its Parts.
   section?: Section
-  // The slug of the one Concept whose Parts the section lists. Without it
-  // the section lists the Parts of the whole Project.
-  home?: string
   // The section shows each Part in detail, the Strategic ones too.
   detail?: true
   // The pinned records, newest first.
@@ -115,7 +112,6 @@ export function parseProjectSearch(
 ): ProjectSearch {
   return {
     section: isSection(search.section) ? search.section : undefined,
-    home: isSlug(search.home) ? search.home : undefined,
     detail: search.detail === true ? true : undefined,
     pins: parseRecordIds(search.pins),
     trail: parseRecordIds(search.trail),

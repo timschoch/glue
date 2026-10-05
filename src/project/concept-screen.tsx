@@ -2,7 +2,13 @@ import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import type { ProjectBuilds } from '../db/builds.ts'
-import type { Concept, MapJoint, Part, PartSummary } from '../db/parts.ts'
+import type {
+  Concept,
+  ConceptNode,
+  MapJoint,
+  Part,
+  PartSummary,
+} from '../db/parts.ts'
 import type { ContractState } from '../db/contracts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
@@ -25,9 +31,16 @@ import { useWrite } from './use-write.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
 
-// One Concept in the main window, or one section. A section lists the Parts
-// of the whole Project for its Part types: the Operational ones in detail,
-// the Strategic ones as a summary. The section Understand shows the Signals
+// The slugs of the Concepts and of each Concept in them.
+function listSlugs(concepts: ReadonlyArray<ConceptNode>): Array<string> {
+  return concepts.flatMap((node) => [node.slug, ...listSlugs(node.concepts)])
+}
+
+// One Concept in the main window, or one section. The Concept in the address
+// is the filter of a section: the section lists the Parts of the Concept and
+// of the Concepts in it for its Part types, so the whole Project at the root
+// Concept. The Operational ones show in detail, the Strategic ones as a
+// summary. The section Understand shows the Signals
 // of the Project too, and the section Build its builds. The section Use
 // shows its Metrics and its measured Goals, each with its newest value
 // against its target. The section Mine shows the Parts that need the owner,
@@ -150,20 +163,22 @@ export function ConceptScreen({
   }
   const types = lensTypes(search.section)
   if (search.section && types && search.view !== 'map') {
+    const homes = new Set([concept.slug, ...listSlugs(concept.concepts)])
+    const isListed = (part: PartSummary) => homes.has(part.concept)
     return (
       <SectionView
         title={search.section}
         types={types}
         parts={
           search.section === 'Use'
-            ? measured.map((part) => ({
+            ? measured.filter(isListed).map((part) => ({
                 ...toCard(part),
                 reading: toReading(part.measure),
               }))
-            : parts.filter(({ type }) => types.includes(type)).map(toCard)
+            : parts
+                .filter((part) => types.includes(part.type) && isListed(part))
+                .map(toCard)
         }
-        home={search.home}
-        onHomeChange={(home) => void changeSearch({ ...search, home })}
         detail={search.detail}
         onDetailChange={(detail) =>
           void changeSearch({ ...search, detail: detail || undefined })

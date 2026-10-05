@@ -62,7 +62,6 @@ const meta = {
         ...firstBake,
       },
     ],
-    onHomeChange: () => {},
     onDetailChange: () => {},
     onAddPart: () => {},
   },
@@ -75,8 +74,6 @@ type Story = StoryObj<typeof meta>
 export const Default: Story = {}
 
 export const Detail: Story = { args: { detail: true } }
-
-export const OneConcept: Story = { args: { home: 'first-bake' } }
 
 export const Empty: Story = { args: { parts: [] } }
 

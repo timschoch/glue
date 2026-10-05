@@ -52,14 +52,9 @@ describe('the search parameters of a Project', () => {
     expect(parseProjectSearch({ expanded: ['Build run', 7] })).toEqual({})
   })
 
-  it('reads the Concept of the filter and the detail of a section', () => {
-    expect(parseProjectSearch({ home: 'part-model', detail: true })).toEqual({
-      home: 'part-model',
-      detail: true,
-    })
-    expect(parseProjectSearch({ home: 'Part model', detail: 'yes' })).toEqual(
-      {},
-    )
+  it('reads the detail of a section', () => {
+    expect(parseProjectSearch({ detail: true })).toEqual({ detail: true })
+    expect(parseProjectSearch({ detail: 'yes' })).toEqual({})
   })
 
   it('reads the record or the Concept of the panel', () => {

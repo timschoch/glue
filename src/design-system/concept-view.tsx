@@ -30,7 +30,13 @@ const kinds = { brief: 'Brief' } as const
 const FOLDED_COUNT = 6
 
 // The ghost button that adds a thing, named with the thing.
-function AddButton({ thing, onClick }: { thing: string; onClick: () => void }) {
+export function AddButton({
+  thing,
+  onClick,
+}: {
+  thing: string
+  onClick: () => void
+}) {
   return (
     <Button
       kind="ghost"

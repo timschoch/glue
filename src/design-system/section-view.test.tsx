@@ -124,42 +124,28 @@ describe('SectionView', () => {
     expect(onDetailChange).toHaveBeenCalledExactlyOnceWith(true)
   })
 
+  it('names the switch', () => {
+    renderView({ onDetailChange: vi.fn() })
+
+    within(screen.getByRole('tablist', { name: 'Flight level' })).getByRole(
+      'tab',
+      { name: 'Detail' },
+    )
+  })
+
   it('has no switch without a Strategic Part', () => {
     renderView({ parts: [GOAL], onDetailChange: vi.fn() })
 
     expect(screen.queryByRole('tab')).toBeNull()
   })
 
-  it('lists the Parts of the one Concept that the filter picks', () => {
-    renderView({ home: 'first-bake', onHomeChange: vi.fn() })
+  it('keeps the switch in the detail, also without a Strategic Part', async () => {
+    const onDetailChange = vi.fn()
+    renderView({ parts: [GOAL], detail: true, onDetailChange })
 
-    expect(cards()).toEqual(['G2'])
-    expect(rows()).toEqual(['Flagged First bake 1'])
-    expect(
-      screen
-        .getAllByRole('button', { pressed: true })
-        .map((tag) => tag.textContent),
-    ).toEqual(['First bake 2'])
-  })
+    await userEvent.click(screen.getByRole('tab', { name: 'Summary' }))
 
-  it('picks a Concept with its tag, and no Concept with the same tag', async () => {
-    const onHomeChange = vi.fn()
-    renderView({ onHomeChange })
-    const filter = within(screen.getByRole('group', { name: 'Concepts' }))
-
-    expect(filter.getAllByRole('button').map((tag) => tag.textContent)).toEqual(
-      ['First bake 2', 'Technique videos 2'],
-    )
-
-    await userEvent.click(filter.getByRole('button', { name: /First bake/ }))
-
-    expect(onHomeChange).toHaveBeenCalledExactlyOnceWith('first-bake')
-
-    cleanup()
-    renderView({ home: 'first-bake', onHomeChange })
-    await userEvent.click(screen.getByRole('button', { pressed: true }))
-
-    expect(onHomeChange).toHaveBeenLastCalledWith(undefined)
+    expect(onDetailChange).toHaveBeenCalledExactlyOnceWith(false)
   })
 
   it('has one control per Part type that adds a Part, and none without the callback', async () => {
@@ -169,6 +155,12 @@ describe('SectionView', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add Decision' }))
 
     expect(onAddPart).toHaveBeenCalledExactlyOnceWith('decision')
+    // The Decisions are in the rows: no group that reads as "none".
+    expect(
+      screen
+        .getAllByRole('heading', { level: 2 })
+        .map((heading) => heading.textContent),
+    ).toEqual(['Goals'])
 
     cleanup()
     renderView()

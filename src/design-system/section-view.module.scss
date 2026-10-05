@@ -5,7 +5,8 @@
 // The width of a card: the width of the pinned column.
 $card-width: $spacing-13 * 2;
 
-// The head, the filter, the type groups and the summary are separate groups.
+// The head, the type groups, the summary and the add buttons are separate
+// groups.
 .view {
   display: flex;
   flex-direction: column;
@@ -32,8 +33,8 @@ $card-width: $spacing-13 * 2;
   inline-size: $spacing-13 + $spacing-09;
 }
 
-// The tags of the filter, in one row at the start.
-.filter {
+// The add buttons of the types with no card, in one row at the start.
+.buttons {
   display: flex;
   flex-wrap: wrap;
   gap: $spacing-03;
