@@ -103,8 +103,17 @@ describe('loadDecisions', () => {
     expect(Object.fromEntries(decisions)).toEqual({
       D45: { status: 'accepted' },
       D46: { status: 'superseded', superseded_by: 'D45' },
+      'glue-build/D45': { status: 'accepted' },
+      'glue-build/D46': { status: 'superseded', superseded_by: 'D45' },
       'glue/D12': { status: 'accepted' },
     })
+    expect(
+      problems({
+        body: 'Closes #1\nDecision: glue-build/D45',
+        files: [],
+        decisions,
+      }),
+    ).toEqual([])
   })
 
   it('reads a bare id in the Project of GLUE_PROJECT', async () => {
@@ -121,6 +130,7 @@ describe('loadDecisions', () => {
 
     expect(Object.fromEntries(decisions)).toEqual({
       D3: { status: 'proposed' },
+      'flexibeck/D3': { status: 'proposed' },
       'glue/D12': { status: 'accepted' },
     })
   })

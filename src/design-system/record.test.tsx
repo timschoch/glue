@@ -196,6 +196,20 @@ describe('Record', () => {
     expect(onChange).toHaveBeenLastCalledWith(false)
   })
 
+  it('shows the watch control of a Part that nobody watches with no error in the console', () => {
+    const logged = vi.spyOn(console, 'error')
+    renderRecord(
+      {},
+      { watch: { watching: false, count: 0, onChange: () => {} } },
+    )
+
+    expect(screen.getByRole('button', { name: 'Watch 0' }).textContent).toBe(
+      '0',
+    )
+    expect(logged).not.toHaveBeenCalled()
+    logged.mockRestore()
+  })
+
   it('shows an action with an address as a link', () => {
     renderRecord(
       {},

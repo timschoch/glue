@@ -24,6 +24,20 @@ export async function getProjectId(db: ConceptDb, projectSlug: string) {
   return project.id
 }
 
+// The slugs of the Projects with the repository. Two or more share it:
+// there, a build names a Decision as `<project>/<id>` (glue/D50).
+export async function listRepositoryProjects(
+  db: ConceptDb,
+  repository: string,
+): Promise<string[]> {
+  const found = await db
+    .select({ slug: projects.slug })
+    .from(projects)
+    .where(eq(projects.repository, repository))
+    .orderBy(projects.slug)
+  return found.map(({ slug }) => slug)
+}
+
 // Lets the Parts of the Project need the published Parts of the other
 // Project (D45). The reference goes one way.
 export async function addProjectReference(

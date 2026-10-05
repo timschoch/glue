@@ -4,7 +4,7 @@ import type { ConceptDb } from '../db/client.ts'
 import { setIssueUrl } from '../db/part-records.ts'
 import { findPart } from '../db/parts.ts'
 import type { Part, PartSummary } from '../db/parts.ts'
-import { findProduct } from '../db/projects.ts'
+import { findProduct, listRepositoryProjects } from '../db/projects.ts'
 import { typeOfRecordId } from '../db/record-id.ts'
 import { isEvidence } from '../part-fields.ts'
 import type { GithubClient, IssueInput } from './client.ts'
@@ -25,7 +25,12 @@ function formatReferences(heading: string, references: PartSummary[]) {
   ]
 }
 
-function toIssue(decision: Part, goal: PartSummary): IssueInput {
+// `reference` names the Decision as a build of the repository writes it.
+function toIssue(
+  decision: Part,
+  goal: PartSummary,
+  reference: string,
+): IssueInput {
   const needed = decision.needs.map((end) => end.part)
   const sections = [
     [decision.body],
@@ -35,7 +40,7 @@ function toIssue(decision: Part, goal: PartSummary): IssueInput {
       needed.filter((part) => isEvidence(part.type)),
     ),
     formatReferences('Supersedes', decision.supersedes),
-    [`Decision: ${decision.id}`],
+    [`Decision: ${reference}`],
   ].filter((lines) => lines.some(Boolean))
   return {
     title: `${decision.id}: ${decision.title}`,
@@ -64,9 +69,17 @@ export async function createDownstreamIssue(
   if (!product?.repository) return { kind: 'no-repository' }
   const { repository } = product
 
+  // In a repository that another Project has too, a bare id names no
+  // Decision (glue/D50).
+  const shared = (await listRepositoryProjects(db, repository)).length > 1
+  const reference = shared ? `${productSlug}/${decision.id}` : decision.id
+
   let url: string
   try {
-    url = await github.createIssue(repository, toIssue(decision, goal))
+    url = await github.createIssue(
+      repository,
+      toIssue(decision, goal, reference),
+    )
   } catch (error) {
     return {
       kind: 'failed',

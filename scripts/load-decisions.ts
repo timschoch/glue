@@ -4,7 +4,8 @@
 //
 // A bare id (`D45`) is a Decision of the build Project: the one of
 // GLUE_PROJECT, or `glue-build` when the API has it, or `glue`. `glue/D12`
-// is a Decision of the Project `glue` (D45).
+// is a Decision of the Project `glue` (D45), and `glue-build/D46` is one of
+// the build Project (glue/D50).
 import { z } from 'zod'
 
 import { BUILD_PROJECT, CONCEPT_PROJECT } from '../src/db/projects.ts'
@@ -73,15 +74,20 @@ export async function loadDecisions(
 
   const conceptDecisions = (await readDecisions(CONCEPT_PROJECT)) ?? []
   const named = environment.GLUE_PROJECT
+  const buildProject = named || BUILD_PROJECT
+  // undefined: the build Project is the one with the Glue concept.
   const buildDecisions =
-    named === CONCEPT_PROJECT
-      ? conceptDecisions
-      : ((await readDecisions(named || BUILD_PROJECT, !named)) ??
-        conceptDecisions)
+    buildProject === CONCEPT_PROJECT
+      ? undefined
+      : await readDecisions(buildProject, !named)
+  const withProject = (
+    project: string,
+    decisions: NonNullable<typeof buildDecisions>,
+  ) =>
+    decisions.map(([id, decision]) => [`${project}/${id}`, decision] as const)
   return new Map<string, Decision>([
-    ...buildDecisions,
-    ...conceptDecisions.map(
-      ([id, decision]) => [`${CONCEPT_PROJECT}/${id}`, decision] as const,
-    ),
+    ...(buildDecisions ?? conceptDecisions),
+    ...withProject(buildProject, buildDecisions ?? []),
+    ...withProject(CONCEPT_PROJECT, conceptDecisions),
   ])
 }
