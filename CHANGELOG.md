@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.12.0](https://github.com/timschoch/glue/compare/v1.11.2...v1.12.0) (2026-10-05)
+
+
+### Features
+
+* **app:** give the evidence of a Decision one rule ([#261](https://github.com/timschoch/glue/issues/261)) ([1e5be04](https://github.com/timschoch/glue/commit/1e5be0406ff2b63ff7415f70543d365c950e6291)), closes [#256](https://github.com/timschoch/glue/issues/256)
+* **app:** show each build that names a Decision or a Contract ([#258](https://github.com/timschoch/glue/issues/258)) ([c252b76](https://github.com/timschoch/glue/commit/c252b76b996a67107bb742dbd7b5bae2c06974f2))
+* **parts:** move a Part to another Concept ([#260](https://github.com/timschoch/glue/issues/260)) ([84251d6](https://github.com/timschoch/glue/commit/84251d6491811bd532c209cda7eb8580827de4f2)), closes [#257](https://github.com/timschoch/glue/issues/257)
+
 ## [1.11.2](https://github.com/timschoch/glue/compare/v1.11.1...v1.11.2) (2026-10-04)
 
 
