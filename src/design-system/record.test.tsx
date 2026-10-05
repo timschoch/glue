@@ -125,6 +125,10 @@ function iconButton(name: string): HTMLElement {
   return button
 }
 
+// The count of the watchers, beside the Watch control.
+const watcherCount = () =>
+  screen.getByRole('status', { name: 'Watchers' }).textContent
+
 // The items of the open menu. jsdom has no layout, so Carbon never gets to
 // the place of the menu and keeps it out of the accessibility tree.
 const menuItems = () => screen.getAllByRole('menuitem', { hidden: true })
@@ -168,6 +172,35 @@ describe('Record', () => {
     expect(within(head).getByRole('heading', { level: 1 }).textContent).toBe(
       'Show the video of the creator',
     )
+  })
+
+  it('shows the count of the watchers, and lets a member watch and stop', async () => {
+    const onChange = vi.fn()
+    renderRecord({}, { watch: { watching: false, count: 2, onChange } })
+
+    expect(watcherCount()).toBe('2')
+    expect(iconButton('Watch').getAttribute('aria-pressed')).toBe('false')
+
+    await userEvent.click(iconButton('Watch'))
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(true)
+
+    cleanup()
+    renderRecord({}, { watch: { watching: true, count: 3, onChange } })
+
+    expect(watcherCount()).toBe('3')
+    expect(iconButton('Watch').getAttribute('aria-pressed')).toBe('true')
+
+    await userEvent.click(iconButton('Watch'))
+
+    expect(onChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('shows the count of the watchers alone to a person who reads only', () => {
+    renderRecord({}, { watch: { watching: false, count: 1 } })
+
+    expect(watcherCount()).toBe('1')
+    expect(iconButtons('Watch')).toEqual([])
   })
 
   it.each([

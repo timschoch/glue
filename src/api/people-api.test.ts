@@ -12,7 +12,10 @@ import {
   handleAssign,
   handleListAssignments,
   handleListMembers,
+  handleListWatchers,
   handleUnassign,
+  handleUnwatch,
+  handleWatch,
 } from './people-api.ts'
 
 const { client, db } = createTestDatabase(schema)
@@ -80,6 +83,8 @@ const responsible = {
   part: 'G1',
 }
 
+const watcher = { member: 'ada@example.com', part: 'G1' }
+
 describe('the people routes without a token', () => {
   it.each([
     ['GET members', handleListMembers, 'GET', undefined],
@@ -87,6 +92,9 @@ describe('the people routes without a token', () => {
     ['GET assignments', handleListAssignments, 'GET', undefined],
     ['POST assignments', handleAssign, 'POST', responsible],
     ['DELETE assignments', handleUnassign, 'DELETE', undefined],
+    ['GET watchers', handleListWatchers, 'GET', undefined],
+    ['POST watchers', handleWatch, 'POST', watcher],
+    ['DELETE watchers', handleUnwatch, 'DELETE', undefined],
   ] as const)('%s answers 401', async (_name, handler, method, body) => {
     const response = await call(handler, method, { body, token: null })
 
@@ -164,6 +172,36 @@ describe('assignments', () => {
     expect(role.status).toBe(400)
     expect(part.status).toBe(400)
     expect(part.body.error.message).toBe('G9 not found')
+  })
+})
+
+describe('watchers', () => {
+  it('makes a member a watcher of a Part, lists the watchers, and takes one back', async () => {
+    const added = await call(handleWatch, 'POST', { body: watcher })
+    await call(handleWatch, 'POST', {
+      body: { member: 'ada@example.com', part: 'R1' },
+    })
+    const ofPart = await call(handleListWatchers, 'GET', { query: '?part=G1' })
+    const removed = await call(handleUnwatch, 'DELETE', {
+      query: '?member=ada@example.com&part=G1',
+    })
+
+    expect(added.status).toBe(201)
+    expect(added.body).toEqual([{ memberId: 1, part: 'G1' }])
+    expect(ofPart.body).toEqual([{ memberId: 1, part: 'G1' }])
+    expect(removed.status).toBe(204)
+    expect((await call(handleListWatchers, 'GET')).body).toEqual([
+      { memberId: 1, part: 'R1' },
+    ])
+  })
+
+  it('answers 400 for a Part that does not exist', async () => {
+    const response = await call(handleWatch, 'POST', {
+      body: { ...watcher, part: 'G9' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('G9 not found')
   })
 })
 

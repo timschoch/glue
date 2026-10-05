@@ -53,6 +53,24 @@ export function PeopleScreen() {
     }
   }
 
+  function watches(memberId: number): PeopleHeld {
+    const own = people.watchers.filter(
+      (watcher) => watcher.memberId === memberId,
+    )
+    return {
+      concepts: [],
+      parts: parts
+        .filter(({ id }) => own.some(({ part }) => part === id))
+        .map((part) => ({
+          id: part.id,
+          type: part.type,
+          title: part.title,
+          trust: part.trust,
+          href: recordHref(part),
+        })),
+    }
+  }
+
   const member = people.me !== null
 
   return (
@@ -64,6 +82,7 @@ export function PeopleScreen() {
         loopSteps,
         responsible: held(id, 'responsible', people.assignments),
         coAuthor: held(id, 'co-author', people.assignments),
+        watches: watches(id),
       }))}
       me={people.me}
       onLoopStepsChange={

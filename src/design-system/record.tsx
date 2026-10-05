@@ -1,4 +1,12 @@
-import { Edit, Launch, Pin, PinFilled, Subtract } from '@carbon/icons-react'
+import {
+  Edit,
+  Launch,
+  Pin,
+  PinFilled,
+  Subtract,
+  View,
+  ViewFilled,
+} from '@carbon/icons-react'
 import {
   Button,
   ComboButton,
@@ -72,7 +80,7 @@ export type RecordJointEnd = {
 }
 
 // Why a Part has a flag: what happened to the Part that it needs.
-const flagReasons = {
+export const flagReasons = {
   changed: 'Changed',
   'not-ready': 'Not ready',
   wrong: 'Wrong',
@@ -428,6 +436,13 @@ export type RecordProps = {
   bodyParts?: ReadonlyArray<RecordPartSummary>
   pinned: boolean
   onPinChange: (pinned: boolean) => void
+  // The watchers of the Part: their count, and if the person who reads is
+  // one of them. Only a member of the Project watches and stops.
+  watch?: {
+    watching: boolean
+    count: number
+    onChange?: (watching: boolean) => void
+  }
   // Opens the record of a card or of a record id in the body.
   onOpen?: OpenHandler
   // The first action is the button. The others are in its menu.
@@ -474,6 +489,7 @@ export function Record({
   bodyParts = [],
   pinned,
   onPinChange,
+  watch,
   onOpen,
   actions = [],
   pending,
@@ -557,6 +573,25 @@ export function Record({
           <span>{partTypes[part.type]}</span>
           <span>{part.id}</span>
           <div className={styles.controls}>
+            {watch && (
+              <>
+                <output aria-label="Watchers" className={styles.count}>
+                  {watch.count}
+                </output>
+                {watch.onChange && (
+                  <IconButton
+                    kind="ghost"
+                    size="sm"
+                    align="bottom-end"
+                    label="Watch"
+                    aria-pressed={watch.watching}
+                    onClick={() => watch.onChange?.(!watch.watching)}
+                  >
+                    {watch.watching ? <ViewFilled /> : <View />}
+                  </IconButton>
+                )}
+              </>
+            )}
             {onEdit && (
               <IconButton
                 kind="ghost"

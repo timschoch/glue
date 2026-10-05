@@ -115,7 +115,7 @@ export const builds: Build[] = [
 ]
 
 // The people of Glue. Ada reads: she is Responsible of D4. Bo is Co-Author
-// of the Concept `Part model`.
+// of the Concept `Part model` and watches D4.
 export const people: People = {
   members: [
     {
@@ -143,6 +143,7 @@ export const people: People = {
       part: null,
     },
   ],
+  watchers: [{ memberId: 2, part: 'D4' }],
   me: 1,
 }
 

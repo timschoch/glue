@@ -31,6 +31,9 @@ import {
   assignmentSchema,
   memberInputSchema,
   memberSchema,
+  watcherInputSchema,
+  watcherOutputSchema,
+  watchersQuerySchema,
 } from './people-api.ts'
 import { projectSignalsSchema, signalInsightInputSchema } from './signal-api.ts'
 
@@ -446,6 +449,53 @@ function listPartPaths() {
         },
         responses: {
           204: { description: 'The assignment is gone' },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/watchers`]: {
+      get: {
+        operationId: 'listWatchers',
+        summary: 'List who watches a Part. A watcher is not the owner',
+        requestParams: { path, query: watchersQuerySchema },
+        responses: {
+          200: {
+            description: 'The watchers of the Project, or of the one Part',
+            ...jsonContent(z.array(watcherOutputSchema)),
+          },
+          ...readErrorResponses,
+        },
+      },
+      post: {
+        operationId: 'watch',
+        summary:
+          'Make a member a watcher of a Part. A second time changes nothing',
+        requestParams: { path },
+        requestBody: jsonContent(watcherInputSchema),
+        responses: {
+          201: {
+            description: 'The watchers of the Part',
+            ...jsonContent(z.array(watcherOutputSchema)),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+      delete: {
+        operationId: 'unwatch',
+        summary: 'Stop the watch of a member on a Part',
+        requestParams: {
+          path,
+          query: z.object({
+            member: z
+              .string()
+              .meta({ description: 'The e-mail address of the member' }),
+            part: z.string().meta({ description: 'The record id of the Part' }),
+          }),
+        },
+        responses: {
+          204: { description: 'The member does not watch the Part' },
           400: errorResponses[400],
           ...readErrorResponses,
         },

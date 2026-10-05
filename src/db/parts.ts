@@ -1,5 +1,15 @@
 import type { SQL } from 'drizzle-orm'
-import { and, count, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import type { ConceptDb } from './client.ts'
@@ -519,6 +529,81 @@ export function listMine(
       ),
     )
     .orderBy(desc(parts.changedAt), desc(parts.id))
+}
+
+// A Part that a member watches, with its open flags, oldest first.
+export type WatchedPart = PartSummary & { flags: Flag[] }
+
+// The watched group of Mine (D47): the Parts of the Project that the member
+// watches, the newest change first. A Part that listMine gives the member
+// is not here: one where the member is Responsible or Co-Author, and one of
+// nobody that needs an owner.
+export async function listWatched(
+  db: ConceptDb,
+  projectSlug: string,
+  memberEmail: string,
+): Promise<WatchedPart[]> {
+  const isMember = sql`lower("members"."email") = lower(${memberEmail}::text)`
+  const found = await db
+    .select({ partId: parts.id, part: summary })
+    .from(parts)
+    .innerJoin(concepts, eq(parts.conceptId, concepts.id))
+    .innerJoin(projects, eq(parts.projectId, projects.id))
+    .where(
+      and(
+        eq(projects.slug, projectSlug),
+        sql`exists (
+          select 1 from "watchers"
+          inner join "members" on "members"."id" = "watchers"."member_id"
+          where "watchers"."part_id" = ${parts.id} and ${isMember}
+        )`,
+        sql`not exists (
+          select 1 from "assignments"
+          inner join "members" on "members"."id" = "assignments"."member_id"
+          where "assignments"."part_id" = ${parts.id} and ${isMember}
+        )`,
+        // A Part of nobody that needs an owner is in listMine of each member.
+        sql`not (
+          ${parts.workState} in ('to-check', 'draft', 'review')
+          and not exists (
+            select 1 from "assignments"
+            where "assignments"."part_id" = ${parts.id}
+          )
+        )`,
+      ),
+    )
+    .orderBy(desc(parts.changedAt), desc(parts.id))
+  if (found.length === 0) return []
+
+  const open = await db
+    .select({
+      partId: flags.partId,
+      cause: { id: parts.recordId, title: parts.title },
+      reason: flags.reason,
+      createdAt: flags.createdAt,
+    })
+    .from(flags)
+    .innerJoin(parts, eq(flags.causePartId, parts.id))
+    .where(
+      and(
+        inArray(
+          flags.partId,
+          found.map(({ partId }) => partId),
+        ),
+        isNull(flags.closedAt),
+      ),
+    )
+    .orderBy(flags.id)
+  return found.map(({ partId, part }) => ({
+    ...part,
+    flags: open
+      .filter((flag) => flag.partId === partId)
+      .map(({ cause, reason, createdAt }) => ({
+        cause,
+        reason,
+        createdAt: createdAt.toISOString(),
+      })),
+  }))
 }
 
 // The flags of the Part, open and closed, oldest first.

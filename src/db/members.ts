@@ -16,7 +16,7 @@ import { assignmentRoles, loopSteps } from './schema.ts'
 export { assignmentRoles, loopSteps } from './schema.ts'
 export type { AssignmentRole, LoopStep } from './schema.ts'
 
-const { assignments, concepts, members, parts, projects } = schema
+const { assignments, concepts, members, parts, projects, watchers } = schema
 
 // An account of Neon Auth.
 export type Account = { id: string; name: string; email: string }
@@ -44,6 +44,7 @@ export type Assignment = {
 export type People = {
   members: Member[]
   assignments: Assignment[]
+  watchers: Watcher[]
   me: number | null
 }
 
@@ -292,6 +293,80 @@ export async function assign(
       (select count(*) from target) as "targets"
   `)
   validateFound(result, projectSlug, assignment)
+}
+
+// A member who watches a Part (D47). Watching is not owning: the owner of a
+// Part is its Responsible.
+export type Watcher = {
+  memberId: number
+  // The record id of the Part.
+  part: string
+}
+
+export const watcherSchema = z.strictObject({
+  member: target.member,
+  part: z.string().trim().min(1),
+})
+
+// The watchers of the Project, or of one Part of it, by Part and member.
+export function listWatchers(
+  db: ConceptDb,
+  projectSlug: string,
+  recordId?: string,
+): Promise<Watcher[]> {
+  return db
+    .select({ memberId: watchers.memberId, part: parts.recordId })
+    .from(watchers)
+    .innerJoin(parts, eq(watchers.partId, parts.id))
+    .innerJoin(projects, eq(parts.projectId, projects.id))
+    .where(
+      and(
+        eq(projects.slug, projectSlug),
+        recordId === undefined ? undefined : eq(parts.recordId, recordId),
+      ),
+    )
+    .orderBy(asc(watchers.partId), asc(watchers.memberId))
+}
+
+// The member watches the Part. A member who watches it already stays one
+// watcher.
+export async function watch(
+  db: ConceptDb,
+  projectSlug: string,
+  input: unknown,
+): Promise<void> {
+  const watcher = parseInput(watcherSchema, input)
+  const result = await db.execute(sql`
+    with ${selectTarget(projectSlug, watcher)},
+    written as (
+      insert into "watchers" ("part_id", "member_id")
+      select target."part_id", member."id" from member, target
+      on conflict do nothing
+    )
+    select (select count(*) from member) as "members",
+      (select count(*) from target) as "targets"
+  `)
+  validateFound(result, projectSlug, watcher)
+}
+
+// The member stops watching the Part.
+export async function unwatch(
+  db: ConceptDb,
+  projectSlug: string,
+  input: unknown,
+): Promise<void> {
+  const watcher = parseInput(watcherSchema, input)
+  const result = await db.execute(sql`
+    with ${selectTarget(projectSlug, watcher)},
+    removed as (
+      delete from "watchers" using target
+      where "watchers"."member_id" = (select "id" from member)
+        and "watchers"."part_id" = target."part_id"
+    )
+    select (select count(*) from member) as "members",
+      (select count(*) from target) as "targets"
+  `)
+  validateFound(result, projectSlug, watcher)
 }
 
 // Takes the Concept or the Part from the member.

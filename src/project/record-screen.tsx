@@ -47,8 +47,15 @@ export function RecordScreen({
   builds?: ReadonlyArray<Build>
 }) {
   const router = useRouter()
-  const { answerPart, answerQuestion, addJoint, removeJoint, updatePart } =
-    projectRoute.useRouteContext()
+  const {
+    answerPart,
+    answerQuestion,
+    addJoint,
+    removeJoint,
+    updatePart,
+    watch,
+    unwatch,
+  } = projectRoute.useRouteContext()
   const { project: tree, people } = projectRoute.useLoaderData()
   const concepts = useMemo(() => listConcepts(tree.concept), [tree])
   const { project, search, conceptHref, recordHref, open, changeSearch } =
@@ -89,6 +96,8 @@ export function RecordScreen({
   if (isPartType(search.add)) {
     return <PartFormScreen type={search.add} needed={part} parts={parts} />
   }
+
+  const watchers = people.watchers.filter((watcher) => watcher.part === part.id)
 
   // The record is the Decision: a build shows only the other Decisions.
   const named = builds.map((build) => ({
@@ -213,6 +222,17 @@ export function RecordScreen({
       onPinChange={(pinned) =>
         void changeSearch(changePin(search, part.id, pinned))
       }
+      watch={{
+        watching: watchers.some(({ memberId }) => memberId === people.me),
+        count: watchers.length,
+        onChange:
+          people.me === null
+            ? undefined
+            : (watching) =>
+                void write('Saving', () =>
+                  (watching ? watch : unwatch)({ project, recordId: part.id }),
+                ),
+      }}
       onOpen={handleOpen}
       assignees={<AssigneesControl target={{ part: part.id }} />}
       home={

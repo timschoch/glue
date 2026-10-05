@@ -742,6 +742,37 @@ describe('the section Mine', () => {
     expect(pageTitle()).toBe(D4)
   })
 
+  it('shows the watched Parts in a group of their own, a flag as a note', async () => {
+    await renderPage('/glue?section=Mine', {
+      fetchMine: vi.fn(() => Promise.resolve(mine)),
+      fetchWatched: vi.fn(() =>
+        Promise.resolve([
+          {
+            ...parts[3],
+            trust: 'flagged' as const,
+            workState: 'to-check' as const,
+            flags: [
+              {
+                cause: { id: 'D4', title: D4 },
+                reason: 'changed' as const,
+                createdAt: '2026-10-03T08:00:00.000Z',
+              },
+            ],
+          },
+        ]),
+      ),
+    })
+
+    const watched = within(screen.getByRole('list', { name: 'Watched' }))
+
+    expect(section('Mine 2')).toBeDefined()
+    expect(
+      watched.getAllByRole('link').map((link) => link.textContent),
+    ).toEqual([
+      `Flagged Guardrail R1 ${R1} Changed D4 ${D4} To check Read model`,
+    ])
+  })
+
   it('shows no count and no card without a Part', async () => {
     await renderPage('/glue?section=Mine')
 
@@ -1435,6 +1466,59 @@ describe('the people of a Project', () => {
     })
   })
 
+  it('shows what a member watches', async () => {
+    await renderPage('/glue?section=People')
+
+    const bo = within(screen.getByRole('region', { name: 'Bo' }))
+
+    expect(
+      within(bo.getByRole('list', { name: 'Watches' }))
+        .getByRole('link')
+        .getAttribute('href'),
+    ).toBe('/glue/part-model/D4?section=People')
+  })
+
+  it('watches a record, and stops', async () => {
+    const { server } = await renderPage('/glue/part-model/D4')
+    const watchers = () =>
+      screen.getByRole('status', { name: 'Watchers' }).textContent
+
+    expect(watchers()).toBe('1')
+    expect(button('Watch').getAttribute('aria-pressed')).toBe('false')
+
+    await userEvent.click(button('Watch'))
+
+    await waitFor(() =>
+      expect(server.watch).toHaveBeenCalledWith({
+        project: 'glue',
+        recordId: 'D4',
+      }),
+    )
+    expect(server.unwatch).not.toHaveBeenCalled()
+  })
+
+  it('stops watching a record that the person watches', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', {
+      fetchPeople: vi.fn(() =>
+        Promise.resolve({
+          ...people,
+          watchers: [...people.watchers, { memberId: 1, part: 'D4' }],
+        }),
+      ),
+    })
+
+    expect(button('Watch').getAttribute('aria-pressed')).toBe('true')
+
+    await userEvent.click(button('Watch'))
+
+    await waitFor(() =>
+      expect(server.unwatch).toHaveBeenCalledWith({
+        project: 'glue',
+        recordId: 'D4',
+      }),
+    )
+  })
+
   it('gives a record another Responsible', async () => {
     const { server } = await renderPage('/glue/part-model/D4')
     const responsible = screen.getByRole<HTMLSelectElement>('combobox', {
@@ -1480,6 +1564,10 @@ describe('the people of a Project', () => {
 
     expect(screen.getByText('Responsible').nextSibling?.textContent).toBe('Ada')
     expect(screen.queryByRole('combobox', { name: 'Responsible' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Watch' })).toBeNull()
+    expect(screen.getByRole('status', { name: 'Watchers' }).textContent).toBe(
+      '1',
+    )
   })
 })
 

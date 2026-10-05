@@ -7,8 +7,16 @@ type PartType = keyof typeof partFields
 
 const types = Object.keys(partFields) as Array<PartType>
 
-// Where a new Part goes. The schema takes the Joints of a Part as `needs`.
-const PLACE = ['type', 'concept', 'needs', 'supersedes', 'supersededBy']
+// Where a new Part goes and who owns it. The schema takes the Joints of a
+// Part as `needs`, and its owner as the assignment `responsible`.
+const PLACE = [
+  'type',
+  'concept',
+  'needs',
+  'supersedes',
+  'supersededBy',
+  'responsible',
+]
 
 // The fields of the type in the schema of a new Part, each with the answer
 // to: does the schema refuse a Part without it?

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -59,5 +59,36 @@ describe('PartCards', () => {
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Mine')
     expect(screen.queryByRole('list')).toBeNull()
+  })
+
+  it('shows the watched Parts in a group of their own, each with its note', () => {
+    render(
+      <PartCards
+        title="Mine"
+        parts={[GOAL]}
+        watched={[{ ...DECISION, note: 'Changed I7 Bakers want step videos' }]}
+      />,
+    )
+
+    const cards = (list: HTMLElement) =>
+      within(list)
+        .getAllByRole('link')
+        .map((card) => card.textContent)
+    const [mine, watched] = screen.getAllByRole('list')
+
+    expect(cards(mine)).toEqual([
+      'Flagged Goal G2 First bake feels easy To check First bake',
+    ])
+    expect(screen.getByRole('list', { name: 'Watched' })).toBe(watched)
+    expect(cards(watched)).toEqual([
+      'Not ready Decision D12 Show the video of the creator Changed I7 Bakers want step videos Review Technique videos',
+    ])
+  })
+
+  it('shows no watched group without a watched Part', () => {
+    render(<PartCards title="Mine" parts={[GOAL]} watched={[]} />)
+
+    expect(screen.queryByRole('list', { name: 'Watched' })).toBeNull()
+    expect(screen.getAllByRole('heading')).toHaveLength(1)
   })
 })

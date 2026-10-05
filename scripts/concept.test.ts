@@ -570,6 +570,55 @@ describe('runConcept', () => {
     ])
   })
 
+  it('adds a record with its owner, and lets a member watch a record and stop', async () => {
+    const project = ['--project', 'flexibeck']
+    // The accounts stay in the database of the file after the test above.
+    await client.exec(`
+      create schema if not exists neon_auth;
+      create table if not exists neon_auth."user" (id uuid primary key, name text not null, email text not null);
+      insert into neon_auth."user" (id, name, email) values
+        ('00000000-0000-0000-0000-000000000001', 'Ada', 'ada@example.com'),
+        ('00000000-0000-0000-0000-000000000002', 'Bo', 'bo@example.com')
+        on conflict do nothing;
+    `)
+    await run('member', 'add', 'ada@example.com', ...project)
+    await run('member', 'add', 'bo@example.com', ...project)
+
+    await run(
+      'add',
+      'insights',
+      '--title',
+      'Bakers start at three',
+      '--source',
+      'interview',
+      '--responsible',
+      'ada@example.com',
+      ...project,
+    )
+    await run('watch', 'I1', '--member', 'bo@example.com', ...project)
+    await run('watch', 'G1', '--member', 'bo@example.com', ...project)
+    await run('watch', 'G1', '--member', 'ada@example.com', ...project)
+    await run('unwatch', 'G1', '--member', 'bo@example.com', ...project)
+    vi.mocked(console.log).mockClear()
+    await run('member', 'list', ...project)
+    await run('watchers', ...project)
+    await run('watchers', 'I1', ...project)
+
+    expect(logged()).toEqual([
+      'Ada  ada@example.com  responsible: I1',
+      'Bo  bo@example.com',
+      'G1  Ada  ada@example.com',
+      'I1  Bo  bo@example.com',
+      'I1  Bo  bo@example.com',
+    ])
+  })
+
+  it('refuses a watch without a member', async () => {
+    await expect(run('watch', 'G1', '--project', 'flexibeck')).rejects.toThrow(
+      'watch needs <id> --member <e-mail>',
+    )
+  })
+
   it('refuses an assign without a member', async () => {
     await expect(run('assign', 'G1', '--project', 'flexibeck')).rejects.toThrow(
       'assign needs --responsible <e-mail> or --co-author <e-mail>',

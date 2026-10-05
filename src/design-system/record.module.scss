@@ -32,10 +32,17 @@ $text-width: $card-width * 2;
   gap: $spacing-03;
 }
 
-// The controls of the record: the edit button and the pin.
+// The controls of the record: the count of the watchers, the watch control,
+// the edit button and the pin.
 .controls {
   display: flex;
+  align-items: center;
   margin-inline-start: auto;
+}
+
+// The count of the watchers, before the watch control.
+.count {
+  padding-inline: $spacing-02;
 }
 
 .title {

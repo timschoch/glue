@@ -9,10 +9,13 @@ import {
   joinProject,
   listAssignments,
   listMembers,
+  listWatchers,
   loopStepsSchema,
   newAssignmentSchema,
   setLoopSteps,
   unassign,
+  unwatch,
+  watch,
 } from './members.ts'
 import type { People } from './members.ts'
 import { listSignals, signalInsightSchema } from './signals.ts'
@@ -41,6 +44,7 @@ import {
   listMine,
   listParts,
   listProjects,
+  listWatched,
 } from './parts.ts'
 import * as schema from './schema.ts'
 import { createSessionGuard, toFailure } from './session-actions.ts'
@@ -137,7 +141,7 @@ type ProjectInput = z.infer<typeof projectInputSchema>
 export type SignalInsightAddInput = z.input<typeof signalInsightAddInputSchema>
 export type ConceptReadInput = z.infer<typeof conceptReadInputSchema>
 type PartListInput = z.infer<typeof partListInputSchema>
-type PartReadInput = z.infer<typeof partReadInputSchema>
+export type PartReadInput = z.infer<typeof partReadInputSchema>
 type BuildsInput = z.infer<typeof buildsInputSchema>
 export type ConceptAddInput = z.infer<typeof conceptAddInputSchema>
 export type PartAddInput = z.infer<typeof partAddInputSchema>
@@ -194,8 +198,11 @@ export function createPartActions(request: ActionRequest) {
       removeConcept(db, project, concept).then(() => undefined, toFailure),
     ),
 
-    addPart: withMember((db, { project, part }: PartAddInput) =>
-      toOperations(db).addPart(project, part).then(toSavedPart, toFailure),
+    // The member who adds a Part is its owner, when the Part names no other.
+    addPart: withMember((db, { project, part }: PartAddInput, member) =>
+      toOperations(db)
+        .addPart(project, part, member.email)
+        .then(toSavedPart, toFailure),
     ),
 
     updatePart: withMember(
@@ -205,11 +212,17 @@ export function createPartActions(request: ActionRequest) {
           .then(toSavedPart, toFailure),
     ),
 
-    // An answer in words carries the name of the member.
+    // An answer in words carries the name of the member. Only the owner
+    // answers a flag.
     answerPart: withMember(
       (db, { project, recordId, answer }: AnswerInput, member) =>
         toOperations(db)
-          .answerPart(project, recordId, { ...answer, by: member.name })
+          .answerPart(
+            project,
+            recordId,
+            { ...answer, by: member.name },
+            member.email,
+          )
           .then(toSavedPart, toFailure),
     ),
 
@@ -223,6 +236,11 @@ export function createPartActions(request: ActionRequest) {
 
     listMine: withReader((db, { project }: ProjectInput, member) =>
       listMine(db, project, member?.email),
+    ),
+
+    // The watched group of Mine. A person who is no member watches nothing.
+    listWatched: withReader((db, { project }: ProjectInput, member) =>
+      member ? listWatched(db, project, member.email) : Promise.resolve([]),
     ),
 
     listMeasured: withReader((db, { project }: ProjectInput) =>
@@ -269,11 +287,12 @@ export function createPartActions(request: ActionRequest) {
 
     findPeople: withReader(
       async (db, { project }: ProjectInput, member): Promise<People> => {
-        const [members, assignments] = await Promise.all([
+        const [members, assignments, watchers] = await Promise.all([
           listMembers(db, project),
           listAssignments(db, project),
+          listWatchers(db, project),
         ])
-        return { members, assignments, me: member?.id ?? null }
+        return { members, assignments, watchers, me: member?.id ?? null }
       },
     ),
 
@@ -296,6 +315,21 @@ export function createPartActions(request: ActionRequest) {
 
     unassign: withMember((db, { project, assignment }: UnassignInput) =>
       unassign(db, project, assignment).then(() => undefined, toFailure),
+    ),
+
+    // The member of the session watches the Part, and stops.
+    watch: withMember((db, { project, recordId }: PartReadInput, member) =>
+      watch(db, project, { member: member.email, part: recordId }).then(
+        () => undefined,
+        toFailure,
+      ),
+    ),
+
+    unwatch: withMember((db, { project, recordId }: PartReadInput, member) =>
+      unwatch(db, project, { member: member.email, part: recordId }).then(
+        () => undefined,
+        toFailure,
+      ),
     ),
   }
 }
