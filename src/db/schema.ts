@@ -672,6 +672,41 @@ export const watchers = pgTable(
   ],
 )
 
+// An Ask (glue/D51): the Hunch `partId` asks the Project `projectId` to
+// check it. A member of that Project picks the Ask and hands back a
+// published Insight of the own Project. The Ask is done when the Hunch needs
+// that Insight. Nothing moves and nothing is copied.
+export const asks = pgTable(
+  'asks',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    // The Insight of the level Hunch that asks.
+    partId: integer('part_id')
+      .notNull()
+      .references(() => parts.id, { onDelete: 'cascade' }),
+    // The Project that is asked.
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id),
+    // The member of the asked Project who picked the Ask.
+    pickedById: integer('picked_by_id').references(() => members.id, {
+      onDelete: 'set null',
+    }),
+    // The Insight of the asked Project that was handed back.
+    handedBackPartId: integer('handed_back_part_id').references(
+      () => parts.id,
+      { onDelete: 'set null' },
+    ),
+    askedAt: timestamp('asked_at', { withTimezone: true }).notNull(),
+    pickedAt: timestamp('picked_at', { withTimezone: true }),
+    handedBackAt: timestamp('handed_back_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('asks_part_id_index').on(table.partId),
+    index('asks_project_id_index').on(table.projectId),
+  ],
+)
+
 export const gateResults = ['holds', 'breaks'] as const
 export type GateResult = (typeof gateResults)[number]
 
