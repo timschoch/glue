@@ -77,6 +77,32 @@ const groupOptions = {
   ...spacing,
 }
 
+// The room between the start of the frame and a node that is bigger than it.
+const START_ROOM = 24
+
+// Where the Map lies in its frame at the start, at its full size. A Map that
+// fits is in the middle. A bigger Map shows the node `id` in the middle, as far
+// as the edges of the Map allow, or the start of a node that does not fit.
+export function placeMapStart(
+  layout: MapLayout,
+  frame: { width: number; height: number },
+  id: string | undefined,
+): MapPoint {
+  const box = layout.boxes.find((found) => found.id === id)
+
+  function place(size: number, room: number, start = 0, length = 0) {
+    if (room >= size) return (room - size) / 2
+    const offset =
+      length > room ? START_ROOM - start : room / 2 - (start + length / 2)
+    return Math.min(0, Math.max(room - size, offset))
+  }
+
+  return {
+    x: place(layout.width, frame.width, box?.left, box?.width),
+    y: place(layout.height, frame.height, box?.top, box?.height),
+  }
+}
+
 const elk = new ELK()
 
 // Where a line crosses the border of a group, ELK is off by up to half a

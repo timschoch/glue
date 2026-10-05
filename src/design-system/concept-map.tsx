@@ -15,6 +15,9 @@ export type ConceptMapProps = {
   // The slugs of the Concepts that are open in place.
   expanded: ReadonlyArray<string>
   onExpandedChange: (expanded: Array<string>) => void
+  // What the panel beside the Map shows: the slug of a Concept or the record
+  // id of a Part.
+  current?: string
   partHref: (part: MapPart) => string
   conceptHref: (slug: string) => string
   // The address of another Project.

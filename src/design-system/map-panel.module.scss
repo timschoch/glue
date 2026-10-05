@@ -1,15 +1,29 @@
+@use '@carbon/react/scss/breakpoint' as *;
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
 
-// The panel has a fixed width. The Map takes the rest of the row.
+// The panel has a fixed width, up to half of the row. The Map takes the
+// rest. In a narrow window the panel lies over the Map.
 .panel {
   display: flex;
   flex: 0 0 $spacing-13 * 3;
   flex-direction: column;
   border-inline-start: 1px solid $border-subtle-01;
   gap: $spacing-05;
+  max-inline-size: 50%;
   min-inline-size: 0;
   padding-inline-start: $spacing-05;
+
+  @include breakpoint-down(lg) {
+    position: absolute;
+    z-index: 6;
+    overflow: auto;
+    border-inline-start: 0;
+    background-color: $background;
+    inset: 0;
+    max-inline-size: none;
+    padding-inline-start: 0;
+  }
 }
 
 .head {

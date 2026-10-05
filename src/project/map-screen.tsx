@@ -83,6 +83,7 @@ export function MapScreen({
       joints={joints}
       focus={focus}
       expanded={search.expanded ?? NONE}
+      current={search.panel}
       onExpandedChange={(expanded) =>
         void changeMap({
           expanded: expanded.length > 0 ? expanded : undefined,

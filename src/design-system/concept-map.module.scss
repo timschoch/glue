@@ -1,16 +1,41 @@
+@use '@carbon/react/scss/colors' as *;
 @use '@carbon/react/scss/motion' as *;
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
 @use '@carbon/react/scss/type' as *;
 @use '@carbon/react/scss/utilities/focus-outline' as *;
 
-// The Map takes the room that its panel leaves. It has the height of its
-// layout, up to the height of the window: a bigger Map shows smaller.
+// The Map takes the room that its panel leaves, and the height that is left
+// in the window. A bigger Map moves in this frame: it does not show smaller.
 .map {
   flex: 1 1 0;
-  max-block-size: calc(100vh - #{$spacing-13 * 2});
-  min-block-size: $spacing-13;
+  block-size: calc(100vh - var(--map-top) - #{$spacing-07});
+  min-block-size: $spacing-13 * 3;
   min-inline-size: 0;
+
+  // The zoom buttons of React Flow, in the look of the app.
+  :global(.react-flow) {
+    --xy-controls-button-background-color: #{$layer-01};
+    --xy-controls-button-background-color-hover: #{$layer-hover-01};
+    --xy-controls-button-color: #{$icon-primary};
+    --xy-controls-button-color-hover: #{$icon-primary};
+    --xy-controls-button-border-color: #{$border-subtle-01};
+    --xy-controls-box-shadow: none;
+  }
+
+  :global(.react-flow__controls-button):focus-visible {
+    @include focus-outline('outline');
+  }
+
+  // React Flow takes the pointer from a line that no click selects. The
+  // pointer on a line shows what the line glues.
+  :global(.react-flow__edge).edge {
+    pointer-events: visiblestroke;
+  }
+
+  :global(.react-flow__edge-interaction) {
+    pointer-events: stroke;
+  }
 }
 
 // What is not glued to the node or the line under the pointer or with the
@@ -56,21 +81,60 @@
   }
 }
 
+// The node that the panel shows: the blue bar at its start.
+.current::before {
+  position: absolute;
+  z-index: 1;
+  border-inline-start: 3px solid $border-interactive;
+  content: '';
+  inset-block: 0;
+  inset-inline-start: 0;
+  pointer-events: none;
+}
+
+.area.current::before {
+  block-size: $spacing-08;
+  inset-block-end: auto;
+}
+
+.node.current .tile,
+.area.current .head {
+  background-color: $layer-selected-01;
+}
+
 // The head of an open Concept: its name at the start, the button that opens
-// it in the panel at the end.
+// it in the panel at the end. A click on the name closes the Concept.
 .head {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   align-self: start;
-  justify-content: space-between;
   block-size: $spacing-08;
 }
 
 .headTitle {
   @include type-style('heading-compact-01');
 
+  display: flex;
+  flex: 1;
+  align-items: center;
   color: $text-primary;
+  min-inline-size: 0;
   padding-inline-start: $spacing-05;
+}
+
+.headToggle {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: start;
+
+  &:hover {
+    background-color: $layer-hover-01;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
 }
 
 // A closed Concept, and another Project: a surface with its name.
@@ -106,8 +170,9 @@
   visibility: hidden;
 }
 
-// One style for every line: one pixel wide, also on a Map that shows smaller.
-// The colour is the Trust of the needed Part.
+// One style for every line: one pixel wide at each zoom. The colour is the
+// Trust of the needed Part. No theme token for a warning has a contrast of
+// 3:1 on the page: the flagged line takes the yellow of the palette that has.
 .line {
   vector-effect: non-scaling-stroke;
 }
@@ -117,7 +182,7 @@
 }
 
 .line.flagged {
-  stroke: $support-warning;
+  stroke: $yellow-60;
 }
 
 .line.not-ready {
@@ -139,7 +204,7 @@
   }
 
   &.flagged {
-    fill: $support-warning;
+    fill: $yellow-60;
   }
 
   &.not-ready {
@@ -161,4 +226,9 @@
   background-color: $background;
   color: $text-secondary;
   padding-inline: $spacing-02;
+  pointer-events: all;
+
+  &:focus {
+    @include focus-outline('outline');
+  }
 }

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 
-import { layoutMapView } from './concept-map-elk.ts'
+import { layoutMapView, placeMapStart } from './concept-map-elk.ts'
 import type { MapNode, MapView } from './concept-map-layout.ts'
 
 function concept(
@@ -48,6 +48,51 @@ const VIEW: MapView = {
     },
   ],
 }
+
+describe('placeMapStart', () => {
+  const frame = { width: 1000, height: 600 }
+  const box = (left: number, width: number) => ({
+    id: 'concept:open',
+    x: left,
+    y: 50,
+    left,
+    top: 50,
+    width,
+    height: 64,
+  })
+  const wide = (left: number, width: number) => ({
+    width: 3000,
+    height: 200,
+    boxes: [box(left, width)],
+    routes: [],
+  })
+
+  it('puts a Map that fits its frame in the middle', () => {
+    expect(
+      placeMapStart(
+        { width: 400, height: 200, boxes: [], routes: [] },
+        frame,
+        undefined,
+      ),
+    ).toEqual({ x: 300, y: 200 })
+  })
+
+  it('puts the node in the middle of the frame when the Map is wider', () => {
+    expect(placeMapStart(wide(1400, 200), frame, 'concept:open')).toEqual({
+      x: -1000,
+      y: 200,
+    })
+  })
+
+  it('shows no room before the start and after the end of the Map', () => {
+    expect(placeMapStart(wide(0, 200), frame, 'concept:open').x).toBe(0)
+    expect(placeMapStart(wide(2800, 200), frame, 'concept:open').x).toBe(-2000)
+  })
+
+  it('shows the start of a node that is wider than the frame', () => {
+    expect(placeMapStart(wide(500, 1500), frame, 'concept:open').x).toBe(-476)
+  })
+})
 
 describe('layoutMapView', () => {
   it('puts the columns in their order from left to right', async () => {

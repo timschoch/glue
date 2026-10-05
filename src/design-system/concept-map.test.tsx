@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import type { SyntheticEvent } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -179,14 +187,14 @@ describe('ConceptMap, the Map of a Project', () => {
   it('opens an open Concept in the panel with the icon button of its head', async () => {
     const { onOpenConcept } = await renderMap({ expanded: ['part-model'] })
 
-    await userEvent.click(button('Open Part model'))
+    await userEvent.click(button('Show Part model in the panel'))
 
     expect(onOpenConcept).toHaveBeenLastCalledWith(
       'part-model',
       expect.anything(),
     )
 
-    button('Open Part model').focus()
+    button('Show Part model in the panel').focus()
     await userEvent.keyboard('{Enter}')
 
     expect(onOpenConcept).toHaveBeenCalledTimes(2)
@@ -210,15 +218,99 @@ describe('ConceptMap, the Map of a Project', () => {
     )
   })
 
-  it('draws one line per bundle of Joints, with the count and the worst Trust', async () => {
+  it('draws one line per bundle of Joints, named with the count and the worst Trust', async () => {
     await renderMap()
 
-    const bundle = line('Build run needs Part model: 2 Joints')
+    line('Part model needs Glue: 1 Joint, solid')
+    expect(
+      line('Build run needs Part model: 2 Joints, flagged').textContent,
+    ).toBe('2')
+  })
 
-    line('Part model needs Glue: 1 Joint')
-    expect(screen.getByText('2').textContent).toBe('2')
-    expect(bundle.querySelector(`.${styles.flagged}`)).not.toBeNull()
-    expect(bundle.querySelector(`.${styles.solid}`)).toBeNull()
+  it('takes the focus on the nodes first and on the lines after them', async () => {
+    await renderMap()
+
+    const bundle = line('Build run needs Part model: 2 Joints, flagged')
+
+    expect(bundle.tabIndex).toBe(0)
+    expect(
+      link(/^People/).compareDocumentPosition(bundle) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('marks the node that the panel shows as current: a closed Concept, a Part or an open Concept', async () => {
+    await renderMap({ expanded: ['build-run'], current: 'merge-gate' })
+
+    expect(link(/^Merge gate/).getAttribute('aria-current')).toBe('true')
+    expect(link(/^Verify/).getAttribute('aria-current')).toBeNull()
+
+    cleanup()
+    await renderMap({ expanded: ['part-model'], current: 'D1' })
+
+    expect(card('D1').getAttribute('aria-current')).toBe('true')
+    expect(card('E1').getAttribute('aria-current')).toBeNull()
+
+    cleanup()
+    await renderMap({ expanded: ['part-model'], current: 'part-model' })
+
+    expect(
+      screen
+        .getByRole('button', { name: 'Part model', expanded: true })
+        .getAttribute('aria-current'),
+    ).toBe('true')
+  })
+
+  it('has the buttons that make the Map bigger and smaller', async () => {
+    await renderMap()
+
+    button('Zoom In')
+    button('Zoom Out')
+  })
+})
+
+describe('ConceptMap, the focus after a key', () => {
+  function OpenableMap() {
+    const [expanded, setExpanded] = useState<Array<string>>([])
+    return (
+      <ConceptMap
+        tree={TREE}
+        parts={[G1, D1, E1, D2]}
+        joints={JOINTS}
+        focus="glue"
+        expanded={expanded}
+        onExpandedChange={setExpanded}
+        partHref={({ id }) => `/glue/${id}`}
+        conceptHref={(slug) => `/glue/${slug}`}
+        projectHref={(slug) => `/${slug}`}
+      />
+    )
+  }
+
+  it('is on the head of the Concept that Enter opened, and on the Concept that Enter closed', async () => {
+    render(<OpenableMap />)
+    const closed = await screen.findByRole(
+      'button',
+      { name: /^Build run/, expanded: false },
+      { timeout: 20_000 },
+    )
+
+    closed.focus()
+    await userEvent.keyboard('{Enter}')
+    const head = await screen.findByRole('button', {
+      name: 'Build run',
+      expanded: true,
+    })
+
+    await waitFor(() => expect(document.activeElement).toBe(head))
+
+    await userEvent.keyboard('{Enter}')
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: /^Build run/, expanded: false }),
+      ),
+    )
   })
 })
 
@@ -240,7 +332,7 @@ describe('ConceptMap, the Map of a Concept', () => {
     await screen.findByRole('link', { name: / D1 / }, { timeout: 20_000 })
 
     card('E1')
-    button('Open Part model')
+    button('Show Part model in the panel')
     expect(screen.queryByRole('button', { name: 'Part model' })).toBeNull()
     expect(button(/^Glue/).getAttribute('aria-expanded')).toBe('false')
     expect(button(/^Build run/).getAttribute('aria-expanded')).toBe('false')
@@ -257,10 +349,12 @@ describe('ConceptMap, the pointer and the focus', () => {
 
     expect(isDimmed(button(/^Glue/))).toBe(false)
     expect(isDimmed(button(/^Part model/))).toBe(false)
-    expect(isDimmed(line('Part model needs Glue: 1 Joint'))).toBe(false)
+    expect(isDimmed(line('Part model needs Glue: 1 Joint, solid'))).toBe(false)
     expect(isDimmed(button(/^Build run/))).toBe(true)
     expect(isDimmed(link(/^People/))).toBe(true)
-    expect(isDimmed(line('Build run needs Part model: 2 Joints'))).toBe(true)
+    expect(
+      isDimmed(line('Build run needs Part model: 2 Joints, flagged')),
+    ).toBe(true)
     expect(isDimmed(screen.getByText('2'))).toBe(true)
 
     fireEvent.mouseLeave(button(/^Glue/))
@@ -294,7 +388,7 @@ describe('ConceptMap, the pointer and the focus', () => {
   it('keeps what is glued to the line under the pointer', async () => {
     await renderMap()
 
-    fireEvent.mouseEnter(line('Part model needs Glue: 1 Joint'))
+    fireEvent.mouseEnter(line('Part model needs Glue: 1 Joint, solid'))
 
     expect(isDimmed(button(/^Glue/))).toBe(false)
     expect(isDimmed(button(/^Part model/))).toBe(false)
@@ -309,12 +403,12 @@ describe('ConceptMap, the pointer and the focus', () => {
 
     expect(isDimmed(button(/^Build run/))).toBe(true)
 
-    act(() => line('Build run needs Part model: 2 Joints').focus())
+    act(() => line('Build run needs Part model: 2 Joints, flagged').focus())
 
     expect(isDimmed(button(/^Glue/))).toBe(true)
     expect(isDimmed(button(/^Build run/))).toBe(false)
 
-    act(() => line('Build run needs Part model: 2 Joints').blur())
+    act(() => line('Build run needs Part model: 2 Joints, flagged').blur())
     act(() => void vi.advanceTimersByTime(250))
 
     expect(isDimmed(button(/^Glue/))).toBe(false)
