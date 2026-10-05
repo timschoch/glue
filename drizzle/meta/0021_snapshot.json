@@ -1,6 +1,6 @@
 {
   "id": "252e209b-eac6-4c8d-ae5a-fb705d650898",
-  "prevId": "7b5ec619-bfbe-4b85-a1c6-525d0228004c",
+  "prevId": "914078a5-7546-4952-b47f-6ef6cf9b3165",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -715,7 +715,7 @@
       "checkConstraints": {
         "flags_reason_check": {
           "name": "flags_reason_check",
-          "value": "\"flags\".\"reason\" in ('changed', 'not-ready', 'wrong', 'off-target')"
+          "value": "\"flags\".\"reason\" in ('changed', 'not-ready', 'wrong', 'off-target', 'new-version')"
         }
       },
       "isRLSEnabled": false
@@ -1080,6 +1080,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "contract_version": {
+          "name": "contract_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
