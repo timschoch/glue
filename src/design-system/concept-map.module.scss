@@ -1,71 +1,234 @@
+@use '@carbon/react/scss/colors' as *;
+@use '@carbon/react/scss/motion' as *;
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
 @use '@carbon/react/scss/type' as *;
+@use '@carbon/react/scss/utilities/focus-outline' as *;
 
-// A map that is wider than the window scrolls in its own box.
+// The Map takes the room that its panel leaves, and the height that is left
+// in the window. A bigger Map moves in this frame: it does not show smaller.
 .map {
-  overflow-x: auto;
+  flex: 1 1 0;
+  block-size: calc(100vh - var(--map-top) - #{$spacing-07});
+  min-block-size: $spacing-13 * 3;
+  min-inline-size: 0;
+
+  // The zoom buttons of React Flow, in the look of the app.
+  :global(.react-flow) {
+    --xy-controls-button-background-color: #{$layer-01};
+    --xy-controls-button-background-color-hover: #{$layer-hover-01};
+    --xy-controls-button-color: #{$icon-primary};
+    --xy-controls-button-color-hover: #{$icon-primary};
+    --xy-controls-button-border-color: #{$border-subtle-01};
+    --xy-controls-box-shadow: none;
+  }
+
+  :global(.react-flow__controls-button):focus-visible {
+    @include focus-outline('outline');
+  }
+
+  // React Flow takes the pointer from a line that no click selects. The
+  // pointer on a line shows what the line glues.
+  :global(.react-flow__edge).edge {
+    pointer-events: visiblestroke;
+  }
+
+  :global(.react-flow__edge-interaction) {
+    pointer-events: stroke;
+  }
 }
 
-// The plan has the size of the layout. The lines and the nodes lie on it.
-.plan {
-  position: relative;
+// What is not glued to the node or the line under the pointer or with the
+// focus.
+.node,
+.area,
+.pill {
+  @media (prefers-reduced-motion: no-preference) {
+    transition: opacity $duration-fast-02 motion(standard, productive);
+  }
 }
 
-.lines {
-  position: absolute;
-  block-size: 100%;
-  inline-size: 100%;
-  inset: 0;
-}
+.dimmed {
+  opacity: 0.25;
 
-// One style for every Joint. The stroke does not grow with the drawing, so
-// its width of 1 is one pixel.
-.line {
-  fill: none;
-  stroke: $border-strong-01;
-  vector-effect: non-scaling-stroke;
+  @media (prefers-reduced-motion: no-preference) {
+    transition: opacity $duration-fast-02 motion(standard, productive);
+  }
 }
 
 // A node has the size of the layout, and its content fills it.
-.node {
-  position: absolute;
+.body {
   display: grid;
+  block-size: 100%;
+  inline-size: 100%;
 }
 
-// An empty slot: the dashed border says missing. It holds its one button, at
-// the start edge.
-.emptySlot {
+.node .body {
+  overflow: hidden;
+}
+
+// An open Concept: the ground of its nodes.
+.area {
+  border: 1px solid $border-strong-01;
+  background-color: $background;
+}
+
+// A Concept outside the open one, and another Project.
+.outside {
+  .tile,
+  &.area {
+    background-color: $layer-accent-01;
+  }
+}
+
+// The node that the panel shows: the blue bar at its start.
+.current::before {
+  position: absolute;
+  z-index: 1;
+  border-inline-start: 3px solid $border-interactive;
+  content: '';
+  inset-block: 0;
+  inset-inline-start: 0;
+  pointer-events: none;
+}
+
+.area.current::before {
+  block-size: $spacing-08;
+  inset-block-end: auto;
+}
+
+.node.current .tile,
+.area.current .head {
+  background-color: $layer-selected-01;
+}
+
+// The head of an open Concept: its name at the start, the button that opens
+// it in the panel at the end. A click on the name closes the Concept.
+.head {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  border: 1px dashed $border-strong-01;
+  align-items: stretch;
+  align-self: start;
+  block-size: $spacing-08;
 }
 
-// The type of an empty slot that has no button: it takes the room of the button.
-.slotType {
-  @include type-style('label-01');
-
-  padding: $spacing-03 $spacing-05;
-  color: $text-secondary;
-}
-
-// A Concept inside: a surface with its name.
-.surface {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-03;
-}
-
-.conceptTitle {
+.headTitle {
   @include type-style('heading-compact-01');
 
+  display: flex;
+  flex: 1;
+  align-items: center;
   color: $text-primary;
-  overflow-wrap: anywhere;
+  min-inline-size: 0;
+  padding-inline-start: $spacing-05;
 }
 
-.label {
+.headToggle {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: start;
+
+  &:hover {
+    background-color: $layer-hover-01;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
+}
+
+// A closed Concept, and another Project: a surface with its name.
+.tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: $spacing-03 $spacing-05;
+  border: 0;
+  background-color: $layer-01;
+  color: $text-primary;
+  cursor: pointer;
+  gap: $spacing-02;
+  text-align: start;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $layer-hover-01;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
+}
+
+.title {
+  @include type-style('heading-compact-01');
+}
+
+// React Flow needs the two handles of a node to draw its lines. They do
+// nothing here.
+.handle {
+  visibility: hidden;
+}
+
+// One style for every line: one pixel wide at each zoom. The colour is the
+// Trust of the needed Part. No theme token for a warning has a contrast of
+// 3:1 on the page: the flagged line takes the yellow of the palette that has.
+.line {
+  vector-effect: non-scaling-stroke;
+}
+
+.line.solid {
+  stroke: $support-success;
+}
+
+.line.flagged {
+  stroke: $yellow-60;
+}
+
+.line.not-ready {
+  stroke: $support-error;
+}
+
+.line.wrong {
+  stroke: $icon-primary;
+}
+
+// A line that crosses the edge of the Project.
+.line.dashed {
+  stroke-dasharray: 4 3;
+}
+
+.arrow {
+  &.solid {
+    fill: $support-success;
+  }
+
+  &.flagged {
+    fill: $yellow-60;
+  }
+
+  &.not-ready {
+    fill: $support-error;
+  }
+
+  &.wrong {
+    fill: $icon-primary;
+  }
+}
+
+// The count of the Joints of a line, on the line.
+.pill {
   @include type-style('label-01');
 
+  position: absolute;
+  // Over the lines: React Flow lifts a line to a node in an open Concept.
+  z-index: 2;
+  background-color: $background;
   color: $text-secondary;
+  padding-inline: $spacing-02;
+  pointer-events: all;
+
+  &:focus {
+    @include focus-outline('outline');
+  }
 }

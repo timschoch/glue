@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
+import { ConceptMap } from './concept-map.tsx'
 import { ConceptView } from './concept-view.tsx'
 import type { ConceptViewPart, ConceptViewProps } from './concept-view.tsx'
 import styles from './concept-view.stories.module.scss'
@@ -140,20 +141,34 @@ export const WithConcepts: Story = {
 // The map in place of the list.
 export const MapView: Story = {
   args: {
-    concept: {
-      ...concept,
-      joints: [
-        { id: 1, part: 'D12', needs: 'G2', twoWay: false },
-        { id: 2, part: 'D12', needs: 'I7', twoWay: false },
-        { id: 3, part: 'D13', needs: 'I9', twoWay: false },
-        { id: 4, part: 'D13', needs: 'I21', twoWay: false },
-        { id: 5, part: 'F5', needs: 'D12', twoWay: false },
-        { id: 6, part: 'E3', needs: 'D12', twoWay: false },
-        { id: 7, part: 'R4', needs: 'D13', twoWay: false },
-        { id: 8, part: 'M1', needs: 'G2', twoWay: false },
-      ],
-    },
     view: 'map',
+    map: (
+      <ConceptMap
+        tree={{
+          slug: 'bake',
+          title: 'Bake',
+          concepts: [
+            { slug: concept.slug, title: concept.title, concepts: [] },
+          ],
+        }}
+        parts={concept.parts}
+        joints={[
+          { id: 1, part: 'D12', needs: 'G2', trust: 'solid' },
+          { id: 2, part: 'D12', needs: 'I7', trust: 'solid' },
+          { id: 3, part: 'D13', needs: 'I9', trust: 'flagged' },
+          { id: 4, part: 'F5', needs: 'D12', trust: 'solid' },
+          { id: 5, part: 'E3', needs: 'D12', trust: 'solid' },
+          { id: 6, part: 'R4', needs: 'D13', trust: 'not-ready' },
+          { id: 7, part: 'M1', needs: 'G2', trust: 'solid' },
+        ]}
+        focus={concept.slug}
+        expanded={[]}
+        onExpandedChange={() => {}}
+        partHref={() => '#'}
+        conceptHref={() => '#'}
+        projectHref={() => '#'}
+      />
+    ),
     onViewChange: () => {},
   },
 }

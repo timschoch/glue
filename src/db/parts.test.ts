@@ -4,6 +4,7 @@ import {
   findConcept,
   findPart,
   findProject,
+  listMapJoints,
   listMeasured,
   listParts,
   listProjects,
@@ -554,5 +555,43 @@ describe('listMeasured', () => {
 
   it('leaves out a Goal without a measure', async () => {
     expect(await listMeasured(db, 'flexibeck')).toEqual([])
+  })
+})
+
+describe('listMapJoints', () => {
+  // D1 of glue needs the G1 of flexibeck too. The G1 of glue is wrong.
+  beforeEach(async () => {
+    await client.exec(`
+      insert into joints (part_id, needed_part_id, two_way) values (3, 8, false);
+      update parts set trust = 'wrong' where id = 1;
+    `)
+  })
+
+  it('returns each Joint of the Project with the Trust of the Part that it needs', async () => {
+    expect(await listMapJoints(db, 'glue')).toEqual([
+      { id: 1, part: 'D1', needs: 'G1', trust: 'wrong' },
+      { id: 2, part: 'D1', needs: 'I1', trust: 'not-ready' },
+      { id: 3, part: 'E1', needs: 'F1', trust: 'not-ready' },
+      { id: 4, part: 'F1', needs: 'D1', trust: 'not-ready' },
+      {
+        id: 5,
+        part: 'D1',
+        needs: 'G1',
+        trust: 'not-ready',
+        reference: { end: 'needs', slug: 'flexibeck', name: 'flexibeck' },
+      },
+    ])
+  })
+
+  it('names the other Project at the end of a reference that is not of the Project', async () => {
+    expect(await listMapJoints(db, 'flexibeck')).toEqual([
+      {
+        id: 5,
+        part: 'D1',
+        needs: 'G1',
+        trust: 'not-ready',
+        reference: { end: 'part', slug: 'glue', name: 'Glue' },
+      },
+    ])
   })
 })

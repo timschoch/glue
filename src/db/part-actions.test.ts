@@ -114,6 +114,7 @@ const requests = {
     }),
   listMine: () => actions.listMine({ project }),
   listMeasured: () => actions.listMeasured({ project }),
+  listMapJoints: () => actions.listMapJoints({ project }),
   listSignals: () => actions.listSignals({ project }),
   listBuilds: () => actions.listBuilds({ project }),
   addSignalInsight: () =>

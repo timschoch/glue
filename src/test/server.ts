@@ -36,6 +36,7 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
     fetchMine: vi.fn(() => Promise.resolve([])),
     fetchWatched: vi.fn(() => Promise.resolve([])),
     fetchMeasured: vi.fn(() => Promise.resolve([])),
+    fetchMapJoints: vi.fn(() => Promise.resolve([])),
     fetchPart: vi.fn((part) => Promise.resolve(findPart(part))),
     fetchSignals: vi.fn(() => Promise.resolve({ signals: [], reason: null })),
     fetchBuilds: vi.fn(() => Promise.resolve({ builds: [], reason: null })),

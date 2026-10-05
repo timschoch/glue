@@ -43,6 +43,23 @@ describe('the search parameters of a Project', () => {
     expect(parseProjectSearch(search)).toEqual(search)
   })
 
+  it('reads the open areas of the Map, each one once', () => {
+    expect(
+      parseProjectSearch({ expanded: ['build-run', 'people', 'build-run'] }),
+    ).toEqual({ expanded: ['build-run', 'people'] })
+    expect(parseProjectSearch({ expanded: [] })).toEqual({})
+    expect(parseProjectSearch({ expanded: ['Build run', 7] })).toEqual({})
+  })
+
+  it('reads the record or the Concept of the panel', () => {
+    expect(parseProjectSearch({ panel: 'D12' })).toEqual({ panel: 'D12' })
+    expect(parseProjectSearch({ panel: 'merge-gate' })).toEqual({
+      panel: 'merge-gate',
+    })
+    expect(parseProjectSearch({ panel: 'Merge gate' })).toEqual({})
+    expect(parseProjectSearch({ panel: 12 })).toEqual({})
+  })
+
   it('reads the map view from the address, and drops another view', () => {
     expect(parseProjectSearch({ view: 'map' })).toEqual({ view: 'map' })
     expect(parseProjectSearch({ view: 'list' })).toEqual({})

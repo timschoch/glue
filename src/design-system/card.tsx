@@ -89,6 +89,8 @@ export type CardProps = {
   concept?: string
   // The minimal card: the sign, the type line and the title.
   minimal?: boolean
+  // The panel beside the view shows the record of the card.
+  current?: boolean
   href: string
   // -1 on a card that repeats a link beside it.
   tabIndex?: number
@@ -115,6 +117,7 @@ export function Card({
   owner,
   concept,
   minimal = false,
+  current = false,
   href,
   tabIndex,
   onOpen,
@@ -132,6 +135,7 @@ export function Card({
       <a
         href={href}
         tabIndex={tabIndex}
+        aria-current={current || undefined}
         onClick={onOpen}
         className={action ? `${styles.target} ${room}` : styles.target}
       >
