@@ -4,6 +4,8 @@ import { z } from 'zod'
 
 import { createDb } from '../src/db/client.ts'
 import type { ConceptDb } from '../src/db/client.ts'
+import { addAsk, handBackAsk, listMineAsks, pickAsk } from '../src/db/asks.ts'
+import type { Ask } from '../src/db/asks.ts'
 import { listBuilds } from '../src/db/builds.ts'
 import { findContract, signContract } from '../src/db/contracts.ts'
 import type { FrozenPart } from '../src/db/contracts.ts'
@@ -145,6 +147,7 @@ const KNOWN_FIELDS = new Set([
   'to_project',
   'references',
   'pr',
+  'insight',
 ])
 
 type Flags = Record<string, string | string[] | GoalMeasure | undefined>
@@ -518,6 +521,9 @@ function formatHelp() {
     'pnpm concept builds',
     'pnpm concept gate --pr <number> [--project <slug>]',
     'pnpm concept mine [--member <e-mail>]',
+    'pnpm concept ask <id> --to-project <slug>',
+    'pnpm concept ask pick <ask> --member <e-mail>',
+    'pnpm concept ask hand-back <ask> --insight <id>',
     'pnpm concept member add <e-mail>',
     'pnpm concept member list',
     'pnpm concept assign <id or Concept slug> --responsible <e-mail>',
@@ -539,7 +545,7 @@ function formatHelp() {
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set, move, downstream, answer, mine, signals, builds, member, assign, watch, unwatch, watchers, concept, contract and joint take --project <slug>. The default is GLUE_PROJECT, then glue-build when that Project exists, then glue.',
+    'list, show, add, set, move, downstream, answer, mine, ask, signals, builds, member, assign, watch, unwatch, watchers, concept, contract and joint take --project <slug>. The default is GLUE_PROJECT, then glue-build when that Project exists, then glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -578,6 +584,9 @@ function formatHelp() {
     'contract sign freezes the records of a Concept as its next Contract Version. Each record needs Trust solid.',
     'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
     'mine with --member: the records of the member, and the records that nobody has.',
+    'ask asks another Project to check an Insight of the level hunch. The Project must be one that this Project may reference. It prints the number of the Ask.',
+    'ask pick and ask hand-back take the Project that is asked as --project. hand-back names a published Insight of that Project.',
+    'mine lists the open Asks too: pick and hand-back in the Project that is asked, check in the Project that asked. joint add <id> <project>/<id> glues the Insight to the Hunch: the Ask is done.',
     'list with --member: each record with its flight level for the member. operational: the record is of a loop step of the member, or the member is Responsible or Co-Author of the record or of its Concept. strategic: each other record.',
     'member add takes the e-mail address of an account. A record or a Concept has one Responsible.',
     'The Responsible of a record is its owner: assign <id> --responsible sets the owner.',
@@ -664,8 +673,14 @@ export async function runConcept(
       for (const part of await listMine(db, product, member)) {
         console.log(formatRow(part))
       }
+      for (const ask of await listMineAsks(db, product, member)) {
+        console.log(formatAsk(ask))
+      }
       return
     }
+    case 'ask':
+      await handleAskCommand(db, rest)
+      return
     case 'answer': {
       const [id, answer, ...flagArgs] = rest
       // A flag in the place of the answer: the answer to a question.
@@ -1088,6 +1103,47 @@ async function handleMemberCommand(
     }
     default:
       throw new Error(`unknown member command "${command}"`)
+  }
+}
+
+function formatAsk({ id, step, hunch, insight }: Ask) {
+  return [
+    `Ask ${id}`,
+    step,
+    `${hunch.project.slug}/${hunch.id}`,
+    hunch.title,
+    ...(insight ? [`${insight.project.slug}/${insight.id}`] : []),
+  ].join('  ')
+}
+
+// `ask <id> --to-project <slug>` asks another Project to check a Hunch.
+// `ask pick` and `ask hand-back` are the steps of the Project that is asked.
+async function handleAskCommand(db: ConceptDb, [first, ...rest]: string[]) {
+  const flags = parseFlags(rest)
+  const project = await readProject(db, flags)
+  const askId = Number(rest[0])
+  switch (first) {
+    case 'pick': {
+      const member = flags.member as string | undefined
+      if (!Number.isInteger(askId) || !member)
+        throw new Error('ask pick needs <ask> --member <e-mail>')
+      await pickAsk(db, project, askId, member)
+      return
+    }
+    case 'hand-back': {
+      const insight = flags.insight as string | undefined
+      if (!Number.isInteger(askId) || !insight)
+        throw new Error('ask hand-back needs <ask> --insight <id>')
+      await handBackAsk(db, project, askId, insight)
+      return
+    }
+    default: {
+      const toProject = flags.to_project as string | undefined
+      if (!first || first.startsWith('--') || !toProject)
+        throw new Error('ask needs <id> --to-project <slug>')
+      const id = await addAsk(db, project, { insight: first, toProject })
+      console.log(`Ask ${id}`)
+    }
   }
 }
 

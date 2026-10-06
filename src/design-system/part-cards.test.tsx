@@ -27,6 +27,19 @@ const DECISION: PartCardsPart = {
   href: '#D12',
 }
 
+// A Hunch of the Project Bakeday, as the Project that is asked sees it.
+const HUNCH = {
+  id: 'I7',
+  type: 'insight',
+  title: 'Novices skip the fold',
+  trust: 'solid',
+  concept: 'Bakeday',
+  href: '/bakeday/bakeday/I7',
+} as const
+
+// jsdom has no layout, Carbon's dropdown scrolls to the highlighted item.
+Element.prototype.scrollIntoView = () => {}
+
 afterEach(cleanup)
 
 describe('PartCards', () => {
@@ -83,6 +96,94 @@ describe('PartCards', () => {
     expect(cards(watched)).toEqual([
       'Not ready Decision D12 Show the video of the creator Changed: I7 Bakers want step videos Review Technique videos',
     ])
+  })
+
+  it('shows the Asks in a group of their own, each with its one step', async () => {
+    const onClick = vi.fn()
+    render(
+      <PartCards
+        title="Mine"
+        parts={[GOAL]}
+        asks={[{ id: 1, part: HUNCH, action: { label: 'Pick', onClick } }]}
+      />,
+    )
+
+    const [asks, mine] = screen.getAllByRole('list')
+
+    expect(screen.getByRole('list', { name: 'Asks' })).toBe(asks)
+    expect(
+      within(asks)
+        .getAllByRole('link')
+        .map((card) => [card.textContent, card.getAttribute('href')]),
+    ).toEqual([
+      ['Solid Insight I7 Novices skip the fold Bakeday', '/bakeday/bakeday/I7'],
+    ])
+    expect(within(mine).getAllByRole('link')).toHaveLength(1)
+
+    await userEvent.click(within(asks).getByRole('button', { name: 'Pick' }))
+
+    expect(onClick).toHaveBeenCalledOnce()
+  })
+
+  it('asks for the Part of a step that needs one, and gives its record id', async () => {
+    const onPick = vi.fn()
+    render(
+      <PartCards
+        title="Mine"
+        parts={[]}
+        asks={[
+          {
+            id: 1,
+            part: HUNCH,
+            action: {
+              label: 'Hand back',
+              pick: {
+                label: 'Insight',
+                parts: [{ ...HUNCH, id: 'I2', title: 'Novices read step one' }],
+                onPick,
+              },
+            },
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.queryByRole('combobox')).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hand back' }))
+    await userEvent.click(screen.getByRole('combobox', { name: 'Insight' }))
+    await userEvent.click(
+      screen.getByRole('option', { name: 'I2 Novices read step one' }),
+    )
+
+    expect(onPick).toHaveBeenCalledExactlyOnceWith('I2')
+    expect(screen.queryByRole('combobox')).toBeNull()
+  })
+
+  it('shows the step that runs, and why the last one failed', () => {
+    const ask = {
+      id: 1,
+      part: HUNCH,
+      action: { label: 'Pick', onClick: () => {} },
+    }
+    const { rerender } = render(
+      <PartCards title="Mine" parts={[]} asks={[ask]} pending="Saving" />,
+    )
+
+    screen.getByText('Saving')
+
+    rerender(
+      <PartCards
+        title="Mine"
+        parts={[]}
+        asks={[ask]}
+        error="Fred picked Ask 1 already"
+      />,
+    )
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Fred picked Ask 1 already',
+    )
   })
 
   it('shows no watched group without a watched Part', () => {

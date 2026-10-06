@@ -23,6 +23,7 @@ export type ApiRequest = {
     recordId?: string
     concept?: string
     jointId?: string
+    askId?: string
   }
 }
 

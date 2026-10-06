@@ -85,6 +85,13 @@ export function createRouterContext(
       keepSignInTarget(server.fetchMapJoints(project), `/${project}`),
     fetchPeople: (project) =>
       keepSignInTarget(server.fetchPeople(project), `/${project}`),
+    fetchMineAsks: (project) =>
+      keepSignInTarget(server.fetchMineAsks(project), `/${project}`),
+    fetchAskState: (part) =>
+      keepSignInTarget(
+        server.fetchAskState(part),
+        `/${part.project}/${UNKNOWN_CONCEPT}/${part.recordId}`,
+      ),
     fetchConcept: (concept) =>
       keepSignInTarget(server.fetchConcept(concept), conceptPath(concept)),
     fetchContractState: (concept) =>

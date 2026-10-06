@@ -5,6 +5,12 @@ import { createDocument } from 'zod-openapi'
 
 import { errorSchema } from './api-request.ts'
 import {
+  addedAskSchema,
+  askInputSchema,
+  askSchema,
+  askStepInputSchema,
+} from './ask-api.ts'
+import {
   validatedBuildSchema,
   gateSchema,
   projectBuildsSchema,
@@ -413,6 +419,62 @@ function listPartPaths() {
         },
         responses: {
           204: { description: 'The Joint is gone' },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/asks`]: {
+      get: {
+        operationId: 'listAsks',
+        summary:
+          'List the Asks in Mine of the Project: the ones to pick or to hand back, and the ones with an Insight to check',
+        requestParams: {
+          path,
+          query: z.object({
+            member: z.string().optional().meta({
+              description:
+                'The e-mail address of a member: only the Asks that nobody picked, the ones that the member picked, and the ones of the Hunches that the member has',
+            }),
+          }),
+        },
+        responses: {
+          200: {
+            description: 'The open Asks, the oldest first',
+            ...jsonContent(z.array(askSchema)),
+          },
+          ...readErrorResponses,
+        },
+      },
+      post: {
+        operationId: 'addAsk',
+        summary:
+          'Ask another Project to check a Hunch. The Project must be one that this Project may reference',
+        requestParams: { path },
+        requestBody: jsonContent(askInputSchema),
+        responses: {
+          201: {
+            description: 'The id of the new Ask',
+            ...jsonContent(addedAskSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/asks/{askId}`]: {
+      patch: {
+        operationId: 'updateAsk',
+        summary:
+          'Take the next step of an Ask as the asked Project: pick it, or hand back a published Insight',
+        requestParams: {
+          path: path.extend({
+            askId: z.string().meta({ description: 'The id of the Ask' }),
+          }),
+        },
+        requestBody: jsonContent(askStepInputSchema),
+        responses: {
+          204: { description: 'The Ask is at its next step' },
           400: errorResponses[400],
           ...readErrorResponses,
         },

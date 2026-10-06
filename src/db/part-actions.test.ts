@@ -4,7 +4,8 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Session } from '../authentication/session.ts'
 import type { GithubClient } from '../github/client.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
-import { setProductRepository } from './projects.ts'
+import { addAsk } from './asks.ts'
+import { addProjectReference, setProductRepository } from './projects.ts'
 import {
   answerInputSchema,
   createPartActions,
@@ -143,6 +144,12 @@ const requests = {
   watch: () => actions.watch({ project, recordId: 'G1' }),
   unwatch: () => actions.unwatch({ project, recordId: 'G1' }),
   listWatched: () => actions.listWatched({ project }),
+  listMineAsks: () => actions.listMineAsks({ project }),
+  findAskState: () => actions.findAskState({ project, recordId: 'I1' }),
+  addAsk: () =>
+    actions.addAsk({ project, ask: { insight: 'I1', toProject: 'ux' } }),
+  pickAsk: () => actions.pickAsk({ project, askId: 1 }),
+  handBackAsk: () => actions.handBackAsk({ project, askId: 1, insight: 'I1' }),
 } satisfies Record<keyof typeof actions, () => Promise<unknown>>
 
 async function readProject() {
@@ -687,6 +694,44 @@ describe('a server function of the Part model with a session', () => {
   })
 })
 
+describe('an Ask to another Project', () => {
+  beforeEach(signIn)
+
+  it('is picked by the member of the session', async () => {
+    await addProject(db, 'ux', 'UX team')
+    await addProjectReference(db, 'ux', project)
+    await addPart(db, 'ux', {
+      type: 'insight',
+      title: 'Lists feel slow',
+      source: 'study',
+    })
+    await addAsk(db, 'ux', { insight: 'I1', toProject: project })
+
+    expect(await actions.listMineAsks({ project })).toMatchObject([
+      { id: 1, step: 'pick' },
+    ])
+    expect(await actions.pickAsk({ project, askId: 1 })).toBeUndefined()
+    expect(await actions.listMineAsks({ project })).toMatchObject([
+      { id: 1, step: 'hand-back', pickedBy: { email: 'ada@example.com' } },
+    ])
+    expect(
+      await actions.findAskState({ project: 'ux', recordId: 'I1' }),
+    ).toMatchObject({
+      ask: { id: 1 },
+      projects: [{ slug: 'flexibeck', name: 'flexibeck' }],
+    })
+  })
+
+  it('answers a rule that it breaks as a failure', async () => {
+    expect(
+      await actions.addAsk({
+        project,
+        ask: { insight: 'I1', toProject: project },
+      }),
+    ).toEqual({ message: 'Project "flexibeck" cannot ask Project "flexibeck"' })
+  })
+})
+
 const writes = [
   'addConcept',
   'addPart',
@@ -700,6 +745,9 @@ const writes = [
   'unassign',
   'watch',
   'unwatch',
+  'addAsk',
+  'pickAsk',
+  'handBackAsk',
 ] as const
 
 describe('a write of a person who is no member of the Project', () => {

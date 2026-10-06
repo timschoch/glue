@@ -32,6 +32,13 @@ $card-width: $spacing-13 * 2;
   color: $text-primary;
 }
 
+// An Ask: its card, and the search of its step below it.
+.ask {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
 // The cards, in columns of one width.
 .items {
   display: grid;

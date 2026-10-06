@@ -639,6 +639,57 @@ describe('runConcept', () => {
     )
   })
 
+  it('asks another Project, picks the Ask and hands back an Insight', async () => {
+    await addProject(db, 'ux', 'UX team')
+    await run('project', 'set', 'flexibeck', '--references', 'ux')
+    await joinProject(db, 'ux', {
+      id: 'user-fred',
+      name: 'Fred',
+      email: 'fred@example.com',
+    })
+    await addPart(db, 'flexibeck', {
+      type: 'insight',
+      title: 'Novices skip the fold',
+      source: 'support',
+      evidenceLevel: 'hunch',
+    })
+    await addPart(db, 'ux', {
+      type: 'insight',
+      title: 'Novices read the first step only',
+      source: 'study',
+    })
+    vi.mocked(console.log).mockClear()
+
+    await run('ask', 'I1', '--to-project', 'ux', '--project', 'flexibeck')
+    await run('mine', '--member', 'fred@example.com', '--project', 'ux')
+    await run(
+      'ask',
+      'pick',
+      '1',
+      '--member',
+      'fred@example.com',
+      '--project',
+      'ux',
+    )
+    await run('ask', 'hand-back', '1', '--insight', 'I1', '--project', 'ux')
+    await run('mine', '--project', 'ux')
+    await run('mine', '--project', 'flexibeck')
+
+    expect(logged()).toEqual([
+      'Ask 1',
+      'Ask 1  pick  flexibeck/I1  Novices skip the fold',
+      'R1  not-ready  draft  CI takes ten minutes at most',
+      'G1  open  not-ready  draft  Ship faster',
+      'Ask 1  check  flexibeck/I1  Novices skip the fold  ux/I1',
+    ])
+  })
+
+  it('refuses an ask without a Project', async () => {
+    await expect(run('ask', 'I1', '--project', 'flexibeck')).rejects.toThrow(
+      'ask needs <id> --to-project <slug>',
+    )
+  })
+
   it('refuses an assign without a member', async () => {
     await expect(run('assign', 'G1', '--project', 'flexibeck')).rejects.toThrow(
       'assign needs --responsible <e-mail> or --co-author <e-mail>',

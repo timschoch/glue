@@ -2,6 +2,7 @@ import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { useCallback, useMemo, useState } from 'react'
 import type { MouseEvent } from 'react'
 
+import type { Ask } from '../db/asks.ts'
 import type { Build } from '../db/builds.ts'
 import type { Answer, ConceptNode, Part, PartSummary } from '../db/parts.ts'
 import { partTypes } from '../design-system/card.tsx'
@@ -40,16 +41,23 @@ export function RecordScreen({
   part,
   parts,
   builds = [],
+  ask,
+  askable = [],
 }: {
   part: Part
   parts: ReadonlyArray<PartSummary>
   // The builds that name the record.
   builds?: ReadonlyArray<Build>
+  // The open Ask of a Hunch.
+  ask?: Ask | null
+  // The Projects that the Project may ask.
+  askable?: ReadonlyArray<{ slug: string; name: string }>
 }) {
   const router = useRouter()
   const {
     answerPart,
     answerQuestion,
+    addAsk,
     addJoint,
     removeJoint,
     updatePart,
@@ -74,7 +82,10 @@ export function RecordScreen({
     () => toRecordPart(part, recordHref, parts),
     [part, recordHref, parts],
   )
-  const flow = useMemo(() => findCommonFlow(part, builds), [part, builds])
+  const flow = useMemo(
+    () => findCommonFlow(part, builds, ask?.step),
+    [part, builds, ask],
+  )
   const handleOpen = useCallback(
     (recordId: string, event: MouseEvent<HTMLAnchorElement>) => {
       const opened = bodyParts.find(({ id }) => id === recordId)
@@ -184,7 +195,32 @@ export function RecordScreen({
   // ask the owner. Only the owner answers a flag.
   const next = flow?.next
   const { answeredBy } = part
-  const actions: Array<RecordAction> = answeredBy
+  // A member asks another Project to check a Hunch that has no open Ask.
+  const askAction: Array<RecordAction> =
+    part.type === 'insight' &&
+    (part.evidenceLevel ?? 'hunch') === 'hunch' &&
+    part.workState !== 'sunk' &&
+    !ask &&
+    askable.length > 0 &&
+    people.me !== null
+      ? [
+          {
+            label: 'Ask another team',
+            choose: {
+              label: 'Project',
+              options: askable.map((asked) => ({
+                value: asked.slug,
+                text: asked.name,
+              })),
+              onPick: (toProject) =>
+                void write('Saving', () =>
+                  addAsk({ project, ask: { insight: part.id, toProject } }),
+                ),
+            },
+          },
+        ]
+      : []
+  const flowActions: Array<RecordAction> = answeredBy
     ? [
         {
           label: `Ask ${answeredBy.name}`,
@@ -207,6 +243,10 @@ export function RecordScreen({
           },
           ...answerActions,
         ]
+  // The step of the flow stays the button: the Ask comes after it.
+  const actions = answeredBy
+    ? flowActions
+    : [...flowActions.slice(0, 1), ...askAction, ...flowActions.slice(1)]
 
   return (
     <Record
