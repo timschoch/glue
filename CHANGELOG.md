@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.18.0](https://github.com/timschoch/glue/compare/v1.17.0...v1.18.0) (2026-10-06)
+
+
+### Features
+
+* **signals:** make a Hunch from Signals that repeat ([#321](https://github.com/timschoch/glue/issues/321)) ([08c4909](https://github.com/timschoch/glue/commit/08c49095776dbb529712b290e4671a73c4b008e1))
+
+
+### Bug Fixes
+
+* **asks:** glue at the last step, send with a button, take an Ask back ([#316](https://github.com/timschoch/glue/issues/316)) ([c91b730](https://github.com/timschoch/glue/commit/c91b730abb2f04c1facc12a59f381d6e1bf4f16c))
+* **map:** fit the whole Map into its frame ([#312](https://github.com/timschoch/glue/issues/312)) ([2cb95be](https://github.com/timschoch/glue/commit/2cb95bebfe6bf4934ea9be4caecccbb1313f4cde))
+* **signals:** seed survey answers and fail on a missing metric source ([#317](https://github.com/timschoch/glue/issues/317)) ([0ef1dbb](https://github.com/timschoch/glue/commit/0ef1dbb6e78663f1eba50a6c13e77bed47c3a2e5)), closes [#314](https://github.com/timschoch/glue/issues/314)
+* **trust:** open no flag and no issue for a wording fix ([#315](https://github.com/timschoch/glue/issues/315)) ([5e192de](https://github.com/timschoch/glue/commit/5e192de3f8da8894de72d0774112480b96962f4c)), closes [#311](https://github.com/timschoch/glue/issues/311) [#286](https://github.com/timschoch/glue/issues/286)
+
 ## [1.17.0](https://github.com/timschoch/glue/compare/v1.16.0...v1.17.0) (2026-10-06)
 
 
