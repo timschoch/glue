@@ -436,11 +436,21 @@ type ClickAction = {
 // the record id of the pick.
 type PartPick = { label: string; onPick: (recordId: string) => void }
 
-// One action on the record. An action with a pick asks for a Part first. An
-// action with an address is a link: it goes to a person, not to Glue.
+// The choice that an action needs: its label, its options, and the run with
+// the value of the pick.
+type OptionPick = {
+  label: string
+  options: ReadonlyArray<{ value: string; text: string }>
+  onPick: (value: string) => void
+}
+
+// One action on the record. An action with a pick asks for a Part first,
+// and one with a choice for one of its options. An action with an address
+// is a link: it goes to a person, not to Glue.
 export type RecordAction =
   | ClickAction
   | { label: string; pick: PartPick }
+  | { label: string; choose: OptionPick }
   | { label: string; href: string }
 
 export type RecordProps = {
@@ -530,6 +540,7 @@ export function Record({
   const choiceId = useId()
   const questionId = useId()
   const pickId = useId()
+  const chooseId = useId()
   const activityId = useId()
   // Carbon renders the closed menu of the button on the server and not in
   // the browser. So the menu comes after the page is hydrated.
@@ -538,8 +549,11 @@ export function Record({
   const [confirming, setConfirming] = useState<ClickAction>()
   // The pick that waits for its Part.
   const [picking, setPicking] = useState<PartPick>()
+  // The choice that waits for its option.
+  const [choosing, setChoosing] = useState<OptionPick>()
   const run = (action: RecordAction) => {
     if ('pick' in action) setPicking(action.pick)
+    else if ('choose' in action) setChoosing(action.choose)
     else if ('href' in action) window.location.assign(action.href)
     else if (action.confirm) setConfirming(action)
     else action.onClick()
@@ -724,6 +738,25 @@ export function Record({
                   picking.onPick(recordId)
                 }}
               />
+            </div>
+          )}
+          {choosing && pending === undefined && (
+            <div className={styles.search}>
+              <Select
+                id={chooseId}
+                labelText={choosing.label}
+                defaultValue=""
+                onChange={({ target }) => {
+                  if (target.value === '') return
+                  setChoosing(undefined)
+                  choosing.onPick(target.value)
+                }}
+              >
+                <SelectItem value="" text="" />
+                {choosing.options.map(({ value, text }) => (
+                  <SelectItem key={value} value={value} text={text} />
+                ))}
+              </Select>
             </div>
           )}
           {error !== undefined && (

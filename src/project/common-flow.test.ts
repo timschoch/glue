@@ -255,6 +255,29 @@ describe('the common flow of a Part', () => {
     ).toBe('React to a change')
   })
 
+  it('shows the steps of an open Ask on a Hunch, and keeps its next step', () => {
+    const hunch = {
+      ...published,
+      type: 'insight',
+      evidenceLevel: 'hunch',
+    } as const
+
+    expect(findCommonFlow(hunch, [], 'pick')).toEqual({
+      name: 'Ask another team',
+      steps: ['Ask', 'Pick', 'Hand back'],
+      current: 1,
+      next: { kind: 'edit', label: 'Raise the level' },
+    })
+    expect(findCommonFlow(hunch, [], 'hand-back')?.current).toBe(2)
+    expect(findCommonFlow(hunch, [], 'check')?.current).toBe(3)
+  })
+
+  it('keeps a flag before the flow of an Ask', () => {
+    const flagged = { ...published, workState: 'to-check' } as const
+
+    expect(findCommonFlow(flagged, [], 'pick')?.name).toBe('React to a change')
+  })
+
   it('has no flow for a sunk Part', () => {
     expect(
       findCommonFlow({ ...published, trust: 'wrong', workState: 'sunk' }),

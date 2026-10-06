@@ -10,6 +10,9 @@ import { getSetting } from '../settings.server.ts'
 import { createDb } from './client.ts'
 import {
   answerInputSchema,
+  askAddInputSchema,
+  askHandBackInputSchema,
+  askPickInputSchema,
   assignInputSchema,
   buildsInputSchema,
   questionAnswerInputSchema,
@@ -150,3 +153,23 @@ export const submitWatch = createServerFn({ method: 'POST' })
 export const submitUnwatch = createServerFn({ method: 'POST' })
   .validator(partReadInputSchema)
   .handler(({ data }) => actions.unwatch(data))
+
+export const fetchMineAsks = createServerFn({ method: 'GET' })
+  .validator(projectInputSchema)
+  .handler(({ data }) => actions.listMineAsks(data))
+
+export const fetchAskState = createServerFn({ method: 'GET' })
+  .validator(partReadInputSchema)
+  .handler(({ data }) => actions.findAskState(data))
+
+export const submitAddAsk = createServerFn({ method: 'POST' })
+  .validator(askAddInputSchema)
+  .handler(({ data }) => actions.addAsk(data))
+
+export const submitPickAsk = createServerFn({ method: 'POST' })
+  .validator(askPickInputSchema)
+  .handler(({ data }) => actions.pickAsk(data))
+
+export const submitHandBackAsk = createServerFn({ method: 'POST' })
+  .validator(askHandBackInputSchema)
+  .handler(({ data }) => actions.handBackAsk(data))

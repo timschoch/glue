@@ -131,6 +131,67 @@ export const Watched: Story = {
   },
 }
 
+// The Asks of the person: one to pick, one to hand back with an Insight of
+// the own Project, and one that came back.
+export const Asks: Story = {
+  args: {
+    asks: [
+      {
+        id: 1,
+        part: {
+          id: 'I4',
+          type: 'insight',
+          title: 'Bakers stop at the fold',
+          trust: 'solid',
+          concept: 'Flexibeck',
+          href: '#',
+        },
+        action: { label: 'Pick', onClick: () => {} },
+      },
+      {
+        id: 2,
+        part: {
+          id: 'I9',
+          type: 'insight',
+          title: 'Bakers skip long texts',
+          trust: 'solid',
+          concept: 'Flexibeck',
+          href: '#',
+        },
+        action: {
+          label: 'Hand back',
+          pick: {
+            label: 'Insight',
+            parts: [
+              {
+                id: 'I7',
+                type: 'insight',
+                title: 'Bakers want step videos',
+                trust: 'solid',
+                href: '#',
+              },
+            ],
+            onPick: () => {},
+          },
+        },
+      },
+      {
+        id: 3,
+        part: {
+          id: 'I2',
+          type: 'insight',
+          title: 'Readers watch on the phone',
+          trust: 'solid',
+          note: 'I7 Bakers want step videos',
+          concept: 'UX study',
+          href: '#',
+        },
+        action: { label: 'Check and glue', onClick: () => {} },
+      },
+    ],
+  },
+}
+
 export const Empty: Story = { args: { parts: [] } }
 
 export const InNarrowWindow: Story = {

@@ -45,6 +45,7 @@ The target model. Diagrams and rules: [docs/concept.md](docs/concept.md). The ap
 | Lens           | A filter over all Parts. It changes what you see first, never where a Part lives or who may open it.                                            |
 | Flight level   | How much a view shows: Strategic (a summary) or Operational (raw details).                                                                      |
 | Mine           | The app section that shows what needs you now.                                                                                                  |
+| Ask            | A request to another Project to check a Hunch. A member there picks it and hands back a published Insight. The asker glues it to the Hunch.     |
 
 ## Cycle
 

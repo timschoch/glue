@@ -1,3 +1,4 @@
+import type { AskStep } from '../db/asks.ts'
 import type { Build } from '../db/builds.ts'
 import type { Answer, Part, PartType } from '../db/parts.ts'
 
@@ -34,7 +35,11 @@ const flows = {
   build: { name: 'Brief to build', steps: ['Version', 'Build', 'Gate'] },
   use: { name: 'Use to Insight', steps: ['Measure', 'Read'] },
   change: { name: 'React to a change', steps: ['Check', 'Answer'] },
+  ask: { name: 'Ask another team', steps: ['Ask', 'Pick', 'Hand back'] },
 } as const
+
+// The step that an open Ask is at. `check`: all the steps are done.
+const askSteps: Record<AskStep, number> = { pick: 1, 'hand-back': 2, check: 3 }
 
 const signOff: NextStep = { kind: 'answer', answer: 'supersede' }
 const addDecision: NextStep = {
@@ -118,10 +123,24 @@ function findBuildFlow(builds: ReadonlyArray<GatedBuild>): CommonFlow {
 
 // The common flow that fits the type and the state of the Part. A flag
 // comes before the flow of the type. A build that names a published Part
-// comes before the flow of its type. A sunk Part is in no flow.
+// comes before the flow of its type. A sunk Part is in no flow. `ask` is the
+// step of the open Ask of the Part: the Part shows the steps of the Ask and
+// keeps the next step of its own flow.
 export function findCommonFlow(
   part: Part,
   builds: ReadonlyArray<GatedBuild> = [],
+  ask?: AskStep,
+): CommonFlow | undefined {
+  const flow = findOwnFlow(part, builds)
+  const flagged = part.workState === 'to-check' || part.workState === 'waiting'
+  return flow && ask && !flagged
+    ? { ...flows.ask, current: askSteps[ask], next: flow.next }
+    : flow
+}
+
+function findOwnFlow(
+  part: Part,
+  builds: ReadonlyArray<GatedBuild>,
 ): CommonFlow | undefined {
   switch (part.workState) {
     case 'sunk':

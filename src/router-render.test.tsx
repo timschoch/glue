@@ -5,6 +5,7 @@ import {
   createRouter,
 } from '@tanstack/react-router'
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -14,6 +15,8 @@ import {
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { Ask } from './db/asks.ts'
+import type { LeveledPart } from './db/flight-level.ts'
 import type {
   MeasuredPart,
   Part,
@@ -2056,5 +2059,169 @@ describe('the Map', () => {
     await userEvent.click(panel.getByRole('button', { name: 'Close' }))
 
     await expectAddress('/glue/part-model', { view: 'map' })
+  })
+})
+
+describe('an Ask to another Project', () => {
+  const flexibeck = { slug: 'flexibeck', name: 'flexibeck' }
+  // The published Insight of flexibeck that Bo hands back.
+  const study: LeveledPart = {
+    ...parts[0],
+    id: 'I1',
+    title: 'Agents skip long files',
+    concept: 'flexibeck',
+    conceptTitle: 'flexibeck',
+  }
+  const bo = { user: { id: 'user-2', name: 'Bo', email: 'bo@example.com' } }
+
+  // The Asks of Mine: the group, the text of each card and its one step.
+  function mineAsks() {
+    const group = screen.queryByRole('list', { name: 'Asks' })
+    if (!group) return []
+    return within(group)
+      .getAllByRole('listitem')
+      .map((item) => [
+        within(item).getByRole('link').textContent,
+        within(item).getByRole('button').textContent,
+      ])
+  }
+
+  it('goes from the Hunch of Ada to Mine of Bo, and back to Mine of Ada', async () => {
+    // The one Ask, as a server that saves each step: Glue asks flexibeck.
+    let ask: Ask | null = null
+    const asking: Partial<Server> = {
+      fetchParts: vi.fn((project) =>
+        Promise.resolve(project === 'glue' ? parts : [study]),
+      ),
+      fetchAskState: vi.fn(() =>
+        Promise.resolve({ ask, projects: [flexibeck] }),
+      ),
+      fetchMineAsks: vi.fn((project) => {
+        const asked = ask?.step === 'check' ? 'glue' : 'flexibeck'
+        return Promise.resolve(ask && project === asked ? [ask] : [])
+      }),
+      addAsk: vi.fn(() => {
+        ask = {
+          id: 1,
+          step: 'pick',
+          hunch: {
+            project: { slug: 'glue', name: 'Glue' },
+            id: 'I3',
+            title: I3,
+            trust: 'solid',
+            concept: 'part-model',
+          },
+          project: flexibeck,
+          pickedBy: null,
+          insight: null,
+          askedAt: '2026-10-03T12:00:00.000Z',
+        }
+        return Promise.resolve({ id: 1 })
+      }),
+      pickAsk: vi.fn(() => {
+        ask = ask && {
+          ...ask,
+          step: 'hand-back',
+          pickedBy: { name: 'Bo', email: 'bo@example.com' },
+        }
+        return Promise.resolve(undefined)
+      }),
+      handBackAsk: vi.fn(({ insight }) => {
+        ask = ask && {
+          ...ask,
+          step: 'check',
+          insight: {
+            project: flexibeck,
+            id: insight,
+            title: study.title,
+            trust: 'solid',
+            concept: 'flexibeck',
+          },
+        }
+        return Promise.resolve(undefined)
+      }),
+      addJoint: vi.fn(() => {
+        ask = null
+        return Promise.resolve({ id: 20 })
+      }),
+    }
+
+    // Ada asks flexibeck to check her Hunch.
+    await renderPage('/glue/part-model/I3', asking)
+    await act('Ask another team')
+    await userEvent.selectOptions(
+      // The frame has the Project switch with the same name.
+      within(screen.getByRole('main')).getByRole('combobox', {
+        name: 'Project',
+      }),
+      'flexibeck',
+    )
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('list', { name: 'Ask another team' }))
+          .getAllByRole('button')
+          .find((step) => step.getAttribute('aria-current') === 'step')?.title,
+      ).toBe('Pick'),
+    )
+    expect(asking.addAsk).toHaveBeenCalledExactlyOnceWith({
+      project: 'glue',
+      ask: { insight: 'I3', toProject: 'flexibeck' },
+    })
+    cleanup()
+
+    // Bo picks the Ask in Mine of flexibeck, and hands back his Insight.
+    await renderPage('/flexibeck?section=Mine', {
+      ...asking,
+      fetchSession: vi.fn(() => Promise.resolve(bo)),
+      fetchPeople: vi.fn(() => Promise.resolve({ ...people, me: 2 })),
+    })
+
+    expect(section('Mine 1')).toBeDefined()
+    expect(mineAsks()).toEqual([[`Solid Insight I3 ${I3} Glue`, 'Pick']])
+
+    await userEvent.click(button('Pick'))
+
+    await waitFor(() =>
+      expect(mineAsks()).toEqual([
+        [`Solid Insight I3 ${I3} Glue`, 'Hand back'],
+      ]),
+    )
+    expect(asking.pickAsk).toHaveBeenCalledExactlyOnceWith({
+      project: 'flexibeck',
+      askId: 1,
+    })
+
+    await userEvent.click(button('Hand back'))
+    await userEvent.click(screen.getByRole('combobox', { name: 'Insight' }))
+    await userEvent.click(
+      await screen.findByRole('option', { name: 'I1 Agents skip long files' }),
+    )
+
+    await waitFor(() => expect(mineAsks()).toEqual([]))
+    expect(asking.handBackAsk).toHaveBeenCalledExactlyOnceWith({
+      project: 'flexibeck',
+      askId: 1,
+      insight: 'I1',
+    })
+    cleanup()
+
+    // Ada checks the Insight in Mine of Glue, and glues it to her Hunch.
+    await renderPage('/glue?section=Mine', asking)
+
+    expect(mineAsks()).toEqual([
+      [
+        `Solid Insight I1 Agents skip long files I3 ${I3} flexibeck`,
+        'Check and glue',
+      ],
+    ])
+
+    await userEvent.click(button('Check and glue'))
+
+    await waitFor(() => expect(mineAsks()).toEqual([]))
+    expect(asking.addJoint).toHaveBeenCalledExactlyOnceWith({
+      project: 'glue',
+      joint: { part: 'I3', needs: 'flexibeck/I1' },
+    })
   })
 })

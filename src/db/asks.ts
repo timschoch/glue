@@ -27,6 +27,7 @@ export type AskPart = {
   project: { slug: string; name: string }
   id: string
   title: string
+  trust: schema.Trust
   concept: string
 }
 
@@ -68,6 +69,7 @@ async function listOpenAsks(
       hunch: {
         id: hunches.recordId,
         title: hunches.title,
+        trust: hunches.trust,
         concept: hunchConcepts.slug,
       },
       hunchProject: { slug: hunchProjects.slug, name: hunchProjects.name },
@@ -76,6 +78,7 @@ async function listOpenAsks(
       insight: {
         id: insights.recordId,
         title: insights.title,
+        trust: insights.trust,
         concept: insightConcepts.slug,
       },
     })
@@ -91,12 +94,12 @@ async function listOpenAsks(
     .orderBy(asks.id)
 
   return found.map(({ id, askedAt, hunch, hunchProject, project, ...ask }) => {
-    const { id: insightId, title, concept } = ask.insight
+    const { id: insightId, title, trust, concept } = ask.insight
     // The Insight is of the asked Project.
     const insight =
-      insightId === null || title === null || concept === null
+      insightId === null || title === null || trust === null || concept === null
         ? null
-        : { project, id: insightId, title, concept }
+        : { project, id: insightId, title, trust, concept }
     return {
       id,
       step: insight ? 'check' : ask.pickedBy ? 'hand-back' : 'pick',

@@ -60,6 +60,7 @@ const asked = {
     project: { slug: 'bakeday', name: 'Bakeday' },
     id: 'I1',
     title: 'Novices skip the fold',
+    trust: 'solid',
     concept: 'bakeday',
   },
   project: { slug: 'ux', name: 'UX team' },
@@ -168,6 +169,7 @@ describe('an Ask with an Insight that was handed back', () => {
       project: { slug: 'ux', name: 'UX team' },
       id: 'I1',
       title: 'Novices do not know the word fold',
+      trust: 'solid',
       concept: 'ux',
     },
   }

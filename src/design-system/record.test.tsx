@@ -915,6 +915,41 @@ describe('the box Next', () => {
     expect(screen.queryByRole('combobox')).toBeNull()
   })
 
+  it('asks for the choice of an action that needs one, and gives its value', async () => {
+    const onPick = vi.fn()
+    renderRecord(
+      {},
+      {
+        actions: [
+          {
+            label: 'Ask another team',
+            choose: {
+              label: 'Project',
+              options: [
+                { value: 'ux', text: 'UX team' },
+                { value: 'data', text: 'Data team' },
+              ],
+              onPick,
+            },
+          },
+        ],
+      },
+    )
+
+    expect(screen.queryByRole('combobox')).toBeNull()
+
+    await userEvent.click(
+      next().getByRole('button', { name: 'Ask another team' }),
+    )
+    await userEvent.selectOptions(
+      next().getByRole('combobox', { name: 'Project' }),
+      'Data team',
+    )
+
+    expect(onPick).toHaveBeenCalledExactlyOnceWith('data')
+    expect(screen.queryByRole('combobox')).toBeNull()
+  })
+
   it('takes an answer in words above the button', async () => {
     const onChange = vi.fn()
     renderRecord(

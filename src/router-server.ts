@@ -13,6 +13,9 @@ import {
 import type { BuildsNamed } from './db/builds.ts'
 import type {
   AnswerInput,
+  AskAddInput,
+  AskHandBackInput,
+  AskPickInput,
   AssignInput,
   ConceptAddInput,
   JointAddInput,
@@ -28,11 +31,13 @@ import type {
   UnassignInput,
 } from './db/part-actions.ts'
 import {
+  fetchAskState,
   fetchBuilds,
   fetchConcept,
   fetchMapJoints,
   fetchMeasured,
   fetchMine,
+  fetchMineAsks,
   fetchPart,
   fetchParts,
   fetchPeople,
@@ -40,6 +45,7 @@ import {
   fetchProjects,
   fetchSignals,
   fetchWatched,
+  submitAddAsk,
   submitAddConcept,
   submitAddJoint,
   submitAddMember,
@@ -48,6 +54,8 @@ import {
   submitAddSignalInsight,
   submitAnswer,
   submitAssign,
+  submitHandBackAsk,
+  submitPickAsk,
   submitQuestionAnswer,
   submitRemoveConcept,
   submitRemoveJoint,
@@ -86,6 +94,10 @@ export const server = {
   fetchBuilds: (project: string, named?: BuildsNamed) =>
     fetchBuilds({ data: { project, named } }),
   fetchPeople: (project: string) => fetchPeople({ data: { project } }),
+  // The open Asks that need the person: to pick, to hand back or to check.
+  fetchMineAsks: (project: string) => fetchMineAsks({ data: { project } }),
+  // The open Ask of the record, and the Projects that the Project may ask.
+  fetchAskState: (part: PartReadInput) => fetchAskState({ data: part }),
   // The writes. A Failure is an answer for the person: the write did not
   // happen and the message says why.
   addProject: (project: ProjectAddInput) => submitAddProject({ data: project }),
@@ -117,6 +129,10 @@ export const server = {
   // The person of the session watches the Part, and stops.
   watch: (part: PartReadInput) => submitWatch({ data: part }),
   unwatch: (part: PartReadInput) => submitUnwatch({ data: part }),
+  // The Project of `pickAsk` and `handBackAsk` is the one that is asked.
+  addAsk: (ask: AskAddInput) => submitAddAsk({ data: ask }),
+  pickAsk: (ask: AskPickInput) => submitPickAsk({ data: ask }),
+  handBackAsk: (ask: AskHandBackInput) => submitHandBackAsk({ data: ask }),
   signIn: (credentials: SignIn) => submitSignIn({ data: credentials }),
   signUp: (account: SignUp) => submitSignUp({ data: account }),
   signOut: () => submitSignOut(),

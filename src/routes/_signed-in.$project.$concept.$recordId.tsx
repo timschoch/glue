@@ -36,7 +36,12 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
         part.type === 'decision'
           ? await context.fetchBuilds(project, { decision: part.id })
           : undefined
-      return { part, builds }
+      // Only an Insight has an Ask to another Project.
+      const asking =
+        part.type === 'insight'
+          ? await context.fetchAskState({ project, recordId })
+          : undefined
+      return { part, builds, asking }
     },
     head: ({ loaderData, match, params }) => ({
       meta: [
@@ -60,9 +65,17 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
 
 function OpenRecord() {
   const { parts } = projectRoute.useLoaderData()
-  const { part, builds } = Route.useLoaderData()
+  const { part, builds, asking } = Route.useLoaderData()
 
-  return <RecordScreen part={part} parts={parts} builds={builds?.builds} />
+  return (
+    <RecordScreen
+      part={part}
+      parts={parts}
+      builds={builds?.builds}
+      ask={asking?.ask}
+      askable={asking?.projects}
+    />
+  )
 }
 
 function MissingRecord() {

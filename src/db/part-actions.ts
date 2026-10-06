@@ -1,6 +1,15 @@
 import { z } from 'zod'
 
 import type { Failure } from '../authentication/session.ts'
+import {
+  addAsk,
+  findOpenAsk,
+  handBackAsk,
+  listAskableProjects,
+  listMineAsks,
+  newAskSchema,
+  pickAsk,
+} from './asks.ts'
 import { listBuilds } from './builds.ts'
 import { listLeveledParts } from './flight-level.ts'
 import {
@@ -134,6 +143,22 @@ export const unassignInputSchema = projectInputSchema.extend({
   assignment: assignmentTargetSchema,
 })
 
+export const askAddInputSchema = projectInputSchema.extend({
+  ask: newAskSchema,
+})
+
+// The Project is the one that is asked.
+export const askPickInputSchema = projectInputSchema.extend({
+  askId: z.int(),
+})
+
+export const askHandBackInputSchema = askPickInputSchema.extend({
+  insight: z.string(),
+})
+
+export type AskAddInput = z.infer<typeof askAddInputSchema>
+export type AskPickInput = z.infer<typeof askPickInputSchema>
+export type AskHandBackInput = z.infer<typeof askHandBackInputSchema>
 export type MemberAddInput = z.infer<typeof memberAddInputSchema>
 export type LoopStepsInput = z.infer<typeof loopStepsInputSchema>
 export type AssignInput = z.infer<typeof assignInputSchema>
@@ -338,6 +363,42 @@ export function createPartActions(request: ActionRequest) {
         () => undefined,
         toFailure,
       ),
+    ),
+
+    // The Asks of Mine. A person who is no member has none.
+    listMineAsks: withReader((db, { project }: ProjectInput, member) =>
+      member ? listMineAsks(db, project, member.email) : Promise.resolve([]),
+    ),
+
+    // The open Ask of the record, and the Projects that the Project may ask.
+    findAskState: withReader(
+      async (db, { project, recordId }: PartReadInput) => {
+        const [ask, projects] = await Promise.all([
+          findOpenAsk(db, project, recordId),
+          listAskableProjects(db, project),
+        ])
+        return { ask: ask ?? null, projects }
+      },
+    ),
+
+    addAsk: withMember((db, { project, ask }: AskAddInput) =>
+      addAsk(db, project, ask).then((id) => ({ id }), toFailure),
+    ),
+
+    // The member of the session picks the Ask.
+    pickAsk: withMember((db, { project, askId }: AskPickInput, member) =>
+      pickAsk(db, project, askId, member.email).then(
+        () => undefined,
+        toFailure,
+      ),
+    ),
+
+    handBackAsk: withMember(
+      (db, { project, askId, insight }: AskHandBackInput) =>
+        handBackAsk(db, project, askId, insight).then(
+          () => undefined,
+          toFailure,
+        ),
     ),
   }
 }

@@ -12,6 +12,7 @@ import {
   pickAsk,
 } from '../db/asks.ts'
 import type { Ask } from '../db/asks.ts'
+import { trusts } from '../db/parts.ts'
 import { ApiError, handleApiRequest, parseJson } from './api-request.ts'
 import type { ApiRequest } from './api-request.ts'
 
@@ -21,6 +22,7 @@ const askPartSchema = z.object({
   project: projectSchema,
   id: z.string().meta({ description: 'The record id, like I12' }),
   title: z.string(),
+  trust: z.enum(trusts).meta({ description: 'Can you rely on the Part' }),
   concept: z.string().meta({ description: 'The slug of the home Concept' }),
 })
 

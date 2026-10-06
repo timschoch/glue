@@ -1,6 +1,7 @@
 import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
+import type { Ask, AskPart } from '../db/asks.ts'
 import type { ProjectBuilds } from '../db/builds.ts'
 import type {
   Concept,
@@ -13,6 +14,7 @@ import type { ContractState } from '../db/contracts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { ConceptView } from '../design-system/concept-view.tsx'
 import { PartCards } from '../design-system/part-cards.tsx'
+import type { PartCardsAsk } from '../design-system/part-cards.tsx'
 import { flagReasons } from '../design-system/record.tsx'
 import { SectionView } from '../design-system/section-view.tsx'
 import { Signals } from '../design-system/signals.tsx'
@@ -68,11 +70,12 @@ export function ConceptScreen({
   panelPart?: Part
 }) {
   const router = useRouter()
-  const { parts, mine, watched, measured } = projectRoute.useLoaderData()
-  const { removeConcept } = projectRoute.useRouteContext()
+  const { parts, mine, asks, watched, measured } = projectRoute.useLoaderData()
+  const { removeConcept, pickAsk, handBackAsk, addJoint } =
+    projectRoute.useRouteContext()
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
-  const { failure, write } = useWrite()
+  const { pending, failure, write } = useWrite()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
 
   if (isPartType(search.add)) {
@@ -143,11 +146,74 @@ export function ConceptScreen({
     href: recordHref(part),
   })
 
+  // The card of an Ask is a Part of the other Project: the Hunch for the
+  // asked member, the Insight that came back for the member who asked.
+  const toAskCard = (shown: AskPart, note?: string) => ({
+    id: shown.id,
+    type: 'insight' as const,
+    title: shown.title,
+    trust: shown.trust,
+    concept: shown.project.name,
+    note,
+    href: recordHref(shown, shown.project.slug),
+  })
+  const toAsk = ({ id: askId, step, hunch, insight }: Ask): PartCardsAsk => {
+    if (step === 'check' && insight) {
+      return {
+        id: askId,
+        part: toAskCard(insight, `${hunch.id} ${hunch.title}`),
+        action: {
+          label: 'Check and glue',
+          onClick: () =>
+            void write('Saving', () =>
+              addJoint({
+                project,
+                joint: {
+                  part: hunch.id,
+                  needs: `${insight.project.slug}/${insight.id}`,
+                },
+              }),
+            ),
+        },
+      }
+    }
+    return {
+      id: askId,
+      part: toAskCard(hunch),
+      action:
+        step === 'pick'
+          ? {
+              label: 'Pick',
+              onClick: () =>
+                void write('Saving', () => pickAsk({ project, askId })),
+            }
+          : {
+              label: 'Hand back',
+              pick: {
+                label: 'Insight',
+                parts: parts
+                  .filter(
+                    ({ type, workState }) =>
+                      type === 'insight' && workState === 'published',
+                  )
+                  .map((part) => ({ ...part, href: recordHref(part) })),
+                onPick: (recordId) =>
+                  void write('Saving', () =>
+                    handBackAsk({ project, askId, insight: recordId }),
+                  ),
+              },
+            },
+    }
+  }
+
   if (search.section === 'Mine') {
     return (
       <PartCards
         title="Mine"
         parts={mine.map(toCard)}
+        asks={asks.map(toAsk)}
+        pending={pending}
+        error={failure}
         // A flag of a watched Part is a note: only the owner answers it.
         watched={watched.map((part) => ({
           ...toCard(part),
