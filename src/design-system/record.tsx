@@ -88,6 +88,13 @@ export const flagReasons = {
   'new-version': 'New Version',
 } as const
 
+// Why a Part is unsure with no flag: what it needs and does not have.
+const slotReasons = {
+  goal: 'Needs a Goal',
+  evidence: 'Needs evidence',
+  decision: 'Needs a Decision',
+} as const
+
 // The fields of a Part that a Contract Version holds.
 const frozenFields = {
   type: 'Type',
@@ -162,6 +169,10 @@ export type RecordPart = RecordPartSummary & {
   signals: ReadonlyArray<{ url: string; title: string }>
   // The open flags, oldest first.
   flags: ReadonlyArray<RecordFlag>
+  // What the Part needs and does not have.
+  emptySlots?: ReadonlyArray<keyof typeof slotReasons>
+  // The Parts under review that the Part needs.
+  reviewNotes?: ReadonlyArray<RecordPartSummary>
   // What happened to the Part, newest first.
   activity: ReadonlyArray<RecordActivity>
   // What a Decision asks: its options, the pick of its author and the answer
@@ -484,7 +495,8 @@ export type RecordProps = {
 }
 
 // One Part in the main window: the head, the step bar of its flow, the box
-// Next with the one button, the open flags, the body, the type fields that
+// Next with the one button, the empty slots and the open flags, the Parts
+// under review that it needs, the body, the type fields that
 // have a value, the Parts it is glued to as groups of cards, and what
 // happened to it.
 export function Record({
@@ -544,6 +556,7 @@ export function Record({
   ])
   const { word, Glyph, className } = signs[part.trust]
   const { measure, issueUrl, question } = part
+  const { emptySlots = [], reviewNotes = [] } = part
   const given = question?.answer
   const issueNumber = issueUrl && ISSUE_NUMBER.exec(issueUrl)?.[0]
   const fields: Array<[string, ReactNode]> = [
@@ -723,8 +736,13 @@ export function Record({
           )}
         </section>
       )}
-      {part.flags.length > 0 && (
+      {(emptySlots.length > 0 || part.flags.length > 0) && (
         <ul aria-label="Flags" className={styles.flags}>
+          {emptySlots.map((slot) => (
+            <li key={slot} className={styles.flag}>
+              <span className={styles.reason}>{slotReasons[slot]}</span>
+            </li>
+          ))}
           {part.flags.map(({ reason, part: cause, contract }) => (
             <li key={`${cause.id} ${reason}`} className={styles.flag}>
               <span className={styles.reason}>{flagReasons[reason]}</span>
@@ -775,6 +793,11 @@ export function Record({
           ))}
         </ul>
       )}
+      <Group
+        title={workStates.review}
+        ends={partEnds(reviewNotes)}
+        onOpen={onOpen}
+      />
       {confirming?.confirm && (
         <Modal
           open

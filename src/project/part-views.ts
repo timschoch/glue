@@ -110,6 +110,8 @@ export function toRecordPart(
       const found = findCause(cause.id)
       return found ? { reason, part: found, contract } : []
     }),
+    emptySlots: part.emptySlots,
+    reviewNotes: part.reviewNotes.flatMap(({ id }) => findCause(id) ?? []),
     activity: part.activity.map((entry) => {
       const cause = 'cause' in entry ? findCause(entry.cause.id) : undefined
       return {

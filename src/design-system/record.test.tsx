@@ -1165,6 +1165,45 @@ describe('the flags of a record', () => {
     expect(screen.queryByRole('list', { name: 'Flags' })).toBeNull()
   })
 
+  it('lists each empty slot as a reason, before the flags', () => {
+    renderRecord({
+      trust: 'flagged',
+      emptySlots: ['goal', 'evidence'],
+      flags: [flags[0]],
+    })
+
+    expect(
+      within(screen.getByRole('list', { name: 'Flags' }))
+        .getAllByRole('listitem')
+        .map((item) => texts(item)),
+    ).toEqual([
+      ['Needs a Goal'],
+      ['Needs evidence'],
+      ['Changed', 'Insight', 'I7'],
+    ])
+  })
+
+  it('shows the Parts under review in a group of their own, and not as flags', async () => {
+    const onOpen = vi.fn()
+    renderRecord({ reviewNotes: [GOAL] }, { onOpen })
+
+    const group = screen.getByRole('region', { name: 'Review' })
+    const link = within(group).getByRole('link', {
+      name: /Goal G2 First bake feels easy/,
+    })
+    await userEvent.click(link)
+
+    expect(link.getAttribute('href')).toBe('#G2')
+    expect(onOpen).toHaveBeenCalledWith('G2', expect.anything())
+    expect(screen.queryByRole('list', { name: 'Flags' })).toBeNull()
+  })
+
+  it('has no group Review when no needed Part is under review', () => {
+    renderRecord()
+
+    expect(screen.queryByRole('region', { name: 'Review' })).toBeNull()
+  })
+
   const newVersion = [
     {
       reason: 'new-version',

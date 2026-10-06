@@ -47,11 +47,41 @@ describe('pnpm concept contract', () => {
     )
     await run(
       'add',
+      'goals',
+      '--title',
+      'First bake feels easy',
+      '--metric',
+      'ease',
+      '--source',
+      'okr',
+    )
+    await run(
+      'add',
+      'decisions',
+      '--title',
+      'Show the video of the creator',
+      '--owner',
+      'Tim',
+      '--date',
+      '2026-10-02',
+      '--status',
+      'accepted',
+      '--goal',
+      'G1',
+      '--evidence',
+      'I1',
+      '--concept',
+      'videos',
+    )
+    await run(
+      'add',
       'flows',
       '--title',
       'Watch a technique',
       '--concept',
       'videos',
+      '--needs',
+      'D1',
     )
     printed.mockClear()
   })
@@ -87,11 +117,12 @@ describe('pnpm concept contract', () => {
     expect(lines[1]).toMatch(/^checksum: [0-9a-f]{64}$/)
     expect(lines[2]).toMatch(/^signed: Tim \d{4}-\d{2}-\d{2}$/)
     expect(lines.slice(3)).toEqual([
-      'empty slots: goal, decision, metric, entity, guardrail',
+      'empty slots: goal, metric, entity, guardrail',
       'tier 1',
       'F1  flow  Watch a technique',
       'tier 2',
       'I1  insight  Bakers want step videos',
+      'D1  decision  Show the video of the creator',
     ])
   })
 

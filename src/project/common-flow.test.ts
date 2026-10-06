@@ -13,6 +13,8 @@ const summary: PartSummary = {
   workState: 'published',
   concept: 'glue',
   conceptTitle: 'Glue',
+  emptySlots: [],
+  reviewNotes: [],
 }
 
 const published: Part = {

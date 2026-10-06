@@ -72,6 +72,7 @@ beforeEach(async () => {
     type: 'entity',
     concept: 'player',
     title: 'Technique',
+    needs: ['D1'],
   })
 })
 
@@ -99,6 +100,36 @@ describe('signContract', () => {
     expect(state?.versions).toEqual([])
     expect(state?.blocking.map(({ id }) => id)).toEqual(['F1', 'E1'])
     expect(state?.ahead).toBe(false)
+  })
+
+  it('names a Part with an empty slot and freezes nothing', async () => {
+    await addPart(db, 'glue', {
+      type: 'entity',
+      concept: 'player',
+      title: 'Step',
+    })
+    await publish('F1', 'E1', 'E2')
+
+    await expect(signContract(db, 'glue', 'videos', 'Tim')).rejects.toThrow(
+      'sign-off needs Trust solid: E2',
+    )
+
+    const state = await findContractState(db, 'glue', 'videos')
+    expect(state?.versions).toEqual([])
+    expect(state?.blocking).toEqual([
+      {
+        id: 'E2',
+        type: 'entity',
+        title: 'Step',
+        status: null,
+        trust: 'flagged',
+        workState: 'published',
+        concept: 'player',
+        conceptTitle: 'Player',
+        emptySlots: ['decision'],
+        reviewNotes: [],
+      },
+    ])
   })
 
   it('freezes Version 1 with a checksum when each Part is solid', async () => {
@@ -142,7 +173,7 @@ describe('signContract', () => {
     const contract = await findContract(db, 'glue', 'videos')
     expect(contract?.tier1.map(({ id, needs }) => ({ id, needs }))).toEqual([
       { id: 'F1', needs: ['D1'] },
-      { id: 'E1', needs: ['core/F1'] },
+      { id: 'E1', needs: ['D1', 'core/F1'] },
     ])
   })
 

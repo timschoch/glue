@@ -88,6 +88,21 @@ describe('runConcept across Projects', () => {
   })
 
   it('adds, shows and removes a reference as <project>/<record id>', async () => {
+    await addPart(db, 'glue', {
+      type: 'goal',
+      title: 'Ship faster',
+      metric: 'lead time',
+      source: 'okr',
+    })
+    await addPart(db, 'glue', {
+      type: 'decision',
+      title: 'Sign off each Version',
+      owner: 'Tim',
+      date: '2026-10-02',
+      status: 'accepted',
+      needs: ['G1', 'I1'],
+    })
+    await addJoint(db, 'glue', { part: 'F1', needs: 'D1' })
     await run('project', 'add', 'glue-build')
     await run('project', 'set', 'glue-build', '--references', 'glue')
     await run(

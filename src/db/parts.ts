@@ -28,8 +28,13 @@ import type {
 } from './schema.ts'
 import { kinds } from './kinds.ts'
 import { findFlagOwner } from './members.ts'
-import { listAnswers } from './part-trust.ts'
-import type { Answer } from './part-trust.ts'
+import {
+  listAnswers,
+  selectEmptySlots,
+  selectReviewNotes,
+  selectTrust,
+} from './part-trust.ts'
+import type { Answer, ReviewNote, Slot } from './part-trust.ts'
 import { sortById } from './record-id.ts'
 import * as schema from './schema.ts'
 
@@ -54,8 +59,8 @@ export type {
   Trust,
   WorkState,
 } from './schema.ts'
-export { answers } from './part-trust.ts'
-export type { Answer } from './part-trust.ts'
+export { answers, slotReasons, slots } from './part-trust.ts'
+export type { Answer, ReviewNote, Slot } from './part-trust.ts'
 
 export type PartSummary = {
   // The record id, for example D12.
@@ -68,6 +73,11 @@ export type PartSummary = {
   // The slug of the home Concept.
   concept: string
   conceptTitle: string
+  // The slots of its type that no Joint fills (D52). A solid Part with one
+  // reads as flagged.
+  emptySlots: Slot[]
+  // The Parts in review that it needs (D52).
+  reviewNotes: ReviewNote[]
 }
 
 // How Glue measures a Goal or a Metric, and its newest reading against its
@@ -212,10 +222,12 @@ const summary = {
   type: parts.type,
   title: parts.title,
   status: parts.status,
-  trust: parts.trust,
+  trust: selectTrust(parts),
   workState: parts.workState,
   concept: concepts.slug,
   conceptTitle: concepts.title,
+  emptySlots: selectEmptySlots(parts),
+  reviewNotes: selectReviewNotes(parts),
 }
 
 const neededSummary = {
@@ -223,10 +235,12 @@ const neededSummary = {
   type: neededParts.type,
   title: neededParts.title,
   status: neededParts.status,
-  trust: neededParts.trust,
+  trust: selectTrust(neededParts),
   workState: neededParts.workState,
   concept: neededConcepts.slug,
   conceptTitle: neededConcepts.title,
+  emptySlots: selectEmptySlots(neededParts),
+  reviewNotes: selectReviewNotes(neededParts),
 }
 
 // Parts sort by their type, then by the number of their record id: D2 comes
@@ -509,7 +523,7 @@ export async function listMapJoints(
       id: joints.id,
       part: parts.recordId,
       needs: neededParts.recordId,
-      trust: neededParts.trust,
+      trust: selectTrust(neededParts),
       project: { slug: projects.slug, name: projects.name },
       neededProject: { slug: neededProjects.slug, name: neededProjects.name },
     })
@@ -717,7 +731,14 @@ export async function findPart(
   readBy?: string,
 ): Promise<Part | undefined> {
   const found = await db
-    .select({ part: parts, concept: concepts, measure: measures })
+    .select({
+      part: parts,
+      concept: concepts,
+      measure: measures,
+      trust: selectTrust(parts),
+      emptySlots: selectEmptySlots(parts),
+      reviewNotes: selectReviewNotes(parts),
+    })
     .from(parts)
     .innerJoin(concepts, eq(parts.conceptId, concepts.id))
     .innerJoin(projects, eq(parts.projectId, projects.id))
@@ -725,7 +746,7 @@ export async function findPart(
     .where(and(eq(projects.slug, projectSlug), eq(parts.recordId, recordId)))
   const row = found.at(0)
   if (!row) return undefined
-  const { part, concept, measure } = row
+  const { part, concept, measure, trust, emptySlots, reviewNotes } = row
 
   const [
     supersededBy,
@@ -799,10 +820,12 @@ export async function findPart(
     type: part.type,
     title: part.title,
     status: part.status,
-    trust: part.trust,
+    trust,
     workState: part.workState,
     concept: concept.slug,
     conceptTitle: concept.title,
+    emptySlots,
+    reviewNotes,
     body: part.body,
     owner: part.owner,
     date: part.date,

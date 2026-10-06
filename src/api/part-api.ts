@@ -31,6 +31,7 @@ import {
   listMine,
   listParts,
   partTypes,
+  slots,
   trusts,
   workStates,
 } from '../db/parts.ts'
@@ -55,6 +56,16 @@ export const partSummarySchema = z
     conceptTitle: z
       .string()
       .meta({ description: 'The title of the home Concept' }),
+    emptySlots: z.array(z.enum(slots)).meta({
+      description:
+        'What the Part needs and no Joint gives it. A Decision needs a Goal and evidence (an Insight or a Guardrail). A Flow and an Entity need a Decision. A solid Part with an empty slot has the trust flagged. No flag and no notice',
+    }),
+    reviewNotes: z
+      .array(z.object({ id: z.string(), type: partType, title: z.string() }))
+      .meta({
+        description:
+          'The Parts with the workState review that this Part needs. A note, not a flag: the trust stays',
+      }),
   })
   .meta({ id: 'PartSummary' }) satisfies z.ZodType<PartSummary>
 

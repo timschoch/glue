@@ -172,6 +172,49 @@ describe('pnpm concept list and show', () => {
       ])
     })
 
+    it('shows the empty slot of a Part', async () => {
+      await run('show', 'E1')
+
+      expect(logged()).toEqual([
+        'E1',
+        'title: Page cache',
+        'concept: glue',
+        'trust: not-ready',
+        'empty_slot: needs a Decision',
+        'work_state: draft',
+        'activity: 2026-10-03T12:00:00.000Z changed',
+      ])
+    })
+
+    it('shows the Part under review that a Part needs', async () => {
+      await addPart(db, 'glue', {
+        type: 'decision',
+        title: 'Cache every page',
+        date: '2026-02-01',
+        owner: 'tim',
+        status: 'proposed',
+        needs: ['G1', 'R1'],
+      })
+      await addPart(db, 'glue', {
+        type: 'flow',
+        title: 'Read a cached page',
+        needs: ['D2'],
+      })
+
+      await run('show', 'F1')
+
+      expect(logged()).toEqual([
+        'F1',
+        'title: Read a cached page',
+        'concept: glue',
+        'needs: D2 Cache every page',
+        'trust: not-ready',
+        'under_review: decision D2 Cache every page',
+        'work_state: draft',
+        'activity: 2026-10-03T12:00:00.000Z changed',
+      ])
+    })
+
     it('shows a Goal with its measure and the last readings', async () => {
       await updatePart(db, 'glue', 'G1', {
         measure: {

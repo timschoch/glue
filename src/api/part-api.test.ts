@@ -368,6 +368,8 @@ describe('GET the Parts', () => {
         workState: 'published',
         concept: 'flexibeck',
         conceptTitle: 'flexibeck',
+        emptySlots: [],
+        reviewNotes: [],
       },
       {
         id: 'G1',
@@ -378,6 +380,8 @@ describe('GET the Parts', () => {
         workState: 'draft',
         concept: 'flexibeck',
         conceptTitle: 'flexibeck',
+        emptySlots: [],
+        reviewNotes: [],
       },
       {
         id: 'R1',
@@ -388,6 +392,8 @@ describe('GET the Parts', () => {
         workState: 'draft',
         concept: 'flexibeck',
         conceptTitle: 'flexibeck',
+        emptySlots: [],
+        reviewNotes: [],
       },
     ])
   })
@@ -453,6 +459,8 @@ describe('GET a Part', () => {
       workState: 'published',
       concept: 'flexibeck',
       conceptTitle: 'flexibeck',
+      emptySlots: [],
+      reviewNotes: [],
       body: '',
       owner: null,
       date: '2026-09-30',
@@ -1256,7 +1264,29 @@ describe('Joints', () => {
   )
 
   it('adds a reference as <project>/<record id>, and the Part shows it with its Project', async () => {
-    await addPart(db, 'glue', { type: 'entity', title: 'Technique' })
+    await addPart(db, 'glue', {
+      type: 'goal',
+      title: 'Ship faster',
+      metric: 'lead time',
+      source: 'okr',
+    })
+    await addPart(db, 'glue', {
+      type: 'insight',
+      title: 'Users churn on slow loads',
+      source: 'interviews',
+    })
+    await addPart(db, 'glue', {
+      type: 'decision',
+      title: 'Cache the homepage',
+      owner: 'Tim',
+      status: 'accepted',
+      needs: ['G1', 'I1'],
+    })
+    await addPart(db, 'glue', {
+      type: 'entity',
+      title: 'Technique',
+      needs: ['D1'],
+    })
     await answerPart(db, 'glue', 'E1', { answer: 'supersede' })
     await addProjectReference(db, 'flexibeck', 'glue')
 
@@ -1270,7 +1300,7 @@ describe('Joints', () => {
     expect(added.status).toBe(201)
     expect(needing.body.needs).toEqual([
       {
-        jointId: 1,
+        jointId: 4,
         twoWay: false,
         link: true,
         contractVersion: null,

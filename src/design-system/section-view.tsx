@@ -125,7 +125,9 @@ export function SectionView({
         recordId={part.id}
         title={part.title}
         trust={part.trust}
+        reviewNotes={part.reviewNotes}
         reading={part.reading}
+        emptySlots={part.emptySlots}
         workState={part.workState}
         concept={inRow ? undefined : part.concept}
         href={part.href}
