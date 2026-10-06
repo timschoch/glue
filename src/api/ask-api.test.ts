@@ -7,7 +7,12 @@ import * as schema from '../db/schema.ts'
 import { createTestDatabase } from '../db/test-database.ts'
 import { createToken } from '../db/tokens.ts'
 import type { ApiRequest } from './api-request.ts'
-import { handleAddAsk, handleListAsks, handleUpdateAsk } from './ask-api.ts'
+import {
+  handleAddAsk,
+  handleListAsks,
+  handleRemoveAsk,
+  handleUpdateAsk,
+} from './ask-api.ts'
 
 const { db } = createTestDatabase(schema)
 const tokens = { bakeday: '', ux: '' }
@@ -21,6 +26,11 @@ beforeEach(async () => {
   await addProjectReference(db, 'bakeday', 'ux')
   tokens.bakeday = (await createToken(db, 'bakeday', 'mara')).token
   tokens.ux = (await createToken(db, 'ux', 'fred')).token
+  await joinProject(db, 'bakeday', {
+    id: 'user-mara',
+    name: 'Mara',
+    email: 'mara@example.com',
+  })
   await joinProject(db, 'ux', {
     id: 'user-fred',
     name: 'Fred',
@@ -160,6 +170,61 @@ describe('the Ask routes', () => {
         },
       },
     })
+  })
+
+  it('take an Ask back while nobody picked it', async () => {
+    await call(handleAddAsk, 'POST', { project: 'bakeday', body: ask })
+
+    const refused = await call(handleRemoveAsk, 'DELETE', {
+      project: 'bakeday',
+      askId: '1',
+    })
+    const takenBack = await call(handleRemoveAsk, 'DELETE', {
+      project: 'bakeday',
+      askId: '1',
+      query: '?member=mara@example.com',
+    })
+
+    expect(refused.status).toBe(400)
+    expect(takenBack).toEqual({ status: 204, body: undefined })
+    expect(await call(handleListAsks, 'GET', { project: 'ux' })).toEqual({
+      status: 200,
+      body: [],
+    })
+  })
+
+  it('answer 400 to the take back of an Ask that a member picked', async () => {
+    await call(handleAddAsk, 'POST', { project: 'bakeday', body: ask })
+    await call(handleUpdateAsk, 'PATCH', {
+      project: 'ux',
+      askId: '1',
+      body: { pickedBy: 'fred@example.com' },
+    })
+
+    const response = await call(handleRemoveAsk, 'DELETE', {
+      project: 'bakeday',
+      askId: '1',
+      query: '?member=mara@example.com',
+    })
+
+    expect(response).toEqual({
+      status: 400,
+      body: {
+        error: {
+          code: 'invalid-request',
+          message: 'Fred picked Ask 1 already',
+        },
+      },
+    })
+  })
+
+  it('answer 404 to the take back of an Ask id that is no number', async () => {
+    const response = await call(handleRemoveAsk, 'DELETE', {
+      project: 'bakeday',
+      askId: 'one',
+    })
+
+    expect(response.status).toBe(404)
   })
 
   it('answer 404 to an Ask id that is no number', async () => {

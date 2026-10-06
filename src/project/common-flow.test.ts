@@ -269,7 +269,21 @@ describe('the common flow of a Part', () => {
       next: { kind: 'edit', label: 'Raise the level' },
     })
     expect(findCommonFlow(hunch, [], 'hand-back')?.current).toBe(2)
-    expect(findCommonFlow(hunch, [], 'check')?.current).toBe(3)
+  })
+
+  it('asks for the glue of the Insight that an Ask handed back', () => {
+    const hunch = {
+      ...published,
+      type: 'insight',
+      evidenceLevel: 'hunch',
+    } as const
+
+    expect(findCommonFlow(hunch, [], 'check')).toEqual({
+      name: 'Ask another team',
+      steps: ['Ask', 'Pick', 'Hand back'],
+      current: 3,
+      next: { kind: 'glue', label: 'Check and glue' },
+    })
   })
 
   it('keeps a flag before the flow of an Ask', () => {

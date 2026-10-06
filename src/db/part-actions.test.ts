@@ -150,6 +150,7 @@ const requests = {
     actions.addAsk({ project, ask: { insight: 'I1', toProject: 'ux' } }),
   pickAsk: () => actions.pickAsk({ project, askId: 1 }),
   handBackAsk: () => actions.handBackAsk({ project, askId: 1, insight: 'I1' }),
+  takeBackAsk: () => actions.takeBackAsk({ project, askId: 1 }),
 } satisfies Record<keyof typeof actions, () => Promise<unknown>>
 
 async function readProject() {
@@ -748,6 +749,7 @@ const writes = [
   'addAsk',
   'pickAsk',
   'handBackAsk',
+  'takeBackAsk',
 ] as const
 
 describe('a write of a person who is no member of the Project', () => {

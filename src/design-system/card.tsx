@@ -106,7 +106,12 @@ export type CardProps = {
   onOpen?: (event: MouseEvent<HTMLAnchorElement>) => void
   // With a label, the button lies below the last line. With an icon, it shows
   // the icon at the end of the first line and the label names it.
-  action?: { label: string; icon?: CarbonIconType; onClick: () => void }
+  action?: {
+    label: string
+    icon?: CarbonIconType
+    disabled?: boolean
+    onClick: () => void
+  }
 }
 
 // The card of one Part. The whole card is one click target that opens the
@@ -249,6 +254,7 @@ export function Card({
             renderIcon={action.icon}
             iconDescription={action.label}
             tooltipAlignment={action.icon ? 'end' : 'start'}
+            disabled={action.disabled}
             onClick={action.onClick}
           >
             {action.icon ? undefined : action.label}

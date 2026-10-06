@@ -684,6 +684,44 @@ describe('runConcept', () => {
     ])
   })
 
+  it('takes an Ask back while nobody picked it', async () => {
+    await addProject(db, 'ux', 'UX team')
+    await run('project', 'set', 'flexibeck', '--references', 'ux')
+    await addPart(db, 'flexibeck', {
+      type: 'insight',
+      title: 'Novices skip the fold',
+      source: 'support',
+      evidenceLevel: 'hunch',
+    })
+    await run('ask', 'I1', '--to-project', 'ux', '--project', 'flexibeck')
+    vi.mocked(console.log).mockClear()
+
+    await joinProject(db, 'flexibeck', {
+      id: 'user-mara',
+      name: 'Mara',
+      email: 'mara@example.com',
+    })
+
+    await run(
+      'ask',
+      'take-back',
+      '1',
+      '--member',
+      'mara@example.com',
+      '--project',
+      'flexibeck',
+    )
+    await run('mine', '--project', 'ux')
+
+    expect(logged()).toEqual([])
+  })
+
+  it('refuses a take back without the member', async () => {
+    await expect(
+      run('ask', 'take-back', '1', '--project', 'flexibeck'),
+    ).rejects.toThrow('ask take-back needs <ask> --member <e-mail>')
+  })
+
   it('refuses an ask without a Project', async () => {
     await expect(run('ask', 'I1', '--project', 'flexibeck')).rejects.toThrow(
       'ask needs <id> --to-project <slug>',

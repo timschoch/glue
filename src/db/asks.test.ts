@@ -7,6 +7,7 @@ import {
   listAskableProjects,
   listMineAsks,
   pickAsk,
+  takeBackAsk,
 } from './asks.ts'
 import { joinProject } from './members.ts'
 import { addJoint, addPart, addProject, updatePart } from './part-records.ts'
@@ -218,6 +219,76 @@ describe('an Ask with an Insight that was handed back', () => {
     expect((await findPart(db, 'bakeday', 'I1'))?.needs).toMatchObject([
       { project: { slug: 'ux', name: 'UX team' }, part: { id: 'I1' } },
     ])
+  })
+})
+
+describe('an Ask that the Project takes back', () => {
+  beforeEach(async () => {
+    await addAsk(db, 'bakeday', { insight: 'I1', toProject: 'ux' })
+  })
+
+  it('leaves Mine of the asked Project, and the Hunch can ask again', async () => {
+    await takeBackAsk(db, 'bakeday', 1, mara)
+
+    expect(await listMineAsks(db, 'ux', fred)).toEqual([])
+    expect(await findOpenAsk(db, 'bakeday', 'I1')).toBeUndefined()
+    expect(
+      await addAsk(db, 'bakeday', { insight: 'I1', toProject: 'ux' }),
+    ).toBe(2)
+  })
+
+  it('stays when a member picked it', async () => {
+    await pickAsk(db, 'ux', 1, fred)
+
+    await expect(takeBackAsk(db, 'bakeday', 1, mara)).rejects.toThrow(
+      new InvalidRecordError('Fred picked Ask 1 already'),
+    )
+    expect(await listMineAsks(db, 'ux', fred)).toMatchObject([{ id: 1 }])
+  })
+
+  it('stays when another Project takes it back', async () => {
+    await expect(takeBackAsk(db, 'ux', 1, fred)).rejects.toThrow(
+      new InvalidRecordError('Ask 1 not found'),
+    )
+    expect(await listMineAsks(db, 'ux', fred)).toMatchObject([{ id: 1 }])
+  })
+
+  it('stays when a member who does not have the Hunch takes it back', async () => {
+    await joinProject(db, 'bakeday', {
+      id: 'user-ben',
+      name: 'Ben',
+      email: 'ben@example.com',
+    })
+
+    await expect(
+      takeBackAsk(db, 'bakeday', 1, 'ben@example.com'),
+    ).rejects.toThrow(
+      new InvalidRecordError(
+        'ben@example.com does not have the Hunch of Ask 1',
+      ),
+    )
+    expect(await listMineAsks(db, 'ux', fred)).toMatchObject([{ id: 1 }])
+  })
+
+  it('stays when a person who is no member of the Project takes it back', async () => {
+    await expect(takeBackAsk(db, 'bakeday', 1, fred)).rejects.toThrow(
+      new InvalidRecordError('fred@example.com is no member of bakeday.'),
+    )
+    expect(await listMineAsks(db, 'ux', fred)).toMatchObject([{ id: 1 }])
+  })
+
+  it('goes when nobody has the Hunch and a member takes it back', async () => {
+    await addPart(db, 'bakeday', {
+      type: 'insight',
+      title: 'Experts skip the tour',
+      source: 'support',
+      evidenceLevel: 'hunch',
+    })
+    await addAsk(db, 'bakeday', { insight: 'I2', toProject: 'ux' })
+
+    await takeBackAsk(db, 'bakeday', 2, mara)
+
+    expect(await findOpenAsk(db, 'bakeday', 'I2')).toBeUndefined()
   })
 })
 

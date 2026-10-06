@@ -13,6 +13,7 @@ import {
   askAddInputSchema,
   askHandBackInputSchema,
   askPickInputSchema,
+  askTakeBackInputSchema,
   assignInputSchema,
   buildsInputSchema,
   questionAnswerInputSchema,
@@ -173,3 +174,7 @@ export const submitPickAsk = createServerFn({ method: 'POST' })
 export const submitHandBackAsk = createServerFn({ method: 'POST' })
   .validator(askHandBackInputSchema)
   .handler(({ data }) => actions.handBackAsk(data))
+
+export const submitTakeBackAsk = createServerFn({ method: 'POST' })
+  .validator(askTakeBackInputSchema)
+  .handler(({ data }) => actions.takeBackAsk(data))
