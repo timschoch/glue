@@ -232,6 +232,18 @@ describe('GET /api/v1/openapi.json', () => {
     ).toHaveLength(1)
   })
 
+  it('describes the wording fix that a change of each Part type takes', async () => {
+    const { schemas } = (await handleGetOpenApi().json()).components
+
+    expect(
+      schemas.PartUpdate.anyOf.map(
+        (change: { properties: { sameMeaning?: { type: string } } }) =>
+          change.properties.sameMeaning?.type,
+      ),
+    ).toEqual(Array(7).fill('boolean'))
+    expect(JSON.stringify(schemas.PartInput)).not.toContain('sameMeaning')
+  })
+
   it('describes the Evidence level of an Insight and the source of a Guardrail', async () => {
     const { schemas } = (await handleGetOpenApi().json()).components
 

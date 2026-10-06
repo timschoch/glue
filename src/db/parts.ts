@@ -108,10 +108,11 @@ export type Flag = {
   contract?: VersionChange
 }
 
-// One thing that happened to a Part: an edit, its first sign-off, or a flag
-// that opened or closed. An answer closes the flags of a Part.
+// One thing that happened to a Part: an edit, its last wording fix, its
+// first sign-off, or a flag that opened or closed. An answer closes the flags
+// of a Part.
 export type Activity =
-  | { kind: 'changed' | 'published'; at: string }
+  | { kind: 'changed' | 'published' | 'wording'; at: string }
   | {
       kind: 'flag-opened' | 'flag-closed'
       at: string
@@ -689,10 +690,10 @@ function listFlags(db: ConceptDb, partId: number) {
 }
 
 // What the database keeps of the past of a Part, newest first. A write
-// that publishes the Part or flags it also sets the time of its last change,
-// so a change at the time of another entry is that entry.
+// that publishes the Part, flags it or fixes its wording also sets the time
+// of its last change, so a change at the time of another entry is that entry.
 function listActivity(
-  part: { changedAt: Date; publishedAt: Date | null },
+  part: { changedAt: Date; publishedAt: Date | null; wordingAt: Date | null },
   partFlags: Awaited<ReturnType<typeof listFlags>>,
 ): Activity[] {
   const entries: Activity[] = partFlags.flatMap(
@@ -712,6 +713,9 @@ function listActivity(
   )
   if (part.publishedAt !== null) {
     entries.push({ kind: 'published', at: part.publishedAt.toISOString() })
+  }
+  if (part.wordingAt !== null) {
+    entries.push({ kind: 'wording', at: part.wordingAt.toISOString() })
   }
   const changedAt = part.changedAt.toISOString()
   if (entries.every(({ at }) => at !== changedAt)) {

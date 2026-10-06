@@ -129,10 +129,11 @@ export type RecordFlag = {
   }
 }
 
-// What happened to a Part: an edit, its first sign-off, or a flag that
-// opened or closed.
+// What happened to a Part: an edit, a wording fix, its first sign-off, or a
+// flag that opened or closed.
 const activityKinds = {
   changed: 'Edited',
+  wording: 'Wording',
   published: 'Published',
   'flag-opened': 'Flag opened',
   'flag-closed': 'Flag closed',

@@ -56,6 +56,9 @@ const spacing = {
   'elk.layered.spacing.edgeNodeBetweenLayers': '14',
 }
 
+// The room around the Map, in pixels.
+export const PADDING = 24
+
 const rootOptions = {
   'elk.algorithm': 'layered',
   'elk.direction': 'RIGHT',
@@ -68,39 +71,13 @@ const rootOptions = {
   'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
   'elk.layered.thoroughness': '30',
   'elk.partitioning.activate': 'true',
-  'elk.padding': '[top=24,left=24,bottom=24,right=24]',
+  'elk.padding': `[top=${PADDING},left=${PADDING},bottom=${PADDING},right=${PADDING}]`,
   ...spacing,
 }
 
 const groupOptions = {
   'elk.padding': `[top=${HEAD_HEIGHT},left=16,bottom=16,right=16]`,
   ...spacing,
-}
-
-// The room between the start of the frame and a node that is bigger than it.
-const START_ROOM = 24
-
-// Where the Map lies in its frame at the start, at its full size. A Map that
-// fits is in the middle. A bigger Map shows the node `id` in the middle, as far
-// as the edges of the Map allow, or the start of a node that does not fit.
-export function placeMapStart(
-  layout: MapLayout,
-  frame: { width: number; height: number },
-  id: string | undefined,
-): MapPoint {
-  const box = layout.boxes.find((found) => found.id === id)
-
-  function place(size: number, room: number, start = 0, length = 0) {
-    if (room >= size) return (room - size) / 2
-    const offset =
-      length > room ? START_ROOM - start : room / 2 - (start + length / 2)
-    return Math.min(0, Math.max(room - size, offset))
-  }
-
-  return {
-    x: place(layout.width, frame.width, box?.left, box?.width),
-    y: place(layout.height, frame.height, box?.top, box?.height),
-  }
 }
 
 const elk = new ELK()

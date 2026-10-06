@@ -1210,6 +1210,7 @@ describe('the activity of a record', () => {
       at: '2026-10-03T08:00:00.000Z',
       flag: { reason: 'changed', part: INSIGHT },
     },
+    { kind: 'wording', at: '2026-10-02T09:00:00.000Z' },
     { kind: 'published', at: '2026-10-02T08:00:00.000Z' },
   ] as const
 
@@ -1226,6 +1227,7 @@ describe('the activity of a record', () => {
       '2026-10-04Edited',
       '2026-10-03Flag closedChangedI7',
       '2026-10-03Flag openedChangedI7',
+      '2026-10-02Wording',
       '2026-10-02Published',
     ])
     expect(screen.getByRole('article').lastElementChild).toBe(group)

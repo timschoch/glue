@@ -12,6 +12,8 @@ import type { GithubClient, IssueInput } from './client.ts'
 export type DownstreamIssue =
   | { kind: 'created' | 'existing'; url: string }
   | { kind: 'not-accepted' | 'no-repository' | 'not-found' }
+  // The Decision was accepted before the write, and has no issue.
+  | { kind: 'not-opened' }
   // GitHub failed. The Decision keeps its status, a retry opens the issue.
   | { kind: 'failed'; message: string }
 
@@ -52,12 +54,14 @@ function toIssue(
 // Opens the issue when the Part is an accepted Decision. Every write that
 // can leave a Decision accepted calls it with the record id of the Part, so
 // the CLI, the HTTP API and the app all open the issue. A Decision with an
-// issue opens no second one.
+// issue opens no second one. `wasAccepted`: the Decision was accepted
+// before the write, so the write opens no issue (D53).
 export async function createDownstreamIssue(
   db: ConceptDb,
   github: GithubClient,
   productSlug: string,
   decisionId: string,
+  wasAccepted = false,
 ): Promise<DownstreamIssue> {
   if (typeOfRecordId(decisionId) !== 'decision') return { kind: 'not-found' }
   const decision = await findPart(db, productSlug, decisionId)
@@ -65,6 +69,7 @@ export async function createDownstreamIssue(
   if (!decision || !goal) return { kind: 'not-found' }
   if (decision.issueUrl) return { kind: 'existing', url: decision.issueUrl }
   if (decision.status !== 'accepted') return { kind: 'not-accepted' }
+  if (wasAccepted) return { kind: 'not-opened' }
   const product = await findProduct(db, productSlug)
   if (!product?.repository) return { kind: 'no-repository' }
   const { repository } = product

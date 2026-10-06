@@ -313,6 +313,8 @@ export function formatDownstreamIssue(
       return 'no issue: the Product has no repository'
     case 'not-found':
       return `no issue: decision "${decisionId}" not found`
+    case 'not-opened':
+      return `no issue: ${decisionId} was accepted already\nOpen it: pnpm concept downstream ${decisionId} --project ${product}`
     case 'failed':
       return `issue missing: ${issue.message}\nRetry: pnpm concept downstream ${decisionId} --project ${product}`
   }
@@ -514,7 +516,7 @@ function formatHelp() {
     'pnpm concept list [<type>] [--member <e-mail>]',
     'pnpm concept show <id>',
     'pnpm concept add <type> <flags of the type> [--body <text>, or - for stdin]',
-    'pnpm concept set <id> <flags of the type> [--body <text>, or - for stdin]',
+    'pnpm concept set <id> <flags of the type> [--body <text>, or - for stdin] [--same-meaning]',
     'pnpm concept move <id> [<id> ...] --concept <slug>',
     'pnpm concept move <id> [<id> ...] --concept <slug> --to-project <slug> [--drop-refused-joints]',
     'pnpm concept downstream <id>',
@@ -769,7 +771,11 @@ export async function runConcept(
     }
     case 'set': {
       const [id, ...flagArgs] = rest
-      const flags = parseFlags(flagArgs)
+      // A wording fix: the new title or body means the same, and flags no Part.
+      const sameMeaning = flagArgs.includes('--same-meaning') || undefined
+      const flags = parseFlags(
+        flagArgs.filter((arg) => arg !== '--same-meaning'),
+      )
       const product = await readProject(db, flags)
       const type = typeOfRecordId(id)
       if (!type) throw new Error(`"${id}" is not a Concept id`)
@@ -784,7 +790,11 @@ export async function runConcept(
           ]),
         )
         // The operation reads the change with the schema of the type.
-        const change = { ...cleared, body: await readBody(flags) } as PartChange
+        const change = {
+          ...cleared,
+          body: await readBody(flags),
+          sameMeaning,
+        } as PartChange
         await operations.updatePart(product, id, change)
         return
       }
@@ -796,7 +806,10 @@ export async function runConcept(
         body: await readBody(flags),
       }
       if (Object.values(change).some((value) => value !== undefined)) {
-        await operations.updatePart(product, id, change as PartChange)
+        await operations.updatePart(product, id, {
+          ...change,
+          sameMeaning,
+        } as PartChange)
         if (flags.status === undefined) return
       }
       // The operation holds the rule of the status and of the successor.

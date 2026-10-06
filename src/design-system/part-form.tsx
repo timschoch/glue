@@ -1,6 +1,7 @@
 import { Subtract } from '@carbon/icons-react'
 import {
   Button,
+  Checkbox,
   Form,
   InlineLoading,
   InlineNotification,
@@ -43,9 +44,11 @@ export type PartFormValues = {
   goal: string | null
   // The record ids of the Parts that a Decision needs as evidence.
   evidence: ReadonlyArray<string>
+  // A wording fix: the new title or body means the same as the old one.
+  sameMeaning: boolean
 }
 
-type Field = keyof PartFormValues
+type Field = FormField['name']
 
 const EMPTY: PartFormValues = {
   title: '',
@@ -58,6 +61,7 @@ const EMPTY: PartFormValues = {
   enforcedBy: '',
   goal: null,
   evidence: [],
+  sameMeaning: false,
 }
 
 const hasValue = (value: PartFormValues[Field]) =>
@@ -329,6 +333,14 @@ export function PartForm({
         {recordId ? `${partTypes[type]} ${recordId}` : partTypes[type]}
       </h1>
       {fields.map(control)}
+      {recordId !== undefined && (
+        <Checkbox
+          id={`${formId}-sameMeaning`}
+          labelText="Same meaning"
+          checked={values.sameMeaning}
+          onChange={(_, { checked }) => change({ sameMeaning: checked })}
+        />
+      )}
       {serverError && (
         <InlineNotification
           kind="error"

@@ -1025,6 +1025,33 @@ describe('Trust and the Work state', () => {
     })
   })
 
+  it('takes a wording fix: the new title flags no Part, and the activity has it', async () => {
+    await addJoint(db, 'flexibeck', { part: 'R1', needs: 'I1' })
+    await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'R1' },
+      body: { answer: 'supersede' },
+    })
+
+    const response = await call(handleUpdatePart, 'PATCH', {
+      params: { recordId: 'I1' },
+      body: { title: 'Users leave on slow loads', sameMeaning: true },
+    })
+    const needing = await call(handleGetPart, 'GET', {
+      params: { recordId: 'R1' },
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      title: 'Users leave on slow loads',
+      activity: [{ kind: 'wording' }, { kind: 'published' }],
+    })
+    expect(needing.body).toMatchObject({
+      trust: 'solid',
+      workState: 'published',
+      flags: [],
+    })
+  })
+
   it('returns the Contract Version of a Joint and the flag of a new Version, and takes the move to it', async () => {
     await addConcept(db, 'flexibeck', { slug: 'rules', title: 'Rules' })
     await addConcept(db, 'flexibeck', { slug: 'shop', title: 'Shop' })

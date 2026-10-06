@@ -359,6 +359,8 @@ export const parts = pgTable(
     // The first time that the Part was published. A Part that is published
     // again tells the Parts that need it.
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    // The last wording fix: a new title or body with the same meaning.
+    wordingAt: timestamp('wording_at', { withTimezone: true }),
   },
   (table) => [
     foreignKey({
