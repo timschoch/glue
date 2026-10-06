@@ -107,6 +107,8 @@ async function renderMap(props: Partial<ConceptMapProps> = {}) {
     />,
   )
   await screen.findByRole('link', { name: /^People/ }, { timeout: 20_000 })
+  // React Flow draws the lines one render after the nodes.
+  await screen.findAllByRole('group', { name: / needs / })
   return handlers
 }
 
