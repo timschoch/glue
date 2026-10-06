@@ -31,7 +31,8 @@ const lowValuesResponseSchema = z.object({
   ),
 })
 
-// Without `url` or `readKey` Glue has no metric source: no Signals.
+// A Project with an analytics project needs the metric source: without `url`
+// or `readKey` the source fails, so the Signals page shows it.
 export function createAnalyticsSource(options: {
   url: string | undefined
   readKey: string | undefined
@@ -42,7 +43,10 @@ export function createAnalyticsSource(options: {
   return {
     name: 'analytics',
     listSignals: async ({ analyticsProject }) => {
-      if (!url || !readKey || !analyticsProject) return []
+      if (!analyticsProject) return []
+      if (!url || !readKey) {
+        throw new Error('Analytics has no address or no read key')
+      }
       const to = now()
       const response = await send(new URL('/api/low-values', url), {
         method: 'POST',

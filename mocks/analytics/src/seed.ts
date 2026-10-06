@@ -1,7 +1,9 @@
 import { PostHog } from 'posthog-node'
 
-// Sends a demo funnel through the capture API with posthog-node, so it works
-// against a local server and a deploy alike.
+import { createSurveyEvents } from './survey-events.ts'
+
+// Sends a demo funnel and survey answers through the capture API with
+// posthog-node, so it works against a local server and a deploy alike.
 const host = process.env.MOCK_ANALYTICS_URL ?? 'http://localhost:4000'
 const project = process.env.MOCK_ANALYTICS_PROJECT_KEY ?? 'phc_demo'
 
@@ -38,6 +40,11 @@ for (let userNumber = 0; userNumber < USER_COUNT; userNumber++) {
     eventCount++
     timestamp += Math.random() * MAX_STEP_GAP_MINUTES * MILLISECONDS_PER_MINUTE
   }
+}
+
+for (const surveyEvent of createSurveyEvents(new Date())) {
+  posthog.capture(surveyEvent)
+  eventCount++
 }
 
 await posthog.shutdown()
