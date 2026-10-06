@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.17.0](https://github.com/timschoch/glue/compare/v1.16.0...v1.17.0) (2026-10-06)
+
+
+### Features
+
+* **asks:** ask another Project to check a Hunch ([#307](https://github.com/timschoch/glue/issues/307)) ([a76d31b](https://github.com/timschoch/glue/commit/a76d31b7f3095a18efb0720fa81f11afa7735acc))
+* **trust:** show an empty slot as unsure and note a Part under review ([#308](https://github.com/timschoch/glue/issues/308)) ([d5ea6c8](https://github.com/timschoch/glue/commit/d5ea6c8e1fab7c7e4ad41f44823ef6ef04f5eb91)), closes [#304](https://github.com/timschoch/glue/issues/304)
+
+
+### Bug Fixes
+
+* **builds:** read no bare Decision id in a shared repository ([#305](https://github.com/timschoch/glue/issues/305)) ([3870544](https://github.com/timschoch/glue/commit/387054456ca75125f47232abb0483690a7aadbd7))
+
 ## [1.16.0](https://github.com/timschoch/glue/compare/v1.15.0...v1.16.0) (2026-10-06)
 
 
