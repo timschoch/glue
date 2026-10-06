@@ -313,8 +313,9 @@ function OpenableMap() {
 }
 
 describe('ConceptMap, the fit', () => {
-  // The whole Map, at its full size at most.
-  const whole = expect.objectContaining({ maxZoom: 1 })
+  // The whole Map, at its full size at most. The floor: the title of a
+  // Concept, 14 px, shows at 12 px at least.
+  const whole = expect.objectContaining({ minZoom: 12 / 14, maxZoom: 1 })
 
   it('fits the whole Map into its frame at first sight', async () => {
     await renderMap()

@@ -42,8 +42,11 @@ const HOVER_END_MS = 250
 // The radius of a corner of a line, and the size of its arrowhead.
 const CORNER = 5
 const ARROW = { length: 7, width: 3.5 }
+// The title of a Concept is `heading-compact-01`, 14 px. A fit shows it no
+// smaller than `label-01`, 12 px.
+const FLOOR = 12 / 14
 // The whole Map shows in its frame, at its full size at most.
-const FIT = { maxZoom: 1, padding: `${PADDING}px` } as const
+const FIT = { minZoom: FLOOR, maxZoom: 1, padding: `${PADDING}px` } as const
 
 type FlowNode = Node<{ node: MapNode }, 'node'>
 type FlowEdge = Edge<
@@ -366,8 +369,16 @@ export function ConceptMapFlow({
   const toggled = useRef<{ slug: string; open: boolean }>(undefined)
   // React Flow fits the Map at first sight, with each new layout and with
   // each new size of the frame.
-  const fit = useCallback(() => void flow.current?.fitView(FIT), [])
-  useEffect(fit, [fit, placed, room])
+  const fit = useCallback(async () => {
+    const instance = flow.current
+    if (!instance) return
+    await instance.fitView(FIT)
+    // A Map too big for its frame at the floor starts at its left top corner.
+    const { x, y, zoom } = instance.getViewport()
+    if (x < 0 || y < 0)
+      await instance.setViewport({ x: Math.max(x, 0), y: Math.max(y, 0), zoom })
+  }, [])
+  useEffect(() => void fit(), [fit, placed, room])
 
   const actions = useMemo(
     () => ({
@@ -502,7 +513,7 @@ export function ConceptMapFlow({
             edgeTypes={edgeTypes}
             onInit={(instance) => {
               flow.current = instance
-              fit()
+              void fit()
             }}
             // An open Concept is the ground of its nodes: the pointer on it
             // changes nothing.
@@ -526,7 +537,8 @@ export function ConceptMapFlow({
             preventScrolling={isBigger}
             zoomOnScroll={false}
             zoomOnDoubleClick={false}
-            // Small enough for the Map of a Project in a narrow window.
+            // The member zooms out to the whole Map of a Project in a narrow
+            // window.
             minZoom={0.1}
             maxZoom={2}
           >
