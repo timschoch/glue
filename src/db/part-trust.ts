@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
+import { evidenceTypes } from '../part-fields.ts'
 import type {
   DecisionStatus,
   InsightStatus,
@@ -126,7 +128,9 @@ export function toPublishedAt(workState: WorkState): SQL {
 // reads as before the write.
 //
 // - A published Part with a new title or body, and a Part that turns
-//   not-ready or wrong, flags each Part that needs it over a Joint. A two-way
+//   not-ready or wrong, flags each Part that needs it over a Joint. A Part
+//   that goes to review flags nobody: the Parts that need it show a note,
+//   see selectReviewNotes. A two-way
 //   Joint flags in both directions. A Part that is draft or sunk gets no flag.
 //   Trust does not travel along a reference: a Part of another Project gets
 //   no flag (D45).
@@ -184,7 +188,9 @@ export function spreadTrust(
           ),
           (
             'not-ready',
-            new_part."trust" = 'not-ready' and old_part."trust" <> 'not-ready'
+            new_part."trust" = 'not-ready'
+            and old_part."trust" <> 'not-ready'
+            and new_part."work_state" <> 'review'
           ),
           ('wrong', new_part."trust" = 'wrong' and old_part."trust" <> 'wrong'),
           ('off-target', ${isOffTarget}::boolean)
@@ -229,6 +235,122 @@ export function spreadTrust(
       ${flagParts(sql`select "part_id" from added_flags union select "id" from woken`)}
         and "id" not in (select "id" from ${newParts})
     )`
+}
+
+// What a Part type needs and can miss (D52): a Goal, evidence or a Decision.
+export const slots = ['goal', 'evidence', 'decision'] as const
+export type Slot = (typeof slots)[number]
+
+// The Part types that fill a slot.
+const slotTypes: Record<Slot, ReadonlyArray<PartType>> = {
+  goal: ['goal'],
+  evidence: evidenceTypes,
+  decision: ['decision'],
+}
+
+// The slots of a Part type, in the order that a Part lists them. A Part with
+// no Joint to a Part that fills a slot has an empty slot.
+export const neededSlots: Partial<Record<PartType, ReadonlyArray<Slot>>> = {
+  decision: ['goal', 'evidence'],
+  flow: ['decision'],
+  entity: ['decision'],
+}
+
+// The reason that an empty slot gives.
+export const slotReasons: Record<Slot, string> = {
+  goal: 'needs a Goal',
+  evidence: 'needs evidence',
+  decision: 'needs a Decision',
+}
+
+const slotRules = sql.join(
+  Object.entries(neededSlots).flatMap(([type, needed]) =>
+    needed.map((slot, position) => {
+      const fillers = sql.join(
+        slotTypes[slot].map((filler) => sql`${filler}`),
+        sql`, `,
+      )
+      return sql`(${type}::text, ${slot}::text, ${position}::integer, array[${fillers}]::text[])`
+    }),
+  ),
+  sql`, `,
+)
+
+// The `parts` table, or an alias of it, in a select with a join: the
+// columns of a select of one table have no table name, and the statements
+// here read them from inside a subquery.
+type PartsTable = Record<
+  'id' | 'projectId' | 'type' | 'trust' | 'workState',
+  AnyPgColumn
+>
+
+// The Joints of the Part with the Part at their other end, as the `from` of
+// a subquery. A two-way Joint counts from both sides.
+function fromNeeded(part: PartsTable): SQL {
+  return sql`
+    "joints" as joint
+    join "parts" as needed on needed."id" = case
+      when joint."part_id" = ${part.id} then joint."needed_part_id"
+      else joint."part_id"
+    end
+    where (
+      joint."part_id" = ${part.id}
+      or (joint."two_way" and joint."needed_part_id" = ${part.id})
+    )`
+}
+
+// The empty slots of a Part. They are read from the Joints, never stored: no
+// flag, no notice and no step along a Joint. A sunk Part has none.
+export function selectEmptySlots(part: PartsTable): SQL<Slot[]> {
+  return sql<Slot[]>`(
+    select coalesce(jsonb_agg(rule."slot" order by rule."position"), '[]'::jsonb)
+    from (values ${slotRules}) as rule ("type", "slot", "position", "fillers")
+    where rule."type" = ${part.type}
+      and ${part.workState} <> 'sunk'
+      and not exists (
+        select 1 from ${fromNeeded(part)}
+          and needed."type" = any(rule."fillers")
+      )
+  )`
+}
+
+// The Trust of a Part as a reader sees it: the one place that says it. A
+// solid Part with an empty slot is unsure, so it reads as flagged. Red stays
+// red: automatic is yellow only.
+export function selectTrust(part: PartsTable): SQL<Trust> {
+  return sql<Trust>`case
+    when ${part.trust} = 'solid'
+      and jsonb_array_length(${selectEmptySlots(part)}) > 0
+    then 'flagged'
+    else ${part.trust}
+  end`
+}
+
+// A Part in review that another Part needs (D52).
+export type ReviewNote = { id: string; type: PartType; title: string }
+
+// The notes of a Part: the Parts in review that it needs, in the order of
+// the Joints. They are read from the Joints and the Work state, never
+// stored: no flag and no notice. The note is gone when the Part leaves
+// review. A sunk Part has none, and a reference gives none (D45).
+export function selectReviewNotes(part: PartsTable): SQL<ReviewNote[]> {
+  return sql<ReviewNote[]>`(
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'id', needed."record_id",
+          'type', needed."type",
+          'title', needed."title"
+        )
+        order by joint."id"
+      ),
+      '[]'::jsonb
+    )
+    from ${fromNeeded(part)}
+      and needed."work_state" = 'review'
+      and needed."project_id" = ${part.projectId}
+      and ${part.workState} <> 'sunk'
+  )`
 }
 
 // The write that turns the Parts of the ids flagged and to-check. A Part in

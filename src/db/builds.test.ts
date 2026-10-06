@@ -83,6 +83,7 @@ beforeEach(async () => {
     type: 'entity',
     concept: 'videos',
     title: 'Technique',
+    needs: ['D1'],
   })
   await answerPart(db, 'glue', 'E1', { answer: 'supersede' })
 })
@@ -281,6 +282,7 @@ describe('listBuilds', () => {
       type: 'entity',
       concept: 'flows',
       title: 'Step',
+      needs: ['D1'],
     })
     await answerPart(db, 'glue', 'E2', { answer: 'supersede' })
     await signContract(db, 'glue', 'videos', 'Tim')

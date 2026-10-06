@@ -324,10 +324,10 @@ describe('runConcept', () => {
   })
 
   it.each([
-    ['entities', 'E1'],
-    ['flows', 'F1'],
-    ['metrics', 'M1'],
-  ])('adds to the %s, lists and shows %s', async (folder, recordId) => {
+    ['entities', 'E1', ['empty_slot: needs a Decision']],
+    ['flows', 'F1', ['empty_slot: needs a Decision']],
+    ['metrics', 'M1', []],
+  ])('adds to the %s, lists and shows %s', async (folder, recordId, slots) => {
     await run(
       'add',
       folder,
@@ -354,6 +354,7 @@ describe('runConcept', () => {
       'concept: flexibeck',
       'needs: R1 CI takes ten minutes at most',
       'trust: not-ready',
+      ...slots,
       'work_state: draft',
       expect.stringMatching(/^activity: \S+ changed$/),
       '\nFrom the push to the green check.',
@@ -502,6 +503,7 @@ describe('runConcept', () => {
       'title: Push',
       'concept: flexibeck',
       'trust: not-ready',
+      'empty_slot: needs a Decision',
       'work_state: draft',
       expect.stringMatching(/^activity: \S+ changed$/),
     ])
@@ -660,6 +662,7 @@ describe('runConcept', () => {
       'concept: flexibeck',
       'needs: R1 CI takes five minutes',
       'trust: flagged',
+      'empty_slot: needs a Decision',
       'work_state: waiting',
       expect.stringMatching(
         /^flag: R1 changed \d{4}-\d{2}-\d{2} CI takes five minutes$/,

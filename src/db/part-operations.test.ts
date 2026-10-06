@@ -3,7 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
 import { addProjectReference, setProductRepository } from './projects.ts'
 import { createPartOperations } from './part-operations.ts'
-import { addConcept, addPart, addProject, removePart } from './part-records.ts'
+import {
+  addConcept,
+  addJoint,
+  addPart,
+  addProject,
+  removePart,
+} from './part-records.ts'
 import { findPart } from './parts.ts'
 import { InvalidRecordError, PartNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
@@ -240,6 +246,8 @@ describe('a move of a Part to another Concept', () => {
       title: 'Pay the cart',
       needs: ['I1'],
     })
+    await operations.addPart(project, { ...decision, status: 'accepted' })
+    await addJoint(db, project, { part: 'F1', needs: 'D1' })
     await operations.answerPart(project, 'F1', { answer: 'supersede' })
   })
 
@@ -255,14 +263,20 @@ describe('a move of a Part to another Concept', () => {
       conceptTitle: 'Checkout',
       trust: 'solid',
       workState: 'published',
-      needs: [{ jointId: 1, link: true, part: { id: 'I1' } }],
+      needs: [
+        { jointId: 1, link: true, part: { id: 'I1' } },
+        { jointId: 4, link: true, part: { id: 'D1' } },
+      ],
       flags: [],
     })
     expect(await operations.getPart(project, 'I1')).toMatchObject({
       concept: 'flexibeck',
       trust: 'solid',
       workState: 'published',
-      neededBy: [{ jointId: 1, link: true, part: { id: 'F1' } }],
+      neededBy: [
+        { jointId: 1, link: true, part: { id: 'F1' } },
+        { jointId: 3, link: false, part: { id: 'D1' } },
+      ],
     })
   })
 
@@ -431,6 +445,8 @@ describe('a move of Parts to another Project', () => {
           workState: 'published',
           concept: 'glue',
           conceptTitle: 'glue',
+          emptySlots: [],
+          reviewNotes: [],
         },
       },
     ])

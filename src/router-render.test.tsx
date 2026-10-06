@@ -1071,6 +1071,49 @@ describe('a flagged record', () => {
   })
 })
 
+describe('a Part with an empty slot that needs a Part under review', () => {
+  const unsure: Pick<Part, 'trust' | 'emptySlots' | 'reviewNotes'> = {
+    trust: 'flagged',
+    emptySlots: ['evidence'],
+    reviewNotes: [
+      { id: 'G1', type: 'goal', title: 'Agents build from the Concept' },
+    ],
+  }
+  const server = {
+    fetchPart: vi.fn(changedPart('D4', unsure)),
+    fetchParts: vi.fn(() =>
+      Promise.resolve(
+        parts.map((part) => (part.id === 'D4' ? { ...part, ...unsure } : part)),
+      ),
+    ),
+  }
+
+  it('shows the reason and the Part under review on the record, and opens that Part', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model/D4', server)
+
+    within(screen.getByRole('list', { name: 'Flags' })).getByText(
+      'Needs evidence',
+    )
+
+    await userEvent.click(
+      within(screen.getByRole('region', { name: 'Review' })).getByRole('link', {
+        name: / G1 /,
+      }),
+    )
+
+    await expectAddress('/glue/glue/G1', { trail: ['D4'] })
+  })
+
+  it('shows the empty slot and the Part under review on the card', async () => {
+    await renderPage('/glue?section=Decide&detail=true', server)
+
+    expect(card('D4').textContent).toContain(
+      'Review: Goal G1 Agents build from the Concept',
+    )
+    within(card('D4')).getByText('Evidence')
+  })
+})
+
 describe('a record with a flag of a new Contract Version', () => {
   const flagged = {
     fetchPart: vi.fn(

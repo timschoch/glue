@@ -10,7 +10,7 @@ import { useState } from 'react'
 import type { MouseEvent, ReactElement, ReactNode, SyntheticEvent } from 'react'
 
 import { Card, partTypes } from './card.tsx'
-import type { PartType, Trust } from './card.tsx'
+import type { PartType, ReviewNote, Slot, Trust } from './card.tsx'
 import styles from './concept-view.module.scss'
 
 // The Part types in the order of the loop, each with its word for many Parts.
@@ -125,6 +125,10 @@ export type ConceptViewPart = {
   // The title of the home Concept. The read model does not have it yet.
   conceptTitle: string
   trust: Trust
+  // What the Part needs and does not have.
+  emptySlots?: ReadonlyArray<Slot>
+  // The Parts under review that the Part needs.
+  reviewNotes?: ReadonlyArray<ReviewNote>
 }
 
 export type ConceptViewNode = {
@@ -247,6 +251,8 @@ export function ConceptView({
         recordId={part.id}
         title={part.title}
         trust={part.trust}
+        reviewNotes={part.reviewNotes}
+        emptySlots={part.emptySlots}
         concept={linked ? part.conceptTitle : undefined}
         href={partHref(part)}
         onOpen={onOpenPart && ((event) => onOpenPart(part, event))}

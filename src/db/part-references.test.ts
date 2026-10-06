@@ -16,19 +16,44 @@ import { createTestDatabase } from './test-database.ts'
 const { db } = createTestDatabase(schema)
 
 // Project `glue-build` may reference Project `glue`. Each has a Flow F1:
-// the one of `glue` is published. The Entity E1 of `glue` is a draft.
+// the one of `glue` is published and has its Decision D1. The Entity E1 of
+// `glue` is a draft.
 beforeEach(async () => {
   await addProject(db, 'glue', 'Glue')
   await addProject(db, 'glue-build', 'Build of Glue')
   await addProjectReference(db, 'glue-build', 'glue')
-  await addPart(db, 'glue', { type: 'flow', title: 'Sign off a Version' })
+  await addPart(db, 'glue', {
+    type: 'goal',
+    title: 'More users pay',
+    metric: 'paid users',
+    source: 'okr',
+  })
+  await addPart(db, 'glue', {
+    type: 'insight',
+    title: 'Teams want one Contract',
+    source: 'interview',
+    date: '2026-10-01',
+  })
+  await addPart(db, 'glue', {
+    type: 'decision',
+    title: 'Sign off each Version',
+    owner: 'Tim',
+    date: '2026-10-02',
+    status: 'accepted',
+    needs: ['G1', 'I1'],
+  })
+  await addPart(db, 'glue', {
+    type: 'flow',
+    title: 'Sign off a Version',
+    needs: ['D1'],
+  })
   await answerPart(db, 'glue', 'F1', { answer: 'supersede' })
   await addPart(db, 'glue', { type: 'entity', title: 'Contract' })
   await addPart(db, 'glue-build', { type: 'flow', title: 'Merge gate' })
 })
 
 const reference = {
-  jointId: 1,
+  jointId: 4,
   twoWay: false,
   link: true,
   contractVersion: null,
@@ -42,6 +67,8 @@ const reference = {
     workState: 'published',
     concept: 'glue',
     conceptTitle: 'Glue',
+    emptySlots: [],
+    reviewNotes: [],
   },
 }
 
@@ -52,7 +79,7 @@ describe('a reference to a Part of another Project', () => {
       needs: 'glue/F1',
     })
 
-    expect(jointId).toBe(1)
+    expect(jointId).toBe(4)
     expect((await findPart(db, 'glue-build', 'F1'))?.needs).toEqual([reference])
   })
 
@@ -62,7 +89,11 @@ describe('a reference to a Part of another Project', () => {
     expect((await findPart(db, 'glue', 'F1'))?.neededBy).toEqual([])
     expect(await findConcept(db, 'glue', 'glue')).toMatchObject({
       linkedParts: [],
-      joints: [],
+      joints: [
+        { id: 1, part: 'D1', needs: 'G1', twoWay: false, link: false },
+        { id: 2, part: 'D1', needs: 'I1', twoWay: false, link: false },
+        { id: 3, part: 'F1', needs: 'D1', twoWay: false, link: false },
+      ],
     })
     expect(await findConcept(db, 'glue-build', 'glue-build')).toMatchObject({
       linkedParts: [],
@@ -146,6 +177,27 @@ describe('a reference to a Part of another Project', () => {
   })
 
   it('keeps the Trust of a Part when the Part that it references changes', async () => {
+    await addPart(db, 'glue-build', {
+      type: 'goal',
+      title: 'Ship faster',
+      metric: 'lead time',
+      source: 'okr',
+    })
+    await addPart(db, 'glue-build', {
+      type: 'insight',
+      title: 'A red check blocks the merge',
+      source: 'interview',
+      date: '2026-10-01',
+    })
+    await addPart(db, 'glue-build', {
+      type: 'decision',
+      title: 'Gate each merge',
+      owner: 'Tim',
+      date: '2026-10-02',
+      status: 'accepted',
+      needs: ['G1', 'I1'],
+    })
+    await addJoint(db, 'glue-build', { part: 'F1', needs: 'D1' })
     await answerPart(db, 'glue-build', 'F1', { answer: 'supersede' })
     await addJoint(db, 'glue-build', { part: 'F1', needs: 'glue/F1' })
 
@@ -155,7 +207,10 @@ describe('a reference to a Part of another Project', () => {
       trust: 'solid',
       workState: 'published',
       flags: [],
-      needs: [{ part: { title: 'Sign off a Contract' } }],
+      needs: [
+        { part: { title: 'Gate each merge' } },
+        { part: { title: 'Sign off a Contract' } },
+      ],
     })
   })
 })

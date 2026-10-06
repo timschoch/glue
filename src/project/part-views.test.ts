@@ -12,6 +12,8 @@ const goal: PartSummary = {
   workState: 'published',
   concept: 'glue',
   conceptTitle: 'Glue',
+  emptySlots: [],
+  reviewNotes: [],
 }
 
 const insight: PartSummary = {
@@ -23,6 +25,8 @@ const insight: PartSummary = {
   workState: 'published',
   concept: 'part-model',
   conceptTitle: 'Part model',
+  emptySlots: [],
+  reviewNotes: [],
 }
 
 const decision: Part = {
@@ -34,6 +38,8 @@ const decision: Part = {
   workState: 'published',
   concept: 'part-model',
   conceptTitle: 'Part model',
+  emptySlots: [],
+  reviewNotes: [],
   body: 'From #I1.',
   owner: 'Tim',
   date: '2026-10-02',

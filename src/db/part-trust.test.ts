@@ -22,7 +22,7 @@ import {
   supersedeDecision,
   updatePart,
 } from './part-records.ts'
-import { findPart, listMine, listParts } from './parts.ts'
+import { findPart, listMapJoints, listMine, listParts } from './parts.ts'
 import * as schema from './schema.ts'
 
 let client: PGlite
@@ -366,7 +366,7 @@ describe('the automatic flag', () => {
     const needing = await addInsight('Users churn', [cause])
 
     await updatePart(db, 'glue', cause, { title: 'Cache each page' })
-    await updatePart(db, 'glue', cause, { status: 'proposed' })
+    await answerPart(db, 'glue', cause, { answer: 'not-ready' })
 
     expect(await listFlags(needing)).toEqual([
       `${cause} changed`,
@@ -646,10 +646,11 @@ describe('a Part that is published again', () => {
 
     await updatePart(db, 'glue', id, { status: 'accepted' })
 
-    expect(await listFlags(needing)).toEqual([
-      `${id} not-ready`,
-      `${id} changed`,
-    ])
+    expect(await listFlags(needing)).toEqual([`${id} changed`])
+    expect(await findPart(db, 'glue', needing)).toMatchObject({
+      ...flagged,
+      reviewNotes: [],
+    })
   })
 
   it('flags nobody with the first sign-off of a Part', async () => {
@@ -950,5 +951,189 @@ describe('a reading of a Metric', () => {
         measuredAt: new Date(),
       }),
     ).rejects.toThrow('"G1" has no measure')
+  })
+})
+
+// A published Part of the type, with no Joint.
+async function addPublished(type: 'entity' | 'flow', title: string) {
+  const id = await addPart(db, 'glue', { type, title })
+  await answerPart(db, 'glue', id, { answer: 'supersede' })
+  return id
+}
+
+describe('an empty slot', () => {
+  it('shows a published Entity with no Decision as flagged, with the slot', async () => {
+    const id = await addPublished('entity', 'Cart')
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      trust: 'flagged',
+      workState: 'published',
+      emptySlots: ['decision'],
+      flags: [],
+    })
+  })
+
+  it('shows in the list of the Parts, and not in Mine', async () => {
+    await addPublished('flow', 'Checkout')
+
+    expect(await listParts(db, 'glue')).toMatchObject([
+      { id: 'F1', trust: 'flagged', emptySlots: ['decision'] },
+    ])
+    expect(await listMine(db, 'glue')).toEqual([])
+  })
+
+  it('is filled by a Joint to a Decision', async () => {
+    await addGoal()
+    await addInsight('Loads are slow')
+    const decision = await addDecision('accepted', ['G1', 'I1'])
+    const id = await addPublished('entity', 'Cart')
+
+    await addJoint(db, 'glue', { part: id, needs: decision })
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      ...solid,
+      emptySlots: [],
+    })
+    expect(await listParts(db, 'glue', ['entity'])).toMatchObject([
+      { id, trust: 'solid', emptySlots: [] },
+    ])
+  })
+
+  it('is filled by a two-way Joint from the other side', async () => {
+    await addGoal()
+    await addInsight('Loads are slow')
+    const decision = await addDecision('accepted', ['G1', 'I1'])
+    const id = await addPublished('entity', 'Cart')
+
+    await addJoint(db, 'glue', { part: decision, needs: id, twoWay: true })
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      ...solid,
+      emptySlots: [],
+    })
+  })
+
+  it('keeps a draft red, and lists its slot', async () => {
+    const id = await addPart(db, 'glue', { type: 'entity', title: 'Cart' })
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      ...draft,
+      emptySlots: ['decision'],
+    })
+  })
+
+  it('has none on a sunk Part', async () => {
+    const id = await addPublished('entity', 'Cart')
+
+    await answerPart(db, 'glue', id, { answer: 'sink' })
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      ...sunk,
+      emptySlots: [],
+    })
+  })
+
+  it('goes one step only: the Part that needs the unsure Part stays solid', async () => {
+    const id = await addPublished('entity', 'Cart')
+    const needing = await addInsight('Carts are left', [id])
+
+    expect(await findPart(db, 'glue', needing)).toMatchObject({
+      ...solid,
+      emptySlots: [],
+      flags: [],
+      needs: [{ part: { id, trust: 'flagged' } }],
+    })
+  })
+
+  it('lists a Goal and evidence for a Decision that has neither', async () => {
+    await addGoal()
+    await addInsight('Loads are slow')
+    const id = await addDecision('accepted', ['G1', 'I1'])
+    // A Decision from before the rule that it needs both.
+    await client.exec('delete from joints')
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      trust: 'flagged',
+      emptySlots: ['goal', 'evidence'],
+    })
+  })
+
+  it('shows the Trust of the needed Part on a Joint of the Map', async () => {
+    const id = await addPublished('entity', 'Cart')
+    await addInsight('Carts are left', [id])
+
+    expect(await listMapJoints(db, 'glue')).toMatchObject([
+      { part: 'I1', needs: id, trust: 'flagged' },
+    ])
+  })
+})
+
+describe('the note for a review', () => {
+  const note = { id: 'D1', type: 'decision', title: 'Cache the homepage' }
+
+  beforeEach(async () => {
+    await addGoal()
+    await addInsight('Loads are slow')
+  })
+
+  it('shows on the Part that needs a Part in review, and keeps it solid', async () => {
+    await addDecision('proposed', ['G1', 'I1'])
+    const id = await addPublished('entity', 'Cart')
+
+    await addJoint(db, 'glue', { part: id, needs: 'D1' })
+
+    const part = await findPart(db, 'glue', id)
+    expect(part).toMatchObject({ ...solid, flags: [] })
+    expect(part?.reviewNotes).toEqual([note])
+  })
+
+  it('shows in the list of the Parts, and not in Mine', async () => {
+    await addDecision('proposed', ['G1', 'I1'])
+    const id = await addInsight('Users churn', ['D1'])
+
+    const listed = await listParts(db, 'glue', ['insight'])
+    expect(listed.map((part) => [part.id, part.reviewNotes])).toEqual([
+      ['I1', []],
+      [id, [note]],
+    ])
+    const mine = await listMine(db, 'glue')
+    expect(mine.map((part) => part.id)).not.toContain(id)
+  })
+
+  it('does not show on the Part that the Part in review needs', async () => {
+    await addDecision('proposed', ['G1', 'I1'])
+
+    expect((await findPart(db, 'glue', 'I1'))?.reviewNotes).toEqual([])
+  })
+
+  it('shows on both Parts of a two-way Joint', async () => {
+    await addDecision('proposed', ['G1', 'I1'])
+    const id = await addInsight('Users churn')
+
+    await addJoint(db, 'glue', { part: 'D1', needs: id, twoWay: true })
+
+    expect((await findPart(db, 'glue', id))?.reviewNotes).toEqual([note])
+  })
+
+  it('goes away when the review ends', async () => {
+    await addDecision('proposed', ['G1', 'I1'])
+    const id = await addInsight('Users churn', ['D1'])
+
+    await updatePart(db, 'glue', 'D1', { status: 'accepted' })
+
+    const part = await findPart(db, 'glue', id)
+    expect(part).toMatchObject({ ...solid, flags: [] })
+    expect(part?.reviewNotes).toEqual([])
+  })
+
+  it('takes the place of a flag when a published Part goes to review', async () => {
+    await addDecision('accepted', ['G1', 'I1'])
+    const id = await addInsight('Users churn', ['D1'])
+
+    await updatePart(db, 'glue', 'D1', { status: 'proposed' })
+
+    const part = await findPart(db, 'glue', id)
+    expect(part).toMatchObject({ ...solid, flags: [] })
+    expect(part?.reviewNotes).toEqual([note])
   })
 })

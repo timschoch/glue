@@ -66,7 +66,12 @@ beforeEach(async () => {
 })
 
 // The rows of the test have no Trust and no Work state of their own.
-const state = { trust: 'not-ready', workState: 'draft' }
+const state = {
+  trust: 'not-ready',
+  workState: 'draft',
+  emptySlots: [],
+  reviewNotes: [],
+}
 
 const goal = {
   ...state,
@@ -108,6 +113,7 @@ const decision = {
 const replacement = {
   ...state,
   id: 'D2',
+  emptySlots: ['goal', 'evidence'],
   type: 'decision',
   title: 'Show the video of the baker',
   status: 'proposed',
@@ -126,6 +132,7 @@ const guardrail = {
 const entity = {
   ...state,
   id: 'E1',
+  emptySlots: ['decision'],
   type: 'entity',
   title: 'Technique',
   status: null,

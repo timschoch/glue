@@ -134,6 +134,8 @@ export function ConceptScreen({
     type: part.type,
     title: part.title,
     trust: part.trust,
+    emptySlots: part.emptySlots,
+    reviewNotes: part.reviewNotes,
     workState: part.workState,
     concept: part.conceptTitle,
     home: part.concept,

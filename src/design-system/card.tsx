@@ -23,6 +23,14 @@ export const partTypes = {
 
 export type PartType = keyof typeof partTypes
 
+// What a record can need and not have: a Part of a type, or evidence.
+const slots = { ...partTypes, evidence: 'Evidence' } as const
+
+export type Slot = keyof typeof slots
+
+// A Part under review that the record needs.
+export type ReviewNote = { id: string; type: PartType; title: string }
+
 // Trust: its word, and the glyph of the sign slot with its style.
 export const signs = {
   solid: { word: 'Solid', Glyph: CheckmarkFilled, className: styles.solid },
@@ -79,10 +87,11 @@ export type CardProps = {
   // Only an Insight has one.
   evidenceLevel?: EvidenceLevel
   summary?: string
+  reviewNotes?: ReadonlyArray<ReviewNote>
   // Only a Goal or a Metric has one.
   reading?: Reading
-  // The Part types that the record needs and does not have.
-  emptySlots?: ReadonlyArray<PartType>
+  // What the record needs and does not have.
+  emptySlots?: ReadonlyArray<Slot>
   workState?: WorkState
   owner?: string
   // The name of the home Concept, of a linked Part only.
@@ -111,6 +120,7 @@ export function Card({
   trust,
   evidenceLevel,
   summary,
+  reviewNotes = [],
   reading,
   emptySlots = [],
   workState,
@@ -160,6 +170,15 @@ export function Card({
                 <p className={styles.summary}>{summary}</p>
               </>
             )}
+            {reviewNotes.map((note) => (
+              <Fragment key={note.id}>
+                {' '}
+                <p className={styles.summary}>
+                  {workStates.review}: {partTypes[note.type]} {note.id}{' '}
+                  {note.title}
+                </p>
+              </Fragment>
+            ))}
             {reading && (
               <span className={styles.reading}>
                 {targetSign && (
@@ -191,7 +210,7 @@ export function Card({
                 {emptySlots.map((slot) => (
                   <Fragment key={slot}>
                     {' '}
-                    <span className={styles.emptySlot}>{partTypes[slot]}</span>
+                    <span className={styles.emptySlot}>{slots[slot]}</span>
                   </Fragment>
                 ))}
               </span>

@@ -45,7 +45,7 @@ import {
   listParts,
 } from '../src/db/parts.ts'
 import type { JointEnd, Part, PartSummary, PartType } from '../src/db/parts.ts'
-import { answers } from '../src/db/part-trust.ts'
+import { answers, slotReasons } from '../src/db/part-trust.ts'
 import {
   BUILD_PROJECT,
   addProjectReference,
@@ -342,10 +342,16 @@ function formatRow({
     .join('  ')
 }
 
-// The Trust and the Work state of the Part, its open flags and the Part
-// that it waits on.
+// The Trust and the Work state of the Part, its empty slots, the Parts under
+// review that it needs, its open flags and the Part that it waits on.
 function printTrust(part: Part) {
   console.log(`trust: ${part.trust}`)
+  for (const slot of part.emptySlots) {
+    console.log(`empty_slot: ${slotReasons[slot]}`)
+  }
+  for (const { id, type, title } of part.reviewNotes) {
+    console.log(`under_review: ${type} ${id} ${title}`)
+  }
   console.log(`work_state: ${part.workState}`)
   if (part.measure) {
     const { target, latestValue, onTarget, measuredAt } = part.measure

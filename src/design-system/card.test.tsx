@@ -182,6 +182,31 @@ describe('Card', () => {
     ])
   })
 
+  it('shows the empty slot for evidence, and the Parts under review after the summary', () => {
+    render(
+      <Card
+        {...DECISION}
+        trust="flagged"
+        summary="A baker sees the hands of the creator."
+        reviewNotes={[
+          { id: 'G2', type: 'goal', title: 'First bake feels easy' },
+          { id: 'I7', type: 'insight', title: 'Bakers want step videos' },
+        ]}
+        emptySlots={['goal', 'evidence']}
+        workState="published"
+      />,
+    )
+
+    expect(texts(screen.getByRole('link')).slice(3)).toEqual([
+      'A baker sees the hands of the creator.',
+      'Review: Goal G2 First bake feels easy',
+      'Review: Insight I7 Bakers want step videos',
+      'Goal',
+      'Evidence',
+      'Published',
+    ])
+  })
+
   it('shows the Work state of a sunk Part', () => {
     render(<Card {...DECISION} trust="wrong" workState="sunk" />)
 

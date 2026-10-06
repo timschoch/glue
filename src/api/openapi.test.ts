@@ -139,6 +139,16 @@ describe('GET /api/v1/openapi.json', () => {
       'published',
       'sunk',
     ])
+    expect(schemas.PartSummary.properties.emptySlots.items.enum).toEqual([
+      'goal',
+      'evidence',
+      'decision',
+    ])
+    expect(schemas.PartSummary.properties.reviewNotes.items.required).toEqual([
+      'id',
+      'type',
+      'title',
+    ])
     expect(schemas.Part.required).toEqual(
       expect.arrayContaining(['flags', 'waitsOn']),
     )

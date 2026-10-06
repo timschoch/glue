@@ -42,9 +42,25 @@ beforeEach(async () => {
     date: '2026-10-01',
   })
   await addPart(db, 'flexibeck', {
+    type: 'goal',
+    title: 'First bake feels easy',
+    metric: 'ease',
+    source: 'okr',
+  })
+  await addPart(db, 'flexibeck', {
+    type: 'decision',
+    concept: 'videos',
+    title: 'Show the video of the creator',
+    owner: 'Tim',
+    date: '2026-10-02',
+    status: 'accepted',
+    needs: ['G1', 'I1'],
+  })
+  await addPart(db, 'flexibeck', {
     type: 'flow',
     concept: 'videos',
     title: 'Watch a technique',
+    needs: ['D1'],
   })
 })
 
@@ -104,7 +120,10 @@ describe('POST the Contract of a Concept', () => {
     })
     expect(body.checksum).toMatch(/^[0-9a-f]{64}$/)
     expect(body.tier1.map((part: { id: string }) => part.id)).toEqual(['F1'])
-    expect(body.tier2.map((part: { id: string }) => part.id)).toEqual(['I1'])
+    expect(body.tier2.map((part: { id: string }) => part.id)).toEqual([
+      'I1',
+      'D1',
+    ])
     const keys = Object.keys(body)
     expect(keys.indexOf('tier1')).toBeLessThan(keys.indexOf('tier2'))
   })

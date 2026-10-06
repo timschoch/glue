@@ -1,11 +1,17 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
 import { kinds } from './kinds.ts'
 import type { Kind } from './kinds.ts'
-import { flagParts } from './part-trust.ts'
+import {
+  flagParts,
+  selectEmptySlots,
+  selectReviewNotes,
+  selectTrust,
+} from './part-trust.ts'
 import type { PartSummary } from './parts.ts'
 import { ConceptNotFoundError, InvalidRecordError } from './record-errors.ts'
 import { sortById } from './record-id.ts'
@@ -62,6 +68,9 @@ export type Contract = ContractVersion & {
 }
 
 const { concepts, contractVersions, projects } = schema
+
+// The Parts of `live` in selectLiveParts, for the Trust that a reader sees.
+const liveTrust = selectTrust(alias(schema.parts, 'live'))
 
 async function findConceptRow(
   db: ConceptDb,
@@ -188,17 +197,19 @@ async function readLiveState(db: ConceptDb, conceptId: number) {
               'type', live."type",
               'title', live."title",
               'status', live."status",
-              'trust', live."trust",
+              'trust', ${liveTrust},
               'workState', live."work_state",
               'concept', live."concept_slug",
-              'conceptTitle', live."concept_title"
+              'conceptTitle', live."concept_title",
+              'emptySlots', ${selectEmptySlots(alias(schema.parts, 'live'))},
+              'reviewNotes', ${selectReviewNotes(alias(schema.parts, 'live'))}
             )
             order by live."id"
           ),
           '[]'::jsonb
         )
         from live
-        where live."trust" <> 'solid'
+        where ${liveTrust} <> 'solid'
       ) as "blocking"
     from frozen
   `)
@@ -430,7 +441,7 @@ export async function signContract(
         ${signedBy}::text
       from frozen
       where jsonb_array_length(frozen."parts") > 0
-        and not exists (select 1 from live where live."trust" <> 'solid')
+        and not exists (select 1 from live where ${liveTrust} <> 'solid')
         and ${liveChecksum} is distinct from (select "checksum" from newest)
       returning "version"
     ),

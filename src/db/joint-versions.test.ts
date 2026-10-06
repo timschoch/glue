@@ -28,25 +28,50 @@ async function readNeeds(recordId: string) {
 }
 
 // The Project glue holds the Concepts `videos` and `shop`. `videos` has the
-// published Entities E1 and E2. `shop` has the published Flow F1.
+// published Entities E1 and E2. `shop` has the published Flow F1. The
+// Decision D1 of the Project, with the Goal G1 and the Insight I1, gives each
+// of them its Decision.
 beforeEach(async () => {
   await addProject(db, 'glue')
   await addConcept(db, 'glue', { slug: 'videos', title: 'Technique videos' })
   await addConcept(db, 'glue', { slug: 'shop', title: 'Shop' })
   await addPart(db, 'glue', {
+    type: 'goal',
+    title: 'First bake feels easy',
+    metric: 'ease',
+    source: 'okr',
+  })
+  await addPart(db, 'glue', {
+    type: 'insight',
+    title: 'Bakers want step videos',
+    source: 'interview',
+    date: '2026-10-01',
+  })
+  await addPart(db, 'glue', {
+    type: 'decision',
+    title: 'Show the video of the creator',
+    owner: 'Tim',
+    date: '2026-10-02',
+    status: 'accepted',
+    needs: ['G1', 'I1'],
+  })
+  await addPart(db, 'glue', {
     type: 'entity',
     concept: 'videos',
     title: 'Technique',
+    needs: ['D1'],
   })
   await addPart(db, 'glue', {
     type: 'entity',
     concept: 'videos',
     title: 'Creator',
+    needs: ['D1'],
   })
   await addPart(db, 'glue', {
     type: 'flow',
     concept: 'shop',
     title: 'Buy a course',
+    needs: ['D1'],
   })
   await publish('E1')
   await publish('E2')
@@ -62,12 +87,16 @@ describe('a Joint to a Part of a different Concept', () => {
       type: 'flow',
       concept: 'shop',
       title: 'Watch a preview',
-      needs: ['E2'],
+      needs: ['D1', 'E2'],
       body: 'It shows #E1.',
     })
 
-    expect(await readNeeds('F1')).toEqual([['E1', 1]])
+    expect(await readNeeds('F1')).toEqual([
+      ['D1', null],
+      ['E1', 1],
+    ])
     expect(await readNeeds('F2')).toEqual([
+      ['D1', null],
       ['E2', 1],
       ['E1', 1],
     ])
@@ -76,7 +105,10 @@ describe('a Joint to a Part of a different Concept', () => {
   it('has no Version when the Concept has no Contract', async () => {
     await addJoint(db, 'glue', { part: 'F1', needs: 'E1' })
 
-    expect(await readNeeds('F1')).toEqual([['E1', null]])
+    expect(await readNeeds('F1')).toEqual([
+      ['D1', null],
+      ['E1', null],
+    ])
   })
 })
 
@@ -86,7 +118,10 @@ describe('a Joint inside one Concept', () => {
 
     await addJoint(db, 'glue', { part: 'E2', needs: 'E1' })
 
-    expect(await readNeeds('E2')).toEqual([['E1', null]])
+    expect(await readNeeds('E2')).toEqual([
+      ['D1', null],
+      ['E1', null],
+    ])
   })
 })
 
@@ -100,7 +135,7 @@ describe('the sign-off of a new Contract Version', () => {
       type: 'flow',
       concept: 'shop',
       title: 'Watch a preview',
-      needs: ['E2'],
+      needs: ['D1', 'E2'],
     })
     await publish('F2')
     await updatePart(db, 'glue', 'E1', { title: 'Baking technique' })
@@ -162,7 +197,10 @@ describe('the sign-off of a new Contract Version', () => {
     const part = await findPart(db, 'glue', 'F1')
     expect(part).toMatchObject({ trust: 'solid', workState: 'published' })
     expect(part?.flags).toEqual([])
-    expect(await readNeeds('F1')).toEqual([['E1', 2]])
+    expect(await readNeeds('F1')).toEqual([
+      ['D1', null],
+      ['E1', 2],
+    ])
   })
 
   it('refuses a Version that is not the newest one', async () => {
@@ -188,6 +226,9 @@ describe('a Joint with no Version', () => {
     await signContract(db, 'glue', 'videos', 'Tim')
 
     expect((await findPart(db, 'glue', 'F1'))?.flags).toEqual([])
-    expect(await readNeeds('F1')).toEqual([['E1', null]])
+    expect(await readNeeds('F1')).toEqual([
+      ['D1', null],
+      ['E1', null],
+    ])
   })
 })

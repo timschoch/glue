@@ -58,6 +58,8 @@ function summary(
     workState: 'published',
     concept: home.slug,
     conceptTitle: home.title,
+    emptySlots: [],
+    reviewNotes: [],
   }
 }
 

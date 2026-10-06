@@ -2,7 +2,14 @@ import { useId } from 'react'
 import type { MouseEvent } from 'react'
 
 import { Card } from './card.tsx'
-import type { PartType, Reading, Trust, WorkState } from './card.tsx'
+import type {
+  PartType,
+  Reading,
+  ReviewNote,
+  Slot,
+  Trust,
+  WorkState,
+} from './card.tsx'
 import styles from './part-cards.module.scss'
 
 // What the card of a Part in the list shows.
@@ -19,6 +26,10 @@ export type PartCardsPart = {
   concept: string
   // What happened to a watched Part: its open flags.
   note?: string
+  // The Parts under review that the Part needs.
+  reviewNotes?: ReadonlyArray<ReviewNote>
+  // What the Part needs and does not have.
+  emptySlots?: ReadonlyArray<Slot>
   href: string
 }
 
@@ -45,7 +56,9 @@ function Cards({
             title={part.title}
             trust={part.trust}
             summary={part.note}
+            reviewNotes={part.reviewNotes}
             reading={part.reading}
+            emptySlots={part.emptySlots}
             workState={part.workState}
             concept={part.concept}
             href={part.href}

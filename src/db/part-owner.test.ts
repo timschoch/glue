@@ -19,6 +19,7 @@ const { db } = createTestDatabase(schema)
 const project = 'glue'
 const tim = 'tim@example.com'
 const ada = 'ada@example.com'
+const bo = 'bo@example.com'
 
 const goal = {
   type: 'goal' as const,
@@ -70,8 +71,9 @@ describe('the owner of a new Part', () => {
   })
 })
 
-// Tim owns the Insight I1 and the Entity E1. E1 is published and needs I1.
-// I1 gets a new title, so E1 has a flag. Ada watches E1.
+// Tim owns the Insight I1 and the Entity E1. E1 is published and needs I1 and
+// the Decision D1, which has the Goal G1 and I1. Bo owns G1 and D1. I1
+// gets a new title, so E1 has a flag. Ada watches E1.
 describe('a Part with a flag that a member watches', () => {
   beforeEach(async () => {
     await operations.addPart(
@@ -79,9 +81,23 @@ describe('a Part with a flag that a member watches', () => {
       { type: 'insight', title: 'Bakers start at four', source: 'interview' },
       tim,
     )
+    await joinProject(db, project, { id: 'user-bo', name: 'Bo', email: bo })
+    await operations.addPart(project, goal, bo)
     await operations.addPart(
       project,
-      { type: 'entity', title: 'Shift', needs: ['I1'] },
+      {
+        type: 'decision',
+        title: 'Open at three',
+        owner: 'Bo',
+        date: '2026-10-02',
+        status: 'accepted',
+        needs: ['G1', 'I1'],
+      },
+      bo,
+    )
+    await operations.addPart(
+      project,
+      { type: 'entity', title: 'Shift', needs: ['I1', 'D1'] },
       tim,
     )
     await operations.answerPart(project, 'E1', { answer: 'supersede' }, tim)
@@ -173,10 +189,10 @@ describe('a Part with a flag that a member watches', () => {
 
   it('leaves a Part of nobody that Mine lists out of the watched group', async () => {
     await operations.addPart(project, goal)
-    await watch(db, project, { member: ada, part: 'G1' })
+    await watch(db, project, { member: ada, part: 'G2' })
 
     expect((await listMine(db, project, ada)).map(({ id }) => id)).toEqual([
-      'G1',
+      'G2',
     ])
     expect((await listWatched(db, project, ada)).map(({ id }) => id)).toEqual([
       'E1',

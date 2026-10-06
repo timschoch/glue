@@ -75,6 +75,7 @@ beforeEach(async () => {
     type: 'entity',
     concept: 'videos',
     title: 'Technique',
+    needs: ['D1'],
   })
   await answerPart(db, 'glue', 'E1', { answer: 'supersede' })
   await signContract(db, 'glue', 'videos', 'Tim')

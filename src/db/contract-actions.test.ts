@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { Session } from '../authentication/session.ts'
 import { createContractActions } from './contract-actions.ts'
 import { joinProject } from './members.ts'
-import { addPart, addProject, answerPart } from './part-records.ts'
+import { addConcept, addPart, addProject, answerPart } from './part-records.ts'
 import * as schema from './schema.ts'
 import { createTestDatabase } from './test-database.ts'
 
@@ -17,12 +17,38 @@ const actions = createContractActions({
 })
 
 const project = 'flexibeck'
-const input = { project, concept: project }
+const input = { project, concept: 'cart' }
 
 beforeEach(async () => {
   session = undefined
   await addProject(db, project)
-  await addPart(db, project, { type: 'flow', title: 'Pay the cart' })
+  await addConcept(db, project, { slug: 'cart', title: 'Cart' })
+  await addPart(db, project, {
+    type: 'goal',
+    title: 'First bake feels easy',
+    metric: 'ease',
+    source: 'okr',
+  })
+  await addPart(db, project, {
+    type: 'insight',
+    title: 'Bakers want step videos',
+    source: 'interview',
+    date: '2026-10-01',
+  })
+  await addPart(db, project, {
+    type: 'decision',
+    title: 'Pay in one step',
+    owner: 'Ada',
+    date: '2026-10-02',
+    status: 'accepted',
+    needs: ['G1', 'I1'],
+  })
+  await addPart(db, project, {
+    type: 'flow',
+    concept: 'cart',
+    title: 'Pay the cart',
+    needs: ['D1'],
+  })
 })
 
 const ada = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
