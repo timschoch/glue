@@ -277,7 +277,7 @@ export const partSchema = z
       .array(
         z.union([
           z.object({
-            kind: z.enum(['changed', 'published']),
+            kind: z.enum(['changed', 'published', 'wording']),
             at: z.iso.datetime(),
           }),
           z.object({
@@ -299,7 +299,7 @@ export const changedPartSchema = partSchema
   .extend({
     issueError: z.string().optional().meta({
       description:
-        'Why the issue is missing. The next status change or `pnpm concept downstream` opens it',
+        'Why the issue is missing. `pnpm concept downstream` opens it',
     }),
   })
   .meta({ id: 'ChangedPart' })

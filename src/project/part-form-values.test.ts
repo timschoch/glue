@@ -21,6 +21,7 @@ const values: PartFormValues = {
   enforcedBy: 'verify ci',
   goal: 'G1',
   evidence: ['I3', 'R1'],
+  sameMeaning: false,
 }
 
 const place = { concept: 'part-model' }
@@ -110,6 +111,7 @@ describe('the Part that the form edits', () => {
       enforcedBy: '',
       goal: 'G1',
       evidence: ['I3'],
+      sameMeaning: false,
     })
   })
 
@@ -129,6 +131,16 @@ describe('the Part that the form edits', () => {
       owner: 'Ada',
       date: '2026-10-04',
       goal: 'G1',
+    })
+  })
+
+  it('is a wording fix when the person says that the meaning is the same', () => {
+    expect(
+      toPartChange('flow', { ...values, sameMeaning: true }, { goal: null }),
+    ).toEqual({
+      title: 'Show the video of the creator',
+      body: 'It follows #I3.',
+      sameMeaning: true,
     })
   })
 

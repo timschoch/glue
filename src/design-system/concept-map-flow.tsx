@@ -28,7 +28,7 @@ import {
 } from 'react'
 
 import { Card, partTypes, signs } from './card.tsx'
-import { layoutMapView, placeMapStart } from './concept-map-elk.ts'
+import { PADDING, layoutMapView } from './concept-map-elk.ts'
 import type { MapLayout, MapPoint, MapRoute } from './concept-map-elk.ts'
 import { listGlued, toMapView } from './concept-map-layout.ts'
 import type { MapLine, MapNode, MapView } from './concept-map-layout.ts'
@@ -42,6 +42,11 @@ const HOVER_END_MS = 250
 // The radius of a corner of a line, and the size of its arrowhead.
 const CORNER = 5
 const ARROW = { length: 7, width: 3.5 }
+// The title of a Concept is `heading-compact-01`, 14 px. A fit shows it no
+// smaller than `label-01`, 12 px.
+const FLOOR = 12 / 14
+// The whole Map shows in its frame, at its full size at most.
+const FIT = { minZoom: FLOOR, maxZoom: 1, padding: `${PADDING}px` } as const
 
 type FlowNode = Node<{ node: MapNode }, 'node'>
 type FlowEdge = Edge<
@@ -360,35 +365,20 @@ export function ConceptMapFlow({
   const isBigger =
     size !== undefined && (size.width > room.width || size.height > room.height)
 
-  // The Concept that the last toggle opened or closed: the focus goes to it,
-  // and the Map shows it.
+  // The Concept that the last toggle opened or closed: the focus goes to it.
   const toggled = useRef<{ slug: string; open: boolean }>(undefined)
-  const shown = useRef<string>(undefined)
-  // The Map shows at scale 1. A Map bigger than its frame starts at the
-  // Concept that the user works on.
-  const start = useCallback(() => {
-    const element = frame.current
-    if (!placed || !element) return
-    const slug = shown.current ?? focus
-    const concepts = placed.view.nodes.filter((node) => node.kind === 'concept')
-    const node =
-      concepts.find((concept) => concept.slug === slug) ??
-      concepts.find((concept) => concept.open) ??
-      placed.view.nodes.at(0)
-    void flow.current?.setViewport({
-      ...placeMapStart(
-        placed.layout,
-        { width: element.clientWidth, height: element.clientHeight },
-        node?.id,
-      ),
-      zoom: 1,
-    })
-  }, [placed, focus])
-  useEffect(start, [start])
-  // A Map smaller than its frame stays in the middle of it.
-  useEffect(() => {
-    if (!isBigger) start()
-  }, [room, isBigger, start])
+  // React Flow fits the Map at first sight, with each new layout and with
+  // each new size of the frame.
+  const fit = useCallback(async () => {
+    const instance = flow.current
+    if (!instance) return
+    await instance.fitView(FIT)
+    // A Map too big for its frame at the floor starts at its left top corner.
+    const { x, y, zoom } = instance.getViewport()
+    if (x < 0 || y < 0)
+      await instance.setViewport({ x: Math.max(x, 0), y: Math.max(y, 0), zoom })
+  }, [])
+  useEffect(() => void fit(), [fit, placed, room])
 
   const actions = useMemo(
     () => ({
@@ -400,7 +390,6 @@ export function ConceptMapFlow({
       onOpenConcept,
       onToggle: (slug: string) => {
         toggled.current = { slug, open: !expanded.includes(slug) }
-        shown.current = slug
         onExpandedChange(
           expanded.includes(slug)
             ? expanded.filter((open) => open !== slug)
@@ -524,7 +513,7 @@ export function ConceptMapFlow({
             edgeTypes={edgeTypes}
             onInit={(instance) => {
               flow.current = instance
-              start()
+              void fit()
             }}
             // An open Concept is the ground of its nodes: the pointer on it
             // changes nothing.
@@ -548,7 +537,9 @@ export function ConceptMapFlow({
             preventScrolling={isBigger}
             zoomOnScroll={false}
             zoomOnDoubleClick={false}
-            minZoom={0.25}
+            // The member zooms out to the whole Map of a Project in a narrow
+            // window.
+            minZoom={0.1}
             maxZoom={2}
           >
             <Controls showFitView={false} showInteractive={false} />

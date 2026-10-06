@@ -41,6 +41,7 @@ The target model. Diagrams and rules: [docs/concept.md](docs/concept.md). The ap
 | Evidence level | How sure an Insight is: Signal, Hunch, Pattern, Confirmed.                                                                                      |
 | Trust          | What a reader can rely on, shown as a light: Solid (green), Flagged (yellow), Not ready (red), Wrong (black). Only Trust travels along a Joint. |
 | Work state     | What the owner of a Part has to do: To check, Waiting, Draft, Review, Published, Sunk. Not the Draft in [Cycle](#cycle).                        |
+| Wording fix    | A new title or body of a Part that means the same as the old one. The member who writes it says so. It flags no Part.                           |
 | Tier           | Tier 1 Parts are what a coding agent reads: Flow, Entity, Guardrail. Tier 2 Parts are the why.                                                  |
 | Lens           | A filter over all Parts. It changes what you see first, never where a Part lives or who may open it.                                            |
 | Flight level   | How much a view shows: Strategic (a summary) or Operational (raw details).                                                                      |
@@ -64,7 +65,7 @@ The target model. Diagrams and rules: [docs/concept.md](docs/concept.md). The ap
 | Draft             | An Insight that nobody has triaged yet. `measure` writes drafts.                                                                                                                 |
 | Triage            | Deciding on a draft: keep it, discard it (only when no Decision cites it), or propose a Decision from it.                                                                        |
 | Supersede         | Replace an accepted Decision with a new accepted one. The old one keeps its record id and points to its successor.                                                               |
-| Downstream issue  | The GitHub issue Glue opens in a Product's repository when a Decision becomes accepted. Names the Decision id.                                                                   |
+| Downstream issue  | The GitHub issue Glue opens in a Product's repository when a Decision becomes accepted. A later write to the Decision opens none. Names the Decision id.                         |
 | Question          | What a proposed Decision asks: its options, the pick of its author and the answer. The answer is one option or words, with the person and the time. It accepts the Decision.     |
 | Option            | One possible answer to a question. Options keep their order and count from 1.                                                                                                    |
 | Pick              | The option that the author of a question would take.                                                                                                                             |

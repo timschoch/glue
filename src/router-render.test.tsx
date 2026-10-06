@@ -816,6 +816,30 @@ describe('the edit of a Part', () => {
     })
   })
 
+  it('saves a wording fix of a Part', async () => {
+    const { expectAddress, server } = await renderPage(
+      '/glue/read-model/R1?edit=true',
+    )
+
+    await userEvent.type(field('Title'), '.')
+    await userEvent.type(field('Enforced by'), 'verify ci')
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: 'Same meaning' }),
+    )
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/read-model/R1')
+    expect(server.updatePart).toHaveBeenCalledWith({
+      project: 'glue',
+      recordId: 'R1',
+      change: expect.objectContaining({
+        title: `${R1}.`,
+        sameMeaning: true,
+      }),
+      expected: expect.objectContaining({ title: R1 }),
+    })
+  })
+
   it('tells the person that a second person changed the Part', async () => {
     const changed = '"R1" changed since you opened it'
     await renderPage('/glue/read-model/R1?edit=true', {
@@ -980,6 +1004,16 @@ describe('the section Use', () => {
 
     expect(card('M2').textContent).toContain('Reading')
     expect(within(card('M2')).queryByLabelText(/target/)).toBeNull()
+  })
+
+  it('adds a Metric in a Project with no Metric', async () => {
+    const { expectAddress } = await renderPage('/glue?section=Use')
+
+    expect(pageTitle()).toBe('Use')
+
+    await userEvent.click(button('Add Metric'))
+
+    await expectAddress('/glue', { section: 'Use', add: 'metric' })
   })
 
   it('shows the reading of the Goal that a Decision serves on its record', async () => {
