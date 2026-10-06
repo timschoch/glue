@@ -583,6 +583,7 @@ export function Record({
                 kind="ghost"
                 size="sm"
                 renderIcon={watch.watching ? ViewFilled : View}
+                iconDescription="Watch"
                 aria-label={`Watch ${watch.count}`}
                 aria-pressed={watch.watching}
                 onClick={() => watch.onChange(!watch.watching)}

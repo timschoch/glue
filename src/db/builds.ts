@@ -7,7 +7,7 @@ import { eq, max } from 'drizzle-orm'
 import type { ConceptDb } from './client.ts'
 import { listGates } from './gate.ts'
 import type { Gate } from './gate.ts'
-import { findProduct } from './projects.ts'
+import { findProduct, listRepositoryProjects } from './projects.ts'
 import { listParts } from './parts.ts'
 import type { PartSummary } from './parts.ts'
 import { ProductNotFoundError } from './record-errors.ts'
@@ -87,11 +87,13 @@ export async function listBuilds(
   if (!project) throw new ProductNotFoundError(projectSlug)
   if (!project.repository) return { builds: [], reason: NO_REPOSITORY }
 
-  const [decisions, newestVersions, gates] = await Promise.all([
+  const [decisions, newestVersions, gates, projects] = await Promise.all([
     listParts(db, projectSlug, ['decision']),
     listNewestVersions(db, project.id),
     listGates(db, project.id),
+    listRepositoryProjects(db, project.repository),
   ])
+  const shared = projects.length > 1
   // The text of a search is the id of a Decision of the Project or the word
   // for a Contract, never the words of the person.
   if (
@@ -133,11 +135,14 @@ export async function listBuilds(
     builds: pullRequests
       .filter((pull) => named || pull.state === 'open' || merged.includes(pull))
       .map(({ body, ...pull }): Build => {
-        // A bare id is a Decision of this Project, and so is its own
-        // `<project>/<id>`. The id of another Project names nothing here.
+        // Its own `<project>/<id>` is a Decision of this Project, and so is
+        // a bare id when no other Project shares the repository (glue/D50).
+        // The id of another Project names nothing here.
         const ids = (findDecisionIds(body) ?? []).flatMap((reference) => {
           const { project: slug, recordId } = parseRecordReference(reference)
-          return slug === undefined || slug === projectSlug ? [recordId] : []
+          return slug === projectSlug || (slug === undefined && !shared)
+            ? [recordId]
+            : []
         })
         const decided = decisions.filter(({ id }) => ids.includes(id))
         const line = findContractLine(body)

@@ -89,6 +89,19 @@ describe('createDownstreamIssue', () => {
     })
   })
 
+  it('writes the Project in front of the id in a repository that another Project has too', async () => {
+    const { github, issues } = createFakeGithub()
+    await addProject(db, 'glue')
+    await setProductRepository(db, 'glue', 'timschoch/flexibeck-next')
+    const decision = await addDecision('accepted')
+
+    await createDownstreamIssue(db, github, 'flexibeck', decision)
+
+    expect(issues[0].issue.body.split('\n').at(-1)).toBe(
+      'Decision: flexibeck/D1',
+    )
+  })
+
   it('opens no second issue for a Decision that has one', async () => {
     const { github, issues } = createFakeGithub()
     const decision = await addDecision('accepted')

@@ -17,4 +17,6 @@ export function listGateReasons(input: {
   body: string
   decisions: Map<string, GateDecision>
   contract?: NewestContract
+  // The Projects of a repository that two or more Projects share.
+  projects?: string[]
 }): string[]

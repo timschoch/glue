@@ -29,14 +29,14 @@ export function isBotBranch(ref) {
     BOT_PREFIXES.some((prefix) => ref.startsWith(prefix))
   )
 }
-export function problems({ body, files, decisions, contract }) {
+export function problems({ body, files, decisions, contract, projects }) {
   const found = []
   if (!/\b(Closes|Fixes|Resolves|Refs) #\d+/i.test(body)) {
     found.push(
       'Link the issue: "Closes #<n>" (or "Refs #<n>" when the issue stays open).',
     )
   }
-  found.push(...listGateReasons({ body, decisions, contract }))
+  found.push(...listGateReasons({ body, decisions, contract, projects }))
   const source = files.filter(
     (file) => SOURCE.test(file) && !GENERATED.test(file) && !TEST.test(file),
   )

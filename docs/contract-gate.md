@@ -25,7 +25,7 @@ The command prints the token once. Save it as the secret `GLUE_API_TOKEN` of you
 The body of the pull request has one of these lines:
 
 - `Contract: <concept>@<version>` for a build from a Contract Version.
-- `Decision: D12` for a build from Decisions. A Decision of a Project that yours references is `Decision: glue/D12`.
+- `Decision: D12` for a build from Decisions. A Decision of a Project that yours references is `Decision: glue/D12`. When two Projects have the same repository, write the Project in front of each id: `Decision: glue-build/D46`. A bare id names no Decision there.
 
 ## 4. Add the one line to your CI
 

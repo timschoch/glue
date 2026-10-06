@@ -163,6 +163,24 @@ describe('validateBuild', () => {
     ])
   })
 
+  it('reads no bare id in a repository that another Project has too, and names the Projects', async () => {
+    await addProject(db, 'glue-build')
+    await setProductRepository(db, 'glue-build', 'timschoch/glue')
+
+    const bare = await validateBuild(db, 'glue', toBuild('Decision: D1'), NOW)
+    const named = await validateBuild(
+      db,
+      'glue',
+      toBuild('Decision: glue/D1', 13),
+      NOW,
+    )
+
+    expect(bare.reasons).toEqual([
+      'Decision "D1" names no Project. The repository has the Projects "glue" and "glue-build": write "Decision: glue/D1" or "Decision: glue-build/D1".',
+    ])
+    expect(named.result).toBe('holds')
+  })
+
   it('keeps the newest result with the build', async () => {
     const { github } = createFakeGithub(
       [],

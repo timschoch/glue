@@ -75,7 +75,10 @@ describe('loadDecisions', () => {
       })
     })
 
-    const decisions = await loadDecisions({ GLUE_API_TOKEN: token }, fetchApi)
+    const { decisions } = await loadDecisions(
+      { GLUE_API_TOKEN: token },
+      fetchApi,
+    )
     await client.close()
 
     expect(Object.fromEntries(decisions)).toEqual({
@@ -88,7 +91,7 @@ describe('loadDecisions', () => {
     })
   })
 
-  it('reads a bare id in the build Project and glue/<id> in Project glue', async () => {
+  it('reads <project>/<id> and no bare id when the build Project has the repository too', async () => {
     const fetchApi = fakeFetch({
       [DECISIONS_URL]: [{ id: 'D12', status: 'accepted' }],
       [`${BUILD_PARTS_URL}?type=decision`]: [
@@ -98,13 +101,35 @@ describe('loadDecisions', () => {
       [`${BUILD_PARTS_URL}/D46`]: { supersededBy: { id: 'D45' } },
     })
 
-    const decisions = await loadDecisions({ GLUE_API_TOKEN: TOKEN }, fetchApi)
+    const { decisions, projects } = await loadDecisions(
+      { GLUE_API_TOKEN: TOKEN },
+      fetchApi,
+    )
 
     expect(Object.fromEntries(decisions)).toEqual({
-      D45: { status: 'accepted' },
-      D46: { status: 'superseded', superseded_by: 'D45' },
+      'glue-build/D45': { status: 'accepted' },
+      'glue-build/D46': { status: 'superseded', superseded_by: 'D45' },
       'glue/D12': { status: 'accepted' },
     })
+    expect(projects).toEqual(['glue', 'glue-build'])
+    expect(
+      problems({
+        body: 'Closes #1\nDecision: glue-build/D45, glue/D12',
+        files: [],
+        decisions,
+        projects,
+      }),
+    ).toEqual([])
+    expect(
+      problems({
+        body: 'Closes #1\nDecision: D45',
+        files: [],
+        decisions,
+        projects,
+      }),
+    ).toEqual([
+      'Decision "D45" names no Project. The repository has the Projects "glue" and "glue-build": write "Decision: glue/D45" or "Decision: glue-build/D45".',
+    ])
   })
 
   it('reads a bare id in the Project of GLUE_PROJECT', async () => {
@@ -114,13 +139,15 @@ describe('loadDecisions', () => {
         [{ id: 'D3', status: 'proposed' }],
     })
 
-    const decisions = await loadDecisions(
+    const { decisions, projects } = await loadDecisions(
       { GLUE_API_TOKEN: TOKEN, GLUE_PROJECT: 'flexibeck' },
       fetchApi,
     )
 
+    expect(projects).toBeUndefined()
     expect(Object.fromEntries(decisions)).toEqual({
       D3: { status: 'proposed' },
+      'flexibeck/D3': { status: 'proposed' },
       'glue/D12': { status: 'accepted' },
     })
   })
@@ -130,7 +157,10 @@ describe('loadDecisions', () => {
       [DECISIONS_URL]: [{ id: 'D1', status: 'accepted' }],
     })
 
-    const decisions = await loadDecisions({ GLUE_API_TOKEN: TOKEN }, fetchApi)
+    const { decisions } = await loadDecisions(
+      { GLUE_API_TOKEN: TOKEN },
+      fetchApi,
+    )
 
     expect(
       problems({
@@ -159,7 +189,10 @@ describe('loadDecisions', () => {
       },
     })
 
-    const decisions = await loadDecisions({ GLUE_API_TOKEN: TOKEN }, fetchApi)
+    const { decisions } = await loadDecisions(
+      { GLUE_API_TOKEN: TOKEN },
+      fetchApi,
+    )
 
     const [found] = problems({
       body: 'Closes #1\nDecision: D1',
@@ -175,7 +208,10 @@ describe('loadDecisions', () => {
       [DECISIONS_URL]: [{ id: 'D1', status: 'accepted' }],
     })
 
-    const decisions = await loadDecisions({ GLUE_API_TOKEN: TOKEN }, fetchApi)
+    const { decisions } = await loadDecisions(
+      { GLUE_API_TOKEN: TOKEN },
+      fetchApi,
+    )
 
     const [found] = problems({
       body: 'Closes #1\nDecision: D99',
@@ -192,7 +228,7 @@ describe('loadDecisions', () => {
       ],
     })
 
-    const decisions = await loadDecisions(
+    const { decisions } = await loadDecisions(
       { GLUE_API_TOKEN: TOKEN, GLUE_API_URL: 'http://localhost:3000' },
       fetchApi,
     )

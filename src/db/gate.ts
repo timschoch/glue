@@ -6,7 +6,11 @@ import type { ConceptDb } from './client.ts'
 import { findContract } from './contracts.ts'
 import { findPart } from './parts.ts'
 import type { DecisionStatus } from './parts.ts'
-import { canReference, findProduct } from './projects.ts'
+import {
+  canReference,
+  findProduct,
+  listRepositoryProjects,
+} from './projects.ts'
 import { InvalidRecordError, ProductNotFoundError } from './record-errors.ts'
 import { parseRecordReference } from './record-id.ts'
 import { buildGates } from './schema.ts'
@@ -28,14 +32,18 @@ export type ValidatedBuild = {
   body: string
 }
 
-// The Decision that the body names. A bare id is a Decision of the Project.
+// The Decision that the body names. A bare id is a Decision of the Project,
+// or of no Project when another Project shares the repository (glue/D50).
 // `<project>/<id>` is one of a Project that this Project may reference (D45).
 async function findNamedDecision(
   db: ConceptDb,
   projectSlug: string,
   reference: string,
+  shared: boolean,
 ): Promise<GateDecision | undefined> {
-  const { project = projectSlug, recordId } = parseRecordReference(reference)
+  const named = parseRecordReference(reference)
+  if (shared && named.project === undefined) return undefined
+  const { project = projectSlug, recordId } = named
   if (
     project !== projectSlug &&
     !(await canReference(db, projectSlug, project))
@@ -88,10 +96,12 @@ export async function validateBuild(
       `the builds of Project "${projectSlug}" are in the repository "${project.repository}"`,
     )
   }
+  const projects = await listRepositoryProjects(db, project.repository)
+  const shared = projects.length > 1
   const references = findDecisionIds(build.body) ?? []
   const decisions = new Map<string, GateDecision>()
   for (const reference of references) {
-    const decision = await findNamedDecision(db, projectSlug, reference)
+    const decision = await findNamedDecision(db, projectSlug, reference, shared)
     if (decision) decisions.set(reference, decision)
   }
   const named = findContractLine(build.body)
@@ -102,7 +112,12 @@ export async function validateBuild(
           ?.version,
       }
     : undefined
-  const reasons = listGateReasons({ body: build.body, decisions, contract })
+  const reasons = listGateReasons({
+    body: build.body,
+    decisions,
+    contract,
+    projects: shared ? projects : undefined,
+  })
   const result = reasons.length === 0 ? 'holds' : 'breaks'
   const kept = { result, reasons, checkedAt: now } as const
   await db
