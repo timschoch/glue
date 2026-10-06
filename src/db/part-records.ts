@@ -297,10 +297,15 @@ const fieldSchemas = {
 }
 
 // A change moves a Part of each type to another Concept of its Project. Its
-// id, its Joints, its Trust and its Work state stay.
+// id, its Joints, its Trust and its Work state stay. `sameMeaning` makes a
+// new title or body a wording fix: it flags nobody.
 const homeChange = {
   concept: z.string().optional().meta({
     description: 'The slug of the new home Concept, of the same Project',
+  }),
+  sameMeaning: z.boolean().optional().meta({
+    description:
+      'The new title or body means the same as the old one: a wording fix. It flags no Part. Default: false',
   }),
 }
 
@@ -353,7 +358,13 @@ const partSchemas: Record<
 > = fieldSchemas
 const partChangeSchemas: Record<
   schema.PartType,
-  z.ZodType<Partial<PartFields> & { concept?: string; goal?: string }>
+  z.ZodType<
+    Partial<PartFields> & {
+      concept?: string
+      goal?: string
+      sameMeaning?: boolean
+    }
+  >
 > = changeSchemas
 
 // Where a new Part goes, and what it is glued to.
@@ -1135,6 +1146,7 @@ export async function updatePart(
     measure: nextMeasure,
     concept,
     goal,
+    sameMeaning = false,
     ...columns
   } = parseInput(partChangeSchemas[part.type], change)
   const project = { id: projectId, slug: projectSlug }
@@ -1161,6 +1173,10 @@ export async function updatePart(
       : stateOfStatus(part.type, columns.status)
   // The same status again moves nothing: a flagged Part stays flagged.
   const hasNewStatus = sql`${parts.status} is distinct from ${columns.status ?? null}::text`
+  const hasNewText = sql`(
+    ${parts.title} <> coalesce(${columns.title ?? null}::text, ${parts.title})
+    or ${parts.body} <> coalesce(${columns.body ?? null}::text, ${parts.body})
+  )`
   const changedFields = {
     id: parts.id,
     title: parts.title,
@@ -1183,6 +1199,9 @@ export async function updatePart(
             publishedAt: sql`case when ${hasNewStatus} then ${toPublishedAt(moved.workState)} else "published_at" end`,
           }),
           changedAt: sql`now()`,
+          ...(sameMeaning && {
+            wordingAt: sql`case when ${hasNewText} then now() else ${parts.wordingAt} end`,
+          }),
         })
         .where(matches)
         .returning(changedFields)
@@ -1264,7 +1283,7 @@ export async function updatePart(
     )`
   const result = await db.execute(sql`
     with changed as ${changed}
-    ${hasColumns ? spreadTrust('changed') : sql``}
+    ${hasColumns ? spreadTrust('changed', { sameMeaning }) : sql``}
     ${nextMeasure === undefined ? sql`` : changedMeasure}
     ${nextGoal === undefined ? sql`` : changedGoal}
     ${columns.body === undefined ? sql`` : changedJoints}
@@ -1667,7 +1686,7 @@ async function moveToVersion(
         "changed_at" = now()
       where "id" = ${part.id}::integer and exists (select 1 from moved)
       returning ${trustFields}
-    )${spreadTrust('answered', sql`false`)}
+    )${spreadTrust('answered', { closesFlags: sql`false` })}
     select "id" from answered
   `)
   if (idRowsSchema.parse(result).rows.length === 0)
@@ -1742,7 +1761,7 @@ async function writeAnswer(
         and "changed_at" = ${part.changedAt}::timestamptz
         ${awaited === undefined ? sql`` : sql`and exists (select 1 from awaited)`}
       returning ${trustFields}
-    )${spreadTrust('answered', sql`${rule.closesFlags}::boolean`)}
+    )${spreadTrust('answered', { closesFlags: sql`${rule.closesFlags}::boolean` })}
     select "id" from answered
   `)
   if (idRowsSchema.parse(result).rows.length > 0) return
@@ -1860,7 +1879,7 @@ export async function setReading(
     read_part as (
       select ${trustFields} from "parts"
       where "id" in (select "part_id" from measured)
-    )${spreadTrust('read_part', sql`false`, isOffTarget && !wasOffTarget)}
+    )${spreadTrust('read_part', { closesFlags: sql`false`, isOffTarget: isOffTarget && !wasOffTarget })}
     select "part_id" from measured
   `)
 }

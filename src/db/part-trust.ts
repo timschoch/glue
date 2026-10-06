@@ -145,12 +145,24 @@ export function toPublishedAt(workState: WorkState): SQL {
 //   holds. By default: when the Part is published or sunk.
 // - `isOffTarget`: the write is a reading that misses the target of the Part.
 //   It flags each Part that needs it.
+// - `sameMeaning`: the write is a wording fix (D53). A new title or body
+//   flags nobody, and wakes no Part that waits. A new Trust or Work state in
+//   the same write still does.
 export function spreadTrust(
   changed: string,
-  closesFlags: SQL = sql`new_part."work_state" in ('published', 'sunk')`,
-  isOffTarget = false,
+  {
+    closesFlags = sql`new_part."work_state" in ('published', 'sunk')`,
+    isOffTarget = false,
+    sameMeaning = false,
+  }: { closesFlags?: SQL; isOffTarget?: boolean; sameMeaning?: boolean } = {},
 ): SQL {
   const newParts = sql.identifier(changed)
+  const hasNewText = sameMeaning
+    ? sql`false`
+    : sql`(
+        new_part."title" <> old_part."title"
+        or new_part."body" <> old_part."body"
+      )`
   return sql`,
     old_parts as (
       select "id", "title", "body", "trust", "work_state", "published_at"
@@ -175,10 +187,7 @@ export function spreadTrust(
             'changed',
             (
               old_part."work_state" = 'published'
-              and (
-                new_part."title" <> old_part."title"
-                or new_part."body" <> old_part."body"
-              )
+              and ${hasNewText}
             )
             or (
               new_part."work_state" = 'published'
@@ -224,11 +233,9 @@ export function spreadTrust(
       join old_parts as old_part on old_part."id" = new_part."id"
       where waiting."work_state" = 'waiting'
         and (
-          new_part."title", new_part."body",
-          new_part."trust", new_part."work_state"
-        ) is distinct from (
-          old_part."title", old_part."body",
-          old_part."trust", old_part."work_state"
+          ${hasNewText}
+          or new_part."trust" <> old_part."trust"
+          or new_part."work_state" <> old_part."work_state"
         )
     ),
     flagged as (

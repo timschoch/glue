@@ -1,0 +1,1 @@
+ALTER TABLE "parts" ADD COLUMN "wording_at" timestamp with time zone;

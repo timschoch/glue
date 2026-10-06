@@ -158,7 +158,7 @@ describe('PartForm', () => {
   it('has the Goal of a Decision that exists, and no field for its evidence', () => {
     renderForm({ recordId: 'D12', values: DECISION })
 
-    expect(labels()).toEqual(['Title', 'Body', 'Owner', 'Date'])
+    expect(labels()).toEqual(['Title', 'Body', 'Owner', 'Date', 'Same meaning'])
     expect(picks('Goal')).toEqual(['First bake feels easy'])
     expect(screen.queryByRole('list', { name: 'Evidence' })).toBeNull()
     expect(screen.queryByRole('combobox', { name: 'Evidence' })).toBeNull()
@@ -173,6 +173,30 @@ describe('PartForm', () => {
     await userEvent.click(saveButton())
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ goal: 'G3' }))
+  })
+
+  it('saves a Part that exists as a change, and as a wording fix with the checkbox', async () => {
+    const { onSave } = renderForm({ recordId: 'D12', values: DECISION })
+    const sameMeaning = screen.getByRole<HTMLInputElement>('checkbox', {
+      name: 'Same meaning',
+    })
+
+    expect(sameMeaning.checked).toBe(false)
+
+    await userEvent.click(saveButton())
+    await userEvent.click(sameMeaning)
+    await userEvent.click(saveButton())
+
+    expect(onSave.mock.calls.map(([values]) => values.sameMeaning)).toEqual([
+      false,
+      true,
+    ])
+  })
+
+  it('has no checkbox for a Part that it adds', () => {
+    renderForm()
+
+    expect(screen.queryByRole('checkbox')).toBeNull()
   })
 
   it('names the Part type as text, not as a field', () => {
@@ -317,6 +341,7 @@ describe('PartForm', () => {
       enforcedBy: '',
       goal: 'G2',
       evidence: ['I7'],
+      sameMeaning: false,
     })
   })
 

@@ -457,6 +457,7 @@ describe('addPart', () => {
       workState: 'draft',
       awaitedPartId: null,
       publishedAt: null,
+      wordingAt: null,
     })
     expect(await showPart('D1')).toMatchObject({
       type: 'decision',

@@ -278,6 +278,71 @@ describe('the automatic flag', () => {
     expect(await readState(needing)).toEqual(solid)
   })
 
+  it('flags nobody for a new title and a new body with the same meaning, and saves them', async () => {
+    await addInsight('Loads are slow')
+    const needing = await addInsight('Users churn', ['I1'])
+
+    await updatePart(db, 'glue', 'I1', {
+      title: 'Pages load slowly',
+      body: 'Three seconds and more.',
+      sameMeaning: true,
+    })
+
+    expect(await findPart(db, 'glue', needing)).toMatchObject({
+      ...solid,
+      flags: [],
+    })
+    expect(await findPart(db, 'glue', 'I1')).toMatchObject({
+      ...solid,
+      title: 'Pages load slowly',
+      body: 'Three seconds and more.',
+    })
+  })
+
+  it('writes the wording fix in the activity of the Part', async () => {
+    await addInsight('Loads are slow')
+
+    await updatePart(db, 'glue', 'I1', {
+      title: 'Pages load slowly',
+      sameMeaning: true,
+    })
+
+    const part = await findPart(db, 'glue', 'I1')
+    expect(part?.activity.map(({ kind }) => kind)).toEqual([
+      'wording',
+      'published',
+    ])
+  })
+
+  it('writes no wording fix when the title and the body stay', async () => {
+    await addInsight('Loads are slow')
+
+    await updatePart(db, 'glue', 'I1', {
+      title: 'Loads are slow',
+      source: 'survey',
+      sameMeaning: true,
+    })
+
+    const part = await findPart(db, 'glue', 'I1')
+    expect(part?.activity.map(({ kind }) => kind)).toEqual([
+      'changed',
+      'published',
+    ])
+  })
+
+  it('still flags for a status that turns the Part not ready in the same write', async () => {
+    await addInsight('Loads are slow')
+    const needing = await addInsight('Users churn', ['I1'])
+
+    await updatePart(db, 'glue', 'I1', {
+      title: 'Pages load slowly',
+      status: 'draft',
+      sameMeaning: true,
+    })
+
+    expect(await listFlags(needing)).toEqual(['I1 not-ready'])
+  })
+
   it('flags in both directions over a two-way Joint', async () => {
     await addInsight('Loads are slow')
     await addInsight('Users churn')
@@ -733,6 +798,18 @@ describe('a Part that waits', () => {
 
   it('waits on when the title and the body of the awaited Part stay', async () => {
     await updatePart(db, 'glue', 'I3', { source: 'survey' })
+
+    expect(await findPart(db, 'glue', 'I2')).toMatchObject({
+      workState: 'waiting',
+      waitsOn: { id: 'I3' },
+    })
+  })
+
+  it('waits on when the awaited Part gets a new body with the same meaning', async () => {
+    await updatePart(db, 'glue', 'I3', {
+      body: 'Ten percent in a month.',
+      sameMeaning: true,
+    })
 
     expect(await findPart(db, 'glue', 'I2')).toMatchObject({
       workState: 'waiting',

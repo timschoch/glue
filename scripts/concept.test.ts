@@ -725,6 +725,61 @@ describe('runConcept', () => {
     ])
   })
 
+  describe('set --same-meaning', () => {
+    const project = ['--project', 'flexibeck']
+    const showFlags = async (id: string) =>
+      (await findPart(db, 'flexibeck', id))?.flags
+
+    beforeEach(async () => {
+      await run('answer', 'R1', 'supersede', ...project)
+      await run('answer', 'G1', 'supersede', ...project)
+      await run('add', 'decisions', ...decisionFlags, '--status', 'accepted')
+      await run('add', 'flows', ...project, '--title', 'Push', '--needs', 'D1')
+      await run('answer', 'F1', 'supersede', ...project)
+    })
+
+    it('gives a Part a new title that flags no Part', async () => {
+      await run(
+        'set',
+        'R1',
+        '--title',
+        'CI is fast',
+        '--same-meaning',
+        ...project,
+      )
+
+      expect(await findPart(db, 'flexibeck', 'R1')).toMatchObject({
+        title: 'CI is fast',
+        activity: [{ kind: 'wording' }, { kind: 'published' }],
+      })
+      expect(await showFlags('D1')).toEqual([])
+    })
+
+    it('gives a Decision a new title that flags no Part', async () => {
+      await run(
+        'set',
+        'D1',
+        ...project,
+        '--same-meaning',
+        '--title',
+        'Check types',
+      )
+
+      expect(await findPart(db, 'flexibeck', 'D1')).toMatchObject({
+        title: 'Check types',
+      })
+      expect(await showFlags('F1')).toEqual([])
+    })
+
+    it('flags the Part that needs the Decision without it', async () => {
+      await run('set', 'D1', ...project, '--title', 'Check types')
+
+      expect(await showFlags('F1')).toMatchObject([
+        { cause: { id: 'D1' }, reason: 'changed' },
+      ])
+    })
+  })
+
   describe('a new home', () => {
     const project = ['--project', 'flexibeck']
     const showHome = async (id: string) =>
