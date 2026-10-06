@@ -38,6 +38,7 @@ describe('GET /api/v1/openapi.json', () => {
             'get /asks',
             'post /asks',
             'patch /asks/{askId}',
+            'delete /asks/{askId}',
             'get /members',
             'post /members',
             'get /assignments',

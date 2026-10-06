@@ -5,7 +5,12 @@ import { createMetricSource } from '../measure/metric-source.server.ts'
 import { getSetting } from '../settings.server.ts'
 import type { ApiRequest } from './api-request.ts'
 import { handleMeasureProject } from './measure-api.ts'
-import { handleAddAsk, handleListAsks, handleUpdateAsk } from './ask-api.ts'
+import {
+  handleAddAsk,
+  handleListAsks,
+  handleRemoveAsk,
+  handleUpdateAsk,
+} from './ask-api.ts'
 import { handleGetContract, handleSignContract } from './contract-api.ts'
 import {
   handleAddConcept,
@@ -118,6 +123,7 @@ export const asksHandlers = {
 
 export const askHandlers = {
   PATCH: (route: RouteRequest) => handleUpdateAsk(toApiRequest(route)),
+  DELETE: (route: RouteRequest) => handleRemoveAsk(toApiRequest(route)),
 }
 
 export const signalsHandlers = {

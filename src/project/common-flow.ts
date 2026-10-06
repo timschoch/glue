@@ -6,12 +6,14 @@ import type { Answer, Part, PartType } from '../db/parts.ts'
 // the step it is at, and the one next step.
 
 // The one next step: an answer of the owner, the form of the Part, a new
-// Part that needs this one, or the home Concept.
+// Part that needs this one, the home Concept, or the Joint to the Insight
+// that an Ask handed back.
 export type NextStep =
   | { kind: 'answer'; answer: Answer }
   | { kind: 'edit'; label: string }
   | { kind: 'add'; type: PartType; label: string }
   | { kind: 'concept'; label: string }
+  | { kind: 'glue'; label: string }
 
 export type CommonFlow = {
   name: string
@@ -40,6 +42,8 @@ const flows = {
 
 // The step that an open Ask is at. `check`: all the steps are done.
 const askSteps: Record<AskStep, number> = { pick: 1, 'hand-back': 2, check: 3 }
+
+const checkAndGlue: NextStep = { kind: 'glue', label: 'Check and glue' }
 
 const signOff: NextStep = { kind: 'answer', answer: 'supersede' }
 const addDecision: NextStep = {
@@ -125,7 +129,8 @@ function findBuildFlow(builds: ReadonlyArray<GatedBuild>): CommonFlow {
 // comes before the flow of the type. A build that names a published Part
 // comes before the flow of its type. A sunk Part is in no flow. `ask` is the
 // step of the open Ask of the Part: the Part shows the steps of the Ask and
-// keeps the next step of its own flow.
+// keeps the next step of its own flow, until the Insight is handed back.
+// Then the next step glues it.
 export function findCommonFlow(
   part: Part,
   builds: ReadonlyArray<GatedBuild> = [],
@@ -133,9 +138,9 @@ export function findCommonFlow(
 ): CommonFlow | undefined {
   const flow = findOwnFlow(part, builds)
   const flagged = part.workState === 'to-check' || part.workState === 'waiting'
-  return flow && ask && !flagged
-    ? { ...flows.ask, current: askSteps[ask], next: flow.next }
-    : flow
+  if (!flow || !ask || flagged) return flow
+  const next = ask === 'check' ? checkAndGlue : flow.next
+  return { ...flows.ask, current: askSteps[ask], next }
 }
 
 function findOwnFlow(

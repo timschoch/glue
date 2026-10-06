@@ -7,7 +7,12 @@ import * as schema from '../db/schema.ts'
 import { createTestDatabase } from '../db/test-database.ts'
 import { createToken } from '../db/tokens.ts'
 import type { ApiRequest } from './api-request.ts'
-import { handleAddAsk, handleListAsks, handleUpdateAsk } from './ask-api.ts'
+import {
+  handleAddAsk,
+  handleListAsks,
+  handleRemoveAsk,
+  handleUpdateAsk,
+} from './ask-api.ts'
 
 const { db } = createTestDatabase(schema)
 const tokens = { bakeday: '', ux: '' }
@@ -160,6 +165,54 @@ describe('the Ask routes', () => {
         },
       },
     })
+  })
+
+  it('take an Ask back while nobody picked it', async () => {
+    await call(handleAddAsk, 'POST', { project: 'bakeday', body: ask })
+
+    const takenBack = await call(handleRemoveAsk, 'DELETE', {
+      project: 'bakeday',
+      askId: '1',
+    })
+
+    expect(takenBack).toEqual({ status: 204, body: undefined })
+    expect(await call(handleListAsks, 'GET', { project: 'ux' })).toEqual({
+      status: 200,
+      body: [],
+    })
+  })
+
+  it('answer 400 to the take back of an Ask that a member picked', async () => {
+    await call(handleAddAsk, 'POST', { project: 'bakeday', body: ask })
+    await call(handleUpdateAsk, 'PATCH', {
+      project: 'ux',
+      askId: '1',
+      body: { pickedBy: 'fred@example.com' },
+    })
+
+    const response = await call(handleRemoveAsk, 'DELETE', {
+      project: 'bakeday',
+      askId: '1',
+    })
+
+    expect(response).toEqual({
+      status: 400,
+      body: {
+        error: {
+          code: 'invalid-request',
+          message: 'Fred picked Ask 1 already',
+        },
+      },
+    })
+  })
+
+  it('answer 404 to the take back of an Ask id that is no number', async () => {
+    const response = await call(handleRemoveAsk, 'DELETE', {
+      project: 'bakeday',
+      askId: 'one',
+    })
+
+    expect(response.status).toBe(404)
   })
 
   it('answer 404 to an Ask id that is no number', async () => {

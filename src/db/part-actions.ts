@@ -9,6 +9,7 @@ import {
   listMineAsks,
   newAskSchema,
   pickAsk,
+  takeBackAsk,
 } from './asks.ts'
 import { listBuilds } from './builds.ts'
 import { listLeveledParts } from './flight-level.ts'
@@ -156,9 +157,15 @@ export const askHandBackInputSchema = askPickInputSchema.extend({
   insight: z.string(),
 })
 
+// The Project is the one that asked.
+export const askTakeBackInputSchema = projectInputSchema.extend({
+  askId: z.int(),
+})
+
 export type AskAddInput = z.infer<typeof askAddInputSchema>
 export type AskPickInput = z.infer<typeof askPickInputSchema>
 export type AskHandBackInput = z.infer<typeof askHandBackInputSchema>
+export type AskTakeBackInput = z.infer<typeof askTakeBackInputSchema>
 export type MemberAddInput = z.infer<typeof memberAddInputSchema>
 export type LoopStepsInput = z.infer<typeof loopStepsInputSchema>
 export type AssignInput = z.infer<typeof assignInputSchema>
@@ -399,6 +406,10 @@ export function createPartActions(request: ActionRequest) {
           () => undefined,
           toFailure,
         ),
+    ),
+
+    takeBackAsk: withMember((db, { project, askId }: AskTakeBackInput) =>
+      takeBackAsk(db, project, askId).then(() => undefined, toFailure),
     ),
   }
 }

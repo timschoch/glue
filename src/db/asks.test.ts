@@ -7,6 +7,7 @@ import {
   listAskableProjects,
   listMineAsks,
   pickAsk,
+  takeBackAsk,
 } from './asks.ts'
 import { joinProject } from './members.ts'
 import { addJoint, addPart, addProject, updatePart } from './part-records.ts'
@@ -218,6 +219,38 @@ describe('an Ask with an Insight that was handed back', () => {
     expect((await findPart(db, 'bakeday', 'I1'))?.needs).toMatchObject([
       { project: { slug: 'ux', name: 'UX team' }, part: { id: 'I1' } },
     ])
+  })
+})
+
+describe('an Ask that the Project takes back', () => {
+  beforeEach(async () => {
+    await addAsk(db, 'bakeday', { insight: 'I1', toProject: 'ux' })
+  })
+
+  it('leaves Mine of the asked Project, and the Hunch can ask again', async () => {
+    await takeBackAsk(db, 'bakeday', 1)
+
+    expect(await listMineAsks(db, 'ux', fred)).toEqual([])
+    expect(await findOpenAsk(db, 'bakeday', 'I1')).toBeUndefined()
+    expect(
+      await addAsk(db, 'bakeday', { insight: 'I1', toProject: 'ux' }),
+    ).toBe(2)
+  })
+
+  it('stays when a member picked it', async () => {
+    await pickAsk(db, 'ux', 1, fred)
+
+    await expect(takeBackAsk(db, 'bakeday', 1)).rejects.toThrow(
+      new InvalidRecordError('Fred picked Ask 1 already'),
+    )
+    expect(await listMineAsks(db, 'ux', fred)).toMatchObject([{ id: 1 }])
+  })
+
+  it('stays when another Project takes it back', async () => {
+    await expect(takeBackAsk(db, 'ux', 1)).rejects.toThrow(
+      new InvalidRecordError('Ask 1 not found'),
+    )
+    expect(await listMineAsks(db, 'ux', fred)).toMatchObject([{ id: 1 }])
   })
 })
 

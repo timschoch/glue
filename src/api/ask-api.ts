@@ -10,6 +10,7 @@ import {
   listMineAsks,
   newAskSchema,
   pickAsk,
+  takeBackAsk,
 } from '../db/asks.ts'
 import type { Ask } from '../db/asks.ts'
 import { trusts } from '../db/parts.ts'
@@ -85,19 +86,33 @@ export function handleAddAsk(input: ApiRequest) {
 
 const ASK_ID = /^\d+$/
 
+// The id of the Ask in the path.
+function parseAskId({ askId = '' }: ApiRequest['params']): number {
+  if (!ASK_ID.test(askId)) {
+    throw new ApiError('not-found', `ask ${askId} not found`)
+  }
+  return Number(askId)
+}
+
 export function handleUpdateAsk(input: ApiRequest) {
   return handleApiRequest(input, async () => {
     const { db, request, params } = input
-    const { askId = '' } = params
-    if (!ASK_ID.test(askId)) {
-      throw new ApiError('not-found', `ask ${askId} not found`)
-    }
+    const askId = parseAskId(params)
     const step = askStepInputSchema.parse(await parseJson(request))
     if ('pickedBy' in step) {
-      await pickAsk(db, params.project, Number(askId), step.pickedBy)
+      await pickAsk(db, params.project, askId, step.pickedBy)
     } else {
-      await handBackAsk(db, params.project, Number(askId), step.insight)
+      await handBackAsk(db, params.project, askId, step.insight)
     }
+    return new Response(null, { status: 204 })
+  })
+}
+
+// The Project that asked takes the Ask back.
+export function handleRemoveAsk(input: ApiRequest) {
+  return handleApiRequest(input, async () => {
+    const { db, params } = input
+    await takeBackAsk(db, params.project, parseAskId(params))
     return new Response(null, { status: 204 })
   })
 }

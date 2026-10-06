@@ -444,6 +444,55 @@ type OptionPick = {
   onPick: (value: string) => void
 }
 
+// The choice of an action: one of its options, and the button that sends
+// it. Escape leaves the choice and sends nothing.
+function OptionChoice({
+  id,
+  choice,
+  onClose,
+}: {
+  id: string
+  choice: OptionPick
+  onClose: () => void
+}) {
+  const [chosen, setChosen] = useState(choice.options.at(0)?.value)
+
+  useEffect(() => {
+    const leave = ({ key }: KeyboardEvent) => {
+      if (key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', leave)
+    return () => document.removeEventListener('keydown', leave)
+  }, [onClose])
+
+  return (
+    <>
+      <div className={styles.search}>
+        <Select
+          id={id}
+          labelText={choice.label}
+          value={chosen}
+          onChange={({ target }) => setChosen(target.value)}
+        >
+          {choice.options.map(({ value, text }) => (
+            <SelectItem key={value} value={value} text={text} />
+          ))}
+        </Select>
+      </div>
+      <Button
+        kind="tertiary"
+        onClick={() => {
+          if (chosen === undefined) return
+          onClose()
+          choice.onPick(chosen)
+        }}
+      >
+        Send
+      </Button>
+    </>
+  )
+}
+
 // One action on the record. An action with a pick asks for a Part first,
 // and one with a choice for one of its options. An action with an address
 // is a link: it goes to a person, not to Glue.
@@ -741,23 +790,11 @@ export function Record({
             </div>
           )}
           {choosing && pending === undefined && (
-            <div className={styles.search}>
-              <Select
-                id={chooseId}
-                labelText={choosing.label}
-                defaultValue=""
-                onChange={({ target }) => {
-                  if (target.value === '') return
-                  setChoosing(undefined)
-                  choosing.onPick(target.value)
-                }}
-              >
-                <SelectItem value="" text="" />
-                {choosing.options.map(({ value, text }) => (
-                  <SelectItem key={value} value={value} text={text} />
-                ))}
-              </Select>
-            </div>
+            <OptionChoice
+              id={chooseId}
+              choice={choosing}
+              onClose={() => setChoosing(undefined)}
+            />
           )}
           {error !== undefined && (
             <InlineNotification

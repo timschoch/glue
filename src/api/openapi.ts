@@ -479,6 +479,21 @@ function listPartPaths() {
           ...readErrorResponses,
         },
       },
+      delete: {
+        operationId: 'removeAsk',
+        summary:
+          'Take an Ask back as the Project that asked, while no member picked it',
+        requestParams: {
+          path: path.extend({
+            askId: z.string().meta({ description: 'The id of the Ask' }),
+          }),
+        },
+        responses: {
+          204: { description: 'The Ask is gone' },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
     },
     [`${root}/members`]: {
       get: {

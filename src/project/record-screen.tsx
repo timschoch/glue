@@ -58,6 +58,7 @@ export function RecordScreen({
     answerPart,
     answerQuestion,
     addAsk,
+    takeBackAsk,
     addJoint,
     removeJoint,
     updatePart,
@@ -195,31 +196,51 @@ export function RecordScreen({
   // ask the owner. Only the owner answers a flag.
   const next = flow?.next
   const { answeredBy } = part
-  // A member asks another Project to check a Hunch that has no open Ask.
+  // A member asks another Project to check a Hunch that has no open Ask, and
+  // takes the Ask back while nobody picked it.
   const askAction: Array<RecordAction> =
-    part.type === 'insight' &&
-    (part.evidenceLevel ?? 'hunch') === 'hunch' &&
-    part.workState !== 'sunk' &&
-    !ask &&
-    askable.length > 0 &&
-    people.me !== null
+    ask?.step === 'pick' && people.me !== null
       ? [
           {
-            label: 'Ask another team',
-            choose: {
-              label: 'Project',
-              options: askable.map((asked) => ({
-                value: asked.slug,
-                text: asked.name,
-              })),
-              onPick: (toProject) =>
-                void write('Saving', () =>
-                  addAsk({ project, ask: { insight: part.id, toProject } }),
-                ),
-            },
+            label: 'Take back',
+            onClick: () =>
+              void write('Saving', () =>
+                takeBackAsk({ project, askId: ask.id }),
+              ),
           },
         ]
-      : []
+      : part.type === 'insight' &&
+          (part.evidenceLevel ?? 'hunch') === 'hunch' &&
+          part.workState !== 'sunk' &&
+          !ask &&
+          askable.length > 0 &&
+          people.me !== null
+        ? [
+            {
+              label: 'Ask another team',
+              choose: {
+                label: 'Project',
+                options: askable.map((asked) => ({
+                  value: asked.slug,
+                  text: asked.name,
+                })),
+                onPick: (toProject) =>
+                  void write('Saving', () =>
+                    addAsk({ project, ask: { insight: part.id, toProject } }),
+                  ),
+              },
+            },
+          ]
+        : []
+  // The last step of an Ask: the Hunch needs the Insight that came back.
+  const handedBack = ask?.insight
+  const glue = async () => {
+    if (!handedBack) return
+    const needs = `${handedBack.project.slug}/${handedBack.id}`
+    await write('Saving', () =>
+      addJoint({ project, joint: { part: part.id, needs } }),
+    )
+  }
   const flowActions: Array<RecordAction> = answeredBy
     ? [
         {
@@ -233,13 +254,15 @@ export function RecordScreen({
           {
             label: next.label,
             onClick: () =>
-              void (next.kind === 'concept'
-                ? router.navigate({ href: conceptHref(part.concept) })
-                : changeSearch(
-                    next.kind === 'edit'
-                      ? { ...search, edit: true }
-                      : { ...search, add: next.type },
-                  )),
+              void (next.kind === 'glue'
+                ? glue()
+                : next.kind === 'concept'
+                  ? router.navigate({ href: conceptHref(part.concept) })
+                  : changeSearch(
+                      next.kind === 'edit'
+                        ? { ...search, edit: true }
+                        : { ...search, add: next.type },
+                    )),
           },
           ...answerActions,
         ]

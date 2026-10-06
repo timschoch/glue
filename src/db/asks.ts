@@ -334,3 +334,28 @@ export async function handBackAsk(
   if (handedBack.length === 0)
     throw new InvalidRecordError(`Ask ${askId} has an Insight already`)
 }
+
+// The Project that asked takes the Ask back while no member picked it. The
+// Ask is gone, and the Hunch can ask again.
+export async function takeBackAsk(
+  db: ConceptDb,
+  projectSlug: string,
+  askId: number,
+): Promise<void> {
+  const found = await listOpenAsks(
+    db,
+    and(eq(hunchProjects.slug, projectSlug), eq(asks.id, askId)),
+  )
+  const ask = found.at(0)
+  if (!ask) throw new InvalidRecordError(`Ask ${askId} not found`)
+  const takenBack = ask.pickedBy
+    ? []
+    : await db
+        .delete(asks)
+        .where(and(eq(asks.id, askId), isNull(asks.pickedById)))
+        .returning({ id: asks.id })
+  if (takenBack.length === 0)
+    throw new InvalidRecordError(
+      `${ask.pickedBy?.name ?? 'A member'} picked Ask ${askId} already`,
+    )
+}

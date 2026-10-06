@@ -946,8 +946,40 @@ describe('the box Next', () => {
       'Data team',
     )
 
+    expect(onPick).not.toHaveBeenCalled()
+
+    await userEvent.click(next().getByRole('button', { name: 'Send' }))
+
     expect(onPick).toHaveBeenCalledExactlyOnceWith('data')
     expect(screen.queryByRole('combobox')).toBeNull()
+  })
+
+  it('leaves the choice of an action with Escape, and gives no value', async () => {
+    const onPick = vi.fn()
+    renderRecord(
+      {},
+      {
+        actions: [
+          {
+            label: 'Ask another team',
+            choose: {
+              label: 'Project',
+              options: [{ value: 'ux', text: 'UX team' }],
+              onPick,
+            },
+          },
+        ],
+      },
+    )
+
+    await userEvent.click(
+      next().getByRole('button', { name: 'Ask another team' }),
+    )
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(next().queryByRole('button', { name: 'Send' })).toBeNull()
+    expect(onPick).not.toHaveBeenCalled()
   })
 
   it('takes an answer in words above the button', async () => {

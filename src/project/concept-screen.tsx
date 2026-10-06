@@ -157,6 +157,10 @@ export function ConceptScreen({
     note,
     href: recordHref(shown, shown.project.slug),
   })
+  // The Insights that a member can hand back.
+  const published = parts.filter(
+    ({ type, workState }) => type === 'insight' && workState === 'published',
+  )
   const toAsk = ({ id: askId, step, hunch, insight }: Ask): PartCardsAsk => {
     if (step === 'check' && insight) {
       return {
@@ -187,22 +191,26 @@ export function ConceptScreen({
               onClick: () =>
                 void write('Saving', () => pickAsk({ project, askId })),
             }
-          : {
-              label: 'Hand back',
-              pick: {
-                label: 'Insight',
-                parts: parts
-                  .filter(
-                    ({ type, workState }) =>
-                      type === 'insight' && workState === 'published',
-                  )
-                  .map((part) => ({ ...part, href: recordHref(part) })),
-                onPick: (recordId) =>
-                  void write('Saving', () =>
-                    handBackAsk({ project, askId, insight: recordId }),
-                  ),
+          : published.length === 0
+            ? // No Insight to hand back yet: the step is to add one.
+              {
+                label: 'Add Insight',
+                onClick: () => void changeSearch({ ...search, add: 'insight' }),
+              }
+            : {
+                label: 'Hand back',
+                pick: {
+                  label: 'Insight',
+                  parts: published.map((part) => ({
+                    ...part,
+                    href: recordHref(part),
+                  })),
+                  onPick: (recordId) =>
+                    void write('Saving', () =>
+                      handBackAsk({ project, askId, insight: recordId }),
+                    ),
+                },
               },
-            },
     }
   }
 
