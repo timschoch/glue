@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 // apart. The adapter never imports the Mock.
 import { createApp } from '../../mocks/analytics/src/create-app.ts'
 import * as mockSchema from '../../mocks/analytics/src/schema.ts'
+import { createSurveyEvents } from '../../mocks/analytics/src/survey-events.ts'
 import { createAnalyticsSource } from './analytics-source.ts'
 
 const READ_KEY = 'test-read-key'
@@ -137,7 +138,25 @@ describe('createAnalyticsSource', () => {
     expect(requests).toEqual([])
   })
 
-  it('gives no Signal when Glue has no metric source', async () => {
+  it.each([
+    { url: undefined, readKey: READ_KEY },
+    { url: 'https://analytics.test', readKey: undefined },
+  ])(
+    'fails when the Project has an analytics project and Glue has no metric source',
+    async (settings) => {
+      const source = createAnalyticsSource({
+        ...settings,
+        now,
+        fetch: mockFetch,
+      })
+
+      await expect(source.listSignals(flexibeck)).rejects.toThrow(
+        'Analytics has no address or no read key',
+      )
+    },
+  )
+
+  it('gives no Signal for a Project without an analytics project when Glue has no metric source', async () => {
     const source = createAnalyticsSource({
       url: undefined,
       readKey: undefined,
@@ -145,12 +164,61 @@ describe('createAnalyticsSource', () => {
       fetch: mockFetch,
     })
 
-    expect(await source.listSignals(flexibeck)).toEqual([])
+    expect(
+      await source.listSignals({ ...flexibeck, analyticsProject: null }),
+    ).toEqual([])
   })
 
   it('fails with the status when the metric source refuses the read', async () => {
     await expect(createSource('wrong').listSignals(flexibeck)).rejects.toThrow(
       'Analytics answered 401',
     )
+  })
+})
+
+// The seed of the Mock ran one time, on 2026-10-05.
+describe('createAnalyticsSource with the seed of the Mock', () => {
+  const seeded = {
+    repository: null,
+    supportUrl: null,
+    analyticsProject: 'phc_seeded',
+  }
+
+  beforeAll(async () => {
+    await app.request('/e/', {
+      method: 'POST',
+      body: JSON.stringify(
+        createSurveyEvents(now()).map(
+          ({ distinctId, event, timestamp, properties }) => ({
+            event,
+            timestamp: timestamp.toISOString(),
+            properties: {
+              ...properties,
+              token: seeded.analyticsProject,
+              distinct_id: distinctId,
+            },
+          }),
+        ),
+      ),
+    })
+  })
+
+  it.each([
+    { day: '2026-10-05', oldest: '2026-09-05' },
+    { day: '2026-11-19', oldest: '2026-10-20' },
+    { day: '2027-01-03', oldest: '2026-12-04' },
+  ])('gives Signals of the last 30 days on $day', async ({ day, oldest }) => {
+    const source = createAnalyticsSource({
+      url: 'https://analytics.test',
+      readKey: READ_KEY,
+      now: () => new Date(`${day}T12:00:00Z`),
+      fetch: mockFetch,
+    })
+
+    const signals = await source.listSignals(seeded)
+
+    expect(signals.length).toBeGreaterThanOrEqual(10)
+    expect(signals.every(({ date }) => date >= oldest && date < day)).toBe(true)
+    expect(signals.some(({ text }) => text !== '')).toBe(true)
   })
 })

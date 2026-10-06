@@ -34,9 +34,11 @@ Query, `Authorization: Bearer $MOCK_ANALYTICS_READ_KEY`:
 
 ```sh
 pnpm --filter mock-analytics dev    # http://localhost:4000, in-memory PGlite without MOCK_ANALYTICS_DATABASE_URL
-pnpm --filter mock-analytics seed   # a few hundred events for a demo funnel
+pnpm --filter mock-analytics seed   # a few hundred events for a demo funnel, and one survey answer each day
 pnpm --filter mock-analytics test
 ```
+
+The seed sends one `survey sent` answer each day, from 30 days before its run to 180 days after it ([src/survey-events.ts](src/survey-events.ts)). So `/api/low-values` over the last 30 days has rows for half a year. Run it one time per project key: each run adds all its events again.
 
 ## Deploy
 
