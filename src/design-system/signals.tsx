@@ -2,6 +2,7 @@ import { Launch } from '@carbon/icons-react'
 import {
   Button,
   Checkbox,
+  InlineLoading,
   InlineNotification,
   Link,
   SelectableTag,
@@ -40,10 +41,10 @@ export type SignalsProps = {
   // The groups of Signals that say the same thing, each with the addresses
   // of its Signals.
   groups?: ReadonlyArray<{ signals: ReadonlyArray<string> }>
-  // Why the last Hunch was not made.
-  error?: string
-  // A Hunch is on its way: no second one starts.
-  pending?: boolean
+  // The Hunch of a group that is on its way, or why it was not made. The
+  // group is the address of its first Signal. While one is on its way, no
+  // second one starts.
+  hunch?: { group: string; pending?: string; failure?: string }
   // The addresses of the picked Signals, in the order of the list.
   onMakeInsight: (urls: Array<string>) => void
   // The addresses of the Signals of a group, in the order of the list.
@@ -63,8 +64,7 @@ export function Signals({
   signals,
   failures = [],
   groups = [],
-  error,
-  pending = false,
+  hunch,
   onMakeInsight,
   onMakeHunch,
   onOpenInsight,
@@ -200,41 +200,49 @@ export function Signals({
               ))}
             </div>
           )}
-          {error && (
-            <InlineNotification
-              kind="error"
-              lowContrast
-              hideCloseButton
-              className={styles.failure}
-              title={error}
-            />
-          )}
           {shownGroups.map((members) => {
+            const [first] = members
             const count = new Set(members.map(({ source }) => source)).size
+            const own = hunch?.group === first.url ? hunch : undefined
             return (
-              <section
-                key={members[0].url}
-                aria-label={members[0].title}
-                className={styles.repeat}
-              >
+              <div key={first.url} className={styles.repeat}>
                 <div className={styles.repeatHead}>
                   <span className={styles.label}>
                     {count} {count === 1 ? 'source' : 'sources'}
                   </span>
-                  <Button
-                    size="sm"
-                    kind="tertiary"
-                    disabled={pending}
-                    onClick={() => onMakeHunch(members.map(({ url }) => url))}
-                  >
-                    Make Hunch
-                  </Button>
+                  {own?.pending === undefined ? (
+                    <Button
+                      size="sm"
+                      kind="ghost"
+                      aria-label={`Make Hunch, ${first.title}`}
+                      disabled={hunch?.pending !== undefined}
+                      onClick={() => onMakeHunch(members.map(({ url }) => url))}
+                    >
+                      Make Hunch
+                    </Button>
+                  ) : (
+                    <InlineLoading
+                      description={own.pending}
+                      className={styles.saving}
+                    />
+                  )}
                 </div>
+                {own?.failure && (
+                  <InlineNotification
+                    kind="error"
+                    lowContrast
+                    hideCloseButton
+                    className={styles.failure}
+                    title={own.failure}
+                  />
+                )}
                 <ul className={styles.list}>{members.map(toRow)}</ul>
-              </section>
+              </div>
             )
           })}
-          <ul className={styles.list}>{single.map(toRow)}</ul>
+          {single.length > 0 && (
+            <ul className={styles.list}>{single.map(toRow)}</ul>
+          )}
           <Button
             size="sm"
             className={styles.action}

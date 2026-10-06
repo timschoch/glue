@@ -76,6 +76,10 @@ export function ConceptScreen({
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
   const { pending, failure, write } = useWrite()
+  // The Hunch of a group of Signals has its own write: the list shows at
+  // the group that it saves, or why it was not made.
+  const hunchWrite = useWrite()
+  const [hunchGroup, setHunchGroup] = useState<string>()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
 
   if (isPartType(search.add)) {
@@ -119,15 +123,23 @@ export function ConceptScreen({
           signals={listed}
           failures={signals.failures}
           groups={signals.groups}
-          error={failure}
-          pending={pending !== undefined}
+          hunch={
+            hunchGroup === undefined
+              ? undefined
+              : {
+                  group: hunchGroup,
+                  pending: hunchWrite.pending,
+                  failure: hunchWrite.failure,
+                }
+          }
           onMakeInsight={(urls) =>
             setPicked(signals.signals.filter(({ url }) => urls.includes(url)))
           }
           // The Hunch of a group is a draft in the open Concept. The server
           // gives it the title of its newest Signal.
-          onMakeHunch={(urls) =>
-            void write(
+          onMakeHunch={(urls) => {
+            setHunchGroup(urls[0])
+            void hunchWrite.write(
               'Saving',
               () =>
                 addSignalInsight({
@@ -141,7 +153,7 @@ export function ConceptScreen({
                   search: { section: search.section, pins: search.pins },
                 }),
             )
-          }
+          }}
           onOpenInsight={(recordId, event) => {
             const opened = listed.find(
               ({ insight }) => insight?.id === recordId,

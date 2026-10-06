@@ -43,6 +43,12 @@
   gap: $spacing-05;
 }
 
+// The Hunch of the group is on its way: the line stands in the place of the
+// button. Carbon gives it the full width.
+.saving {
+  inline-size: auto;
+}
+
 // The filters by source, in one row at the start.
 .filters {
   display: flex;

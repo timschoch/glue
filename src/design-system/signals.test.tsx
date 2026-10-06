@@ -53,6 +53,11 @@ function titles() {
     .map((item) => within(item).getAllByRole('link')[0].textContent)
 }
 
+// The button that turns the group of a Signal into a Hunch.
+function hunchButton({ title }: SignalRow) {
+  return screen.getByRole('button', { name: `Make Hunch, ${title}` })
+}
+
 function filter(name: string) {
   return screen.getByRole('button', { name })
 }
@@ -145,9 +150,7 @@ describe('Signals', () => {
       LOST.title,
       GROWN.title,
     ])
-    within(screen.getByRole('region', { name: SLOW.title })).getByText(
-      '2 sources',
-    )
+    screen.getByText('2 sources')
   })
 
   it('turns a group into a Hunch with one button', async () => {
@@ -155,12 +158,72 @@ describe('Signals', () => {
       signals: [SLOW, LOST, GROWN],
       groups: [{ signals: [SLOW.url, LOST.url] }],
     })
-    const group = within(screen.getByRole('region', { name: SLOW.title }))
 
-    group.getByText('1 source')
-    await userEvent.click(group.getByRole('button', { name: 'Make Hunch' }))
+    screen.getByText('1 source')
+    await userEvent.click(hunchButton(SLOW))
 
     expect(onMakeHunch).toHaveBeenCalledWith([SLOW.url, LOST.url])
+  })
+
+  it('names the group in the name of its button, and makes no landmark of a group', () => {
+    renderSignals({
+      signals: [SLOW, LOST, TICKET, ANSWER],
+      groups: [
+        { signals: [SLOW.url, LOST.url] },
+        { signals: [TICKET.url, ANSWER.url] },
+      ],
+    })
+
+    hunchButton(SLOW)
+    hunchButton(TICKET)
+    expect(screen.getAllByRole('region')).toHaveLength(1)
+  })
+
+  it('shows that a Hunch saves in place of the button of its group', () => {
+    renderSignals({
+      signals: [SLOW, LOST, TICKET, ANSWER],
+      groups: [
+        { signals: [SLOW.url, LOST.url] },
+        { signals: [TICKET.url, ANSWER.url] },
+      ],
+      hunch: { group: TICKET.url, pending: 'Saving' },
+    })
+
+    screen.getByText('Saving')
+    expect(
+      screen.queryByRole('button', { name: `Make Hunch, ${TICKET.title}` }),
+    ).toBeNull()
+    expect(hunchButton(SLOW)).toHaveProperty('disabled', true)
+  })
+
+  it('shows why a Hunch was not made at its group', () => {
+    renderSignals({
+      signals: [SLOW, LOST, TICKET, ANSWER],
+      groups: [
+        { signals: [SLOW.url, LOST.url] },
+        { signals: [TICKET.url, ANSWER.url] },
+      ],
+      hunch: { group: TICKET.url, failure: 'Glue is not available' },
+    })
+    const failure = screen.getByText('Glue is not available')
+    const isBefore = (first: Element, second: Element) =>
+      Boolean(
+        first.compareDocumentPosition(second) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      )
+
+    expect(isBefore(row(LOST.title), failure)).toBe(true)
+    expect(isBefore(hunchButton(TICKET), failure)).toBe(true)
+    expect(isBefore(failure, row(TICKET.title))).toBe(true)
+  })
+
+  it('shows no list of single Signals when each Signal is in a group', () => {
+    renderSignals({
+      signals: [SLOW, LOST],
+      groups: [{ signals: [SLOW.url, LOST.url] }],
+    })
+
+    expect(screen.getAllByRole('list')).toHaveLength(1)
   })
 
   it('shows a group only when the filters show two of its Signals', async () => {
@@ -171,7 +234,7 @@ describe('Signals', () => {
 
     await userEvent.click(filter('GitHub'))
 
-    expect(screen.queryByRole('region', { name: SLOW.title })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Make Hunch/ })).toBeNull()
     expect(titles()).toEqual([SLOW.title, LOST.title])
   })
 

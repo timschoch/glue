@@ -26,6 +26,11 @@ const MIN_WORD_LENGTH = 3
 // this share of the key words of the one that has fewer.
 const MIN_SHARED_WORDS = 2
 const MIN_SHARED_SHARE = 0.5
+// A word that many Signals of the Project share says nothing about one of
+// them: a word in more than this share of the Signals, and in this many or
+// more. In a short list no word is common, so a repeat stays a group there.
+const COMMON_SHARE = 0.25
+const MIN_COMMON_SIGNALS = 5
 
 // The word without its ending, so `opens` and `open` are one word.
 function toStem(word: string) {
@@ -33,51 +38,99 @@ function toStem(word: string) {
   return stem.length < MIN_WORD_LENGTH ? word : stem
 }
 
-// The key words of a Signal: the words of its title and its text that say
-// something about the subject.
-function listKeyWords({ title, text }: Signal): ReadonlySet<string> {
-  const words = `${title} ${text}`.toLowerCase().match(/\p{L}+/gu) ?? []
-  return new Set(
-    words
-      .filter((word) => word.length >= MIN_WORD_LENGTH && !STOP_WORDS.has(word))
-      .map(toStem),
-  )
+// The words of a text that say something about the subject.
+function listKeyWords(text: string): string[] {
+  const words = text.toLowerCase().match(/\p{L}+/gu) ?? []
+  return [
+    ...new Set(
+      words
+        .filter(
+          (word) => word.length >= MIN_WORD_LENGTH && !STOP_WORDS.has(word),
+        )
+        .map(toStem),
+    ),
+  ]
 }
 
-function saySame(first: ReadonlySet<string>, second: ReadonlySet<string>) {
-  const shared = [...first].filter((word) => second.has(word)).length
-  return (
-    shared >= MIN_SHARED_WORDS &&
-    shared >= MIN_SHARED_SHARE * Math.min(first.size, second.size)
-  )
+// Puts a value into the list of its key.
+function addTo<TValue>(
+  lists: Map<string, TValue[]>,
+  key: string,
+  value: TValue,
+) {
+  const list = lists.get(key)
+  if (list) list.push(value)
+  else lists.set(key, [value])
 }
 
-// The groups of the Signals, in the order of the list. A Signal is in the
-// group of each Signal that says the same thing. A Signal with no partner
-// is in no group, and so is a Signal that grew into an Insight.
+// The groups of the Signals, in the order of the list. Two Signals say the
+// same thing when they share enough key words, or when they have the same
+// title. A Signal joins the first group in which each Signal says the same
+// thing as it does, so a group is no chain. A Signal with no partner is in
+// no group, and so is a Signal that grew into an Insight.
+//
+// An index from each word to the Signals that hold it gives the partners of
+// a Signal. No Signal is compared with a Signal that shares no word.
 export function groupSignals(signals: ReadonlyArray<Signal>): SignalGroup[] {
-  const open = signals
-    .filter(({ insight }) => insight === null)
-    .map((signal) => ({ signal, words: listKeyWords(signal) }))
-  // The group of each Signal: the position of its first Signal.
-  const groupOf = open.map((_, index) => index)
-  open.forEach((later, index) => {
-    open.slice(0, index).forEach((earlier, partner) => {
-      if (!saySame(earlier.words, later.words)) return
-      const [kept, merged] = [groupOf[partner], groupOf[index]].sort(
-        (first, second) => first - second,
-      )
-      groupOf.forEach((group, position) => {
-        if (group === merged) groupOf[position] = kept
-      })
-    })
+  const worded = signals.map((signal) => ({
+    signal,
+    // The title as its key words: `Too hard` and `too  hard` are one title.
+    title: listKeyWords(signal.title).join(' '),
+    words: listKeyWords(`${signal.title} ${signal.text}`),
+  }))
+  const counts = new Map<string, number>()
+  for (const { words } of worded) {
+    for (const word of words) counts.set(word, (counts.get(word) ?? 0) + 1)
+  }
+  const isCommon = (word: string) => {
+    const count = counts.get(word) ?? 0
+    return count >= MIN_COMMON_SIGNALS && count > COMMON_SHARE * signals.length
+  }
+  const open = worded
+    .filter(({ signal }) => signal.insight === null)
+    .map((entry) => ({
+      ...entry,
+      words: entry.words.filter((word) => !isCommon(word)),
+    }))
+
+  // The positions of the Signals before this one, by word and by title.
+  const byWord = new Map<string, number[]>()
+  const byTitle = new Map<string, number[]>()
+  const groups: number[][] = []
+  const groupOf: number[] = []
+  open.forEach(({ title, words }, position) => {
+    const shared = new Map<number, number>()
+    for (const word of words) {
+      for (const earlier of byWord.get(word) ?? []) {
+        shared.set(earlier, (shared.get(earlier) ?? 0) + 1)
+      }
+    }
+    const partners = new Set(title ? byTitle.get(title) : [])
+    for (const [earlier, count] of shared) {
+      const fewer = Math.min(words.length, open[earlier].words.length)
+      if (count >= MIN_SHARED_WORDS && count >= MIN_SHARED_SHARE * fewer) {
+        partners.add(earlier)
+      }
+    }
+    const joined = [
+      ...new Set([...partners].map((partner) => groupOf[partner])),
+    ]
+      .sort((first, second) => first - second)
+      .find((group) => groups[group].every((member) => partners.has(member)))
+    if (joined === undefined) groups.push([position])
+    else groups[joined].push(position)
+    groupOf.push(joined ?? groups.length - 1)
+
+    for (const word of words) addTo(byWord, word, position)
+    if (title) addTo(byTitle, title, position)
   })
 
-  return open
-    .map((_, first) => open.filter((__, index) => groupOf[index] === first))
+  return groups
     .filter((members) => members.length > 1)
     .map((members) => ({
-      signals: members.map(({ signal }) => signal.url),
-      sources: [...new Set(members.map(({ signal }) => signal.source))],
+      signals: members.map((member) => open[member].signal.url),
+      sources: [
+        ...new Set(members.map((member) => open[member].signal.source)),
+      ],
     }))
 }

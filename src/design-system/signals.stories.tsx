@@ -69,6 +69,26 @@ export const Groups: Story = {
   },
 }
 
+export const HunchSaves: Story = {
+  args: {
+    ...Groups.args,
+    hunch: {
+      group: 'https://github.com/timschoch/glue/issues/7',
+      pending: 'Saving',
+    },
+  },
+}
+
+export const HunchFailed: Story = {
+  args: {
+    ...Groups.args,
+    hunch: {
+      group: 'https://github.com/timschoch/glue/issues/7',
+      failure: 'Glue is not available',
+    },
+  },
+}
+
 export const NoSignals: Story = { args: { signals: [] } }
 
 export const FailedSource: Story = {

@@ -504,12 +504,9 @@ describe('a section', () => {
         ),
       },
     )
-    const group = within(
-      screen.getByRole('region', { name: 'The list is slow' }),
-    )
 
-    group.getByText('2 sources')
-    await userEvent.click(group.getByRole('button', { name: 'Make Hunch' }))
+    screen.getByText('2 sources')
+    await userEvent.click(button('Make Hunch, The list is slow'))
 
     await expectAddress('/glue/part-model/I3', { section: 'Understand' })
     expect(server.addSignalInsight).toHaveBeenCalledWith({
@@ -522,6 +519,46 @@ describe('a section', () => {
         concept: 'part-model',
       },
     })
+  })
+
+  it('shows at the group that its Hunch saves, then why it was not made', async () => {
+    const again = {
+      ...signals[0],
+      url: 'https://support.test/agent/tickets/4',
+      title: 'The list is slow to open',
+      source: 'support',
+    }
+    let answer = (_: { message: string }) => {}
+    const saved = new Promise<{ message: string }>((resolve) => {
+      answer = resolve
+    })
+    await renderPage('/glue/part-model?section=Understand', {
+      fetchSignals: vi.fn(() =>
+        Promise.resolve({
+          signals: [signals[0], again, signals[1]],
+          failures: [],
+          groups: [
+            {
+              signals: [signals[0].url, again.url],
+              sources: ['github', 'support'],
+            },
+          ],
+        }),
+      ),
+      addSignalInsight: vi.fn(() => saved),
+    })
+
+    await userEvent.click(button('Make Hunch, The list is slow'))
+
+    await screen.findByText('Saving')
+    expect(
+      screen.queryByRole('button', { name: 'Make Hunch, The list is slow' }),
+    ).toBeNull()
+
+    answer({ message: 'A Signal is not in the Project' })
+
+    await screen.findByText('A Signal is not in the Project')
+    button('Make Hunch, The list is slow')
   })
 
   it('goes back to the Signals when the form is cancelled', async () => {

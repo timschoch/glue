@@ -78,4 +78,85 @@ describe('groupSignals', () => {
 
     expect(groupSignals([hard, lost])).toEqual([])
   })
+
+  it('takes a word that many Signals of the Project share as no key word', () => {
+    const titled = [
+      'Export a Concept of the Project as PDF',
+      'Rename a Project and its Concept tree',
+      'Project owner cannot delete a Concept',
+      'Share a Concept with another Project',
+      'Archive the Concept of an old Project',
+      'Copy a Project with each Concept',
+    ].map((title, index) => ({
+      ...refund,
+      url: `https://github.com/timschoch/glue/issues/${index + 20}`,
+      title,
+      text: '',
+    }))
+
+    expect(groupSignals([...titled, slow, slowAgain])).toEqual([
+      { signals: [slow.url, slowAgain.url], sources: ['github'] },
+    ])
+  })
+
+  it('puts two Signals with the same title into one group, also with one key word', () => {
+    const hard = { ...refund, title: 'Too hard', text: '' }
+    const hardAgain = {
+      ...hard,
+      url: 'https://github.com/timschoch/glue/issues/11',
+      title: 'too  hard',
+      source: 'github',
+    }
+    const find = {
+      ...hard,
+      url: 'https://support.test/agent/tickets/8',
+      title: 'Hard to find',
+    }
+
+    expect(groupSignals([hard, hardAgain, find])).toEqual([
+      { signals: [hard.url, hardAgain.url], sources: ['support', 'github'] },
+    ])
+  })
+
+  it('makes no chain: each Signal of a group says the same as each other one', () => {
+    const [search, both, invoice] = [
+      'Slow search results',
+      'Slow search in the export of an invoice',
+      'Export an invoice as PDF',
+    ].map((title, index) => ({
+      ...refund,
+      url: `https://github.com/timschoch/glue/issues/${index + 30}`,
+      title,
+      text: '',
+    }))
+
+    expect(groupSignals([search, both, invoice])).toEqual([
+      { signals: [search.url, both.url], sources: ['support'] },
+    ])
+  })
+
+  it('groups 5000 Signals in less than a second', () => {
+    // A word of letters for each number, and 12 of 2000 words for each Signal.
+    const toWord = (value: number) =>
+      [...String(value).padStart(4, '0')]
+        .map(
+          (digit) => 'bdfgklmnpr'[Number(digit)] + 'aeiou'[Number(digit) % 5],
+        )
+        .join('')
+    const many = Array.from({ length: 5000 }, (_, index) => ({
+      ...refund,
+      url: `https://github.com/timschoch/glue/issues/${index + 100}`,
+      title: [1, 2, 3, 4]
+        .map((step) => toWord((index * step * 7919) % 2000))
+        .join(' '),
+      text: [5, 6, 7, 8, 9, 10, 11, 12]
+        .map((step) => toWord((index * step * 104729) % 2000))
+        .join(' '),
+    }))
+    const start = performance.now()
+
+    groupSignals(many)
+
+    expect(performance.now() - start).toBeLessThan(1000)
+  })
 })
