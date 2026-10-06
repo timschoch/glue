@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0](https://github.com/timschoch/glue/compare/v1.15.0...v1.16.0) (2026-10-06)
+
+
+### Features
+
+* **sections:** show each Part at the flight level of the member ([#298](https://github.com/timschoch/glue/issues/298)) ([d821e19](https://github.com/timschoch/glue/commit/d821e19c23860ffea078de0c0c5dd35c541a274f))
+
 ## [1.15.0](https://github.com/timschoch/glue/compare/v1.14.0...v1.15.0) (2026-10-05)
 
 
