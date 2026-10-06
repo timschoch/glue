@@ -2,9 +2,12 @@
 // (src/api/openapi.ts) on the main deployment. The deployed code always
 // fits the deployed schema, so a branch that changes the schema still passes.
 //
-// A bare id (`D45`) is a Decision of the build Project: the one of
-// GLUE_PROJECT, or `glue-build` when the API has it, or `glue`. `glue/D12`
-// is a Decision of the Project `glue` (D45).
+// `glue/D12` is a Decision of the Project `glue` (D45), and
+// `glue-build/D46` is one of the build Project: the one of GLUE_PROJECT, or
+// `glue-build` when the API has it. `glue` and `glue-build` have the same
+// repository, so a bare id (`D45`) names no Decision there, and `projects`
+// has the two (glue/D50). With GLUE_PROJECT, or without `glue-build`, a bare
+// id is a Decision of the build Project.
 import { z } from 'zod'
 
 import { BUILD_PROJECT, CONCEPT_PROJECT } from '../src/db/projects.ts'
@@ -73,15 +76,26 @@ export async function loadDecisions(
 
   const conceptDecisions = (await readDecisions(CONCEPT_PROJECT)) ?? []
   const named = environment.GLUE_PROJECT
+  const buildProject = named || BUILD_PROJECT
+  // undefined: the build Project is the one with the Glue concept.
   const buildDecisions =
-    named === CONCEPT_PROJECT
-      ? conceptDecisions
-      : ((await readDecisions(named || BUILD_PROJECT, !named)) ??
-        conceptDecisions)
-  return new Map<string, Decision>([
-    ...buildDecisions,
-    ...conceptDecisions.map(
-      ([id, decision]) => [`${CONCEPT_PROJECT}/${id}`, decision] as const,
-    ),
-  ])
+    buildProject === CONCEPT_PROJECT
+      ? undefined
+      : await readDecisions(buildProject, !named)
+  const withProject = (
+    project: string,
+    decisions: NonNullable<typeof buildDecisions>,
+  ) =>
+    decisions.map(([id, decision]) => [`${project}/${id}`, decision] as const)
+  // The repository of Glue has the Project with the Glue concept and the
+  // default build Project. A Project that GLUE_PROJECT names has its own.
+  const shared = !named && buildDecisions !== undefined
+  return {
+    decisions: new Map<string, Decision>([
+      ...(shared ? [] : (buildDecisions ?? conceptDecisions)),
+      ...withProject(buildProject, buildDecisions ?? []),
+      ...withProject(CONCEPT_PROJECT, conceptDecisions),
+    ]),
+    projects: shared ? [CONCEPT_PROJECT, buildProject] : undefined,
+  }
 }

@@ -32,10 +32,10 @@ async function main() {
     .split('\n')
     .filter(Boolean)
   const body: string = pr.body ?? ''
-  const decisions = await loadDecisions()
+  const { decisions, projects } = await loadDecisions()
   const named = findContractLine(body)
   const contract = named ? await loadNewestContract(named.concept) : undefined
-  const found = problems({ body, files, decisions, contract })
+  const found = problems({ body, files, decisions, contract, projects })
   if (found.length === 0) return
   console.error(
     [

@@ -135,6 +135,32 @@ describe('listBuilds', () => {
     expect(found.builds[0].decisions.map(({ id }) => id)).toEqual(['D1'])
   })
 
+  it('reads no bare id in a repository that another Project has too', async () => {
+    await addProject(db, 'glue-build')
+    await setProductRepository(db, 'glue-build', 'timschoch/glue')
+    const { github } = createFakeGithub(
+      [],
+      [
+        toPullRequest(12, 'Decision: D1'),
+        toPullRequest(11, 'Decision: glue/D2'),
+        toPullRequest(10, 'Decision: glue-build/D1'),
+      ],
+    )
+
+    const { builds } = await listBuilds(db, github, 'glue')
+
+    expect(
+      builds.map(({ number, decisions }) => [
+        number,
+        decisions.map(({ id }) => id),
+      ]),
+    ).toEqual([
+      [12, []],
+      [11, ['D2']],
+      [10, []],
+    ])
+  })
+
   it('marks a build stale when a Decision that it names is sunk', async () => {
     await answerPart(db, 'glue', 'D2', { answer: 'sink' })
     const { github } = createFakeGithub(

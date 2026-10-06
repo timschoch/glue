@@ -10,6 +10,8 @@ export function problems(input: {
   files: string[]
   decisions: Map<string, Decision>
   contract?: NewestContract
+  // The Projects of a repository that two or more Projects share.
+  projects?: string[]
 }): string[]
 
 export function isBotBranch(ref: string): boolean
