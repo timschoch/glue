@@ -8,6 +8,7 @@ import {
   waitFor,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type * as reactFlow from '@xyflow/react'
 import { useState } from 'react'
 import type { SyntheticEvent } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +17,27 @@ import type { MapConcept, MapJoint, MapPart } from './concept-map-layout.ts'
 import styles from './concept-map.module.scss'
 import { ConceptMap } from './concept-map.tsx'
 import type { ConceptMapProps } from './concept-map.tsx'
+
+// Each fit that a Map asks of React Flow, with its options. jsdom has no
+// layout: no test reads a place.
+const fitView = vi.hoisted(() => vi.fn())
+vi.mock('@xyflow/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof reactFlow>()
+  const ReactFlow: typeof actual.ReactFlow = (props) => (
+    <actual.ReactFlow
+      {...props}
+      onInit={(instance) => {
+        const fit = instance.fitView
+        instance.fitView = (options) => {
+          fitView(options)
+          return fit(options)
+        }
+        props.onInit?.(instance)
+      }}
+    />
+  )
+  return { ...actual, ReactFlow }
+})
 
 // React Flow watches the size of its nodes, which jsdom can not do.
 vi.stubGlobal(
@@ -82,6 +104,7 @@ const JOINTS: Array<MapJoint> = [
 afterEach(() => {
   vi.useRealTimers()
   cleanup()
+  fitView.mockClear()
 })
 
 // The Map of the Project Glue, when its nodes have their places.
@@ -271,24 +294,61 @@ describe('ConceptMap, the Map of a Project', () => {
   })
 })
 
-describe('ConceptMap, the focus after a key', () => {
-  function OpenableMap() {
-    const [expanded, setExpanded] = useState<Array<string>>([])
-    return (
-      <ConceptMap
-        tree={TREE}
-        parts={[G1, D1, E1, D2]}
-        joints={JOINTS}
-        focus="glue"
-        expanded={expanded}
-        onExpandedChange={setExpanded}
-        partHref={({ id }) => `/glue/${id}`}
-        conceptHref={(slug) => `/glue/${slug}`}
-        projectHref={(slug) => `/${slug}`}
-      />
-    )
-  }
+// A Map that opens and closes its Concepts, as the address does in the app.
+function OpenableMap() {
+  const [expanded, setExpanded] = useState<Array<string>>([])
+  return (
+    <ConceptMap
+      tree={TREE}
+      parts={[G1, D1, E1, D2]}
+      joints={JOINTS}
+      focus="glue"
+      expanded={expanded}
+      onExpandedChange={setExpanded}
+      partHref={({ id }) => `/glue/${id}`}
+      conceptHref={(slug) => `/glue/${slug}`}
+      projectHref={(slug) => `/${slug}`}
+    />
+  )
+}
 
+describe('ConceptMap, the fit', () => {
+  // The whole Map, at its full size at most.
+  const whole = expect.objectContaining({ maxZoom: 1 })
+
+  it('fits the whole Map into its frame at first sight', async () => {
+    await renderMap()
+
+    await waitFor(() => expect(fitView).toHaveBeenLastCalledWith(whole))
+  })
+
+  it('fits the whole Map again after a Concept opens, and after it closes', async () => {
+    render(<OpenableMap />)
+    const closed = await screen.findByRole(
+      'button',
+      { name: /^Build run/, expanded: false },
+      { timeout: 20_000 },
+    )
+    await waitFor(() => expect(fitView).toHaveBeenCalled())
+    fitView.mockClear()
+
+    await userEvent.click(closed)
+    const head = await screen.findByRole('button', {
+      name: 'Build run',
+      expanded: true,
+    })
+
+    await waitFor(() => expect(fitView).toHaveBeenLastCalledWith(whole))
+    fitView.mockClear()
+
+    await userEvent.click(head)
+    await screen.findByRole('button', { name: /^Build run/, expanded: false })
+
+    await waitFor(() => expect(fitView).toHaveBeenLastCalledWith(whole))
+  })
+})
+
+describe('ConceptMap, the focus after a key', () => {
   it('is on the head of the Concept that Enter opened, and on the Concept that Enter closed', async () => {
     render(<OpenableMap />)
     const closed = await screen.findByRole(
