@@ -670,6 +670,54 @@ describe('the downstream issue of a Decision', () => {
     })
     expect(fake.issues).toHaveLength(1)
   })
+
+  describe('of a Decision that is accepted and has none', () => {
+    beforeEach(async () => {
+      await addPart(db, project, {
+        type: 'goal',
+        title: 'Break less',
+        metric: 'failed releases',
+        source: 'okr',
+      })
+      await createPartOperations({ db, github: failingGithub }).addPart(
+        project,
+        { ...decision, status: 'accepted' },
+      )
+    })
+
+    it.each([
+      ['title', { title: 'Check the types in CI' }],
+      ['body', { body: 'The push waits for the types.' }],
+      ['Goal', { goal: 'G2' }],
+      ['status', { status: 'accepted' as const }],
+    ])('does not open with a change of the %s', async (_field, change) => {
+      const changed = await operations.updatePart(project, 'D1', change)
+
+      expect(changed.part).toMatchObject({ status: 'accepted', issueUrl: null })
+      expect(changed.issue).toEqual({ kind: 'not-opened' })
+      expect(fake.issues).toEqual([])
+    })
+
+    it('does not open when the Decision gets the status accepted again', async () => {
+      const changed = await operations.setDecisionStatus(project, 'D1', {
+        status: 'accepted',
+      })
+
+      expect(changed.issue).toEqual({ kind: 'not-opened' })
+      expect(fake.issues).toEqual([])
+    })
+
+    it('opens when the Decision becomes accepted again after it was proposed', async () => {
+      await operations.setDecisionStatus(project, 'D1', { status: 'proposed' })
+
+      const changed = await operations.setDecisionStatus(project, 'D1', {
+        status: 'accepted',
+      })
+
+      expect(changed.issue).toEqual({ kind: 'created', url: ISSUE_URL })
+      expect(fake.issues).toHaveLength(1)
+    })
+  })
 })
 
 // The record ids of the Goals that the Part needs.

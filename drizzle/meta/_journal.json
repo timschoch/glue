@@ -176,6 +176,13 @@
       "when": 1791243710803,
       "tag": "0024_asks",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791249209143,
+      "tag": "0025_wording_fix",
+      "breakpoints": true
     }
   ]
 }

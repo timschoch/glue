@@ -7,7 +7,7 @@ import { todayUtc } from '../today-utc.ts'
 // What goes between the Part form and the writes of the Part model.
 
 // The fields of a Part that the form changes: the columns of the Part.
-type Field = Exclude<keyof PartFormValues, 'goal' | 'evidence'>
+type Field = Exclude<keyof PartFormValues, 'goal' | 'evidence' | 'sameMeaning'>
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -92,15 +92,19 @@ export function toNewPart(
 
 // The change of the form. `start` are the values that the form started
 // with: a Decision gets a Goal only when the person picked another one.
+// The change is a wording fix when the person said so.
 export function toPartChange(
   type: PartType,
   values: PartFormValues,
   start: Pick<PartFormValues, 'goal'>,
 ): PartChange {
-  const fields = pickFields(type, { ...values, date: values.date.trim() })
-  return type === 'decision' && values.goal && values.goal !== start.goal
-    ? { ...fields, goal: values.goal }
-    : fields
+  return {
+    ...pickFields(type, { ...values, date: values.date.trim() }),
+    ...(type === 'decision' &&
+      values.goal &&
+      values.goal !== start.goal && { goal: values.goal }),
+    ...(values.sameMeaning && { sameMeaning: true }),
+  }
 }
 
 // The values that the person saw in the form. The write changes nothing
@@ -124,5 +128,6 @@ export function toFormValues(part: Part): PartFormValues {
     enforcedBy: part.enforcedBy ?? '',
     goal: needed.find(({ type }) => type === 'goal')?.id ?? null,
     evidence: needed.filter(({ type }) => isEvidence(type)).map(({ id }) => id),
+    sameMeaning: false,
   }
 }

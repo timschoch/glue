@@ -22,6 +22,7 @@ import type {
 import { findPart, listPartsByRecordId } from './parts.ts'
 import type { Part, PartSummary } from './parts.ts'
 import { InvalidRecordError, PartNotFoundError } from './record-errors.ts'
+import { typeOfRecordId } from './record-id.ts'
 import { addSignalInsight } from './signals.ts'
 import type { SignalInsight } from './signals.ts'
 
@@ -37,9 +38,9 @@ export type DecisionStatusChange =
 
 // What a person or an agent does with a Part. The server functions, the
 // HTTP API and the CLI call these operations. One operation is the whole
-// write: the write with its Trust spread, the downstream issue of an
-// accepted Decision, and the read of the Part as it is now. A Part that
-// does not exist is a PartNotFoundError.
+// write: the write with its Trust spread, the downstream issue of a
+// Decision that the write made accepted, and the read of the Part as it is
+// now. A Part that does not exist is a PartNotFoundError.
 export function createPartOperations({
   db,
   github,
@@ -53,11 +54,27 @@ export function createPartOperations({
     return part
   }
 
+  // Before a write: is the Part an accepted Decision already? Then the
+  // write opens no issue (D53).
+  async function isAccepted(project: string, recordId: string) {
+    if (typeOfRecordId(recordId) !== 'decision') return false
+    const found = await listPartsByRecordId(db, project, [recordId])
+    return found.at(0)?.status === 'accepted'
+  }
+
+  // The issue opens when the write made the Decision accepted.
   async function toChangedPart(
     project: string,
     recordId: string,
+    wasAccepted = false,
   ): Promise<ChangedPart> {
-    const issue = await createDownstreamIssue(db, github, project, recordId)
+    const issue = await createDownstreamIssue(
+      db,
+      github,
+      project,
+      recordId,
+      wasAccepted,
+    )
     return { part: await getPart(project, recordId), issue }
   }
 
@@ -92,12 +109,13 @@ export function createPartOperations({
       change: PartChange,
       expected?: ExpectedPart,
     ) {
+      const wasAccepted = await isAccepted(project, recordId)
       const changed = await updatePart(db, project, recordId, change, expected)
       if (!changed)
         throw new InvalidRecordError(
           `"${recordId}" changed since you opened it`,
         )
-      return toChangedPart(project, recordId)
+      return toChangedPart(project, recordId, wasAccepted)
     },
 
     // Moves the Parts to the Concept of their Project, and gives them back
@@ -141,10 +159,11 @@ export function createPartOperations({
         throw new InvalidRecordError(
           'the status "superseded" and "supersededBy" go together',
         )
+      const wasAccepted = await isAccepted(project, recordId)
       if (change.status === 'superseded')
         await supersedeDecision(db, project, recordId, change.supersededBy)
       else await updatePart(db, project, recordId, { status: change.status })
-      return toChangedPart(project, recordId)
+      return toChangedPart(project, recordId, wasAccepted)
     },
 
     // `answeredBy` is the e-mail address of the member who answers. Only
@@ -155,8 +174,9 @@ export function createPartOperations({
       answer: PartAnswer,
       answeredBy?: string,
     ) {
+      const wasAccepted = await isAccepted(project, recordId)
       await answerPart(db, project, recordId, answer, answeredBy)
-      return toChangedPart(project, recordId)
+      return toChangedPart(project, recordId, wasAccepted)
     },
 
     async answerQuestion(
@@ -164,8 +184,9 @@ export function createPartOperations({
       recordId: string,
       answer: QuestionAnswer,
     ) {
+      const wasAccepted = await isAccepted(project, recordId)
       await answerQuestion(db, project, recordId, answer)
-      return toChangedPart(project, recordId)
+      return toChangedPart(project, recordId, wasAccepted)
     },
 
     async addSignalInsight(project: string, insight: SignalInsight) {
