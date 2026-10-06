@@ -1006,6 +1006,16 @@ describe('the section Use', () => {
     expect(within(card('M2')).queryByLabelText(/target/)).toBeNull()
   })
 
+  it('adds a Metric in a Project with no Metric', async () => {
+    const { expectAddress } = await renderPage('/glue?section=Use')
+
+    expect(pageTitle()).toBe('Use')
+
+    await userEvent.click(button('Add Metric'))
+
+    await expectAddress('/glue', { section: 'Use', add: 'metric' })
+  })
+
   it('shows the reading of the Goal that a Decision serves on its record', async () => {
     await renderPage('/glue/part-model/D4', {
       fetchPart: vi.fn(changedPart('D4', { measured: [measured[0]] })),

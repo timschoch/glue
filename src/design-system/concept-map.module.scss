@@ -6,7 +6,8 @@
 @use '@carbon/react/scss/utilities/focus-outline' as *;
 
 // The Map takes the room that its panel leaves, and the height that is left
-// in the window. A bigger Map moves in this frame: it does not show smaller.
+// in the window. A bigger Map shows smaller, so that all of it is in this
+// frame, as long as its titles stay readable.
 .map {
   flex: 1 1 0;
   block-size: calc(100vh - var(--map-top) - #{$spacing-07});
