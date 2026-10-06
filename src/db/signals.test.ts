@@ -44,8 +44,17 @@ function createFakeSource(name: string, signals: SourceSignal[]) {
   return { source, asked }
 }
 
+// A ticket that says what the issue `slow` says.
+const slowTicket: SourceSignal = {
+  url: 'https://support.test/agent/tickets/4',
+  title: 'The list is slow to open',
+  text: '',
+  date: '2026-09-29',
+}
+
 const github = createFakeSource('github', [slow, lost]).source
 const support = createFakeSource('support', [refund]).source
+const slowSupport = createFakeSource('support', [refund, slowTicket]).source
 const failing: SignalSource = {
   name: 'analytics',
   listSignals: () => Promise.reject(new Error('mock analytics answered 503')),
@@ -69,6 +78,7 @@ describe('listSignals', () => {
         { ...refund, source: 'support', insight: null },
         { ...lost, source: 'github', insight: null },
       ],
+      groups: [],
     })
   })
 
@@ -93,6 +103,7 @@ describe('listSignals', () => {
     expect(found).toEqual({
       failures: [],
       signals: [{ ...refund, source: 'support', insight: null }],
+      groups: [],
     })
   })
 
@@ -106,7 +117,30 @@ describe('listSignals', () => {
         { source: 'analytics', reason: 'mock analytics answered 503' },
       ],
       signals: [{ ...refund, source: 'support', insight: null }],
+      groups: [],
     })
+  })
+
+  it('groups the Signals that say the same thing, and names their sources', async () => {
+    await addGlue()
+
+    const { groups } = await listSignals(db, [github, slowSupport], 'glue')
+
+    expect(groups).toEqual([
+      { signals: [slow.url, slowTicket.url], sources: ['github', 'support'] },
+    ])
+  })
+
+  it('puts a Signal that grew into an Insight in no group', async () => {
+    await addGlue()
+    await addSignalInsight(db, [github, slowSupport], 'glue', {
+      signals: [slowTicket.url],
+      title: 'Lists are slow',
+    })
+
+    const { groups } = await listSignals(db, [github, slowSupport], 'glue')
+
+    expect(groups).toEqual([])
   })
 
   it('refuses a name that no source has', async () => {
@@ -140,6 +174,23 @@ describe('addSignalInsight', () => {
       signals: [
         { url: slow.url, title: slow.title },
         { url: refund.url, title: refund.title },
+      ],
+    })
+  })
+
+  it('takes the title of the newest Signal when the input names none', async () => {
+    await addGlue()
+
+    const id = await addSignalInsight(db, [github, slowSupport], 'glue', {
+      signals: [slowTicket.url, slow.url],
+    })
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      title: 'The list is slow',
+      evidenceLevel: 'hunch',
+      signals: [
+        { url: slowTicket.url, title: slowTicket.title },
+        { url: slow.url, title: slow.title },
       ],
     })
   })

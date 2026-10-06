@@ -83,6 +83,7 @@ describe('GET /projects/{project}/signals', () => {
           insight: null,
         },
       ],
+      groups: [],
     })
   })
 
@@ -95,7 +96,7 @@ describe('GET /projects/{project}/signals', () => {
     )
 
     expect(status).toBe(200)
-    expect(body).toEqual({ failures: [], signals: [] })
+    expect(body).toEqual({ failures: [], signals: [], groups: [] })
   })
 
   it('answers 400 for a source that Glue does not have', async () => {
@@ -121,6 +122,7 @@ describe('GET /projects/{project}/signals', () => {
     expect(body).toEqual({
       signals: [],
       failures: [{ source: 'github', reason: 'GitHub answered 503' }],
+      groups: [],
     })
   })
 

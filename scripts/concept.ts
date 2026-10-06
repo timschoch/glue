@@ -525,7 +525,8 @@ function formatHelp() {
     'pnpm concept answer <id> --option <number> --by <name>',
     'pnpm concept answer <id> --text <answer> --by <name>',
     'pnpm concept signals [--source <name>]',
-    'pnpm concept signals insight <address> [<address> ...] --title <title> [--concept <slug>] [--body <text>]',
+    'pnpm concept signals groups',
+    'pnpm concept signals insight <address> [<address> ...] [--title <title>] [--concept <slug>] [--body <text>]',
     'pnpm concept builds',
     'pnpm concept gate --pr <number> [--project <slug>]',
     'pnpm concept mine [--member <e-mail>]',
@@ -586,7 +587,8 @@ function formatHelp() {
     'answer with --option or --text answers the question of a proposed Decision: the Decision keeps the answer and becomes accepted.',
     'mine lists what needs the owner: the records in to-check, draft or review.',
     'signals lists the Signals of the Project in each source. github: the issues with the label user-feedback in its repository. support: the tickets of its help desk. analytics: the survey answers with a low score in its analytics project.',
-    'signals insight adds a draft Insight at the level hunch that grows from the Signals.',
+    'signals groups lists the groups of Signals that say the same thing: the sources, then the addresses. signals insight with the addresses of a group turns it into a Hunch.',
+    'signals insight adds a draft Insight at the level hunch that grows from the Signals. Without --title it takes the title of the newest Signal.',
     'builds lists the pull requests of the repository of the Project, each with the Decisions or the Contract Version that it names. stale: the Contract Version is old, or a Decision is sunk.',
     'gate asks Glue over its HTTP API if the pull request of GITHUB_REPOSITORY names the newest Contract Version of its Concept, or Decisions that stand. Glue keeps the answer with the build. breaks exits 1. It needs GLUE_API_TOKEN and no database. The default Project is GLUE_PROJECT, then glue-build.',
     'concept remove removes a Concept that holds nothing: no record, no Concept and no Contract Version. The root Concept stays.',
@@ -929,7 +931,8 @@ export async function runConcept(
 
 // `signals` lists the Signals of the Project in all sources, each with its
 // source and the Insight that grew from it. `--source <name>`: the Signals
-// of that source only. `signals insight <address> ... --title <title>` adds the
+// of that source only. `signals groups` lists the groups of Signals that say
+// the same thing. `signals insight <address> ... --title <title>` adds the
 // Insight that grows from the Signals at the addresses.
 async function handleSignalsCommand(
   db: ConceptDb,
@@ -943,14 +946,14 @@ async function handleSignalsCommand(
     const operations = createPartOperations({ db, github: getGithub() })
     const { part } = await operations.addSignalInsight(project, {
       signals: args.slice(1, firstFlag === -1 ? undefined : firstFlag),
-      title: flags.title as string,
+      title: flags.title as string | undefined,
       body: await readBody(flags),
       concept: flags.concept as string | undefined,
     })
     console.log(part.id)
     return
   }
-  const { signals, failures } = await listSignals(
+  const { signals, failures, groups } = await listSignals(
     db,
     createSignalSources(getGithub()),
     project,
@@ -958,6 +961,12 @@ async function handleSignalsCommand(
   )
   for (const { source, reason } of failures) {
     console.error(`${source}: ${reason}`)
+  }
+  if (args[0] === 'groups') {
+    for (const group of groups) {
+      console.log([group.sources.join(','), ...group.signals].join('  '))
+    }
+    return
   }
   for (const { date, source, url, insight, title } of signals) {
     console.log(

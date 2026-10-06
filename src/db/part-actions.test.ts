@@ -270,6 +270,7 @@ describe('a server function of the Part model with a session', () => {
           insight: { id: 'I2', title: 'Long lists are slow' },
         },
       ],
+      groups: [],
     })
   })
 

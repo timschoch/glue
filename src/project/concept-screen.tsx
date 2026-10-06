@@ -71,11 +71,15 @@ export function ConceptScreen({
 }) {
   const router = useRouter()
   const { parts, mine, asks, watched, measured } = projectRoute.useLoaderData()
-  const { removeConcept, pickAsk, handBackAsk, addJoint } =
+  const { removeConcept, pickAsk, handBackAsk, addJoint, addSignalInsight } =
     projectRoute.useRouteContext()
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
   const { pending, failure, write } = useWrite()
+  // The Hunch of a group of Signals has its own write: the list shows at
+  // the group that it saves, or why it was not made.
+  const hunchWrite = useWrite()
+  const [hunchGroup, setHunchGroup] = useState<string>()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
 
   if (isPartType(search.add)) {
@@ -118,9 +122,38 @@ export function ConceptScreen({
         <Signals
           signals={listed}
           failures={signals.failures}
+          groups={signals.groups}
+          hunch={
+            hunchGroup === undefined
+              ? undefined
+              : {
+                  group: hunchGroup,
+                  pending: hunchWrite.pending,
+                  failure: hunchWrite.failure,
+                }
+          }
           onMakeInsight={(urls) =>
             setPicked(signals.signals.filter(({ url }) => urls.includes(url)))
           }
+          // The Hunch of a group is a draft in the open Concept. The server
+          // gives it the title of its newest Signal.
+          onMakeHunch={(urls) => {
+            setHunchGroup(urls[0])
+            void hunchWrite.write(
+              'Saving',
+              () =>
+                addSignalInsight({
+                  project,
+                  insight: { signals: urls, concept: concept.slug },
+                }),
+              ({ id }) =>
+                router.navigate({
+                  to: '/$project/$concept/$recordId',
+                  params: { project, concept: concept.slug, recordId: id },
+                  search: { section: search.section, pins: search.pins },
+                }),
+            )
+          }}
           onOpenInsight={(recordId, event) => {
             const opened = listed.find(
               ({ insight }) => insight?.id === recordId,

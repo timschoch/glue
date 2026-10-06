@@ -9,6 +9,8 @@ import { findProduct } from './projects.ts'
 import { addInsightOfSignals } from './part-records.ts'
 import { InvalidRecordError, ProductNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
+import { groupSignals } from './signal-groups.ts'
+import type { SignalGroup } from './signal-groups.ts'
 
 // A Signal as its tool gives it.
 export type SourceSignal = {
@@ -44,15 +46,22 @@ export type Signal = SourceSignal & {
 // A source that did not answer, and why.
 export type SignalFailure = { source: string; reason: string }
 
-// The Signals of the sources that answered, the newest first.
-export type ProjectSignals = { signals: Signal[]; failures: SignalFailure[] }
+// The Signals of the sources that answered, the newest first, and the
+// groups of the ones that say the same thing.
+export type ProjectSignals = {
+  signals: Signal[]
+  failures: SignalFailure[]
+  groups: SignalGroup[]
+}
 
 export const signalInsightSchema = z.strictObject({
   signals: z
     .array(z.url())
     .min(1)
     .meta({ description: 'The addresses of the Signals that it grows from' }),
-  title: z.string().trim().min(1),
+  title: z.string().trim().min(1).optional().meta({
+    description: 'Default: the title of the newest Signal',
+  }),
   body: z.string().optional(),
   source: z.string().trim().min(1).optional().meta({
     description: 'Default: the addresses of the Signals',
@@ -124,21 +133,21 @@ export async function listSignals(
     .where(eq(signals.projectId, project.id))
   const insights = new Map(grown.map(({ url, ...insight }) => [url, insight]))
 
-  return {
-    failures,
-    signals: found
-      .map((signal) => ({
-        ...signal,
-        insight: insights.get(signal.url) ?? null,
-      }))
-      // A day as yyyy-mm-dd sorts as text. Signals of one day keep the
-      // order of the sources.
-      .sort((first, second) => second.date.localeCompare(first.date)),
-  }
+  const listed = found
+    .map((signal) => ({
+      ...signal,
+      insight: insights.get(signal.url) ?? null,
+    }))
+    // A day as yyyy-mm-dd sorts as text. Signals of one day keep the
+    // order of the sources.
+    .sort((first, second) => second.date.localeCompare(first.date))
+  return { failures, signals: listed, groups: groupSignals(listed) }
 }
 
 // Adds an Insight as a draft that grows from the Signals. Its level is
-// hunch when the input names none. Gives back its record id.
+// hunch when the input names none, and its title is the title of the newest
+// Signal. So the Signals of a group become a Hunch in one step. Gives back
+// its record id.
 export async function addSignalInsight(
   db: ConceptDb,
   sources: ReadonlyArray<SignalSource>,
@@ -172,7 +181,15 @@ export async function addSignalInsight(
   return addInsightOfSignals(
     db,
     projectSlug,
-    { ...insight, source: insight.source ?? urls.join(' ') },
+    {
+      ...insight,
+      title:
+        insight.title ??
+        picked.reduce((newest, signal) =>
+          signal.date > newest.date ? signal : newest,
+        ).title,
+      source: insight.source ?? urls.join(' '),
+    },
     picked.map(({ url, title }) => ({ url, title })),
   )
 }
