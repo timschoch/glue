@@ -61,16 +61,19 @@ afterEach(cleanup)
 
 function renderSignals(props: Partial<Parameters<typeof Signals>[0]> = {}) {
   const onMakeInsight = vi.fn()
+  const onMakeHunch = vi.fn()
   const toSignals = (changed: typeof props) => (
     <Signals
       signals={[SLOW, LOST, GROWN]}
       onMakeInsight={onMakeInsight}
+      onMakeHunch={onMakeHunch}
       {...changed}
     />
   )
   const { rerender } = render(toSignals(props))
   return {
     onMakeInsight,
+    onMakeHunch,
     rerender: (changed: typeof props) => rerender(toSignals(changed)),
   }
 }
@@ -128,6 +131,48 @@ describe('Signals', () => {
 
     // The order of the list, not the order of the clicks.
     expect(onMakeInsight).toHaveBeenCalledWith([SLOW.url, LOST.url])
+  })
+
+  it('shows each group first with the count of its sources, then the single Signals', () => {
+    renderSignals({
+      signals: [SLOW, LOST, GROWN, TICKET],
+      groups: [{ signals: [SLOW.url, TICKET.url] }],
+    })
+
+    expect(titles()).toEqual([
+      SLOW.title,
+      TICKET.title,
+      LOST.title,
+      GROWN.title,
+    ])
+    within(screen.getByRole('region', { name: SLOW.title })).getByText(
+      '2 sources',
+    )
+  })
+
+  it('turns a group into a Hunch with one button', async () => {
+    const { onMakeHunch } = renderSignals({
+      signals: [SLOW, LOST, GROWN],
+      groups: [{ signals: [SLOW.url, LOST.url] }],
+    })
+    const group = within(screen.getByRole('region', { name: SLOW.title }))
+
+    group.getByText('1 source')
+    await userEvent.click(group.getByRole('button', { name: 'Make Hunch' }))
+
+    expect(onMakeHunch).toHaveBeenCalledWith([SLOW.url, LOST.url])
+  })
+
+  it('shows a group only when the filters show two of its Signals', async () => {
+    renderSignals({
+      signals: [SLOW, LOST, TICKET],
+      groups: [{ signals: [SLOW.url, TICKET.url] }],
+    })
+
+    await userEvent.click(filter('GitHub'))
+
+    expect(screen.queryByRole('region', { name: SLOW.title })).toBeNull()
+    expect(titles()).toEqual([SLOW.title, LOST.title])
   })
 
   it('says that there are no Signals, with no button', () => {

@@ -37,8 +37,17 @@ export type SignalsProps = {
   signals: ReadonlyArray<SignalRow>
   // The sources that did not answer, and why.
   failures?: ReadonlyArray<{ source: string; reason: string }>
+  // The groups of Signals that say the same thing, each with the addresses
+  // of its Signals.
+  groups?: ReadonlyArray<{ signals: ReadonlyArray<string> }>
+  // Why the last Hunch was not made.
+  error?: string
+  // A Hunch is on its way: no second one starts.
+  pending?: boolean
   // The addresses of the picked Signals, in the order of the list.
   onMakeInsight: (urls: Array<string>) => void
+  // The addresses of the Signals of a group, in the order of the list.
+  onMakeHunch: (urls: Array<string>) => void
   onOpenInsight?: (
     recordId: string,
     event: MouseEvent<HTMLAnchorElement>,
@@ -47,11 +56,17 @@ export type SignalsProps = {
 
 // The Signals of a Project. A Signal that has no Insight can be picked: the
 // one button makes an Insight from the picks. The filters show the Signals
-// of the picked sources. No filter picked: all Signals.
+// of the picked sources. No filter picked: all Signals. The groups come
+// first, each with the button that turns it into a Hunch. A group shows
+// when the filters show two of its Signals or more.
 export function Signals({
   signals,
   failures = [],
+  groups = [],
+  error,
+  pending = false,
   onMakeInsight,
+  onMakeHunch,
   onOpenInsight,
 }: SignalsProps) {
   const listId = useId()
@@ -73,6 +88,11 @@ export function Signals({
     active.size === 0
       ? signals
       : signals.filter(({ source }) => active.has(source))
+  const shownGroups = groups
+    .map((group) => shown.filter(({ url }) => group.signals.includes(url)))
+    .filter((members) => members.length > 1)
+  const grouped = new Set(shownGroups.flat())
+  const single = shown.filter((signal) => !grouped.has(signal))
 
   const toggle = (current: ReadonlySet<string>, key: string, on: boolean) => {
     const next = new Set(current)
@@ -96,6 +116,50 @@ export function Signals({
         ),
     )
   }
+
+  const toRow = ({ url, title, date, source, insight }: SignalRow) => (
+    <li key={url} className={styles.signal}>
+      {insight ? (
+        <span />
+      ) : (
+        <Checkbox
+          id={`${listId}-${url}`}
+          labelText={title}
+          hideLabel
+          checked={picks.has(url)}
+          onChange={(_, { checked }) =>
+            setPicks((current) => toggle(current, url, checked))
+          }
+        />
+      )}
+      <Link
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        renderIcon={Launch}
+        className={styles.signalTitle}
+      >
+        {title}
+      </Link>
+      <span className={`${styles.label} ${styles.source}`}>
+        {toSourceLabel(source)}
+      </span>
+      <time dateTime={date} className={styles.label}>
+        {date}
+      </time>
+      {insight && (
+        <Link
+          href={insight.href}
+          className={styles.insight}
+          onClick={
+            onOpenInsight && ((event) => onOpenInsight(insight.id, event))
+          }
+        >
+          {insight.id} {insight.title}
+        </Link>
+      )}
+    </li>
+  )
 
   return (
     <section aria-labelledby={listId} className={styles.group}>
@@ -136,52 +200,41 @@ export function Signals({
               ))}
             </div>
           )}
-          <ul className={styles.list}>
-            {shown.map(({ url, title, date, source, insight }) => (
-              <li key={url} className={styles.signal}>
-                {insight ? (
-                  <span />
-                ) : (
-                  <Checkbox
-                    id={`${listId}-${url}`}
-                    labelText={title}
-                    hideLabel
-                    checked={picks.has(url)}
-                    onChange={(_, { checked }) =>
-                      setPicks((current) => toggle(current, url, checked))
-                    }
-                  />
-                )}
-                <Link
-                  href={url}
-                  target="_blank"
-                  rel="noreferrer"
-                  renderIcon={Launch}
-                  className={styles.signalTitle}
-                >
-                  {title}
-                </Link>
-                <span className={`${styles.label} ${styles.source}`}>
-                  {toSourceLabel(source)}
-                </span>
-                <time dateTime={date} className={styles.label}>
-                  {date}
-                </time>
-                {insight && (
-                  <Link
-                    href={insight.href}
-                    className={styles.insight}
-                    onClick={
-                      onOpenInsight &&
-                      ((event) => onOpenInsight(insight.id, event))
-                    }
+          {error && (
+            <InlineNotification
+              kind="error"
+              lowContrast
+              hideCloseButton
+              className={styles.failure}
+              title={error}
+            />
+          )}
+          {shownGroups.map((members) => {
+            const count = new Set(members.map(({ source }) => source)).size
+            return (
+              <section
+                key={members[0].url}
+                aria-label={members[0].title}
+                className={styles.repeat}
+              >
+                <div className={styles.repeatHead}>
+                  <span className={styles.label}>
+                    {count} {count === 1 ? 'source' : 'sources'}
+                  </span>
+                  <Button
+                    size="sm"
+                    kind="tertiary"
+                    disabled={pending}
+                    onClick={() => onMakeHunch(members.map(({ url }) => url))}
                   >
-                    {insight.id} {insight.title}
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
+                    Make Hunch
+                  </Button>
+                </div>
+                <ul className={styles.list}>{members.map(toRow)}</ul>
+              </section>
+            )
+          })}
+          <ul className={styles.list}>{single.map(toRow)}</ul>
           <Button
             size="sm"
             className={styles.action}

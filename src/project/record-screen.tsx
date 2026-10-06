@@ -42,6 +42,7 @@ export function RecordScreen({
   parts,
   builds = [],
   ask,
+  signalSources,
   askable = [],
 }: {
   part: Part
@@ -50,6 +51,8 @@ export function RecordScreen({
   builds?: ReadonlyArray<Build>
   // The open Ask of a Hunch.
   ask?: Ask | null
+  // The sources that gave the Signals of a Hunch.
+  signalSources?: ReadonlyArray<string>
   // The Projects that the Project may ask.
   askable?: ReadonlyArray<{ slug: string; name: string }>
 }) {
@@ -84,8 +87,8 @@ export function RecordScreen({
     [part, recordHref, parts],
   )
   const flow = useMemo(
-    () => findCommonFlow(part, builds, ask?.step),
-    [part, builds, ask],
+    () => findCommonFlow(part, builds, ask?.step, signalSources),
+    [part, builds, ask, signalSources],
   )
   const handleOpen = useCallback(
     (recordId: string, event: MouseEvent<HTMLAnchorElement>) => {
@@ -266,11 +269,19 @@ export function RecordScreen({
                 ? glue()
                 : next.kind === 'concept'
                   ? router.navigate({ href: conceptHref(part.concept) })
-                  : changeSearch(
-                      next.kind === 'edit'
-                        ? { ...search, edit: true }
-                        : { ...search, add: next.type },
-                    )),
+                  : next.kind === 'raise'
+                    ? write('Saving', () =>
+                        updatePart({
+                          project,
+                          recordId: part.id,
+                          change: { evidenceLevel: next.level },
+                        }),
+                      )
+                    : changeSearch(
+                        next.kind === 'edit'
+                          ? { ...search, edit: true }
+                          : { ...search, add: next.type },
+                      )),
           },
           ...answerActions,
         ]

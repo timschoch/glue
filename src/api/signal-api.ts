@@ -35,6 +35,22 @@ export const projectSignalsSchema = z
     failures: z
       .array(z.object({ source: z.string(), reason: z.string() }))
       .meta({ description: 'The sources that did not answer, and why' }),
+    groups: z
+      .array(
+        z.object({
+          signals: z.array(z.string()).meta({
+            description:
+              'The addresses of its Signals. addSignalInsight turns them into a Hunch',
+          }),
+          sources: z
+            .array(z.string())
+            .meta({ description: 'The sources that gave its Signals' }),
+        }),
+      )
+      .meta({
+        description:
+          'The groups of Signals that say the same thing. A Signal that grew into an Insight is in no group',
+      }),
   })
   .meta({ id: 'ProjectSignals' }) satisfies z.ZodType<ProjectSignals>
 

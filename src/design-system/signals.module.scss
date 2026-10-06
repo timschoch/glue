@@ -27,6 +27,22 @@
   flex-direction: column;
 }
 
+// One group of Signals that say the same thing: the count of its sources
+// and its button, then its Signals. The space after it ends the group.
+.repeat {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  margin-block-end: $spacing-06;
+}
+
+.repeatHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-05;
+}
+
 // The filters by source, in one row at the start.
 .filters {
   display: flex;

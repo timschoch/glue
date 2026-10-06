@@ -139,6 +139,32 @@ describe('pnpm concept signals', () => {
     })
   })
 
+  it('lists the groups, and turns the Signals of one into a Hunch', async () => {
+    const again = {
+      url: 'https://github.com/timschoch/glue/issues/9',
+      title: 'The list is slow to open',
+      body: '',
+      createdAt: '2026-10-01T08:00:00Z',
+    }
+    github = createFakeGithub([signal, again]).github
+
+    await run('signals', 'groups')
+    await run('signals', 'insight', signal.url, again.url)
+
+    expect(log.mock.calls).toEqual([
+      [`github  ${signal.url}  ${again.url}`],
+      ['I1'],
+    ])
+    expect(await findPart(db, 'glue', 'I1')).toMatchObject({
+      title: 'The list is slow',
+      evidenceLevel: 'hunch',
+      signals: [
+        { url: signal.url, title: signal.title },
+        { url: again.url, title: again.title },
+      ],
+    })
+  })
+
   it('names the source that failed, and lists the Signals of the others', async () => {
     await setSupport()
     github = failingGithub

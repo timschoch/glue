@@ -71,7 +71,7 @@ export function ConceptScreen({
 }) {
   const router = useRouter()
   const { parts, mine, asks, watched, measured } = projectRoute.useLoaderData()
-  const { removeConcept, pickAsk, handBackAsk, addJoint } =
+  const { removeConcept, pickAsk, handBackAsk, addJoint, addSignalInsight } =
     projectRoute.useRouteContext()
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
@@ -118,8 +118,29 @@ export function ConceptScreen({
         <Signals
           signals={listed}
           failures={signals.failures}
+          groups={signals.groups}
+          error={failure}
+          pending={pending !== undefined}
           onMakeInsight={(urls) =>
             setPicked(signals.signals.filter(({ url }) => urls.includes(url)))
+          }
+          // The Hunch of a group is a draft in the open Concept. The server
+          // gives it the title of its newest Signal.
+          onMakeHunch={(urls) =>
+            void write(
+              'Saving',
+              () =>
+                addSignalInsight({
+                  project,
+                  insight: { signals: urls, concept: concept.slug },
+                }),
+              ({ id }) =>
+                router.navigate({
+                  to: '/$project/$concept/$recordId',
+                  params: { project, concept: concept.slug, recordId: id },
+                  search: { section: search.section, pins: search.pins },
+                }),
+            )
           }
           onOpenInsight={(recordId, event) => {
             const opened = listed.find(

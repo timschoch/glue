@@ -76,7 +76,9 @@ const signedOut = () => ({
 // write.
 async function renderPage(path: string, changed: Partial<Server> = {}) {
   const server = createMemoryServer({
-    fetchSignals: vi.fn(() => Promise.resolve({ signals, failures: [] })),
+    fetchSignals: vi.fn(() =>
+      Promise.resolve({ signals, failures: [], groups: [] }),
+    ),
     ...changed,
   })
   const router = createRouter({
@@ -473,6 +475,50 @@ describe('a section', () => {
         source: 'https://github.com/timschoch/glue/issues/7',
         date: '2026-10-03',
         evidenceLevel: 'hunch',
+        concept: 'part-model',
+      },
+    })
+  })
+
+  it('turns a group of Signals into a Hunch with one step, then opens its record', async () => {
+    const again = {
+      ...signals[0],
+      url: 'https://support.test/agent/tickets/4',
+      title: 'The list is slow to open',
+      source: 'support',
+    }
+    const { expectAddress, server } = await renderPage(
+      '/glue/part-model?section=Understand',
+      {
+        fetchSignals: vi.fn(() =>
+          Promise.resolve({
+            signals: [signals[0], again, signals[1]],
+            failures: [],
+            groups: [
+              {
+                signals: [signals[0].url, again.url],
+                sources: ['github', 'support'],
+              },
+            ],
+          }),
+        ),
+      },
+    )
+    const group = within(
+      screen.getByRole('region', { name: 'The list is slow' }),
+    )
+
+    group.getByText('2 sources')
+    await userEvent.click(group.getByRole('button', { name: 'Make Hunch' }))
+
+    await expectAddress('/glue/part-model/I3', { section: 'Understand' })
+    expect(server.addSignalInsight).toHaveBeenCalledWith({
+      project: 'glue',
+      insight: {
+        signals: [
+          'https://github.com/timschoch/glue/issues/7',
+          'https://support.test/agent/tickets/4',
+        ],
         concept: 'part-model',
       },
     })
@@ -1508,6 +1554,61 @@ describe('the common flow of a record', () => {
     await act('Raise the level')
 
     await expectAddress('/glue/part-model/I3', { edit: true })
+  })
+
+  it('proposes Pattern for a Hunch whose Signals come from two sources, and raises it', async () => {
+    const grown = [
+      { url: signals[1].url, title: signals[1].title, source: 'github' },
+      {
+        url: 'https://support.test/agent/tickets/4',
+        title: 'The agent reads all files',
+        source: 'support',
+      },
+    ]
+    const { server } = await renderPage('/glue/part-model/I3', {
+      fetchPart: vi.fn(
+        changedPart('I3', {
+          evidenceLevel: 'hunch',
+          signals: grown.map(({ url, title }) => ({ url, title })),
+        }),
+      ),
+      fetchSignals: vi.fn(() =>
+        Promise.resolve({
+          signals: grown.map((signal) => ({
+            ...signal,
+            text: '',
+            date: '2026-10-01',
+            insight: { id: 'I3', title: I3 },
+          })),
+          failures: [],
+          groups: [],
+        }),
+      ),
+    })
+
+    await act('Raise to Pattern')
+
+    await waitFor(() =>
+      expect(server.updatePart).toHaveBeenCalledWith({
+        project: 'glue',
+        recordId: 'I3',
+        change: { evidenceLevel: 'pattern' },
+      }),
+    )
+  })
+
+  it('reads no Signals for a Hunch that grew from one Signal', async () => {
+    const { server } = await renderPage('/glue/part-model/I3', {
+      fetchPart: vi.fn(
+        changedPart('I3', {
+          evidenceLevel: 'hunch',
+          signals: [{ url: signals[1].url, title: signals[1].title }],
+        }),
+      ),
+    })
+
+    button('Raise the level')
+    expect(server.fetchSignals).not.toHaveBeenCalled()
   })
 
   it('opens the Concept of a published Guardrail for its sign-off', async () => {

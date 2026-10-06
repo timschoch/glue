@@ -5,12 +5,13 @@ import type { Answer, Part, PartType } from '../db/parts.ts'
 // The common flows of docs/concept.md, section 7: which one a Part is in,
 // the step it is at, and the one next step.
 
-// The one next step: an answer of the owner, the form of the Part, a new
-// Part that needs this one, the home Concept, or the Joint to the Insight
-// that an Ask handed back.
+// The one next step: an answer of the owner, the form of the Part, a higher
+// Evidence level that Glue proposes, a new Part that needs this one, the
+// home Concept, or the Joint to the Insight that an Ask handed back.
 export type NextStep =
   | { kind: 'answer'; answer: Answer }
   | { kind: 'edit'; label: string }
+  | { kind: 'raise'; level: 'pattern'; label: string }
   | { kind: 'add'; type: PartType; label: string }
   | { kind: 'concept'; label: string }
   | { kind: 'glue'; label: string }
@@ -51,6 +52,13 @@ const addDecision: NextStep = {
   type: 'decision',
   label: 'Add Decision',
 }
+// Several sources agree (glue/D54). Glue proposes, the member decides.
+const raiseToPattern: NextStep = {
+  kind: 'raise',
+  level: 'pattern',
+  label: 'Raise to Pattern',
+}
+const PATTERN_SOURCES = 2
 // No Contract exists yet, so each Concept waits for its sign-off.
 const openConcept: NextStep = { kind: 'concept', label: 'Open Concept' }
 
@@ -130,14 +138,23 @@ function findBuildFlow(builds: ReadonlyArray<GatedBuild>): CommonFlow {
 // comes before the flow of its type. A sunk Part is in no flow. `ask` is the
 // step of the open Ask of the Part: the Part shows the steps of the Ask and
 // keeps the next step of its own flow, until the Insight is handed back.
-// Then the next step glues it.
+// Then the next step glues it. `signalSources` are the sources that gave
+// the Signals of the Part: the next step of a Hunch with two or more is to
+// raise it to Pattern.
 export function findCommonFlow(
   part: Part,
   builds: ReadonlyArray<GatedBuild> = [],
   ask?: AskStep,
+  signalSources: ReadonlyArray<string> = [],
 ): CommonFlow | undefined {
-  const flow = findOwnFlow(part, builds)
+  const own = findOwnFlow(part, builds)
   const flagged = part.workState === 'to-check' || part.workState === 'waiting'
+  const agreed =
+    part.type === 'insight' &&
+    (part.evidenceLevel ?? 'hunch') === 'hunch' &&
+    new Set(signalSources).size >= PATTERN_SOURCES
+  const flow =
+    own && agreed && !flagged ? { ...own, next: raiseToPattern } : own
   if (!flow || !ask || flagged) return flow
   const next = ask === 'check' ? checkAndGlue : flow.next
   return { ...flows.ask, current: askSteps[ask], next }

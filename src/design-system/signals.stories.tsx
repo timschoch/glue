@@ -46,6 +46,7 @@ const meta = {
       },
     ],
     onMakeInsight: () => {},
+    onMakeHunch: () => {},
   },
 } satisfies Meta<typeof Signals>
 
@@ -54,6 +55,19 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
+
+export const Groups: Story = {
+  args: {
+    groups: [
+      {
+        signals: [
+          'https://github.com/timschoch/glue/issues/7',
+          'https://support.example.com/agent/tickets/4',
+        ],
+      },
+    ],
+  },
+}
 
 export const NoSignals: Story = { args: { signals: [] } }
 
