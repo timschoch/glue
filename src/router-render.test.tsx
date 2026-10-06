@@ -2290,11 +2290,16 @@ describe('an Ask to another Project', () => {
 
     expect(choice()).toBeNull()
     expect(server.addAsk).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(button('Raise the level'))
 
     await act('Ask another team')
     await userEvent.click(button('Send'))
 
     await waitFor(() => expect(choice()).toBeNull())
+    // The button is away while the Ask saves, and has the focus after it.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(button('Raise the level')),
+    )
     expect(server.addAsk).toHaveBeenCalledExactlyOnceWith({
       project: 'glue',
       ask: { insight: 'I3', toProject: 'flexibeck' },
@@ -2328,6 +2333,27 @@ describe('an Ask to another Project', () => {
         askId: 1,
       }),
     )
+  })
+
+  it('does not take back the Ask of a Hunch that another member has', async () => {
+    const ofBo: (typeof people.assignments)[number] = {
+      id: 3,
+      memberId: 2,
+      role: 'responsible',
+      concept: null,
+      part: 'I3',
+    }
+    await renderPage('/glue/part-model/I3', {
+      ...hunchWith(open),
+      fetchPeople: vi.fn(() =>
+        Promise.resolve({
+          ...people,
+          assignments: [...people.assignments, ofBo],
+        }),
+      ),
+    })
+
+    await expect(act('Take back')).rejects.toThrow('No action Take back')
   })
 
   it('does not take back an Ask that a member picked', async () => {

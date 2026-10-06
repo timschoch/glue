@@ -408,8 +408,13 @@ export function createPartActions(request: ActionRequest) {
         ),
     ),
 
-    takeBackAsk: withMember((db, { project, askId }: AskTakeBackInput) =>
-      takeBackAsk(db, project, askId).then(() => undefined, toFailure),
+    // The member of the session takes the Ask back.
+    takeBackAsk: withMember(
+      (db, { project, askId }: AskTakeBackInput, member) =>
+        takeBackAsk(db, project, askId, member.email).then(
+          () => undefined,
+          toFailure,
+        ),
     ),
   }
 }

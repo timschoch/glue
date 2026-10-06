@@ -24,7 +24,7 @@ import {
   SelectItem,
   TextArea,
 } from '@carbon/react'
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { MouseEvent, ReactNode } from 'react'
@@ -444,55 +444,6 @@ type OptionPick = {
   onPick: (value: string) => void
 }
 
-// The choice of an action: one of its options, and the button that sends
-// it. Escape leaves the choice and sends nothing.
-function OptionChoice({
-  id,
-  choice,
-  onClose,
-}: {
-  id: string
-  choice: OptionPick
-  onClose: () => void
-}) {
-  const [chosen, setChosen] = useState(choice.options.at(0)?.value)
-
-  useEffect(() => {
-    const leave = ({ key }: KeyboardEvent) => {
-      if (key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', leave)
-    return () => document.removeEventListener('keydown', leave)
-  }, [onClose])
-
-  return (
-    <>
-      <div className={styles.search}>
-        <Select
-          id={id}
-          labelText={choice.label}
-          value={chosen}
-          onChange={({ target }) => setChosen(target.value)}
-        >
-          {choice.options.map(({ value, text }) => (
-            <SelectItem key={value} value={value} text={text} />
-          ))}
-        </Select>
-      </div>
-      <Button
-        kind="tertiary"
-        onClick={() => {
-          if (chosen === undefined) return
-          onClose()
-          choice.onPick(chosen)
-        }}
-      >
-        Send
-      </Button>
-    </>
-  )
-}
-
 // One action on the record. An action with a pick asks for a Part first,
 // and one with a choice for one of its options. An action with an address
 // is a link: it goes to a person, not to Glue.
@@ -598,12 +549,51 @@ export function Record({
   const [confirming, setConfirming] = useState<ClickAction>()
   // The pick that waits for its Part.
   const [picking, setPicking] = useState<PartPick>()
-  // The choice that waits for its option.
-  const [choosing, setChoosing] = useState<OptionPick>()
+  // The choice that is open: the label of its action, and the option that
+  // is chosen. The button of the Next box sends it.
+  const [choosing, setChoosing] = useState<{
+    label: string
+    choose: OptionPick
+    chosen: string | undefined
+  }>()
+  // The focus goes back to the button of the Next box when the choice closes
+  // with Escape or with the button. The button is away while a write saves.
+  const nextRef = useRef<HTMLElement>(null)
+  const refocus = useRef(false)
+  useEffect(() => {
+    const button = nextRef.current?.querySelector('button')
+    if (!refocus.current || !button) return
+    refocus.current = false
+    button.focus()
+  })
+  const isChoosing = choosing !== undefined
+  useEffect(() => {
+    if (!isChoosing) return
+    const leave = ({ key }: KeyboardEvent) => {
+      if (key !== 'Escape') return
+      refocus.current = true
+      setChoosing(undefined)
+    }
+    document.addEventListener('keydown', leave)
+    return () => document.removeEventListener('keydown', leave)
+  }, [isChoosing])
+  const send = () => {
+    if (choosing?.chosen === undefined) return
+    refocus.current = true
+    setChoosing(undefined)
+    choosing.choose.onPick(choosing.chosen)
+  }
   const run = (action: RecordAction) => {
     if ('pick' in action) setPicking(action.pick)
-    else if ('choose' in action) setChoosing(action.choose)
-    else if ('href' in action) window.location.assign(action.href)
+    else if ('choose' in action) {
+      const { label, choose } = action
+      // A second pick of the action closes its choice.
+      setChoosing((open) =>
+        open?.label === label
+          ? undefined
+          : { label, choose, chosen: choose.options.at(0)?.value },
+      )
+    } else if ('href' in action) window.location.assign(action.href)
     else if (action.confirm) setConfirming(action)
     else action.onClick()
   }
@@ -723,7 +713,11 @@ export function Record({
       )}
       {flow && <StepBar {...flow} />}
       {(action || pending !== undefined || error !== undefined) && (
-        <section aria-labelledby={nextId} className={styles.action}>
+        <section
+          ref={nextRef}
+          aria-labelledby={nextId}
+          className={styles.action}
+        >
           <h2 id={nextId} className={styles.groupTitle}>
             Next
           </h2>
@@ -756,10 +750,29 @@ export function Record({
               />
             </div>
           )}
+          {choosing && pending === undefined && (
+            <div className={styles.search}>
+              <Select
+                id={chooseId}
+                labelText={choosing.choose.label}
+                value={choosing.chosen}
+                onChange={({ target }) =>
+                  setChoosing({ ...choosing, chosen: target.value })
+                }
+              >
+                {choosing.choose.options.map(({ value, text }) => (
+                  <SelectItem key={value} value={value} text={text} />
+                ))}
+              </Select>
+            </div>
+          )}
           {pending !== undefined ? (
             <InlineLoading description={pending} />
           ) : action && otherActions.length > 0 && hydrated ? (
-            <ComboButton label={action.label} onClick={() => run(action)}>
+            <ComboButton
+              label={choosing ? 'Send' : action.label}
+              onClick={choosing ? send : () => run(action)}
+            >
               {otherActions.map((other) => (
                 <MenuItem
                   key={other.label}
@@ -770,7 +783,9 @@ export function Record({
             </ComboButton>
           ) : (
             action &&
-            ('href' in action ? (
+            (choosing ? (
+              <Button onClick={send}>Send</Button>
+            ) : 'href' in action ? (
               <Button href={action.href}>{action.label}</Button>
             ) : (
               <Button onClick={() => run(action)}>{action.label}</Button>
@@ -788,13 +803,6 @@ export function Record({
                 }}
               />
             </div>
-          )}
-          {choosing && pending === undefined && (
-            <OptionChoice
-              id={chooseId}
-              choice={choosing}
-              onClose={() => setChoosing(undefined)}
-            />
           )}
           {error !== undefined && (
             <InlineNotification

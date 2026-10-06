@@ -108,11 +108,22 @@ export function handleUpdateAsk(input: ApiRequest) {
   })
 }
 
-// The Project that asked takes the Ask back.
+export const askTakeBackQuerySchema = z.object({
+  member: z.string().trim().min(1).meta({
+    description:
+      'The e-mail address of the member who asked: a member who has the Hunch, or each member when nobody has it',
+  }),
+})
+
+// The member who asked takes the Ask back.
 export function handleRemoveAsk(input: ApiRequest) {
   return handleApiRequest(input, async () => {
-    const { db, params } = input
-    await takeBackAsk(db, params.project, parseAskId(params))
+    const { db, request, params } = input
+    const askId = parseAskId(params)
+    const { member } = askTakeBackQuerySchema.parse(
+      Object.fromEntries(new URL(request.url).searchParams),
+    )
+    await takeBackAsk(db, params.project, askId, member)
     return new Response(null, { status: 204 })
   })
 }

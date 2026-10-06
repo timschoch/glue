@@ -9,6 +9,7 @@ import {
   askInputSchema,
   askSchema,
   askStepInputSchema,
+  askTakeBackQuerySchema,
 } from './ask-api.ts'
 import {
   validatedBuildSchema,
@@ -482,11 +483,12 @@ function listPartPaths() {
       delete: {
         operationId: 'removeAsk',
         summary:
-          'Take an Ask back as the Project that asked, while no member picked it',
+          'Take an Ask back as the member who asked, while no member picked it',
         requestParams: {
           path: path.extend({
             askId: z.string().meta({ description: 'The id of the Ask' }),
           }),
+          query: askTakeBackQuerySchema,
         },
         responses: {
           204: { description: 'The Ask is gone' },

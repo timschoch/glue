@@ -530,7 +530,7 @@ function formatHelp() {
     'pnpm concept ask <id> --to-project <slug>',
     'pnpm concept ask pick <ask> --member <e-mail>',
     'pnpm concept ask hand-back <ask> --insight <id>',
-    'pnpm concept ask take-back <ask>',
+    'pnpm concept ask take-back <ask> --member <e-mail>',
     'pnpm concept member add <e-mail>',
     'pnpm concept member list',
     'pnpm concept assign <id or Concept slug> --responsible <e-mail>',
@@ -593,7 +593,7 @@ function formatHelp() {
     'mine with --member: the records of the member, and the records that nobody has.',
     'ask asks another Project to check an Insight of the level hunch. The Project must be one that this Project may reference. It prints the number of the Ask.',
     'ask pick and ask hand-back take the Project that is asked as --project. hand-back names a published Insight of that Project.',
-    'ask take-back takes the Project that asked as --project. It works while no member picked the Ask.',
+    'ask take-back takes the Project that asked as --project, and the member who asked as --member: a member who has the Hunch, or each member when nobody has it. It works while no member picked the Ask.',
     'mine lists the open Asks too: pick and hand-back in the Project that is asked, check in the Project that asked. joint add <id> <project>/<id> glues the Insight to the Hunch: the Ask is done.',
     'list with --member: each record with its flight level for the member. operational: the record is of a loop step of the member, or the member is Responsible or Co-Author of the record or of its Concept. strategic: each other record.',
     'member add takes the e-mail address of an account. A record or a Concept has one Responsible.',
@@ -1126,7 +1126,7 @@ function formatAsk({ id, step, hunch, insight }: Ask) {
 
 // `ask <id> --to-project <slug>` asks another Project to check a Hunch.
 // `ask pick` and `ask hand-back` are the steps of the Project that is asked.
-// `ask take-back` is a step of the Project that asked.
+// `ask take-back` is a step of the member who asked.
 async function handleAskCommand(db: ConceptDb, [first, ...rest]: string[]) {
   const flags = parseFlags(rest)
   const project = await readProject(db, flags)
@@ -1147,8 +1147,10 @@ async function handleAskCommand(db: ConceptDb, [first, ...rest]: string[]) {
       return
     }
     case 'take-back': {
-      if (!Number.isInteger(askId)) throw new Error('ask take-back needs <ask>')
-      await takeBackAsk(db, project, askId)
+      const member = flags.member as string | undefined
+      if (!Number.isInteger(askId) || !member)
+        throw new Error('ask take-back needs <ask> --member <e-mail>')
+      await takeBackAsk(db, project, askId, member)
       return
     }
     default: {

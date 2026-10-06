@@ -196,10 +196,18 @@ export function RecordScreen({
   // ask the owner. Only the owner answers a flag.
   const next = flow?.next
   const { answeredBy } = part
-  // A member asks another Project to check a Hunch that has no open Ask, and
-  // takes the Ask back while nobody picked it.
+  // A member asks another Project to check a Hunch that has no open Ask. The
+  // member who asked takes the Ask back while nobody picked it: a member who
+  // has the Hunch, or each member when nobody has it.
+  const holders = people.assignments.filter(
+    ({ part: held }) => held === part.id,
+  )
+  const isAsker =
+    people.me !== null &&
+    (holders.length === 0 ||
+      holders.some(({ memberId }) => memberId === people.me))
   const askAction: Array<RecordAction> =
-    ask?.step === 'pick' && people.me !== null
+    ask?.step === 'pick' && isAsker
       ? [
           {
             label: 'Take back',

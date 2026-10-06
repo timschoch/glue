@@ -26,6 +26,11 @@ beforeEach(async () => {
   await addProjectReference(db, 'bakeday', 'ux')
   tokens.bakeday = (await createToken(db, 'bakeday', 'mara')).token
   tokens.ux = (await createToken(db, 'ux', 'fred')).token
+  await joinProject(db, 'bakeday', {
+    id: 'user-mara',
+    name: 'Mara',
+    email: 'mara@example.com',
+  })
   await joinProject(db, 'ux', {
     id: 'user-fred',
     name: 'Fred',
@@ -170,11 +175,17 @@ describe('the Ask routes', () => {
   it('take an Ask back while nobody picked it', async () => {
     await call(handleAddAsk, 'POST', { project: 'bakeday', body: ask })
 
-    const takenBack = await call(handleRemoveAsk, 'DELETE', {
+    const refused = await call(handleRemoveAsk, 'DELETE', {
       project: 'bakeday',
       askId: '1',
     })
+    const takenBack = await call(handleRemoveAsk, 'DELETE', {
+      project: 'bakeday',
+      askId: '1',
+      query: '?member=mara@example.com',
+    })
 
+    expect(refused.status).toBe(400)
     expect(takenBack).toEqual({ status: 204, body: undefined })
     expect(await call(handleListAsks, 'GET', { project: 'ux' })).toEqual({
       status: 200,
@@ -193,6 +204,7 @@ describe('the Ask routes', () => {
     const response = await call(handleRemoveAsk, 'DELETE', {
       project: 'bakeday',
       askId: '1',
+      query: '?member=mara@example.com',
     })
 
     expect(response).toEqual({
