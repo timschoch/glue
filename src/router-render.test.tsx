@@ -2190,6 +2190,7 @@ describe('an Ask to another Project', () => {
       }),
       'flexibeck',
     )
+    await userEvent.click(button('Send'))
 
     await waitFor(() =>
       expect(
@@ -2257,5 +2258,177 @@ describe('an Ask to another Project', () => {
       project: 'glue',
       joint: { part: 'I3', needs: 'flexibeck/I1' },
     })
+  })
+
+  // The Ask of Glue to flexibeck that nobody picked.
+  const open: Ask = {
+    id: 1,
+    step: 'pick',
+    hunch: {
+      project: { slug: 'glue', name: 'Glue' },
+      id: 'I3',
+      title: I3,
+      trust: 'solid',
+      concept: 'part-model',
+    },
+    project: flexibeck,
+    pickedBy: null,
+    insight: null,
+    askedAt: '2026-10-03T12:00:00.000Z',
+  }
+  const picked: Ask = {
+    ...open,
+    step: 'hand-back',
+    pickedBy: { name: 'Bo', email: 'bo@example.com' },
+  }
+  const handedBack: Ask = {
+    ...picked,
+    step: 'check',
+    insight: {
+      project: flexibeck,
+      id: 'I1',
+      title: study.title,
+      trust: 'solid',
+      concept: 'flexibeck',
+    },
+  }
+  // The Hunch of Glue with the Ask.
+  const hunchWith = (ask: Ask | null): Partial<Server> => ({
+    fetchAskState: vi.fn(() => Promise.resolve({ ask, projects: [flexibeck] })),
+  })
+  // Mine of flexibeck, as Bo sees it.
+  const mineOfBo = (asks: Array<Ask>): Partial<Server> => ({
+    fetchMineAsks: vi.fn(() => Promise.resolve(asks)),
+    fetchSession: vi.fn(() => Promise.resolve(bo)),
+    fetchPeople: vi.fn(() => Promise.resolve({ ...people, me: 2 })),
+  })
+
+  it('sends the Ask with a button, and not with the choice of the Project', async () => {
+    const { server } = await renderPage('/glue/part-model/I3', hunchWith(null))
+    const choice = () =>
+      within(screen.getByRole('main')).queryByRole('combobox', {
+        name: 'Project',
+      })
+
+    await act('Ask another team')
+    await userEvent.selectOptions(
+      within(screen.getByRole('main')).getByRole('combobox', {
+        name: 'Project',
+      }),
+      'flexibeck',
+    )
+
+    expect(server.addAsk).not.toHaveBeenCalled()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(choice()).toBeNull()
+    expect(server.addAsk).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(button('Raise the level'))
+
+    await act('Ask another team')
+    await userEvent.click(button('Send'))
+
+    await waitFor(() => expect(choice()).toBeNull())
+    // The button is away while the Ask saves, and has the focus after it.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(button('Raise the level')),
+    )
+    expect(server.addAsk).toHaveBeenCalledExactlyOnceWith({
+      project: 'glue',
+      ask: { insight: 'I3', toProject: 'flexibeck' },
+    })
+  })
+
+  it('has the last step on the Hunch too: its button glues the Insight that came back', async () => {
+    const { server } = await renderPage(
+      '/glue/part-model/I3',
+      hunchWith(handedBack),
+    )
+
+    await userEvent.click(button('Check and glue'))
+
+    await waitFor(() =>
+      expect(server.addJoint).toHaveBeenCalledExactlyOnceWith({
+        project: 'glue',
+        joint: { part: 'I3', needs: 'flexibeck/I1' },
+      }),
+    )
+  })
+
+  it('takes the Ask back while nobody picked it', async () => {
+    const { server } = await renderPage('/glue/part-model/I3', hunchWith(open))
+
+    await act('Take back')
+
+    await waitFor(() =>
+      expect(server.takeBackAsk).toHaveBeenCalledExactlyOnceWith({
+        project: 'glue',
+        askId: 1,
+      }),
+    )
+  })
+
+  it('does not take back the Ask of a Hunch that another member has', async () => {
+    const ofBo: (typeof people.assignments)[number] = {
+      id: 3,
+      memberId: 2,
+      role: 'responsible',
+      concept: null,
+      part: 'I3',
+    }
+    await renderPage('/glue/part-model/I3', {
+      ...hunchWith(open),
+      fetchPeople: vi.fn(() =>
+        Promise.resolve({
+          ...people,
+          assignments: [...people.assignments, ofBo],
+        }),
+      ),
+    })
+
+    await expect(act('Take back')).rejects.toThrow('No action Take back')
+  })
+
+  it('does not take back an Ask that a member picked', async () => {
+    await renderPage('/glue/part-model/I3', hunchWith(picked))
+
+    await expect(act('Take back')).rejects.toThrow('No action Take back')
+  })
+
+  it('gives a member with no published Insight the step to add one', async () => {
+    const { expectAddress } = await renderPage('/flexibeck?section=Mine', {
+      ...mineOfBo([picked]),
+      fetchParts: vi.fn(() => Promise.resolve([])),
+    })
+
+    expect(mineAsks()).toEqual([[`Solid Insight I3 ${I3} Glue`, 'Add Insight']])
+
+    await userEvent.click(button('Add Insight'))
+
+    await expectAddress('/flexibeck', { section: 'Mine', add: 'insight' })
+  })
+
+  it('turns the steps of all Asks off while one step saves', async () => {
+    const other = { ...open, id: 2, hunch: { ...open.hunch, id: 'I4' } }
+    await renderPage('/flexibeck?section=Mine', {
+      ...mineOfBo([open, other]),
+      pickAsk: vi.fn(() => new Promise<undefined>(() => {})),
+    })
+    const steps = () =>
+      within(screen.getByRole('list', { name: 'Asks' }))
+        .getAllByRole<HTMLButtonElement>('button', { name: 'Pick' })
+        .map(({ disabled }) => disabled)
+
+    expect(steps()).toEqual([false, false])
+
+    await userEvent.click(
+      within(screen.getByRole('list', { name: 'Asks' })).getAllByRole(
+        'button',
+        { name: 'Pick' },
+      )[0],
+    )
+
+    await waitFor(() => expect(steps()).toEqual([true, true]))
   })
 })

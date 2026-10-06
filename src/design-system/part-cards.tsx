@@ -130,6 +130,8 @@ function Asks({
               onOpen={onOpen && ((event) => onOpen(part, event))}
               action={{
                 label: action.label,
+                // One step runs at a time.
+                disabled: pending !== undefined,
                 onClick: () =>
                   'pick' in action ? setPicking(id) : action.onClick(),
               }}

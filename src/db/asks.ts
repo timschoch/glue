@@ -112,6 +112,22 @@ async function listOpenAsks(
   })
 }
 
+// The member has the Hunch of the Ask, or nobody has it. Such a member is
+// the one who asks: the Ask has no record of the member who sent it.
+const hasHunch = (memberEmail: string) => sql`(
+  not exists (
+    select 1 from "assignments"
+    where "assignments"."part_id" = ${asks.partId}
+  )
+  or exists (
+    select 1 from "assignments"
+    inner join "members" as owners
+      on owners."id" = "assignments"."member_id"
+    where "assignments"."part_id" = ${asks.partId}
+      and lower(owners."email") = lower(${memberEmail}::text)
+  )
+)`
+
 // The Asks in Mine of a Project. For the asked Project: each Ask without an
 // Insight, until a member picks it, and then only for that member. For the
 // Project that asked: each Ask with an Insight to check, for the members who
@@ -133,21 +149,7 @@ export function listMineAsks(
   const toCheck = and(
     eq(hunchProjects.slug, projectSlug),
     isNotNull(asks.handedBackPartId),
-    memberEmail === undefined
-      ? undefined
-      : sql`(
-          not exists (
-            select 1 from "assignments"
-            where "assignments"."part_id" = ${asks.partId}
-          )
-          or exists (
-            select 1 from "assignments"
-            inner join "members" as owners
-              on owners."id" = "assignments"."member_id"
-            where "assignments"."part_id" = ${asks.partId}
-              and lower(owners."email") = lower(${memberEmail}::text)
-          )
-        )`,
+    memberEmail === undefined ? undefined : hasHunch(memberEmail),
   )
   return listOpenAsks(db, sql`(${toPickOrHandBack} or ${toCheck})`)
 }
@@ -273,16 +275,12 @@ async function getAsk(db: ConceptDb, projectSlug: string, askId: number) {
   return ask
 }
 
-// The member of the asked Project picks the Ask. From now on it shows only
-// in Mine of this member.
-export async function pickAsk(
+// The member of the Project with the e-mail address.
+async function getMember(
   db: ConceptDb,
   projectSlug: string,
-  askId: number,
   memberEmail: string,
-  now = new Date(),
-): Promise<void> {
-  const ask = await getAsk(db, projectSlug, askId)
+) {
   const found = await db
     .select({ id: members.id })
     .from(members)
@@ -298,6 +296,20 @@ export async function pickAsk(
     throw new InvalidRecordError(
       `${memberEmail.trim()} is no member of ${projectSlug}.`,
     )
+  return member
+}
+
+// The member of the asked Project picks the Ask. From now on it shows only
+// in Mine of this member.
+export async function pickAsk(
+  db: ConceptDb,
+  projectSlug: string,
+  askId: number,
+  memberEmail: string,
+  now = new Date(),
+): Promise<void> {
+  const ask = await getAsk(db, projectSlug, askId)
+  const member = await getMember(db, projectSlug, memberEmail)
   const picked = ask.pickedBy
     ? []
     : await db
@@ -333,4 +345,34 @@ export async function handBackAsk(
     .returning({ id: asks.id })
   if (handedBack.length === 0)
     throw new InvalidRecordError(`Ask ${askId} has an Insight already`)
+}
+
+// The member who asked takes the Ask back while no member picked it. The
+// Ask is gone, and the Hunch can ask again.
+export async function takeBackAsk(
+  db: ConceptDb,
+  projectSlug: string,
+  askId: number,
+  memberEmail: string,
+): Promise<void> {
+  const isAsk = and(eq(hunchProjects.slug, projectSlug), eq(asks.id, askId))
+  const found = await listOpenAsks(db, isAsk)
+  const ask = found.at(0)
+  if (!ask) throw new InvalidRecordError(`Ask ${askId} not found`)
+  await getMember(db, projectSlug, memberEmail)
+  const own = await listOpenAsks(db, and(isAsk, hasHunch(memberEmail.trim())))
+  if (own.length === 0)
+    throw new InvalidRecordError(
+      `${memberEmail.trim()} does not have the Hunch of Ask ${askId}`,
+    )
+  const takenBack = ask.pickedBy
+    ? []
+    : await db
+        .delete(asks)
+        .where(and(eq(asks.id, askId), isNull(asks.pickedById)))
+        .returning({ id: asks.id })
+  if (takenBack.length === 0)
+    throw new InvalidRecordError(
+      `${ask.pickedBy?.name ?? 'A member'} picked Ask ${askId} already`,
+    )
 }

@@ -946,8 +946,91 @@ describe('the box Next', () => {
       'Data team',
     )
 
+    expect(onPick).not.toHaveBeenCalled()
+    // The Next box keeps one button: it sends the choice.
+    expect(
+      next()
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Send'])
+
+    await userEvent.click(next().getByRole('button', { name: 'Send' }))
+
     expect(onPick).toHaveBeenCalledExactlyOnceWith('data')
     expect(screen.queryByRole('combobox')).toBeNull()
+    expect(document.activeElement).toBe(
+      next().getByRole('button', { name: 'Ask another team' }),
+    )
+  })
+
+  it('closes the choice with a second pick of its action in the menu', async () => {
+    renderRecord(
+      {},
+      {
+        actions: [
+          { label: 'Sign off', onClick: () => {} },
+          {
+            label: 'Ask another team',
+            choose: {
+              label: 'Project',
+              options: [{ value: 'ux', text: 'UX team' }],
+              onPick: () => {},
+            },
+          },
+        ],
+      },
+    )
+    // The button and the control that opens its menu.
+    const buttons = () =>
+      next()
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+    const pickInMenu = async () => {
+      await userEvent.click(next().getAllByRole('button')[1])
+      await userEvent.click(menuItems()[0])
+    }
+
+    await pickInMenu()
+
+    next().getByRole('combobox', { name: 'Project' })
+    expect(buttons().at(0)).toBe('Send')
+
+    await pickInMenu()
+
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(buttons().at(0)).toBe('Sign off')
+  })
+
+  it('leaves the choice of an action with Escape, and gives no value', async () => {
+    const onPick = vi.fn()
+    renderRecord(
+      {},
+      {
+        actions: [
+          {
+            label: 'Ask another team',
+            choose: {
+              label: 'Project',
+              options: [{ value: 'ux', text: 'UX team' }],
+              onPick,
+            },
+          },
+        ],
+      },
+    )
+
+    await userEvent.click(
+      next().getByRole('button', { name: 'Ask another team' }),
+    )
+    await userEvent.click(next().getByRole('combobox', { name: 'Project' }))
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(next().queryByRole('button', { name: 'Send' })).toBeNull()
+    expect(onPick).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(
+      next().getByRole('button', { name: 'Ask another team' }),
+    )
   })
 
   it('takes an answer in words above the button', async () => {
