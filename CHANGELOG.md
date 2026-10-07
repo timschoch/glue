@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.24.0](https://github.com/timschoch/glue/compare/v1.23.0...v1.24.0) (2026-10-07)
+
+
+### Features
+
+* **flow:** hand a shipped build to the Use flow ([#357](https://github.com/timschoch/glue/issues/357)) ([921a008](https://github.com/timschoch/glue/commit/921a008a423fded398db8b46e75dceb45afac05d))
+* **part:** give a Flow steps and an Entity fields ([#352](https://github.com/timschoch/glue/issues/352)) ([0ce8c27](https://github.com/timschoch/glue/commit/0ce8c2721cab13a5dde7ce7474ef5091984943d3))
+
 ## [1.23.0](https://github.com/timschoch/glue/compare/v1.22.0...v1.23.0) (2026-10-07)
 
 

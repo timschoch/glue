@@ -53,6 +53,7 @@ const decision: Part = {
   issueUrl: 'https://github.com/timschoch/glue/issues/1',
   measure: null,
   measured: [],
+  goalMetrics: [],
   supersededBy: null,
   supersedes: [],
   needs: [
@@ -376,6 +377,36 @@ describe('a Part in the record view', () => {
     expect(record.needs.map(({ part }) => part.reading)).toEqual([
       { value: '15%', target: '20%', onTarget: false },
       undefined,
+    ])
+  })
+
+  it('shows each Metric of the Goal of a Decision with its reading', () => {
+    const metric = {
+      ...goal,
+      id: 'M1',
+      type: 'metric',
+      title: 'Signup to paid',
+    } as const
+    const record = toRecordPart(
+      {
+        ...decision,
+        goalMetrics: [
+          { ...metric, measure: funnelReading },
+          { ...metric, id: 'M2', measure: null },
+        ],
+      },
+      href,
+    )
+
+    expect(record.goalMetrics).toMatchObject([
+      {
+        id: 'M1',
+        type: 'metric',
+        title: 'Signup to paid',
+        href: '/glue/M1',
+        reading: { value: '15%', target: '20%', onTarget: false },
+      },
+      { id: 'M2', href: '/glue/M2', reading: {} },
     ])
   })
 })

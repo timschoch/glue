@@ -1431,6 +1431,74 @@ describe('the section Use', () => {
     expect(within(card('G1')).getByLabelText('On target')).toBeDefined()
   })
 
+  // The build of D4 shipped: its gate holds.
+  const shipped = {
+    fetchBuilds: vi.fn(() =>
+      Promise.resolve({ builds: [builds[0]], reason: null }),
+    ),
+  }
+
+  it('shows the Metric of its Goal on a Decision, and takes the Insight of the reading', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model/D4', {
+      ...shipped,
+      fetchPart: vi.fn(changedPart('D4', { goalMetrics: [measured[1]] })),
+    })
+    const metrics = within(screen.getByRole('region', { name: 'Metrics' }))
+    const shown = metrics.getByRole('link', { name: /M1/ })
+
+    expect(shown.textContent).toContain('10% Target 25%')
+    expect(within(shown).getByLabelText('Off target')).toBeDefined()
+    expect(
+      within(screen.getByRole('list', { name: 'Use to Insight' }))
+        .getAllByRole('button')
+        .map(({ title }) => title),
+    ).toEqual(['Read'])
+
+    await userEvent.click(button('Add Insight'))
+
+    await expectAddress('/glue/part-model/D4', { add: 'insight' })
+
+    await userEvent.type(field('Title'), 'One in ten pays')
+    await userEvent.type(field('Source'), 'M1')
+    await userEvent.click(button('Save'))
+
+    expect(server.addPart).toHaveBeenCalledWith({
+      project: 'glue',
+      part: expect.objectContaining({
+        type: 'insight',
+        title: 'One in ten pays',
+        needs: ['D4'],
+      }),
+    })
+  })
+
+  it('asks a Decision with a shipped build for a Metric that needs its Goal', async () => {
+    const { expectAddress, server } = await renderPage(
+      '/glue/part-model/D4',
+      shipped,
+    )
+
+    expect(screen.queryByRole('region', { name: 'Metrics' })).toBeNull()
+
+    await userEvent.click(button('Add Metric'))
+
+    await expectAddress('/glue/part-model/D4', { add: 'metric' })
+
+    await userEvent.type(field('Title'), 'Signup to paid')
+    await userEvent.click(button('Save'))
+
+    expect(server.addPart).toHaveBeenCalledWith({
+      project: 'glue',
+      part: {
+        type: 'metric',
+        concept: 'part-model',
+        title: 'Signup to paid',
+        body: '',
+        needs: ['G1'],
+      },
+    })
+  })
+
   it('names the flag of a reading that misses its target', async () => {
     await renderPage('/glue/part-model/D4', {
       fetchPart: vi.fn(
@@ -2155,15 +2223,44 @@ describe('the common flow of a record', () => {
     await expectAddress('/glue/read-model/R1', { trail: ['D4'] })
   })
 
+  // The build of D4 shipped, its Goal has a Metric, and the Insight of the
+  // reading needs D4.
   it('has no button with no step left, and keeps the answers in the menu', async () => {
+    const read = findPart({ project: 'glue', recordId: 'D4' })
+    const metric: MeasuredPart = {
+      ...parts[0],
+      id: 'M1',
+      type: 'metric',
+      measure: null,
+    }
     const { server } = await renderPage('/glue/part-model/D4', {
       fetchBuilds: vi.fn(() =>
         Promise.resolve({ builds: [builds[0]], reason: null }),
+      ),
+      fetchPart: vi.fn(
+        changedPart('D4', {
+          goalMetrics: [metric],
+          neededBy: [
+            {
+              jointId: 20,
+              twoWay: false,
+              link: false,
+              contractVersion: null,
+              part: { ...parts[0], id: 'I9' },
+            },
+            ...(read?.neededBy ?? []),
+          ],
+        }),
       ),
     })
 
     const next = within(screen.getByRole('region', { name: 'Next' }))
 
+    expect(
+      within(screen.getByRole('list', { name: 'Use to Insight' }))
+        .getAllByRole('button')
+        .map((step) => step.getAttribute('aria-current')),
+    ).toEqual([null])
     expect(next.getAllByRole('button')).toEqual([
       next.getByRole('button', { name: 'Additional actions' }),
     ])

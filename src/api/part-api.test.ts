@@ -617,6 +617,7 @@ describe('GET a Part', () => {
       unchosen: false,
       measure: null,
       measured: [],
+      goalMetrics: [],
       supersededBy: null,
       supersedes: [],
       needs: [],

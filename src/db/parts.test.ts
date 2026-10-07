@@ -439,6 +439,7 @@ describe('findPart', () => {
         },
       ],
       measured: [{ ...goal, measure: goalMeasure }],
+      goalMetrics: [],
       flags: [],
       waitsOn: null,
       signals: [],
@@ -449,6 +450,65 @@ describe('findPart', () => {
       // Superseded, and never accepted.
       unchosen: true,
     })
+  })
+
+  it('gives a Decision the Metrics of the Goal that it needs', async () => {
+    // M1 is row 9: G1 needs it. M2 is row 10: it needs G1. No Joint has M3.
+    await client.exec(`
+      insert into parts (project_id, concept_id, type, record_id, title) values
+        (1, 1, 'metric', 'M1', 'Signup to paid'),
+        (1, 1, 'metric', 'M2', 'Ease of the first build'),
+        (1, 1, 'metric', 'M3', 'Bakes per week');
+      insert into joints (part_id, needed_part_id, two_way) values
+        (1, 9, false),
+        (10, 1, false);
+      insert into measures (part_id, measure, latest_value, measured_at) values
+        (9, '${JSON.stringify(measure)}', 0.25, '2026-10-06T08:00:00Z');
+    `)
+
+    const found = await findPart(db, 'glue', 'D1')
+    const served = await findPart(db, 'glue', 'G1')
+
+    expect(found?.goalMetrics).toMatchObject([
+      {
+        id: 'M1',
+        title: 'Signup to paid',
+        measure: { latestValue: 0.25, target: 0.2, onTarget: true },
+      },
+      { id: 'M2', title: 'Ease of the first build', measure: null },
+    ])
+    expect(served?.goalMetrics).toEqual([])
+  })
+
+  it('gives each Decision of a Goal the Metric that needs the Goal', async () => {
+    // M1 is row 9: it needs G1. D2 needs G1 too, as D1 does.
+    await client.exec(`
+      insert into parts (project_id, concept_id, type, record_id, title) values
+        (1, 1, 'metric', 'M1', 'Signup to paid');
+      insert into joints (part_id, needed_part_id, two_way) values
+        (9, 1, false),
+        (4, 1, false);
+    `)
+
+    const first = await findPart(db, 'glue', 'D1')
+    const second = await findPart(db, 'glue', 'D2')
+    const served = await findPart(db, 'glue', 'G1')
+
+    expect(first?.goalMetrics).toMatchObject([{ id: 'M1' }])
+    expect(second?.goalMetrics).toMatchObject([{ id: 'M1' }])
+    expect(served?.measured).toMatchObject([{ id: 'M1' }])
+  })
+
+  it('gives a Decision no sunk Metric of its Goal', async () => {
+    await client.exec(`
+      insert into parts (project_id, concept_id, type, record_id, title, work_state) values
+        (1, 1, 'metric', 'M1', 'Signup to paid', 'sunk');
+      insert into joints (part_id, needed_part_id, two_way) values (9, 1, false);
+    `)
+
+    const found = await findPart(db, 'glue', 'D1')
+
+    expect(found?.goalMetrics).toEqual([])
   })
 
   it('lists what happened to the Part, newest first', async () => {

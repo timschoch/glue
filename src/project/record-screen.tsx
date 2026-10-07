@@ -112,9 +112,15 @@ export function RecordScreen({
   if (search.add === 'decision' && supersedes) {
     return <PartFormScreen type="decision" superseded={part} parts={parts} />
   }
-  // The next step of a flow adds a Part that needs this one.
+  // The next step of a flow adds a Part that needs this one, or the Part
+  // that the step names.
   if (isPartType(search.add)) {
-    return <PartFormScreen type={search.add} needed={part} parts={parts} />
+    const step = flow?.next
+    const needed =
+      step?.kind === 'add' && step.type === search.add ? step.needed : undefined
+    return (
+      <PartFormScreen type={search.add} needed={needed ?? part} parts={parts} />
+    )
   }
 
   const watchers = people.watchers.filter((watcher) => watcher.part === part.id)
