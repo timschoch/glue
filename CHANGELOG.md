@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.2](https://github.com/timschoch/glue/compare/v1.27.1...v1.27.2) (2026-10-07)
+
+
+### Bug Fixes
+
+* **reviews:** show a refused value at its field and fix small faults ([#380](https://github.com/timschoch/glue/issues/380)) ([7c1d940](https://github.com/timschoch/glue/commit/7c1d9406a13753824202410fbbf669400972eb01)), closes [#374](https://github.com/timschoch/glue/issues/374)
+
 ## [1.27.1](https://github.com/timschoch/glue/compare/v1.27.0...v1.27.1) (2026-10-07)
 
 
