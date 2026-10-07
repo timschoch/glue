@@ -91,6 +91,7 @@ function findCheckState(name: string, checks: CheckRun[]): GuardrailState {
 
 // The Guardrails of the Contract Version, each with its state on the head
 // commit of the build. GitHub is asked only when a Guardrail names a check.
+// When GitHub does not answer, each of these Guardrails waits.
 async function listGuardrails(
   github: GithubClient,
   build: ValidatedBuild,
@@ -104,7 +105,9 @@ async function listGuardrails(
   const checks = guardrails.some(
     ({ enforcedBy }) => findCheckName(enforcedBy) !== undefined,
   )
-    ? await github.listCheckRuns(build.repository, build.number)
+    ? await github
+        .listCheckRuns(build.repository, build.number)
+        .catch((): CheckRun[] => [])
     : []
   return guardrails.map(({ id, title, concept, enforcedBy }) => {
     const name = findCheckName(enforcedBy)

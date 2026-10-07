@@ -16,7 +16,7 @@ import {
 import { addProjectReference, setProductRepository } from './projects.ts'
 import * as schema from './schema.ts'
 import type { CheckRun } from '../github/client.ts'
-import { createFakeGithub } from '../test/github.ts'
+import { createFakeGithub, failingGithub } from '../test/github.ts'
 
 let client: PGlite
 let db: ReturnType<typeof drizzle<typeof schema>>
@@ -352,6 +352,23 @@ describe('validateBuild', () => {
       ])
 
       expect(gate.guardrails[0].state).toBe('waiting')
+    })
+
+    it('gives its result and waits for each check when GitHub does not answer', async () => {
+      const gate = await validateBuild(
+        db,
+        failingGithub,
+        'glue',
+        toBuild('Contract: videos@2'),
+        NOW,
+      )
+
+      expect(gate.result).toBe('holds')
+      expect(gate.reasons).toEqual([])
+      expect(gate.guardrails.map(({ id, state }) => [id, state])).toEqual([
+        ['R1', 'waiting'],
+        ['R2', 'by-person'],
+      ])
     })
 
     it('reads the checks of the build from GitHub', async () => {

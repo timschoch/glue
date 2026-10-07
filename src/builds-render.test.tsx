@@ -75,9 +75,8 @@ describe('the builds of a Project', () => {
       within(old).getByRole('list', { name: 'Guardrails' }),
     )
 
-    expect(
-      guardrails.getAllByRole('listitem').map((item) => item.textContent),
-    ).toEqual(['R1 No query over 200ms Failed'])
+    expect(guardrails.getAllByRole('listitem')).toHaveLength(1)
+    guardrails.getByRole('img', { name: 'Failed' })
     expect(
       guardrails
         .getByRole('link', { name: 'R1 No query over 200ms' })

@@ -138,11 +138,15 @@ describe('Builds', () => {
     const first = within(guardrails[0]).getByRole('link')
     await userEvent.click(first)
 
-    expect(guardrails.map((guardrail) => guardrail.textContent)).toEqual([
-      'R1 Tests come first Passed',
-      'R2 No raw colour Failed',
-      'R3 No query over 200ms Waiting',
-      'R4 No text that describes the UI By a person',
+    expect(
+      guardrails.map(
+        (guardrail) => within(guardrail).getByRole('link').textContent,
+      ),
+    ).toEqual([
+      'R1 Tests come first',
+      'R2 No raw colour',
+      'R3 No query over 200ms',
+      'R4 No text that describes the UI',
     ])
     expect(first.getAttribute('href')).toBe('#R1')
     expect(onOpenGuardrail).toHaveBeenCalledWith(
@@ -152,6 +156,24 @@ describe('Builds', () => {
     expect(
       within(row(OPEN.title)).queryByRole('list', { name: 'Guardrails' }),
     ).toBeNull()
+  })
+
+  it('shows a passed and a failed Guardrail with the signs of the gate, and the other states as a word', () => {
+    render(<Builds builds={[OLD]} />)
+
+    const [passed, failed, waiting, byPerson] = within(
+      screen.getByRole('list', { name: 'Guardrails' }),
+    ).getAllByRole('listitem')
+    const holds = within(row(OLD.title)).getByRole('img', { name: 'Breaks' })
+
+    within(passed).getByRole('img', { name: 'Passed' })
+    expect(
+      within(failed).getByRole('img', { name: 'Failed' }).getAttribute('class'),
+    ).toBe(holds.getAttribute('class'))
+    expect(within(waiting).queryByRole('img')).toBeNull()
+    within(waiting).getByText('Waiting')
+    expect(within(byPerson).queryByRole('img')).toBeNull()
+    within(byPerson).getByText('By a person')
   })
 
   it('says that there are no builds, or why', () => {

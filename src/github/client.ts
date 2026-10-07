@@ -40,7 +40,7 @@ export type GithubClient = {
     repository: string,
     text: string,
   ) => Promise<PullRequest[]>
-  // The checks on the head commit of the pull request.
+  // Each check on the head commit of the pull request.
   listCheckRuns: (repository: string, number: number) => Promise<CheckRun[]>
 }
 
@@ -81,8 +81,10 @@ type ListedCheckRun = {
   conclusion: string | null
 }
 
-// The conclusions of a check that GitHub takes as passed.
-const PASSED = ['success', 'neutral', 'skipped']
+// The conclusions of a check that count as passed.
+const PASSED = ['success', 'neutral']
+// A check that GitHub skipped checked nothing: it waits.
+const SKIPPED = 'skipped'
 
 // A pull request that was closed with no merge is not a build.
 function toPullRequests(listed: ListedPullRequest[]): PullRequest[] {
@@ -191,13 +193,21 @@ export function createGithubClient(): GithubClient {
       const pull = await fetchGithub(`/repos/${repository}/pulls/${number}`)
       await validateResponse(pull, 'read pull request')
       const { head }: { head: { sha: string } } = await pull.json()
-      const response = await fetchGithub(
-        `/repos/${repository}/commits/${head.sha}/check-runs?per_page=${PAGE_SIZE}`,
-      )
-      await validateResponse(response, 'list check runs')
-      const listed: { check_runs: ListedCheckRun[] } = await response.json()
-      return listed.check_runs.map(({ name, status, conclusion }) => {
-        if (status !== 'completed') return { name, state: 'waiting' }
+      const listed: ListedCheckRun[] = []
+      // A page that is not full is the last one.
+      for (let page = 1, full = true; full; page += 1) {
+        const response = await fetchGithub(
+          `/repos/${repository}/commits/${head.sha}/check-runs?per_page=${PAGE_SIZE}&page=${page}`,
+        )
+        await validateResponse(response, 'list check runs')
+        const found: { check_runs: ListedCheckRun[] } = await response.json()
+        listed.push(...found.check_runs)
+        full = found.check_runs.length === PAGE_SIZE
+      }
+      return listed.map(({ name, status, conclusion }) => {
+        if (status !== 'completed' || conclusion === SKIPPED) {
+          return { name, state: 'waiting' }
+        }
         const passed = conclusion !== null && PASSED.includes(conclusion)
         return { name, state: passed ? 'passed' : 'failed' }
       })

@@ -77,8 +77,20 @@
   }
 }
 
-// One Guardrail: its link, then its state.
+// One Guardrail: the sign of its result, then its link and its word. The
+// sign stays beside the first line of a link that wraps.
 .guardrail {
+  display: grid;
+  align-items: start;
+  gap: $spacing-03;
+  grid-template-columns: $spacing-05 minmax(0, 1fr);
+}
+
+.result {
+  display: flex;
+}
+
+.guardrailName {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;

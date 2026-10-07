@@ -88,6 +88,7 @@ The field `enforcedBy` of a Guardrail says who checks it:
 | `passed`    | Each check run of that name passed                     | Holds  |
 | `failed`    | A check run of that name failed                        | Breaks |
 | `waiting`   | The check run still runs, or no check run has the name | Holds  |
+| `waiting`   | GitHub skipped the check run, or GitHub did not answer | Holds  |
 | `by-person` | A person enforces the Guardrail                        | Holds  |
 
 A check run of the same job that calls the gate still runs at that time, so its Guardrail is `waiting`. Call the gate again after the checks end.
