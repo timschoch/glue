@@ -608,6 +608,7 @@ describe('GET a Part', () => {
       source: 'interviews',
       metric: null,
       enforcedBy: null,
+      evidenceBase: null,
       evidenceLevel: 'pattern',
       issueUrl: null,
       question: null,
@@ -1307,6 +1308,37 @@ describe('Trust and the Work state', () => {
     expect(response.body.body).toMatch(
       /Agent, \d{4}-\d{2}-\d{2}: A test proved it wrong$/,
     )
+  })
+
+  it('takes the steps Verify and Dispute as answers, and returns the note', async () => {
+    const verified = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'I1' },
+      body: { answer: 'verify', tested: 'https://example.com/test' },
+    })
+    const disputed = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'I1' },
+      body: { answer: 'dispute', reason: 'The test had one user' },
+    })
+    const twice = await call(handleAnswerPart, 'POST', {
+      params: { recordId: 'I1' },
+      body: { answer: 'dispute', reason: 'The test had one user' },
+    })
+
+    expect(verified.body).toMatchObject({
+      evidenceLevel: 'confirmed',
+      evidenceBase: null,
+      activity: [{ kind: 'verified', note: 'https://example.com/test' }, {}],
+    })
+    expect(disputed.body.evidenceLevel).toBe('pattern')
+    expect(twice).toEqual({
+      status: 400,
+      body: {
+        error: {
+          code: 'invalid-request',
+          message: '"I1" is not a published Confirmed Insight',
+        },
+      },
+    })
   })
 
   it('answers 404 for an answer to a Part that does not exist', async () => {

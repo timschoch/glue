@@ -39,7 +39,6 @@ export function SignalInsightScreen({
     title: signals.length === 1 ? signals[0].title : '',
     source: urls.join(' '),
     date: todayUtc(),
-    evidenceLevel: 'hunch',
   }))
 
   function handleSave(values: PartFormValues) {
@@ -58,7 +57,6 @@ export function SignalInsightScreen({
             body: values.body,
             source: values.source,
             date: values.date.trim(),
-            evidenceLevel: values.evidenceLevel ?? undefined,
             concept,
           },
         }),

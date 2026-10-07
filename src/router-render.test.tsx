@@ -475,7 +475,6 @@ describe('a section', () => {
         body: '',
         source: 'https://github.com/timschoch/glue/issues/7',
         date: '2026-10-03',
-        evidenceLevel: 'hunch',
         concept: 'part-model',
       },
     })
@@ -1621,14 +1620,99 @@ describe('the common flow of a record', () => {
     )
   })
 
-  it('opens the form of an Insight to raise its level', async () => {
-    const { expectAddress } = await renderPage('/glue/part-model/I3')
+  it('has no step to Pattern for a Hunch without Signals, and no level in its form', async () => {
+    await renderPage('/glue/part-model/I3?edit=true')
 
-    expect(currentStep('Evidence to Insight')).toBe('Check')
+    expect(screen.queryByLabelText('Evidence level')).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Raise to Pattern' }),
+    ).toBeNull()
+  })
 
-    await act('Raise the level')
+  it('verifies a Pattern with what was tested', async () => {
+    const { server } = await renderPage('/glue/part-model/I3', {
+      fetchPart: vi.fn(changedPart('I3', { evidenceLevel: 'pattern' })),
+    })
 
-    await expectAddress('/glue/part-model/I3', { edit: true })
+    expect(currentStep('Evidence to Insight')).toBe('Verify')
+
+    await act('Verify')
+    await userEvent.click(button('Send'))
+
+    expect(server.answerPart).not.toHaveBeenCalled()
+
+    await userEvent.type(field('Tested'), 'https://example.com/test/7')
+    await userEvent.click(button('Send'))
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledExactlyOnceWith(
+        answered('I3', {
+          answer: 'verify',
+          tested: 'https://example.com/test/7',
+        }),
+      ),
+    )
+  })
+
+  it('disputes a Confirmed Insight with the reason', async () => {
+    const { server } = await renderPage('/glue/part-model/I3', {
+      fetchPart: vi.fn(changedPart('I3', { evidenceLevel: 'confirmed' })),
+    })
+
+    await act('Dispute')
+    await userEvent.type(field('Reason'), 'The test had two bakers')
+    await userEvent.click(button('Send'))
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledExactlyOnceWith(
+        answered('I3', {
+          answer: 'dispute',
+          reason: 'The test had two bakers',
+        }),
+      ),
+    )
+  })
+
+  it('shows the failure of a step of the level', async () => {
+    await renderPage('/glue/part-model/I3', {
+      fetchPart: vi.fn(changedPart('I3', { evidenceLevel: 'pattern' })),
+      answerPart: vi.fn(() =>
+        Promise.resolve({ message: '"I3" is not a published Pattern' }),
+      ),
+    })
+
+    await act('Verify')
+    await userEvent.type(field('Tested'), 'Ten bakers')
+    await userEvent.click(button('Send'))
+
+    await waitFor(() =>
+      expect(alerts()).toEqual(['"I3" is not a published Pattern']),
+    )
+  })
+
+  it('opens the Hunch of a Decision in place of its sign-off', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model/D4', {
+      fetchPart: vi.fn(
+        changedPart('D4', {
+          status: 'proposed',
+          trust: 'not-ready',
+          workState: 'review',
+          evidenceBase: 'hunch',
+          answers: ['not-ready', 'sink'],
+        }),
+      ),
+    })
+
+    expect(
+      within(screen.getByRole('list', { name: 'Flags' })).getByText(
+        'Rests on a Hunch',
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Sign off' })).toBeNull()
+
+    await act(`Open I3 ${I3}`)
+
+    await expectAddress('/glue/part-model/I3', { trail: ['D4'] })
   })
 
   it('proposes Pattern for a Hunch whose Signals come from two sources, and raises it', async () => {
@@ -1682,7 +1766,9 @@ describe('the common flow of a record', () => {
       ),
     })
 
-    button('Raise the level')
+    expect(
+      screen.queryByRole('button', { name: 'Raise to Pattern' }),
+    ).toBeNull()
     expect(server.fetchSignals).not.toHaveBeenCalled()
   })
 
@@ -2611,7 +2697,7 @@ describe('an Ask to another Project', () => {
 
     expect(choice()).toBeNull()
     expect(server.addAsk).not.toHaveBeenCalled()
-    expect(document.activeElement).toBe(button('Raise the level'))
+    expect(document.activeElement).toBe(button('Additional actions'))
 
     await act('Ask another Project')
     await userEvent.click(button('Send'))
@@ -2619,7 +2705,7 @@ describe('an Ask to another Project', () => {
     await waitFor(() => expect(choice()).toBeNull())
     // The button is away while the Ask saves, and has the focus after it.
     await waitFor(() =>
-      expect(document.activeElement).toBe(button('Raise the level')),
+      expect(document.activeElement).toBe(button('Additional actions')),
     )
     expect(server.addAsk).toHaveBeenCalledExactlyOnceWith({
       project: 'glue',

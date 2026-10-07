@@ -5,6 +5,7 @@ import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { evidenceTypes } from '../part-fields.ts'
 import type {
   DecisionStatus,
+  EvidenceLevel,
   InsightStatus,
   PartType,
   Trust,
@@ -124,6 +125,10 @@ export function listAnswers(workState: WorkState): Answer[] {
   )
 }
 
+// A step of the evidence level of an Insight that a member takes with a
+// note (glue/D60): what was tested, or why the Insight is in doubt.
+export type LevelStep = { kind: 'verified' | 'disputed'; note: string }
+
 // The value of "published_at" for a write that gives the Part the Work state:
 // the first time that it is published stays.
 export function toPublishedAt(workState: WorkState): SQL {
@@ -162,6 +167,9 @@ export function toPublishedAt(workState: WorkState): SQL {
 //   the activity line of the Part keep it.
 // - `isEdit`: the write is an edit of the Part. It gets an activity line
 //   also when the text and the Work state stay.
+// - `step`: the write is a step of the evidence level (glue/D60). Its
+//   activity line has the kind and the note of the step. A dispute flags
+//   each Part that needs the Insight, as a new text does.
 //
 // The same statement keeps the history of the Part (glue/D55):
 // - A sign-off, from draft or review to published, adds a Part Version: the
@@ -176,12 +184,14 @@ export function spreadTrust(
     sameMeaning = false,
     member = sql`null::integer`,
     isEdit = false,
+    step,
   }: {
     closesFlags?: SQL
     isOffTarget?: boolean
     sameMeaning?: boolean
     member?: SQL
     isEdit?: boolean
+    step?: LevelStep
   } = {},
 ): SQL {
   const newParts = sql.identifier(changed)
@@ -221,6 +231,7 @@ export function spreadTrust(
               and old_part."work_state" in ('draft', 'review')
               and old_part."published_at" is not null
             )
+            or ${step?.kind === 'disputed'}::boolean
           ),
           (
             'not-ready',
@@ -287,7 +298,9 @@ export function spreadTrust(
       returning "part_id", "version"
     ),
     logged_activity as (
-      insert into "part_activity" ("part_id", "kind", "version", "member_id")
+      insert into "part_activity" (
+        "part_id", "kind", "version", "member_id", "note"
+      )
       select
         new_part."id",
         step."kind",
@@ -295,11 +308,14 @@ export function spreadTrust(
           select "version" from signed_versions
           where "part_id" = new_part."id"
         ),
-        ${member}
+        ${member},
+        ${step?.note ?? null}::text
       from ${newParts} as new_part
       join old_parts as old_part on old_part."id" = new_part."id"
       cross join lateral (
         select case
+          when ${step?.kind ?? null}::text is not null
+            then ${step?.kind ?? null}::text
           when new_part."work_state" <> old_part."work_state"
             then new_part."work_state"
           when ${isNewText} and ${sameMeaning}::boolean then 'wording'
@@ -308,7 +324,7 @@ export function spreadTrust(
       ) as step
       where step."kind" is not null
       union all
-      select "id", 'to-check', null, null
+      select "id", 'to-check', null, null, null
       from "parts"
       where "id" in (
           select "part_id" from added_flags union select "id" from woken
@@ -421,6 +437,25 @@ export function selectEmptySlots(part: PartsTable): SQL<Slot[]> {
           and needed."type" = any(rule."fillers")
       )
   )`
+}
+
+// What the evidence of a Decision is worth (glue/D60): the level of its
+// strongest piece. A Guardrail counts as Confirmed. null: the Part is no
+// Decision, or it has no evidence.
+export function selectEvidenceBase(
+  part: PartsTable,
+): SQL<EvidenceLevel | null> {
+  return sql<EvidenceLevel | null>`case when ${part.type} = 'decision' then (
+    select case
+      when bool_or(
+        needed."type" = 'guardrail' or needed."evidence_level" = 'confirmed'
+      ) then 'confirmed'
+      when bool_or(needed."evidence_level" = 'pattern') then 'pattern'
+      when count(*) > 0 then 'hunch'
+    end
+    from ${fromNeeded(part)}
+      and needed."type" in ${evidenceTypes}
+  ) end`
 }
 
 // The Trust of a Part as a reader sees it: the one place that says it. A

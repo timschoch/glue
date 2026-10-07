@@ -45,6 +45,7 @@ beforeEach(async () => {
     type: 'insight',
     title: 'The build failed on a type error',
     source: 'verify ci',
+    evidenceLevel: 'pattern',
   })
 })
 

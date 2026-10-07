@@ -405,6 +405,7 @@ describe('findPart', () => {
       source: null,
       metric: null,
       enforcedBy: null,
+      evidenceBase: 'pattern',
       evidenceLevel: null,
       issueUrl: 'https://github.com/timschoch/glue/issues/1',
       measure: null,

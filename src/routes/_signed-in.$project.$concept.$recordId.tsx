@@ -57,17 +57,17 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
       // Each Part can have an Ask to another Project.
       const asking = await context.fetchAskState({ project, recordId })
       // The Signals come live from their tools, and only they name their
-      // source. Only a Hunch that grew from two Signals or more can have
-      // two sources (glue/D54).
+      // source and their day. Only a Hunch that grew from two Signals or
+      // more can be a Pattern (glue/D54, glue/D60).
       const isHunch =
         part.type === 'insight' && (part.evidenceLevel ?? 'hunch') === 'hunch'
-      const signalSources =
+      const signals =
         isHunch && part.signals.length > 1
           ? (await context.fetchSignals(project)).signals
               .filter(({ insight }) => insight?.id === part.id)
-              .map(({ source }) => source)
+              .map(({ source, date }) => ({ source, date }))
           : undefined
-      return { part, builds, built, asking, signalSources }
+      return { part, builds, built, asking, signals }
     },
     head: ({ loaderData, match, params }) => ({
       meta: [
@@ -91,7 +91,7 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
 
 function OpenRecord() {
   const { parts } = projectRoute.useLoaderData()
-  const { part, builds, built, asking, signalSources } = Route.useLoaderData()
+  const { part, builds, built, asking, signals } = Route.useLoaderData()
 
   return (
     <RecordScreen
@@ -100,7 +100,7 @@ function OpenRecord() {
       builds={builds?.builds}
       built={built}
       ask={asking.ask}
-      signalSources={signalSources}
+      signals={signals}
       askable={asking.projects}
     />
   )

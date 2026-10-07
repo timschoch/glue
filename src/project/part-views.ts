@@ -92,6 +92,7 @@ export function toRecordPart(
     metric: part.metric,
     enforcedBy: part.enforcedBy,
     evidenceLevel: part.evidenceLevel,
+    evidenceBase: part.evidenceBase,
     issueUrl: part.issueUrl,
     measure: measure && {
       baseline: measure.baseline,
@@ -119,6 +120,7 @@ export function toRecordPart(
         kind: entry.kind,
         at: entry.at,
         by: 'by' in entry ? entry.by : undefined,
+        note: 'note' in entry ? entry.note : undefined,
         flag:
           cause && 'reason' in entry
             ? { reason: entry.reason, part: cause }

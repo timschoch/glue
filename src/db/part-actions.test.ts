@@ -15,7 +15,7 @@ import {
   partUpdateInputSchema,
 } from './part-actions.ts'
 import { joinProject, listAssignments, listMembers } from './members.ts'
-import { addJoint, addPart, addProject } from './part-records.ts'
+import { addJoint, addPart, addProject, updatePart } from './part-records.ts'
 import { findPart, findProject, listParts } from './parts.ts'
 import * as schema from './schema.ts'
 import { createTestDatabase } from './test-database.ts'
@@ -399,6 +399,7 @@ describe('a server function of the Part model with a session', () => {
   })
 
   it('signs an answer in words with the name of the person of the session', async () => {
+    await updatePart(db, project, 'I1', { evidenceLevel: 'pattern' })
     await actions.addPart({
       project,
       part: { ...decision, status: 'proposed' },
@@ -416,6 +417,7 @@ describe('a server function of the Part model with a session', () => {
   })
 
   it('answers the question of a Decision with the name of the person of the session', async () => {
+    await updatePart(db, project, 'I1', { evidenceLevel: 'pattern' })
     await actions.addPart({
       project,
       part: {

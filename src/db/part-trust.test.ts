@@ -613,7 +613,13 @@ describe('the answer of the owner', () => {
 
   it('accepts a Decision in review with "supersede"', async () => {
     await addGoal()
-    await addInsight('Loads are slow')
+    await addPart(db, 'glue', {
+      type: 'insight',
+      title: 'Loads are slow',
+      source: 'interview',
+      date: '2026-10-01',
+      evidenceLevel: 'pattern',
+    })
     const id = await addDecision('proposed', ['G1', 'I1'])
 
     await answerPart(db, 'glue', id, { answer: 'supersede' })
@@ -874,7 +880,13 @@ describe('a Part that waits', () => {
 describe('an answer in words', () => {
   async function addProposedDecision() {
     await addGoal()
-    await addInsight('Loads are slow')
+    await addPart(db, 'glue', {
+      type: 'insight',
+      title: 'Loads are slow',
+      source: 'interview',
+      date: '2026-10-01',
+      evidenceLevel: 'pattern',
+    })
     return addDecision('proposed', ['G1', 'I1'])
   }
 

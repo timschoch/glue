@@ -5,8 +5,6 @@ import {
   Form,
   InlineLoading,
   InlineNotification,
-  Select,
-  SelectItem,
   TextInput,
 } from '@carbon/react'
 import { useId, useState } from 'react'
@@ -14,21 +12,14 @@ import type { FormEvent, MouseEvent } from 'react'
 
 import { isEvidence, listFormFields } from '../part-fields.ts'
 import type { FormField } from '../part-fields.ts'
-import { Card, evidenceLevels, partTypes } from './card.tsx'
+import { Card, partTypes } from './card.tsx'
 import { PartFormBody } from './part-form-body.tsx'
 import styles from './part-form.module.scss'
 import { PartSearch } from './part-search.tsx'
-import type { EvidenceLevel, PartType } from './card.tsx'
+import type { PartType } from './card.tsx'
 import type { PartFormPart } from './part-search.tsx'
 
 export type { PartFormPart }
-
-// The Evidence levels of an Insight. A Signal is not an Insight yet.
-const insightLevels = [
-  'hunch',
-  'pattern',
-  'confirmed',
-] as const satisfies ReadonlyArray<EvidenceLevel>
 
 export type PartFormValues = {
   title: string
@@ -38,7 +29,6 @@ export type PartFormValues = {
   source: string
   owner: string
   date: string
-  evidenceLevel: Exclude<EvidenceLevel, 'signal'> | null
   enforcedBy: string
   // The record id of the Goal that a Decision needs.
   goal: string | null
@@ -57,7 +47,6 @@ const EMPTY: PartFormValues = {
   source: '',
   owner: '',
   date: '',
-  evidenceLevel: null,
   enforcedBy: '',
   goal: null,
   evidence: [],
@@ -244,30 +233,6 @@ export function PartForm({
             invalidText={errors[field]}
             onChange={(body) => change({ body })}
           />
-        )
-      case 'evidenceLevel':
-        return (
-          <Select
-            {...shared}
-            key={field}
-            labelText={label}
-            value={values[field] ?? ''}
-            onChange={({ target }) =>
-              change({
-                evidenceLevel:
-                  insightLevels.find((level) => level === target.value) ?? null,
-              })
-            }
-          >
-            <SelectItem value="" text="" />
-            {insightLevels.map((level) => (
-              <SelectItem
-                key={level}
-                value={level}
-                text={evidenceLevels[level]}
-              />
-            ))}
-          </Select>
         )
       case 'goal':
         return (

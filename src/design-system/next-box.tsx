@@ -45,13 +45,19 @@ type OptionPick = {
   onPick: (value: string, words: string) => void
 }
 
-// One action of the box. An action with a pick asks for a Part first, and
-// one with a choice for one of its options. An action with an address is a
-// link: it goes to a person or to a tool outside Glue.
+// The note that an action needs: the label of its field, and the run with
+// the text.
+type NotePick = { label: string; onSend: (note: string) => void }
+
+// One action of the box. An action with a pick asks for a Part first, one
+// with a choice for one of its options, and one with a note for a text. An
+// action with an address is a link: it goes to a person or to a tool
+// outside Glue.
 export type NextAction =
   | ClickAction
   | { label: string; pick: PartPick }
   | { label: string; choose: OptionPick }
+  | { label: string; note: NotePick }
   | { label: string; href: string }
 
 export type NextBoxProps = {
@@ -146,13 +152,24 @@ export function NextBox({
   }
   const run = (action: NextAction) => {
     if ('pick' in action) setPicking(action.pick)
-    else if ('choose' in action) {
-      const { label, choose } = action
+    else if ('choose' in action || 'note' in action) {
+      const { label } = action
+      // A note is a choice with no option: its text alone.
+      const choose =
+        'choose' in action
+          ? action.choose
+          : {
+              label: action.note.label,
+              options: [],
+              words: action.note.label,
+              onPick: (_: string, note: string) => action.note.onSend(note),
+            }
+      const chosen = 'choose' in action ? choose.options.at(0)?.value : ''
       // A second pick of the action closes its choice.
       setChoosing((open) =>
         open?.label === label
           ? undefined
-          : { label, choose, chosen: choose.options.at(0)?.value, words: '' },
+          : { label, choose, chosen, words: '' },
       )
     } else if ('href' in action) window.location.assign(action.href)
     else if (action.confirm) setConfirming(action)
@@ -231,22 +248,24 @@ export function NextBox({
             />
           </div>
         )}
-        {choosing && pending === undefined && (
-          <div className={styles.search}>
-            <Select
-              id={chooseId}
-              labelText={choosing.choose.label}
-              value={choosing.chosen}
-              onChange={({ target }) =>
-                setChoosing({ ...choosing, chosen: target.value })
-              }
-            >
-              {choosing.choose.options.map(({ value, text }) => (
-                <SelectItem key={value} value={value} text={text} />
-              ))}
-            </Select>
-          </div>
-        )}
+        {choosing &&
+          choosing.choose.options.length > 0 &&
+          pending === undefined && (
+            <div className={styles.search}>
+              <Select
+                id={chooseId}
+                labelText={choosing.choose.label}
+                value={choosing.chosen}
+                onChange={({ target }) =>
+                  setChoosing({ ...choosing, chosen: target.value })
+                }
+              >
+                {choosing.choose.options.map(({ value, text }) => (
+                  <SelectItem key={value} value={value} text={text} />
+                ))}
+              </Select>
+            </div>
+          )}
         {choosing?.choose.words !== undefined && pending === undefined && (
           <div className={styles.words}>
             <TextArea

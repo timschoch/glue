@@ -33,6 +33,7 @@ import { findFlagOwner } from './members.ts'
 import {
   listAnswers,
   selectEmptySlots,
+  selectEvidenceBase,
   selectReviewNotes,
   selectTrust,
 } from './part-trust.ts'
@@ -116,7 +117,15 @@ export type Flag = {
 // of a Part. `by` is the name of the member who did it. A sign-off has the
 // number of the Part Version that it stored.
 export type Activity =
-  | { kind: ActivityKind; at: string; by?: string; version?: number }
+  | {
+      kind: ActivityKind
+      at: string
+      by?: string
+      version?: number
+      // What a step of the evidence level says: what was tested, or why the
+      // Insight is in doubt.
+      note?: string
+    }
   | {
       kind: 'flag-opened' | 'flag-closed'
       at: string
@@ -200,6 +209,9 @@ export type Part = PartSummary & {
   metric: string | null
   enforcedBy: string | null
   evidenceLevel: EvidenceLevel | null
+  // The level of the strongest evidence of a Decision. A Decision on a
+  // Hunch takes no sign-off. null: no Decision, or no evidence.
+  evidenceBase: EvidenceLevel | null
   issueUrl: string | null
   // What a Decision asks, and the answer that it got.
   question: Question | null
@@ -722,6 +734,7 @@ function listSteps(db: ConceptDb, partId: number) {
       kind: partActivity.kind,
       at: partActivity.at,
       version: partActivity.version,
+      note: partActivity.note,
       by: members.name,
     })
     .from(partActivity)
@@ -759,11 +772,12 @@ function listActivity(
   partFlags: Awaited<ReturnType<typeof listFlags>>,
 ): Activity[] {
   const entries: Activity[] = [
-    ...steps.map(({ kind, at, version, by }) => ({
+    ...steps.map(({ kind, at, version, note, by }) => ({
       kind,
       at: at.toISOString(),
       ...(by !== null && { by }),
       ...(version !== null && { version }),
+      ...(note !== null && { note }),
     })),
     ...partFlags.flatMap(({ cause, reason, createdAt, closedAt }) => [
       {
@@ -805,6 +819,7 @@ export async function findPart(
       trust: selectTrust(parts),
       emptySlots: selectEmptySlots(parts),
       reviewNotes: selectReviewNotes(parts),
+      evidenceBase: selectEvidenceBase(parts),
     })
     .from(parts)
     .innerJoin(concepts, eq(parts.conceptId, concepts.id))
@@ -814,6 +829,7 @@ export async function findPart(
   const row = found.at(0)
   if (!row) return undefined
   const { part, concept, measure, trust, emptySlots, reviewNotes } = row
+  const { evidenceBase } = row
 
   const [
     supersededBy,
@@ -904,6 +920,7 @@ export async function findPart(
     metric: part.metric,
     enforcedBy: part.enforcedBy,
     evidenceLevel: part.evidenceLevel,
+    evidenceBase,
     issueUrl: part.issueUrl,
     question: part.question,
     unchosen: part.status === 'superseded' && part.publishedAt === null,
@@ -925,7 +942,11 @@ export async function findPart(
     }),
     waitsOn: waitsOn.at(0) ?? null,
     signals: grownFrom,
-    answers: answeredBy ? [] : listAnswers(part.workState),
+    answers: answeredBy
+      ? []
+      : listAnswers(part.workState).filter(
+          (answer) => answer !== 'supersede' || evidenceBase !== 'hunch',
+        ),
     ...(answeredBy && { answeredBy }),
     activity: listActivity(steps, partFlags),
     versions,

@@ -22,11 +22,13 @@ import {
   answers,
   historyFields,
   NEW_PART_STATE,
+  selectEvidenceBase,
   selectVersionFields,
   spreadTrust,
   stateOfStatus,
   toPublishedAt,
 } from './part-trust.ts'
+import type { LevelStep } from './part-trust.ts'
 import {
   InvalidRecordError,
   isUniqueViolation,
@@ -1633,6 +1635,18 @@ export const partAnswerSchema = z.discriminatedUnion('answer', [
     }),
     by: answerWords.by,
   }),
+  z.strictObject({
+    answer: z.literal('verify'),
+    tested: text.meta({
+      description: 'What was tested, in words or as a link',
+    }),
+    by: answerWords.by,
+  }),
+  z.strictObject({
+    answer: z.literal('dispute'),
+    reason: text.meta({ description: 'Why the Insight is in doubt' }),
+    by: answerWords.by,
+  }),
 ])
 
 export type PartAnswer = z.input<typeof partAnswerSchema>
@@ -1647,6 +1661,7 @@ export type PartAnswer = z.input<typeof partAnswerSchema>
 // not see, and of two answers at the same time only the first one writes.
 // `wait` locks the awaited Part and asks that it is not sunk.
 // `move-to-version` answers one flag only: see moveToVersion.
+// `verify` and `dispute` move the evidence level of an Insight: see moveLevel.
 // `answeredBy` is the e-mail address of the member who answers. Only the
 // owner answers a flag (D47): a Part with an open flag and an owner refuses
 // the answer of each other member.
@@ -1669,6 +1684,10 @@ export async function answerPart(
   }
   if (given.answer === 'move-to-version')
     await moveToVersion(db, projectId, part, given, answeredBy)
+  else if (given.answer === 'verify')
+    await moveLevel(db, projectId, part, verifyStep, given.tested, answeredBy)
+  else if (given.answer === 'dispute')
+    await moveLevel(db, projectId, part, disputeStep, given.reason, answeredBy)
   else await writeAnswer(db, projectId, part, given, undefined, answeredBy)
 }
 
@@ -1736,16 +1755,72 @@ async function moveToVersion(
     )
 }
 
+// A step of the evidence level that a member takes with a note (glue/D60).
+type LevelMove = {
+  kind: LevelStep['kind']
+  from: schema.EvidenceLevel
+  to: schema.EvidenceLevel
+  // What the Insight must be, for the refusal.
+  needs: string
+}
+
+const verifyStep: LevelMove = {
+  kind: 'verified',
+  from: 'pattern',
+  to: 'confirmed',
+  needs: 'Pattern',
+}
+
+const disputeStep: LevelMove = {
+  kind: 'disputed',
+  from: 'confirmed',
+  to: 'pattern',
+  needs: 'Confirmed Insight',
+}
+
+// Moves the evidence level of a published Insight one step, and keeps the
+// note with the activity of the Part: what was tested, or why the Insight is
+// in doubt. A dispute flags each Part that needs the Insight. The statement
+// asks for the level that the step starts from, so of two steps at the same
+// time only the first one writes.
+async function moveLevel(
+  db: ConceptDb,
+  projectId: number,
+  part: FoundPart,
+  move: LevelMove,
+  note: string,
+  answeredBy?: string,
+): Promise<void> {
+  const result = await db.execute(sql`
+    with moved as (
+      update "parts" set
+        "evidence_level" = ${move.to}::text,
+        "changed_at" = now()
+      where "id" = ${part.id}::integer
+        and "type" = 'insight'
+        and "work_state" = 'published'
+        and "evidence_level" = ${move.from}::text
+      returning ${historyFields}
+    )${spreadTrust('moved', { closesFlags: sql`false`, member: selectMemberId(projectId, answeredBy), step: { kind: move.kind, note } })}
+    select "id" from moved
+  `)
+  if (idRowsSchema.parse(result).rows.length === 0)
+    throw new InvalidRecordError(
+      `"${part.recordId}" is not a published ${move.needs}`,
+    )
+}
+
 // The write of answerPart and of answerQuestion. With a question, the same
 // statement keeps it on the Part. `answeredBy` is the e-mail address of the
-// member who answers.
+// member who answers. A Decision takes no sign-off when each piece of its
+// evidence is a Hunch (glue/D60).
 async function writeAnswer(
   db: ConceptDb,
   projectId: number,
   part: Awaited<ReturnType<typeof findParts>>[number],
   given: Exclude<
     z.output<typeof partAnswerSchema>,
-    { answer: 'move-to-version' }
+    { answer: 'move-to-version' | 'verify' | 'dispute' }
   >,
   question?: schema.Question,
   answeredBy?: string,
@@ -1757,6 +1832,15 @@ async function writeAnswer(
       allowed.length === 0
         ? `"${recordId}" is ${part.workState}: it takes no answer`
         : `"${recordId}" is ${part.workState}: it takes the answers ${allowed.join(', ')}`,
+    )
+
+  if (
+    given.answer === 'supersede' &&
+    part.type === 'decision' &&
+    (await restsOnHunch(db, part.id))
+  )
+    throw new InvalidRecordError(
+      `"${recordId}" rests on a Hunch: it needs a Pattern or a Guardrail for the sign-off`,
     )
 
   if (given.words !== undefined && given.by === undefined)
@@ -1817,6 +1901,19 @@ async function writeAnswer(
   throw new InvalidRecordError(
     `"${recordId}" changed at the same time: read it and answer again`,
   )
+}
+
+// A Decision that has evidence, and each piece of it is a Hunch.
+async function restsOnHunch(db: ConceptDb, partId: number) {
+  const { parts, concepts } = schema
+  // The join gives each column its table name: selectEvidenceBase reads
+  // them from inside a subquery.
+  const [found] = await db
+    .select({ base: selectEvidenceBase(parts) })
+    .from(parts)
+    .innerJoin(concepts, eq(parts.conceptId, concepts.id))
+    .where(eq(parts.id, partId))
+  return found.base === 'hunch'
 }
 
 // The answer to the question of a Decision, as a request sends it: one of

@@ -142,7 +142,7 @@ async function pick(name: string, search: string, option: string) {
 
 describe('PartForm', () => {
   it.each([
-    ['insight', ['Title', 'Body', 'Source', 'Date', 'Evidence level']],
+    ['insight', ['Title', 'Body', 'Source', 'Date']],
     ['goal', ['Title', 'Body', 'Metric', 'Source']],
     ['decision', ['Title', 'Body', 'Owner', 'Date', 'Goal', 'Evidence']],
     ['guardrail', ['Title', 'Body', 'Enforced by']],
@@ -287,14 +287,12 @@ describe('PartForm', () => {
     expect(saveButton().disabled).toBe(true)
 
     await userEvent.type(field('Date'), '2026-10-03')
-    await userEvent.selectOptions(picker('Evidence level'), 'Pattern')
     await userEvent.click(saveButton())
 
     expect(onSave).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         source: 'Interviews, May',
         date: '2026-10-03',
-        evidenceLevel: 'pattern',
       }),
     )
   })
@@ -337,7 +335,6 @@ describe('PartForm', () => {
       source: '',
       owner: 'Mara',
       date: '2026-10-03',
-      evidenceLevel: null,
       enforcedBy: '',
       goal: 'G2',
       evidence: ['I7'],
@@ -544,7 +541,6 @@ describe('PartForm', () => {
         body: 'Eight of ten novices stop.',
         source: 'Interviews, May',
         date: '2026-05-12',
-        evidenceLevel: 'confirmed',
       },
     })
 
@@ -552,7 +548,7 @@ describe('PartForm', () => {
     expect(field('Body')).toHaveProperty('value', 'Eight of ten novices stop.')
     expect(field('Source')).toHaveProperty('value', 'Interviews, May')
     expect(field('Date')).toHaveProperty('value', '2026-05-12')
-    expect(picker('Evidence level')).toHaveProperty('value', 'confirmed')
+    expect(screen.queryByLabelText('Evidence level')).toBeNull()
     expect(saveButton().disabled).toBe(false)
   })
 
