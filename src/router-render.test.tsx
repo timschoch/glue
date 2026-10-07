@@ -1300,14 +1300,31 @@ describe('the section Use', () => {
     })
   })
 
-  it('asks a Decision with a shipped build for a Metric when its Goal has none', async () => {
-    const { expectAddress } = await renderPage('/glue/part-model/D4', shipped)
+  it('asks a Decision with a shipped build for a Metric that needs its Goal', async () => {
+    const { expectAddress, server } = await renderPage(
+      '/glue/part-model/D4',
+      shipped,
+    )
 
     expect(screen.queryByRole('region', { name: 'Metrics' })).toBeNull()
 
     await userEvent.click(button('Add Metric'))
 
     await expectAddress('/glue/part-model/D4', { add: 'metric' })
+
+    await userEvent.type(field('Title'), 'Signup to paid')
+    await userEvent.click(button('Save'))
+
+    expect(server.addPart).toHaveBeenCalledWith({
+      project: 'glue',
+      part: {
+        type: 'metric',
+        concept: 'part-model',
+        title: 'Signup to paid',
+        body: '',
+        needs: ['G1'],
+      },
+    })
   })
 
   it('names the flag of a reading that misses its target', async () => {

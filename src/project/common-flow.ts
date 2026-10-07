@@ -26,7 +26,8 @@ export type NextStep =
   // source that agrees.
   | { kind: 'raise'; label: string; needsSource: boolean }
   | { kind: 'verify'; label: string }
-  | { kind: 'add'; type: PartType; label: string }
+  // `needed`: the new Part needs that Part in place of this one.
+  | { kind: 'add'; type: PartType; label: string; needed?: PartSummary }
   | { kind: 'concept'; label: string }
   | { kind: 'glue'; label: string }
   | { kind: 'open'; part: { id: string; concept: string }; label: string }
@@ -121,15 +122,14 @@ function readInsight(part: Part): CommonFlow {
 }
 
 // The flow of a Decision whose build shipped (glue/D64): the Use flow, with
-// a Metric of its own or of a Goal that it needs. With no Metric the step
-// adds one.
+// the Metrics of its Goal that the Decision shows. With no Metric the step
+// adds one that needs the first Goal of the Decision, so each Decision of
+// that Goal has it. A Decision that needs no Goal has no step.
 function findShippedFlow(part: Part): CommonFlow {
-  const hasMetric = [...part.measured, ...part.goalMetrics].some(
-    ({ workState }) => workState !== 'sunk',
-  )
-  return hasMetric
-    ? readInsight(part)
-    : { ...flows.use, current: 0, next: addPart('metric') }
+  if (part.goalMetrics.length > 0) return readInsight(part)
+  const goal = part.needs.find(({ part: needed }) => needed.type === 'goal')
+  const next = goal && { ...addPart('metric'), needed: goal.part }
+  return { ...flows.use, current: 0, next }
 }
 
 // The flow of a published Part, by its type. A flow that ended because a
@@ -239,7 +239,7 @@ export type ConceptBuild = GatedBuild & Pick<Build, 'decisions'>
 type ConceptParts = Pick<Concept, 'parts' | 'linkedParts' | 'joints'>
 
 // The first of the Decisions with its home in the Concept that no Insight
-// needs. A sunk Insight does not count.
+// needs. A sunk Insight does not count. A sunk Decision is in no flow.
 function findUnread(
   concept: ConceptParts,
   decisions: ReadonlyArray<PartSummary>,
@@ -252,7 +252,8 @@ function findUnread(
     .map(({ needs }) => needs)
   return decisions.find(
     ({ id }) =>
-      !read.includes(id) && concept.parts.some((part) => part.id === id),
+      !read.includes(id) &&
+      concept.parts.some((part) => part.id === id && part.workState !== 'sunk'),
   )
 }
 

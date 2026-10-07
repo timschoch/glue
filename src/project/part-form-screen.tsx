@@ -33,7 +33,7 @@ export function PartFormScreen({
   type: PartType
   edited?: Part
   superseded?: Part
-  needed?: Part
+  needed?: Pick<PartSummary, 'id' | 'type'>
   // The Parts of the Project: the pickers search them.
   parts: ReadonlyArray<PartSummary>
 }) {

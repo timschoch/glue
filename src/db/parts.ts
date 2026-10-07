@@ -230,7 +230,7 @@ export type Part = PartSummary & {
   // The Metrics and the measured Goals at the other end of its Joints.
   measured: MeasuredPart[]
   // Only a Decision has them: the Metrics at the other end of a Joint of a
-  // Goal that it needs.
+  // Goal that it needs. A sunk Metric is not one of them.
   goalMetrics: MeasuredPart[]
   supersededBy: PartSummary | null
   supersedes: PartSummary[]
@@ -893,6 +893,7 @@ export async function findPart(
           and(
             eq(parts.projectId, part.projectId),
             eq(parts.type, 'metric'),
+            sql`${parts.workState} <> 'sunk'`,
             sql`${parts.id} in (
               with "goals" as (
                 select "needed"."id" from "joints"
