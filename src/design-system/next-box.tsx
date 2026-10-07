@@ -45,9 +45,13 @@ type OptionPick = {
   onPick: (value: string, words: string) => void
 }
 
-// The note that an action needs: the label of its field, and the run with
-// the text.
-type NotePick = { label: string; onSend: (note: string) => void }
+// The note that an action needs: the label of its field, the reason that
+// the field shows while it is empty, and the run with the text.
+type NotePick = {
+  label: string
+  missing: string
+  onSend: (note: string) => void
+}
 
 // One action of the box. An action with a pick asks for a Part first, one
 // with a choice for one of its options, and one with a note for a text. An
@@ -161,7 +165,7 @@ export function NextBox({
           : {
               label: action.note.label,
               options: [],
-              words: action.note.label,
+              words: { label: action.note.label, missing: action.note.missing },
               onPick: (_: string, note: string) => action.note.onSend(note),
             }
       const chosen = 'choose' in action ? choose.options.at(0)?.value : ''

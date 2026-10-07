@@ -1640,6 +1640,8 @@ describe('the common flow of a record', () => {
     await userEvent.click(button('Send'))
 
     expect(server.answerPart).not.toHaveBeenCalled()
+    expect(field('Tested').getAttribute('aria-invalid')).toBe('true')
+    expect(screen.queryByText('Enter what was tested.')).not.toBeNull()
 
     await userEvent.type(field('Tested'), 'https://example.com/test/7')
     await userEvent.click(button('Send'))
@@ -1660,6 +1662,10 @@ describe('the common flow of a record', () => {
     })
 
     await act('Dispute')
+    await userEvent.click(button('Send'))
+
+    expect(screen.queryByText('Enter a reason.')).not.toBeNull()
+
     await userEvent.type(field('Reason'), 'The test had two bakers')
     await userEvent.click(button('Send'))
 

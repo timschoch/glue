@@ -306,6 +306,7 @@ export function RecordScreen({
                 label: next.label,
                 note: {
                   label: 'Tested',
+                  missing: 'Enter what was tested.',
                   onSend: (tested) => answer({ answer: 'verify', tested }),
                 },
               },
@@ -347,6 +348,7 @@ export function RecordScreen({
             label: 'Dispute',
             note: {
               label: 'Reason',
+              missing: 'Enter a reason.',
               onSend: (reason) => answer({ answer: 'dispute', reason }),
             },
           },
