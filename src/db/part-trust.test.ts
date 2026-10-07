@@ -17,6 +17,7 @@ import {
   addPart,
   addProject,
   answerPart,
+  removeJoint,
   removePart,
   setReading,
   supersedeDecision,
@@ -874,6 +875,117 @@ describe('a Part that waits', () => {
     await expect(
       answerPart(db, 'glue', 'I2', { answer: 'fine' }),
     ).rejects.toThrow('"I2" is waiting: it takes the answers not-ready, sink')
+  })
+})
+
+describe('a Part that waits on a Part that it needs', () => {
+  const waiting = { trust: 'flagged', workState: 'waiting' }
+  const publishedAgain = { ...solid, flags: [], waitsOn: null }
+
+  // I2 needs I1. I1 is a draft again, so I2 has a flag and waits on I1.
+  async function addWaitingInsight() {
+    await addInsight('Loads are slow')
+    await addInsight('Users churn', ['I1'])
+    await answerPart(db, 'glue', 'I1', { answer: 'not-ready' })
+    await answerPart(db, 'glue', 'I2', { answer: 'wait', waitsOn: 'I1' })
+    expect(await readState('I2')).toEqual(waiting)
+  }
+
+  it('is published again when the Joint to the awaited Part is removed', async () => {
+    await addWaitingInsight()
+    const part = await findPart(db, 'glue', 'I2')
+
+    await removeJoint(db, 'glue', part?.needs[0].jointId ?? 0)
+
+    expect(await findPart(db, 'glue', 'I2')).toMatchObject(publishedAgain)
+  })
+
+  it('is published again when the awaited Part is back on its old Version', async () => {
+    await addWaitingInsight()
+
+    await answerPart(db, 'glue', 'I1', { answer: 'supersede' })
+
+    expect(await findPart(db, 'glue', 'I2')).toMatchObject(publishedAgain)
+  })
+
+  it('is back in to-check when the awaited Part is published with a wording fix', async () => {
+    await addWaitingInsight()
+    await updatePart(db, 'glue', 'I1', {
+      title: 'Loads are not fast',
+      sameMeaning: true,
+    })
+    expect(await readState('I2')).toEqual(waiting)
+
+    await answerPart(db, 'glue', 'I1', { answer: 'supersede' })
+
+    expect(await findPart(db, 'glue', 'I2')).toMatchObject({
+      ...flagged,
+      waitsOn: null,
+    })
+    expect(await listFlags('I2')).toEqual(['I1 not-ready', 'I1 changed'])
+  })
+
+  it('is back in to-check with the flag of another Part when its cause is dropped', async () => {
+    await addInsight('Loads are slow')
+    await addInsight('Users churn', ['I1'])
+    await addInsight('Revenue drops')
+    await addJoint(db, 'glue', { part: 'I2', needs: 'I3' })
+    await updatePart(db, 'glue', 'I3', { title: 'Revenue drops fast' })
+    await answerPart(db, 'glue', 'I1', { answer: 'not-ready' })
+    await answerPart(db, 'glue', 'I2', { answer: 'wait', waitsOn: 'I1' })
+
+    await answerPart(db, 'glue', 'I1', { answer: 'supersede' })
+
+    expect(await findPart(db, 'glue', 'I2')).toMatchObject({
+      ...flagged,
+      waitsOn: null,
+    })
+    expect(await listFlags('I2')).toEqual(['I3 changed'])
+  })
+
+  it('is back in to-check when it has a flag for a change of the awaited Part', async () => {
+    await addInsight('Loads are slow')
+    await addInsight('Users churn', ['I1'])
+    await answerPart(db, 'glue', 'I1', { answer: 'not-ready' })
+    await updatePart(db, 'glue', 'I1', { title: 'Loads are very slow' })
+    await answerPart(db, 'glue', 'I1', { answer: 'supersede' })
+    await answerPart(db, 'glue', 'I1', { answer: 'not-ready' })
+    await answerPart(db, 'glue', 'I2', { answer: 'wait', waitsOn: 'I1' })
+    expect(await listFlags('I2')).toHaveLength(2)
+
+    await answerPart(db, 'glue', 'I1', { answer: 'supersede' })
+
+    expect(await findPart(db, 'glue', 'I2')).toMatchObject({
+      ...flagged,
+      waitsOn: null,
+    })
+    expect(await listFlags('I2')).toEqual(['I1 changed'])
+  })
+
+  it('is published again when the two-way Joint to the awaited Part is removed', async () => {
+    await addInsight('Loads are slow')
+    await addInsight('Users churn')
+    const jointId = await addJoint(db, 'glue', {
+      part: 'I1',
+      needs: 'I2',
+      twoWay: true,
+    })
+    await answerPart(db, 'glue', 'I1', { answer: 'not-ready' })
+    await answerPart(db, 'glue', 'I2', { answer: 'wait', waitsOn: 'I1' })
+    expect(await readState('I2')).toEqual(waiting)
+
+    await removeJoint(db, 'glue', jointId)
+
+    expect(await findPart(db, 'glue', 'I2')).toMatchObject(publishedAgain)
+  })
+
+  it('writes in the activity of the Part that it is published again', async () => {
+    await addWaitingInsight()
+
+    await answerPart(db, 'glue', 'I1', { answer: 'supersede' })
+
+    const part = await findPart(db, 'glue', 'I2')
+    expect(part?.activity.map(({ kind }) => kind)).toContain('published')
   })
 })
 

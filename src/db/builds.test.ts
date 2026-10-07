@@ -55,6 +55,7 @@ beforeEach(async () => {
     metric: 'ease',
     source: 'okr',
   })
+  await answerPart(db, 'glue', 'G1', { answer: 'supersede' })
   await addPart(db, 'glue', {
     type: 'insight',
     title: 'Bakers want step videos',

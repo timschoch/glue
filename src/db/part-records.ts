@@ -1,5 +1,5 @@
 import type { SQL } from 'drizzle-orm'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { canRaiseToPattern } from '../evidence-level.ts'
@@ -24,6 +24,7 @@ import {
   answers,
   historyFields,
   NEW_PART_STATE,
+  releaseWaiting,
   selectEvidenceBase,
   selectVersionFields,
   spreadTrust,
@@ -471,10 +472,12 @@ function selectParts(db: ConceptDb, projectId: number, recordIds: string[]) {
   return db
     .select({
       id: parts.id,
+      conceptId: parts.conceptId,
       recordId: parts.recordId,
       type: parts.type,
       status: parts.status,
       workState: parts.workState,
+      publishedAt: parts.publishedAt,
       body: parts.body,
       steps: parts.steps,
       question: parts.question,
@@ -501,6 +504,21 @@ async function findParts(
     if (!part) throw new InvalidRecordError(toNotFoundMessage(recordId))
     return part
   })
+}
+
+// Trust crosses the edge of a Concept only from a Part that was published
+// (glue/D65). Each write that adds a Joint calls this with the home Concept
+// of the Part that needs, and with the Parts that the new Joints make it
+// need. It refuses a Part of another Concept that was never published. A
+// Part of another Project is published already: see findNeededParts.
+function refuseDraftAcrossEdge(conceptId: number, neededParts: FoundPart[]) {
+  const draft = neededParts.find(
+    (needed) => needed.conceptId !== conceptId && needed.publishedAt === null,
+  )
+  if (draft)
+    throw new InvalidRecordError(
+      `"${draft.recordId}" is not published: a Part of another Concept must be published`,
+    )
 }
 
 // A Project as the writes that cross its edge know it.
@@ -694,6 +712,21 @@ function selectMentionedParts(
     where ${places.length === 0 ? sql`false` : sql`(${sql.join(places, sql` or `)})`}
       ${type === 'decision' ? sql`and "type" <> 'goal'` : sql``}
   `
+}
+
+// The Parts of the Project that a body of a Part of the type glues it to:
+// see selectMentionedParts.
+async function findMentionedParts(
+  db: ConceptDb,
+  projectId: number,
+  type: schema.PartType,
+  { recordIds }: Mentioned,
+) {
+  if (recordIds.length === 0) return []
+  const found = await selectParts(db, projectId, recordIds)
+  return found.filter(
+    (mentioned) => !(type === 'decision' && mentioned.type === 'goal'),
+  )
 }
 
 // What a superseded Decision gets: it is sunk and wrong, and it waits on
@@ -1054,6 +1087,16 @@ export async function addPart(
       : await findDecision(db, projectId, supersededBy)
   if (successor && successor.status !== 'accepted')
     throw new InvalidRecordError(`"${supersededBy}" is not accepted`)
+  const mentioned = await findNamed(
+    db,
+    project,
+    fields.body,
+    await findStepEntities(db, projectId, fields.steps),
+  )
+  refuseDraftAcrossEdge(conceptId, [
+    ...neededParts,
+    ...(await findMentionedParts(db, projectId, type, mentioned)),
+  ])
 
   const recordId = await addPartRow(db, {
     projectId,
@@ -1062,12 +1105,7 @@ export async function addPart(
     fields,
     question: options && { options, pick: pick ?? null, answer: null },
     neededPartIds: neededParts.map((needed) => needed.id),
-    mentioned: await findNamed(
-      db,
-      project,
-      fields.body,
-      await findStepEntities(db, projectId, fields.steps),
-    ),
+    mentioned,
     supersedesId,
     supersededById: successor?.id,
     responsibleId:
@@ -1382,6 +1420,30 @@ export async function updatePart(
           : await findStepEntities(db, projectId, columns.steps),
       )
     : { recordIds: [], references: [] }
+  // A Joint that the Part has already stays valid: only a new one counts.
+  // A Part that names itself gets no Joint.
+  const gluedPartIds = gluesAgain
+    ? (
+        await db
+          .select({
+            partId: schema.joints.partId,
+            neededPartId: schema.joints.neededPartId,
+          })
+          .from(schema.joints)
+          .where(
+            or(
+              eq(schema.joints.partId, part.id),
+              eq(schema.joints.neededPartId, part.id),
+            ),
+          )
+      ).flatMap((joint) => [joint.partId, joint.neededPartId])
+    : []
+  refuseDraftAcrossEdge(conceptId ?? part.conceptId, [
+    ...(nextGoal ? [nextGoal] : []),
+    ...(await findMentionedParts(db, projectId, part.type, mentioned)).filter(
+      (named) => named.id !== part.id && !gluedPartIds.includes(named.id),
+    ),
+  ])
   const mentionedParts = selectMentionedParts(projectId, part.type, {
     ...mentioned,
     recordIds: mentioned.recordIds.filter(
@@ -1513,6 +1575,8 @@ export type NewJoint = z.input<typeof newJointSchema>
 
 // Glues two Parts of the Project, and gives back the id of the Joint. Parts
 // with different home Concepts make a link: the same Joint, never a copy.
+// The needed Part of a link was published at least once: see
+// refuseDraftAcrossEdge.
 // A needed Part of another Project makes a reference: see findNeededParts.
 // A reference goes one way.
 // A Decision has one Goal, so the statement adds no second one. A two-way
@@ -1539,6 +1603,7 @@ export async function addJoint(
     [needingPart, neededPart],
     ...(twoWay ? [[neededPart, needingPart]] : []),
   ]
+  for (const [from, to] of ends) refuseDraftAcrossEdge(from.conceptId, [to])
   // The Decision that gets a Goal from the Joint.
   const decision = ends.find(
     ([from, to]) => from.type === 'decision' && to.type === 'goal',
@@ -1596,7 +1661,9 @@ export async function addJoint(
 const decisionNeedTypes = ['goal', ...evidenceTypes]
 
 // Removes the Joint, but not the last Goal and not the last evidence that a
-// Decision needs: addPart refuses a Decision without them. The statement
+// Decision needs: addPart refuses a Decision without them. A Part that
+// waits on the Part at the other end is published again: see
+// releaseWaiting. The statement
 // locks all Joints of the Part that needs, in the order of their ids. So of
 // two requests that remove the last two at the same time, the second one
 // sees that the first Joint is gone.
@@ -1621,7 +1688,8 @@ export async function removeJoint(
         )
       order by joint."id"
       for update of joint
-    )
+    ),
+    removed as (
     delete from "joints"
     where "id" = (
       select target."id" from locked as target
@@ -1638,7 +1706,14 @@ export async function removeJoint(
           )
         )
     )
-    returning "id"
+    returning "id", "part_id", "needed_part_id", "two_way"
+    ),
+    ${releaseWaiting(sql`
+      select "part_id", "needed_part_id" as "cause_part_id" from removed
+      union all
+      select "needed_part_id", "part_id" from removed where "two_way"
+    `)}
+    select "id" from removed
   `)
   if (idRowsSchema.parse(result).rows.length > 0) return
 

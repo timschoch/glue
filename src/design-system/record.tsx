@@ -12,6 +12,7 @@ import {
 import {
   Button,
   IconButton,
+  InlineLoading,
   Link,
   Popover,
   PopoverContent,
@@ -632,6 +633,10 @@ export type RecordProps = {
   jointParts?: ReadonlyArray<RecordPartSummary>
   // Adds a Joint from this Part to the Part of the record id.
   onAddJoint?: (recordId: string) => void
+  // The words of the Joint that saves. They take the place of its field.
+  jointPending?: string
+  // Why the last Joint was not added.
+  jointFailure?: string
   onRemoveJoint?: (jointId: number) => void
   // Answers the flag of a new Contract Version: the Joint to the needed
   // Part of the record id moves to that Version.
@@ -673,6 +678,8 @@ export function Record({
   onEdit,
   jointParts = [],
   onAddJoint,
+  jointPending,
+  jointFailure,
   onRemoveJoint,
   onMoveToVersion,
   children,
@@ -971,12 +978,17 @@ export function Record({
       >
         {onAddJoint && (
           <div className={styles.search}>
-            <PartSearch
-              id={searchId}
-              label="Add Joint"
-              parts={jointParts.filter(({ id }) => !joined.has(id))}
-              onPick={onAddJoint}
-            />
+            {jointPending === undefined ? (
+              <PartSearch
+                id={searchId}
+                label="Add Joint"
+                parts={jointParts.filter(({ id }) => !joined.has(id))}
+                invalidText={jointFailure}
+                onPick={onAddJoint}
+              />
+            ) : (
+              <InlineLoading description={jointPending} />
+            )}
           </div>
         )}
       </Group>

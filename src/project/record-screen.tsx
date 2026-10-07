@@ -78,6 +78,8 @@ export function RecordScreen({
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
   const { pending, failure, write } = useWrite()
+  // A new Joint has its own write: it shows at the Joint field.
+  const jointWrite = useWrite()
   // The answer in words to a Decision in review.
   const [words, setWords] = useState('')
   // The option of the question that the answer takes: the pick of the author
@@ -401,10 +403,12 @@ export function RecordScreen({
       onEdit={() => void changeSearch({ ...search, edit: true })}
       jointParts={bodyParts}
       onAddJoint={(needed) =>
-        void write('Saving', () =>
+        void jointWrite.write('Saving', () =>
           addJoint({ project, joint: { part: part.id, needs: needed } }),
         )
       }
+      jointPending={jointWrite.pending}
+      jointFailure={jointWrite.failure}
       onRemoveJoint={(jointId) =>
         void write('Saving', () => removeJoint({ project, jointId }))
       }
