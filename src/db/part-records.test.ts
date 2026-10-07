@@ -1190,6 +1190,15 @@ describe('addJoint', () => {
     expect(await addJoint(db, 'glue', { part: 'R1', needs: 'I2' })).toBe(3)
   })
 
+  it('glues a Part across the edge of a Concept to a Part that is in to-check', async () => {
+    await addPart(db, 'glue', { ...insight, concept: 'part-model' })
+    await addJoint(db, 'glue', { part: 'I1', needs: 'I2' })
+    await updatePart(db, 'glue', 'I2', { title: 'Users churn' })
+    expect(await showPart('I1')).toMatchObject({ workState: 'to-check' })
+
+    expect(await addJoint(db, 'glue', { part: 'R1', needs: 'I1' })).toBe(4)
+  })
+
   it('refuses a Part that the Project does not have', async () => {
     await addProject(db, 'flexibeck')
     await addPart(db, 'flexibeck', { type: 'entity', title: 'Technique' })
@@ -1263,6 +1272,75 @@ describe('addJoint', () => {
     await addPart(db, 'glue', goal)
 
     expect(await addJoint(db, 'glue', { part: 'G2', needs: 'D1' })).toBe(3)
+  })
+})
+
+describe('a Joint across the edge of a Concept to a Part that was never published', () => {
+  // The Parts 5 and 6 are I2 and G2: drafts with their home in `part-model`.
+  beforeEach(async () => {
+    await addGluedParts()
+    await addPart(db, 'glue', {
+      ...insight,
+      status: 'draft',
+      concept: 'part-model',
+    })
+    await addPart(db, 'glue', { ...goal, concept: 'part-model' })
+  })
+
+  function toRefusal(recordId: string) {
+    return new InvalidRecordError(
+      `"${recordId}" is not published: a Part of another Concept must be published`,
+    )
+  }
+
+  it('refuses a new Part that needs the Part', async () => {
+    await expect(
+      addPart(db, 'glue', { type: 'entity', title: 'Cache', needs: ['I2'] }),
+    ).rejects.toThrow(toRefusal('I2'))
+    expect(await db.select().from(schema.parts)).toHaveLength(6)
+  })
+
+  it('refuses a new Part whose body names the Part', async () => {
+    await expect(
+      addPart(db, 'glue', { type: 'entity', title: 'Cache', body: 'See #I2.' }),
+    ).rejects.toThrow(toRefusal('I2'))
+    expect(await db.select().from(schema.parts)).toHaveLength(6)
+  })
+
+  it('refuses a Decision that gets the Part as its Goal', async () => {
+    await expect(updatePart(db, 'glue', 'D1', { goal: 'G2' })).rejects.toThrow(
+      toRefusal('G2'),
+    )
+    expect(await listJoints()).toHaveLength(2)
+  })
+
+  it('refuses a Part whose changed body names the Part', async () => {
+    await expect(
+      updatePart(db, 'glue', 'R1', { body: 'See #I2.' }),
+    ).rejects.toThrow(toRefusal('I2'))
+    expect(await showPart('R1')).toMatchObject({ body: '' })
+  })
+
+  it('saves a Part that has a Joint to the Part already', async () => {
+    await db
+      .insert(schema.joints)
+      .values({ partId: 3, neededPartId: 5, mentioned: true })
+
+    await updatePart(db, 'glue', 'R1', { body: 'See #I2 and #G1.' })
+
+    expect(await showPart('R1')).toMatchObject({ body: 'See #I2 and #G1.' })
+    expect(await listJoints()).toHaveLength(4)
+  })
+
+  it('glues a new Part of the same Concept to the Part', async () => {
+    await addPart(db, 'glue', {
+      type: 'entity',
+      title: 'Cache',
+      concept: 'part-model',
+      needs: ['I2'],
+    })
+
+    expect(await listJoints()).toHaveLength(3)
   })
 })
 

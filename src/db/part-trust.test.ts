@@ -943,6 +943,42 @@ describe('a Part that waits on a Part that it needs', () => {
     expect(await listFlags('I2')).toEqual(['I3 changed'])
   })
 
+  it('is back in to-check when it has a flag for a change of the awaited Part', async () => {
+    await addInsight('Loads are slow')
+    await addInsight('Users churn', ['I1'])
+    await answerPart(db, 'glue', 'I1', { answer: 'not-ready' })
+    await updatePart(db, 'glue', 'I1', { title: 'Loads are very slow' })
+    await answerPart(db, 'glue', 'I1', { answer: 'supersede' })
+    await answerPart(db, 'glue', 'I1', { answer: 'not-ready' })
+    await answerPart(db, 'glue', 'I2', { answer: 'wait', waitsOn: 'I1' })
+    expect(await listFlags('I2')).toHaveLength(2)
+
+    await answerPart(db, 'glue', 'I1', { answer: 'supersede' })
+
+    expect(await findPart(db, 'glue', 'I2')).toMatchObject({
+      ...flagged,
+      waitsOn: null,
+    })
+    expect(await listFlags('I2')).toEqual(['I1 changed'])
+  })
+
+  it('is published again when the two-way Joint to the awaited Part is removed', async () => {
+    await addInsight('Loads are slow')
+    await addInsight('Users churn')
+    const jointId = await addJoint(db, 'glue', {
+      part: 'I1',
+      needs: 'I2',
+      twoWay: true,
+    })
+    await answerPart(db, 'glue', 'I1', { answer: 'not-ready' })
+    await answerPart(db, 'glue', 'I2', { answer: 'wait', waitsOn: 'I1' })
+    expect(await readState('I2')).toEqual(waiting)
+
+    await removeJoint(db, 'glue', jointId)
+
+    expect(await findPart(db, 'glue', 'I2')).toMatchObject(publishedAgain)
+  })
+
   it('writes in the activity of the Part that it is published again', async () => {
     await addWaitingInsight()
 

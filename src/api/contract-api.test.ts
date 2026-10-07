@@ -58,6 +58,7 @@ beforeEach(async () => {
     metric: 'ease',
     source: 'okr',
   })
+  await answerPart(db, 'flexibeck', 'G1', { answer: 'supersede' })
   await addPart(db, 'flexibeck', {
     type: 'decision',
     concept: 'videos',

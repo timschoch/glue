@@ -1495,6 +1495,23 @@ describe('Joints', () => {
     expect(await db.select().from(schema.joints)).toEqual([])
   })
 
+  it('answers 400 for a new Part that needs a Part of another Concept that is not published', async () => {
+    await addConcept(db, 'flexibeck', { slug: 'videos', title: 'Videos' })
+    await call(handleAddPart, 'POST', {
+      body: { type: 'entity', title: 'Technique', concept: 'videos' },
+    })
+
+    const response = await call(handleAddPart, 'POST', {
+      body: { type: 'entity', title: 'Drill', needs: ['E1'] },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe(
+      '"E1" is not published: a Part of another Concept must be published',
+    )
+    expect(await db.select().from(schema.joints)).toEqual([])
+  })
+
   it('removes a Joint', async () => {
     await call(handleAddJoint, 'POST', { body: { part: 'R1', needs: 'I1' } })
 

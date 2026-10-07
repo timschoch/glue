@@ -65,6 +65,7 @@ describe('pnpm concept contract', () => {
       '--source',
       'okr',
     )
+    await run('answer', 'G1', 'supersede')
     await run(
       'add',
       'decisions',

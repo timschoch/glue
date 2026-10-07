@@ -6,6 +6,7 @@ import { evidenceTypes } from '../part-fields.ts'
 import type {
   DecisionStatus,
   EvidenceLevel,
+  FlagReason,
   InsightStatus,
   PartType,
   Trust,
@@ -163,7 +164,8 @@ export function toPublishedAt(workState: WorkState): SQL {
 //   write at the same time left on a published Part mutes nothing.
 // - A Part that waits on the changed Part is back in to-check.
 // - A Part that waits on a Part that is published again as its last Version
-//   says gets no flag: see releaseWaiting.
+//   says gets no flag, and its `not-ready` flag of that Part closes: see
+//   releaseWaiting. Another open flag of that Part stays: nobody checked it.
 // - `closesFlags` reads `new_part`: the open flags of the Part close when it
 //   holds. By default: when the Part is published or sunk.
 // - `isOffTarget`: the write is a reading that misses the target of the Part.
@@ -256,7 +258,8 @@ export function spreadTrust(
       ) as reasons ("reason", "applies")
       where reasons."applies"
     ),
-    ${releaseWaiting(sql`
+    ${releaseWaiting(
+      sql`
       select waiting."id" as "part_id", new_part."id" as "cause_part_id"
       from "parts" as waiting
       join ${newParts} as new_part on new_part."id" = waiting."awaited_part_id"
@@ -273,7 +276,9 @@ export function spreadTrust(
         and coalesce(last_version."fields" -> 'fields', '[]'::jsonb)
           = new_part."fields"
         and waiting."id" not in (select "id" from ${newParts})
-    `)},
+    `,
+      'not-ready',
+    )},
     added_flags as (
       insert into "flags" ("part_id", "cause_part_id", "reason")
       select distinct needing."id", causes."id", causes."reason"
@@ -535,10 +540,14 @@ export function selectReviewNotes(part: PartsTable): SQL<ReviewNote[]> {
 // expressions. `pairs` is a select of "part_id" and "cause_part_id": the
 // cause is dropped for the Part, so nothing changed for it. A Part of a pair
 // that waits on its cause is published and solid again, and its flags of
-// the cause close. A Part with an open flag of another Part is back in
-// to-check. "parts" and "flags" read as before the write. `dropped` has the
-// ids of these Parts.
-export function releaseWaiting(pairs: SQL): SQL {
+// the cause close. `reason`: only the flags of the cause with this reason
+// close. A Part with another open flag is back in to-check. "parts" and
+// "flags" read as before the write. `dropped` has the ids of these Parts.
+export function releaseWaiting(pairs: SQL, reason?: FlagReason): SQL {
+  const isDropped = (causePartId: SQL) => sql`(
+    "flags"."cause_part_id" = ${causePartId}
+    ${reason === undefined ? sql`` : sql`and "flags"."reason" = ${reason}::text`}
+  )`
   return sql`
     dropped as (
       select
@@ -546,9 +555,9 @@ export function releaseWaiting(pairs: SQL): SQL {
         waiting."awaited_part_id" as "cause_part_id",
         exists (
           select 1 from "flags"
-          where "part_id" = waiting."id"
-            and "closed_at" is null
-            and "cause_part_id" <> waiting."awaited_part_id"
+          where "flags"."part_id" = waiting."id"
+            and "flags"."closed_at" is null
+            and not ${isDropped(sql`waiting."awaited_part_id"`)}
         ) as "has_other_flag"
       from "parts" as waiting
       join (${pairs}) as pair
@@ -577,7 +586,7 @@ export function releaseWaiting(pairs: SQL): SQL {
       from dropped
       where "flags"."closed_at" is null
         and "flags"."part_id" = dropped."id"
-        and "flags"."cause_part_id" = dropped."cause_part_id"
+        and ${isDropped(sql`dropped."cause_part_id"`)}
     ),
     released_activity as (
       insert into "part_activity" ("part_id", "kind")
