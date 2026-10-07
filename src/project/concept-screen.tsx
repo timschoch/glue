@@ -376,7 +376,7 @@ export function ConceptScreen({
   const flow =
     search.section === undefined &&
     (hasContract || contract.emptySlots.length > 0)
-      ? findConceptFlow(contract, builds?.builds)
+      ? findConceptFlow(contract, builds?.builds, concept)
       : undefined
   // The next step opens the form of the empty slot, signs the Concept off,
   // or opens the Part that blocks, the Contract Version or the build.

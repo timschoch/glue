@@ -246,6 +246,11 @@ const flagCauseSchema = z
   .object({ id: z.string(), title: z.string() })
   .meta({ description: 'The Part that caused the flag' })
 
+const measuredPartSchema = z.object({
+  ...partSummarySchema.shape,
+  measure: partMeasureSchema.nullable(),
+})
+
 export const partSchema = z
   .object({
     ...partSummarySchema.shape,
@@ -292,17 +297,14 @@ export const partSchema = z
       description: 'A superseded Decision that was never accepted',
     }),
     measure: partMeasureSchema.nullable(),
-    measured: z
-      .array(
-        z.object({
-          ...partSummarySchema.shape,
-          measure: partMeasureSchema.nullable(),
-        }),
-      )
-      .meta({
-        description:
-          'The Metrics and the measured Goals at the other end of a Joint',
-      }),
+    measured: z.array(measuredPartSchema).meta({
+      description:
+        'The Metrics and the measured Goals at the other end of a Joint',
+    }),
+    goalMetrics: z.array(measuredPartSchema).meta({
+      description:
+        'Only a Decision has them: the Metrics at the other end of a Joint of a Goal that it needs',
+    }),
     supersededBy: partSummarySchema.nullable(),
     supersedes: z.array(partSummarySchema),
     needs: z.array(jointEndSchema).meta({

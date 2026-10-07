@@ -200,6 +200,8 @@ export type RecordPart = RecordPartSummary & {
   } | null
   supersededBy: RecordPartSummary | null
   supersedes: ReadonlyArray<RecordPartSummary>
+  // The Metrics of the Goal that a Decision needs, each with its reading.
+  goalMetrics?: ReadonlyArray<RecordPartSummary>
   needs: ReadonlyArray<RecordJointEnd>
   neededBy: ReadonlyArray<RecordJointEnd>
   // The Signals that an Insight grew from, each with its address in its tool.
@@ -956,6 +958,11 @@ export function Record({
           </ul>
         </section>
       )}
+      <Group
+        title="Metrics"
+        ends={partEnds(part.goalMetrics ?? [])}
+        onOpen={onOpen}
+      />
       <Group
         title="Needs"
         ends={part.needs}

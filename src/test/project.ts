@@ -280,6 +280,7 @@ function part(
     issueUrl: null,
     measure: null,
     measured: [],
+    goalMetrics: [],
     supersededBy: null,
     supersedes: [],
     needs: toEnds(needs, 1),
