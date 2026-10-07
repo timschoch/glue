@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.26.0](https://github.com/timschoch/glue/compare/v1.25.1...v1.26.0) (2026-10-07)
+
+
+### Features
+
+* **signals:** start the flow from evidence to an Insight at the Signals ([#369](https://github.com/timschoch/glue/issues/369)) ([4c0a85d](https://github.com/timschoch/glue/commit/4c0a85dff8b1e2701539e705ffdc9cbab7e64b4c)), closes [#366](https://github.com/timschoch/glue/issues/366)
+* **tokens:** give a token to one member of its Project ([#368](https://github.com/timschoch/glue/issues/368)) ([efa1d84](https://github.com/timschoch/glue/commit/efa1d84be43f5ae924add6f5b7471f6eae6df458)), closes [#365](https://github.com/timschoch/glue/issues/365)
+
 ## [1.25.1](https://github.com/timschoch/glue/compare/v1.25.0...v1.25.1) (2026-10-07)
 
 
