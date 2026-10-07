@@ -2952,7 +2952,7 @@ describe('the Kinds of a Project', () => {
     await expectAddress('/glue/part-model', { add: 'kind' })
   })
 
-  it('names the empty required slots of the Concept at a sign-off that is not available', async () => {
+  it('names the empty required slots of the Concept, and asks for the Part of the first one', async () => {
     await renderPage('/glue/part-model', {
       fetchContractState: vi.fn(() =>
         Promise.resolve({
@@ -2970,9 +2970,9 @@ describe('the Kinds of a Project', () => {
         .getAllByRole('listitem')
         .map((chip) => chip.textContent),
     ).toEqual(['Metric'])
-    expect(contract.getByRole('button', { name: 'Sign off' })).toHaveProperty(
-      'disabled',
-      true,
-    )
+    expect(screen.queryByRole('button', { name: 'Sign off' })).toBeNull()
+    within(screen.getByRole('region', { name: 'Next' })).getByRole('button', {
+      name: 'Add Metric',
+    })
   })
 })

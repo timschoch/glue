@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createRouterContext } from './router-context.ts'
 import type { Server } from './router-server.ts'
 import { routeTree } from './routeTree.gen'
-import { builds, findConcept, parts } from './test/project.ts'
+import { builds, parts } from './test/project.ts'
 import './test/render.tsx'
 import { createMemoryServer } from './test/server.ts'
 
@@ -45,22 +45,8 @@ function currentStep() {
     .find((step) => step.getAttribute('aria-current') === 'step')?.title
 }
 
-// The Concepts of Glue with each slot filled.
-const filled: Partial<Server> = {
-  fetchConcept: vi.fn((input) => {
-    const concept = findConcept(input)
-    return Promise.resolve(
-      concept && {
-        ...concept,
-        slots: concept.slots.map((slot) => ({ ...slot, filled: true })),
-      },
-    )
-  }),
-}
-
 // The Part model with its Contract Version 1 and nothing after it.
 const signed: Partial<Server> = {
-  ...filled,
   fetchContractState: vi.fn(() =>
     Promise.resolve({
       versions: [
@@ -80,7 +66,16 @@ const signed: Partial<Server> = {
 
 describe('the common flow of a Concept', () => {
   it('shows the step bar above the box Next, and opens the form of the empty slot', async () => {
-    const { router } = await renderPage('/glue/part-model')
+    const { router } = await renderPage('/glue/part-model', {
+      fetchContractState: vi.fn(() =>
+        Promise.resolve({
+          versions: [],
+          ahead: false,
+          blocking: [],
+          emptySlots: [{ type: 'metric' as const, count: 0, minCount: 1 }],
+        }),
+      ),
+    })
 
     expect(currentStep()).toBe('Fill slots')
     expect(
@@ -95,7 +90,7 @@ describe('the common flow of a Concept', () => {
   })
 
   it('signs off the Concept with each slot filled, then reads the Contract again', async () => {
-    const { server } = await renderPage('/glue/part-model', filled)
+    const { server } = await renderPage('/glue/part-model')
 
     expect(currentStep()).toBe('Sign')
 
@@ -112,7 +107,6 @@ describe('the common flow of a Concept', () => {
 
   it('says that it signs off while the sign-off saves', async () => {
     await renderPage('/glue/part-model', {
-      ...filled,
       signContract: vi.fn(() => new Promise<{ version: number }>(() => {})),
     })
 
@@ -124,7 +118,6 @@ describe('the common flow of a Concept', () => {
 
   it('shows why the sign-off failed', async () => {
     await renderPage('/glue/part-model', {
-      ...filled,
       signContract: vi.fn(() =>
         Promise.resolve({ message: 'sign-off needs Trust solid: D4' }),
       ),

@@ -599,7 +599,6 @@ describe('the next step of a Part in every state', () => {
 })
 
 describe('the common flow of a Concept', () => {
-  const filled = { slots: [{ type: 'goal', required: true, filled: true }] } as const
   const version = {
     version: 2,
     checksum: 'a81d03c5e7f9',
@@ -616,48 +615,32 @@ describe('the common flow of a Concept', () => {
   const named = { ...build, contract }
 
   it('asks for the Part of the first empty slot that the Kind requires', () => {
-    const brief = {
-      slots: [
-        { type: 'goal', required: true, filled: true },
-        { type: 'insight', required: false, filled: false },
-        { type: 'metric', required: true, filled: false },
-        { type: 'flow', required: true, filled: false },
+    const brief: ContractState = {
+      ...signed,
+      emptySlots: [
+        { type: 'metric', count: 0, minCount: 1 },
+        { type: 'flow', count: 1, minCount: 2 },
       ],
-    } as const
+    }
 
-    expect(findConceptFlow(brief, signed, [{ ...named, gate: holds }])).toEqual(
-      {
-        name: 'Concept to build',
-        steps: ['Fill slots', 'Sign', 'Build', 'Gate'],
-        current: 0,
-        next: { kind: 'add', type: 'metric', label: 'Add Metric' },
-      },
-    )
+    expect(findConceptFlow(brief, [{ ...named, gate: holds }])).toEqual({
+      name: 'Concept to build',
+      steps: ['Fill slots', 'Sign', 'Build', 'Gate'],
+      current: 0,
+      next: { kind: 'add', type: 'metric', label: 'Add Metric' },
+    })
   })
 
   it('asks for the sign-off of a Concept with no empty slot and no Contract Version', () => {
-    expect(findConceptFlow(filled, unsigned)).toMatchObject({
+    expect(findConceptFlow(unsigned)).toMatchObject({
       current: 1,
       next: { kind: 'sign', label: 'Sign off' },
     })
-    expect(findConceptFlow({ slots: [] }, unsigned)).toMatchObject({
-      current: 1,
-      next: { kind: 'sign', label: 'Sign off' },
-    })
-    // An empty slot that the Kind does not require does not block.
-    expect(
-      findConceptFlow(
-        { slots: [{ type: 'insight', required: false, filled: false }] },
-        unsigned,
-      ),
-    ).toMatchObject({ current: 1, next: { kind: 'sign', label: 'Sign off' } })
   })
 
   it('asks for the sign-off of a Concept that is ahead of its Contract', () => {
     expect(
-      findConceptFlow(filled, { ...signed, ahead: true }, [
-        { ...named, gate: holds },
-      ]),
+      findConceptFlow({ ...signed, ahead: true }, [{ ...named, gate: holds }]),
     ).toMatchObject({ current: 1, next: { kind: 'sign', label: 'Sign off' } })
   })
 
@@ -667,7 +650,7 @@ describe('the common flow of a Concept', () => {
       { ...summary, id: 'F6', trust: 'not-ready' } as const,
     ]
 
-    expect(findConceptFlow(filled, { ...unsigned, blocking })).toMatchObject({
+    expect(findConceptFlow({ ...unsigned, blocking })).toMatchObject({
       current: 1,
       next: {
         kind: 'open',
@@ -681,11 +664,9 @@ describe('the common flow of a Concept', () => {
     const next = { kind: 'version', version: 2, label: 'Open Version 2' }
     const old = { ...contract, version: 1 }
 
-    expect(findConceptFlow(filled, signed)).toMatchObject({ current: 2, next })
+    expect(findConceptFlow(signed)).toMatchObject({ current: 2, next })
     expect(
-      findConceptFlow(filled, signed, [
-        { ...build, contract: old, gate: holds },
-      ]),
+      findConceptFlow(signed, [{ ...build, contract: old, gate: holds }]),
     ).toMatchObject({ current: 2, next })
   })
 
@@ -696,12 +677,12 @@ describe('the common flow of a Concept', () => {
       label: 'Open build 12',
     }
 
-    expect(findConceptFlow(filled, signed, [named])).toMatchObject({
+    expect(findConceptFlow(signed, [named])).toMatchObject({
       current: 3,
       next,
     })
     expect(
-      findConceptFlow(filled, signed, [
+      findConceptFlow(signed, [
         { ...named, gate: breaks },
         { ...named, number: 11, gate: holds },
       ]),
@@ -709,7 +690,7 @@ describe('the common flow of a Concept', () => {
   })
 
   it('has no step left when the gate of the build holds', () => {
-    const flow = findConceptFlow(filled, signed, [{ ...named, gate: holds }])
+    const flow = findConceptFlow(signed, [{ ...named, gate: holds }])
 
     expect(flow.current).toBe(4)
     expect(flow.next).toBeUndefined()

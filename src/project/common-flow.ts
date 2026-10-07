@@ -1,13 +1,7 @@
 import type { AskStep } from '../db/asks.ts'
 import type { Build } from '../db/builds.ts'
 import type { ContractState } from '../db/contracts.ts'
-import type {
-  Answer,
-  Concept,
-  Part,
-  PartSummary,
-  PartType,
-} from '../db/parts.ts'
+import type { Answer, Part, PartSummary, PartType } from '../db/parts.ts'
 
 // The common flows of docs/concept.md, section 7: which one a Part or a
 // Concept is in, the step it is at, and the one next step.
@@ -195,24 +189,17 @@ function findBuildFlow(builds: ReadonlyArray<GatedBuild>): CommonFlow {
   return { ...flows.build, current, next: openBuild(newest) }
 }
 
-// A slot that the Kind requires and that is not filled: it blocks the
-// sign-off.
-export function isEmptySlot({ required, filled }: Concept['slots'][number]) {
-  return required && !filled
-}
-
-// The common flow of a Concept (glue/D58): it fills the slots of its Kind,
-// its owner signs it off as a Contract Version, a build names that Version,
-// and the gate of the build holds. `builds` are the builds that name a
+// The common flow of a Concept (glue/D58): it fills the slots that its Kind
+// requires, its owner signs it off as a Contract Version, a build names that
+// Version, and the gate of the build holds. `builds` are the builds that name a
 // Contract Version of the Concept. A Concept that is ahead of its Contract
 // is at the sign-off again. A Part without Trust solid blocks the sign-off:
 // the step opens the first one.
 export function findConceptFlow(
-  concept: { slots: ReadonlyArray<Concept['slots'][number]> },
   contract: ContractState,
   builds: ReadonlyArray<GatedBuild> = [],
 ): CommonFlow {
-  const empty = concept.slots.find(isEmptySlot)
+  const empty = contract.emptySlots.at(0)
   if (empty) return { ...flows.concept, current: 0, next: addPart(empty.type) }
 
   const newest = contract.versions.at(0)

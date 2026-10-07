@@ -20,7 +20,7 @@ import { flagReasons } from '../design-system/record.tsx'
 import { SectionView } from '../design-system/section-view.tsx'
 import { Signals } from '../design-system/signals.tsx'
 import { AssigneesControl } from './assignees-control.tsx'
-import { findConceptFlow, isEmptySlot } from './common-flow.ts'
+import { findConceptFlow } from './common-flow.ts'
 import type { NextStep } from './common-flow.ts'
 import { ContractSection, useVersionHref } from './contract-screen.tsx'
 import { KindFormScreen } from './kind-form-screen.tsx'
@@ -354,8 +354,8 @@ export function ConceptScreen({
   // lens shows a part of the Concept, so no flow.
   const flow =
     search.section === undefined &&
-    (hasContract || concept.slots.some(isEmptySlot))
-      ? findConceptFlow(concept, contract, builds?.builds)
+    (hasContract || contract.emptySlots.length > 0)
+      ? findConceptFlow(contract, builds?.builds)
       : undefined
   // The next step opens the form of the empty slot, signs the Concept off,
   // or opens the Part that blocks, the Contract Version or the build.
