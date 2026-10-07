@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { signContract } from './contracts.ts'
+import { joinProject } from './members.ts'
 import {
   addConcept,
   addJoint,
@@ -33,6 +34,11 @@ async function readNeeds(recordId: string) {
 // of them its Decision.
 beforeEach(async () => {
   await addProject(db, 'glue')
+  await joinProject(db, 'glue', {
+    id: 'user-tim',
+    name: 'Tim',
+    email: 'tim@example.com',
+  })
   await addConcept(db, 'glue', { slug: 'videos', title: 'Technique videos' })
   await addConcept(db, 'glue', { slug: 'shop', title: 'Shop' })
   await addPart(db, 'glue', {

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MockInstance } from 'vitest'
 
+import { joinProject } from '../src/db/members.ts'
 import {
   addJoint,
   addPart,
@@ -93,6 +94,11 @@ describe('runConcept across Projects', () => {
       title: 'Ship faster',
       metric: 'lead time',
       source: 'okr',
+    })
+    await joinProject(db, 'glue', {
+      id: 'user-tim',
+      name: 'Tim',
+      email: 'tim@example.com',
     })
     await addPart(db, 'glue', {
       type: 'decision',

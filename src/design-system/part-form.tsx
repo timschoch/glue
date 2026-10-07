@@ -5,6 +5,8 @@ import {
   Form,
   InlineLoading,
   InlineNotification,
+  Select,
+  SelectItem,
   TextInput,
 } from '@carbon/react'
 import { useId, useState } from 'react'
@@ -29,7 +31,6 @@ export type PartFormValues = {
   body: string
   metric: string
   source: string
-  owner: string
   date: string
   enforcedBy: string
   // The record id of the Goal that a Decision needs.
@@ -40,6 +41,8 @@ export type PartFormValues = {
   steps: ReadonlyArray<StepValue>
   // The fields of an Entity.
   fields: ReadonlyArray<FieldValue>
+  // The e-mail address of the member who owns the Part. Empty: nobody.
+  responsible: string
   // A wording fix: the new title or body means the same as the old one.
   sameMeaning: boolean
 }
@@ -51,13 +54,13 @@ const EMPTY: PartFormValues = {
   body: '',
   metric: '',
   source: '',
-  owner: '',
   date: '',
   enforcedBy: '',
   goal: null,
   evidence: [],
   steps: [],
   fields: [],
+  responsible: '',
   sameMeaning: false,
 }
 
@@ -178,6 +181,8 @@ export type PartFormProps = {
   values?: Partial<PartFormValues>
   // The Parts that the pickers search.
   parts?: ReadonlyArray<PartFormPart>
+  // The members of the Project: one of them is the Responsible.
+  members?: ReadonlyArray<{ name: string; email: string }>
   // The reason of each field with a wrong value.
   errors?: Partial<Record<Field, string>>
   // The place of the step that the reason of the steps is about. The first
@@ -199,6 +204,7 @@ export function PartForm({
   recordId,
   values: startValues,
   parts = [],
+  members = [],
   errors = {},
   invalidStep,
   serverError,
@@ -215,9 +221,10 @@ export function PartForm({
     ({ name, kind }) =>
       recordId === undefined || kind !== 'joint' || name === 'goal',
   )
-  const canSave = fields.every(
-    ({ name, required }) => !required || hasValue(values[name]),
-  )
+  // A Decision needs an owner.
+  const canSave =
+    fields.every(({ name, required }) => !required || hasValue(values[name])) &&
+    (type !== 'decision' || values.responsible !== '')
 
   const change = (changed: Partial<PartFormValues>) =>
     setValues((current) => ({ ...current, ...changed }))
@@ -334,6 +341,21 @@ export function PartForm({
         {recordId ? `${partTypes[type]} ${recordId}` : partTypes[type]}
       </h1>
       {fields.map(control)}
+      <Select
+        id={`${formId}-responsible`}
+        labelText="Responsible"
+        value={values.responsible}
+        onChange={({ target }) => change({ responsible: target.value })}
+      >
+        <SelectItem value="" text="" />
+        {members.map((member) => (
+          <SelectItem
+            key={member.email}
+            value={member.email}
+            text={member.name}
+          />
+        ))}
+      </Select>
       {recordId !== undefined && (
         <Checkbox
           id={`${formId}-sameMeaning`}

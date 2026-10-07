@@ -22,6 +22,7 @@ const input = { project, concept: 'cart' }
 beforeEach(async () => {
   session = undefined
   await addProject(db, project)
+  await joinProject(db, project, ada)
   await addConcept(db, project, { slug: 'cart', title: 'Cart' })
   await addPart(db, project, {
     type: 'goal',

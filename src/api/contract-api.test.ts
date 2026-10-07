@@ -4,6 +4,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { updateKind } from '../db/kinds.ts'
+import { joinProject } from '../db/members.ts'
 import {
   addConcept,
   addPart,
@@ -31,6 +32,11 @@ beforeAll(async () => {
 beforeEach(async () => {
   await client.exec('truncate projects restart identity cascade')
   ;({ token } = await createToken(db, 'flexibeck', 'agent'))
+  await joinProject(db, 'flexibeck', {
+    id: 'user-tim',
+    name: 'Tim',
+    email: 'tim@example.com',
+  })
   await updateKind(db, 'flexibeck', 'brief', {
     slots: [
       { type: 'insight' },

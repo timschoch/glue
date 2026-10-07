@@ -4,6 +4,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { describe, expect, it, vi } from 'vitest'
 
 import { handleGetPart, handleListParts } from '../src/api/part-api.ts'
+import { joinProject } from '../src/db/members.ts'
 import { addPart, addProject } from '../src/db/part-records.ts'
 import type { NewPart } from '../src/db/part-records.ts'
 import * as schema from '../src/db/schema.ts'
@@ -35,6 +36,11 @@ describe('loadDecisions', () => {
     const db = drizzle(client, { schema })
     await migrate(db, { migrationsFolder: './drizzle' })
     await addProject(db, 'glue')
+    await joinProject(db, 'glue', {
+      id: 'user-ada',
+      name: 'Ada',
+      email: 'ada@example.com',
+    })
     await addPart(db, 'glue', {
       type: 'goal',
       title: 'Ship faster',

@@ -27,6 +27,8 @@ const body = {
   required: false,
   label: 'Body',
 } as const
+// The name or the e-mail address of a member: the Responsible of the Part.
+// The Part form has the control Responsible in its place.
 const owner = { name: 'owner', kind: 'text', required: false } as const
 const source = { name: 'source', kind: 'text', required: false } as const
 const neededSource = { ...source, required: true, label: 'Source' } as const
@@ -67,7 +69,7 @@ export const partFields = {
   decision: [
     title,
     body,
-    { ...owner, required: true, label: 'Owner' },
+    owner,
     date,
     { name: 'status', kind: 'choice', required: true },
     { name: 'goal', kind: 'joint', required: true, label: 'Goal' },

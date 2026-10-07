@@ -655,9 +655,9 @@ function formatHelp() {
     '  decisions also take --option <text>, once per option, and --pick <number>: the option that the author would take',
     `  insights also take --level ${evidenceLevels.join('|')} and --status draft`,
     '  guardrails, entities, flows and metrics also take --source',
-    '  entities, flows and metrics also take --owner',
+    '  each type takes --owner <name or e-mail>: a member of the Project, who becomes its Responsible. set takes it too. A Decision needs an owner.',
     '  each type takes --concept <slug>: its home Concept. The default is the root.',
-    '  each type takes --responsible <e-mail>: the member who owns the new record.',
+    '  each type takes --responsible <e-mail>: the same as --owner with an e-mail address.',
     '  decisions, entities, flows and metrics take --needs: the records that it needs',
     '  --evidence and --needs take ids with commas between them: I1,I2',
     '',
@@ -702,7 +702,7 @@ function formatHelp() {
     'member add takes the e-mail address of an account. A record or a Concept has one Responsible.',
     'member add-agent makes an agent a member and prints its e-mail address. An agent has no account: it writes with a token.',
     'token create with --member gives the token to that member. Each write with the token is a write of the member: the member owns the records that it adds, the activity names the member, and only the owner answers a flag. A token with no member writes as nobody.',
-    'The Responsible of a record is its owner: assign <id> --responsible sets the owner.',
+    'The Responsible of a record is its owner: assign <id> --responsible sets the owner, and so does set <id> --owner. show prints the name of the Responsible as the owner. A record that no member has shows its old owner, a text.',
     'watch makes a member a watcher of a record. A watcher is not the owner. watchers lists who watches, of one record or of the Project.',
   ].join('\n')
 }

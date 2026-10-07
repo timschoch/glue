@@ -255,7 +255,10 @@ export const partSchema = z
   .object({
     ...partSummarySchema.shape,
     body: z.string(),
-    owner: z.string().nullable(),
+    owner: z.string().nullable().meta({
+      description:
+        'The name of the Responsible member of the Part. A Part that no member has: its old owner, a text, or null',
+    }),
     date: z.iso.date().nullable(),
     source: z.string().nullable(),
     metric: z.string().nullable(),

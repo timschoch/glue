@@ -14,6 +14,7 @@ import {
 } from 'vitest'
 
 import { listKinds } from './kinds.ts'
+import { joinProject } from './members.ts'
 import { addPart } from './part-records.ts'
 import { findPart, findProject, listParts } from './parts.ts'
 import * as schema from './schema.ts'
@@ -28,6 +29,7 @@ const trustMigration = '0013_trust_and_work_state.sql'
 const peopleMigration = '0016_people.sql'
 const versionsMigration = '0026_part_versions.sql'
 const kindsMigration = '0028_kinds.sql'
+const ownerMigration = '0037_responsible_from_owner.sql'
 
 let client: PGlite
 
@@ -751,6 +753,11 @@ describe('the migration that copies the records into the Part model', () => {
       title: 'Only the videos of the creator',
       enforcedBy: 'review',
     })
+    await joinProject(db, 'glue', {
+      id: 'user-tim',
+      name: 'Tim',
+      email: 'tim@example.com',
+    })
     const decision = await addPart(db, 'glue', {
       type: 'decision',
       title: 'Show the steps as a list',
@@ -1069,6 +1076,59 @@ describe('the migration that adds the Part Versions and the activity', () => {
 
     const versions = await client.query('select id from part_versions')
     expect(versions.rows).toEqual([])
+  })
+})
+
+describe('the migration that makes the old owner the Responsible', () => {
+  // Project 1 is glue with the members Tim (1) and Ada (2). Project 2 is
+  // flexibeck with a member Tim (3).
+  // glue: D1 of `tim`, E1 of `Ada` that Tim has, E2 of a person who is no
+  // member, E3 of nobody. flexibeck: E1 of `Tim`.
+  setStartState(async () => {
+    await runMigrationsBefore(ownerMigration)
+    await client.exec(`
+      insert into projects (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
+      insert into concepts (project_id, parent_id, slug, title) values
+        (1, null, 'glue', 'Glue'),
+        (2, null, 'flexibeck', 'flexibeck');
+      insert into members (project_id, user_id, name, email) values
+        (1, 'user-tim', 'Tim', 'tim@example.com'),
+        (1, 'user-ada', 'Ada', 'ada@example.com'),
+        (2, 'user-tim', 'Tim', 'tim@example.com');
+      insert into parts (project_id, concept_id, type, record_id, title, status, date, owner) values
+        (1, 1, 'decision', 'D1', 'Show the video of the creator', 'accepted', '2026-10-02', 'tim');
+      insert into parts (project_id, concept_id, type, record_id, title, owner) values
+        (1, 1, 'entity', 'E1', 'Technique', 'Ada'),
+        (1, 1, 'entity', 'E2', 'Recipe', 'Mara'),
+        (1, 1, 'entity', 'E3', 'Baker', null),
+        (2, 2, 'entity', 'E1', 'Cart', 'Tim');
+      insert into assignments (member_id, part_id, role) values (1, 2, 'responsible');
+    `)
+    await runMigration(ownerMigration)
+  })
+
+  const listResponsible = () =>
+    client.query(`
+      select parts.project_id, parts.record_id, members.name, parts.owner
+      from assignments
+      inner join parts on parts.id = assignments.part_id
+      inner join members on members.id = assignments.member_id
+      where assignments.role = 'responsible'
+      order by parts.id
+    `)
+
+  it('gives a Part with no Responsible the member of its Project with the name of the old owner, and keeps the old owner', async () => {
+    expect((await listResponsible()).rows).toEqual([
+      { project_id: 1, record_id: 'D1', name: 'Tim', owner: 'tim' },
+      { project_id: 1, record_id: 'E1', name: 'Tim', owner: 'Ada' },
+      { project_id: 2, record_id: 'E1', name: 'Tim', owner: 'Tim' },
+    ])
+  })
+
+  it('adds nothing when it runs a second time', async () => {
+    await runMigration(ownerMigration)
+
+    expect((await listResponsible()).rows).toHaveLength(3)
   })
 })
 

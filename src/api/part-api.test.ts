@@ -53,13 +53,19 @@ beforeAll(async () => {
   await migrate(db, { migrationsFolder: './drizzle' })
 })
 
-// The Project flexibeck starts with a Goal, a Guardrail and an Insight in
-// its root Concept. The Project glue belongs to no token of the test.
+// The Project flexibeck starts with the member Ada and with a Goal, a
+// Guardrail and an Insight in its root Concept. The Project glue belongs to
+// no token of the test.
 beforeEach(async () => {
   await client.exec('truncate projects restart identity cascade')
   fake = createFakeGithub()
   github = fake.github
   ;({ token } = await createToken(db, 'flexibeck', 'orchestrator'))
+  await joinProject(db, 'flexibeck', {
+    id: 'user-ada',
+    name: 'Ada',
+    email: 'ada@example.com',
+  })
   await setProductRepository(db, 'flexibeck', 'timschoch/flexibeck-next')
   await addPart(db, 'flexibeck', {
     type: 'goal',
@@ -719,6 +725,22 @@ describe('GET a Part', () => {
 })
 
 describe('POST a Part', () => {
+  it('takes the e-mail address of a member as the owner, and answers 400 for an owner who is no member', async () => {
+    const added = await call(handleAddPart, 'POST', {
+      body: { type: 'entity', title: 'Cart', owner: 'ada@example.com' },
+    })
+    const refused = await call(handleAddPart, 'POST', {
+      body: { type: 'entity', title: 'Order', owner: 'Mara' },
+    })
+
+    expect(added.status).toBe(201)
+    expect(added.body.owner).toBe('Ada')
+    expect(refused.status).toBe(400)
+    expect(refused.body.error.message).toBe(
+      '"Mara" names no member of flexibeck. Its members: Ada <ada@example.com>',
+    )
+  })
+
   it.each([
     ['entity', 'E1'],
     ['flow', 'F1'],
@@ -1572,6 +1594,11 @@ describe('Joints', () => {
       type: 'insight',
       title: 'Users churn on slow loads',
       source: 'interviews',
+    })
+    await joinProject(db, 'glue', {
+      id: 'user-tim',
+      name: 'Tim',
+      email: 'tim@example.com',
     })
     await addPart(db, 'glue', {
       type: 'decision',

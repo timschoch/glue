@@ -1144,6 +1144,7 @@ describe('a new Part', () => {
         concept: 'part-model',
         title: 'Time to the first Decision',
         body: '',
+        responsible: 'ada@example.com',
       },
     })
   })
@@ -1274,7 +1275,6 @@ describe('the edit of a Part', () => {
       change: {
         title: 'The Concept lives in Glue',
         body: 'Agents read it there.',
-        owner: 'Ada',
         date: '2026-01-15',
         goal: 'G2',
       },
@@ -1741,6 +1741,7 @@ describe('the section Use', () => {
         concept: 'part-model',
         title: 'Signup to paid',
         body: '',
+        responsible: 'ada@example.com',
         needs: ['G1'],
       },
     })
@@ -2089,7 +2090,7 @@ describe('the answers of a Decision', () => {
           concept: 'part-model',
           status: 'accepted',
           supersedes: 'D4',
-          owner: 'Ada',
+          responsible: 'ada@example.com',
           needs: ['G1', 'I3'],
         }),
       }),
@@ -2146,6 +2147,7 @@ describe('the common flow of a record', () => {
           concept: 'part-model',
           title: 'Read a Concept',
           body: '',
+          responsible: 'ada@example.com',
           steps: [],
           needs: ['D4'],
         },
@@ -2953,6 +2955,50 @@ describe('the people of a Project', () => {
       expect(server.unassign).toHaveBeenCalledWith({
         project: 'glue',
         assignment: { member: 'bo@example.com', concept: 'part-model' },
+      }),
+    )
+  })
+
+  it('shows the Responsible as the one name of a record', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchPart: vi.fn(changedPart('D4', { owner: 'Old Ann' })),
+    })
+
+    expect(
+      screen.getByRole<HTMLSelectElement>('combobox', { name: 'Responsible' })
+        .value,
+    ).toBe('1')
+    expect(screen.queryByText('Old Ann')).toBeNull()
+  })
+
+  it('shows the old owner of a record that no member has', async () => {
+    await renderPage('/glue/part-model/D4', {
+      fetchPeople: vi.fn(() => Promise.resolve({ ...people, assignments: [] })),
+      fetchPart: vi.fn(changedPart('D4', { owner: 'Old Ann' })),
+    })
+
+    screen.getByText('Old Ann', { selector: 'span' })
+  })
+
+  it('saves another Responsible of a Part as its owner', async () => {
+    const { server } = await renderPage('/glue/part-model/D4?edit=true', {
+      fetchPart: vi.fn(changedPart('D4', { date: '2026-01-15' })),
+    })
+    const responsible = screen.getByRole<HTMLSelectElement>('combobox', {
+      name: 'Responsible',
+    })
+
+    expect(responsible.value).toBe('ada@example.com')
+
+    await userEvent.selectOptions(responsible, 'Bo')
+    await userEvent.click(button('Save'))
+
+    await waitFor(() =>
+      expect(server.updatePart).toHaveBeenCalledWith({
+        project: 'glue',
+        recordId: 'D4',
+        change: expect.objectContaining({ owner: 'bo@example.com' }),
+        expected: expect.objectContaining({ title: D4 }),
       }),
     )
   })

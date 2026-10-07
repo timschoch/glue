@@ -93,9 +93,17 @@ export function RecordScreen({
     () => toRecordSummaries(parts, recordHref),
     [parts, recordHref],
   )
+  // The Responsible control shows the owner of a Part. The head shows the
+  // old owner, a text, only while no member has the Part: never two names.
+  const hasResponsible = people.assignments.some(
+    ({ part: owned, role }) => owned === part.id && role === 'responsible',
+  )
   const record = useMemo(
-    () => toRecordPart(part, recordHref, parts),
-    [part, recordHref, parts],
+    () => ({
+      ...toRecordPart(part, recordHref, parts),
+      owner: hasResponsible ? null : part.owner,
+    }),
+    [part, recordHref, parts, hasResponsible],
   )
   const flow = useMemo(
     () => findCommonFlow(part, builds, ask?.step, signals, built),

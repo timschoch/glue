@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { findContract, findContractState, signContract } from './contracts.ts'
 import { briefKind, updateKind } from './kinds.ts'
+import { joinProject } from './members.ts'
 import { addProjectReference } from './projects.ts'
 import {
   addConcept,
@@ -32,6 +33,11 @@ beforeAll(async () => {
 beforeEach(async () => {
   await client.exec('truncate projects restart identity cascade')
   await addProject(db, 'glue')
+  await joinProject(db, 'glue', {
+    id: 'user-tim',
+    name: 'Tim',
+    email: 'tim@example.com',
+  })
   await updateKind(db, 'glue', 'brief', {
     slots: [
       { type: 'insight' },

@@ -5,6 +5,7 @@ import type {
   GoalMeasure,
   MeanMeasure,
 } from '../db/goal-measure.ts'
+import { addAgent } from '../db/members.ts'
 import { addPart, addProject, updatePart } from '../db/part-records.ts'
 import { findPart, listParts } from '../db/parts.ts'
 import { setAnalyticsProject } from '../db/projects.ts'
@@ -402,6 +403,7 @@ describe('measureGoals', () => {
       title: 'Onboarding takes one screen',
       enforcedBy: 'review',
     })
+    await addAgent(db, 'flexibeck', 'Owner')
     const decision = {
       type: 'decision' as const,
       owner: 'Owner',

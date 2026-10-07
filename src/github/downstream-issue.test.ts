@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { addAgent } from '../db/members.ts'
 import { addPart, addProject, supersedeDecision } from '../db/part-records.ts'
 import { findPart } from '../db/parts.ts'
 import { setProductRepository } from '../db/projects.ts'
@@ -23,6 +24,7 @@ async function addDecision(status: schema.DecisionStatus) {
 
 beforeEach(async () => {
   await addProject(db, 'flexibeck')
+  await addAgent(db, 'flexibeck', 'Orchestrator')
   await addPart(db, 'flexibeck', {
     type: 'goal',
     title: 'Ship faster',
@@ -156,6 +158,7 @@ describe('createDownstreamIssue', () => {
   it('opens nothing for a Product without a repository', async () => {
     const { github, issues } = createFakeGithub()
     await addProject(db, 'glue')
+    await addAgent(db, 'glue', 'Orchestrator')
     await addPart(db, 'glue', {
       type: 'goal',
       title: 'Ship faster',
