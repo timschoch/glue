@@ -4,6 +4,8 @@ import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
+import { listContractQuestions } from './contract-questions.ts'
+import type { ContractQuestion } from './contract-questions.ts'
 import {
   selectConceptSlots,
   sortSlots,
@@ -28,6 +30,7 @@ import type { FrozenPart, PartType } from './schema.ts'
 // checksum. A sunk Part is at its end, so no Version holds it.
 
 export type { FrozenPart } from './schema.ts'
+export type { ContractQuestion } from './contract-questions.ts'
 
 export { tier1Types, tier2Types } from './kinds.ts'
 
@@ -67,6 +70,9 @@ export type Contract = ContractVersion & {
   // One slot per Part type of the Kind. Empty when the Concept has no Kind.
   // A slot is filled when the Version holds a Part of its type.
   slots: ConceptSlot[]
+  // The questions of builders that have an answer (glue/D62), the newest
+  // first. Each one names the Version that it was asked about.
+  questions: ContractQuestion[]
 }
 
 const { concepts, contractVersions, kinds, kindSlots, projects } = schema
@@ -296,8 +302,9 @@ export async function findContract(
 ): Promise<Contract | undefined> {
   const concept = await findConceptRow(db, projectSlug, conceptSlug)
   if (!concept) return undefined
-  const [versions, slots] = await Promise.all([
+  const [versions, questions, slots] = await Promise.all([
     listVersions(db, concept.id),
+    listContractQuestions(db, projectSlug, conceptSlug),
     concept.kindId === null
       ? []
       : db
@@ -324,6 +331,7 @@ export async function findContract(
       required,
       filled: found.parts.some((part) => part.type === type),
     })),
+    questions: questions.filter(({ answer }) => answer !== null),
   }
 }
 

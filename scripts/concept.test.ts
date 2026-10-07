@@ -1099,6 +1099,88 @@ describe('runConcept', () => {
     })
   })
 
+  describe('a question about a Contract Version', () => {
+    // The Concept `videos` of flexibeck has Contract Version 1.
+    beforeEach(async () => {
+      vi.useFakeTimers({
+        toFake: ['Date'],
+        now: new Date('2026-10-03T12:00Z'),
+      })
+      await run(
+        'concept',
+        'add',
+        'videos',
+        '--title',
+        'Technique videos',
+        '--project',
+        'flexibeck',
+      )
+      await addPart(db, 'flexibeck', {
+        type: 'insight',
+        concept: 'videos',
+        title: 'Bakers want step videos',
+        source: 'interview',
+      })
+      await run(
+        'contract',
+        'sign',
+        'videos',
+        '--owner',
+        'Mara',
+        '--project',
+        'flexibeck',
+      )
+      await run(
+        'contract',
+        'ask',
+        'videos',
+        '--question',
+        'Does a Technique need a video?',
+        '--by',
+        'build-agent',
+        '--project',
+        'flexibeck',
+      )
+      vi.mocked(console.log).mockClear()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('lists the open question of the Concept with its Version', async () => {
+      await run('contract', 'questions', 'videos', '--project', 'flexibeck')
+
+      expect(logged()).toEqual([
+        'Q1  videos@1  build-agent 2026-10-03: Does a Technique need a video?',
+        '  open',
+      ])
+    })
+
+    it('prints the answered question with the Contract', async () => {
+      vi.setSystemTime(new Date('2026-10-04T09:00Z'))
+      await run(
+        'contract',
+        'answer',
+        '1',
+        '--text',
+        'Yes, each one.',
+        '--by',
+        'Mara',
+        '--project',
+        'flexibeck',
+      )
+
+      await run('contract', 'show', 'videos', '--project', 'flexibeck')
+
+      expect(logged().slice(-3)).toEqual([
+        'questions',
+        'Q1  videos@1  build-agent 2026-10-03: Does a Technique need a video?',
+        '  Mara 2026-10-04: Yes, each one.',
+      ])
+    })
+  })
+
   it('rejects an unknown command and points to the help', async () => {
     await expect(run('lst')).rejects.toThrow(
       'unknown command "lst". See pnpm concept --help',

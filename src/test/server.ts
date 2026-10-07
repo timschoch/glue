@@ -65,6 +65,12 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
     ),
     fetchContract: vi.fn((contract) => Promise.resolve(findContract(contract))),
     signContract: vi.fn(() => Promise.resolve({ version: 2 })),
+    fetchContractQuestions: vi.fn(() => Promise.resolve([])),
+    fetchMineContractQuestions: vi.fn(() => Promise.resolve([])),
+    askContractQuestion: vi.fn(() => Promise.resolve({ id: 1 })),
+    answerContractQuestion: vi.fn(({ questionId }) =>
+      Promise.resolve({ id: questionId }),
+    ),
     addMember: vi.fn(() => Promise.resolve(people.members[1])),
     setLoopSteps: vi.fn(() => Promise.resolve(undefined)),
     assign: vi.fn(() => Promise.resolve(undefined)),

@@ -21,6 +21,11 @@ import {
   contractSignInputSchema,
   contractVersionQuerySchema,
 } from './contract-api.ts'
+import {
+  contractQuestionAnswerInputSchema,
+  contractQuestionInputSchema,
+  contractQuestionSchema,
+} from './contract-question-api.ts'
 import { measureResultSchema } from './measure-api.ts'
 import {
   addedJointSchema,
@@ -262,6 +267,82 @@ function listPartPaths() {
             ...jsonContent(contractSchema),
           },
           ...errorResponses,
+        },
+      },
+    },
+    [`${root}/concepts/{concept}/questions`]: {
+      get: {
+        operationId: 'listContractQuestions',
+        summary:
+          'List the questions of builders about the Contract of a Concept, with their answers',
+        requestParams: { path: path.extend({ concept: conceptSlug }) },
+        responses: {
+          200: {
+            description: 'The questions, the newest first',
+            ...jsonContent(z.array(contractQuestionSchema)),
+          },
+          ...readErrorResponses,
+        },
+      },
+      post: {
+        operationId: 'askContractQuestion',
+        summary:
+          'Ask a question about a Contract Version of a Concept as a builder. The member who is Responsible for the Concept answers',
+        requestParams: { path: path.extend({ concept: conceptSlug }) },
+        requestBody: jsonContent(contractQuestionInputSchema),
+        responses: {
+          201: {
+            description: 'The question',
+            ...jsonContent(contractQuestionSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/questions`]: {
+      get: {
+        operationId: 'listMineContractQuestions',
+        summary:
+          'List the questions about a Contract Version in Mine of the Project: the ones with no answer',
+        requestParams: {
+          path,
+          query: z.object({
+            member: z.string().optional().meta({
+              description:
+                'The e-mail address of a member: only the questions of the Concepts that the member is Responsible for. A Concept with no Responsible: each Co-Author',
+            }),
+          }),
+        },
+        responses: {
+          200: {
+            description: 'The open questions, the newest first',
+            ...jsonContent(z.array(contractQuestionSchema)),
+          },
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/questions/{questionId}`]: {
+      patch: {
+        operationId: 'answerContractQuestion',
+        summary:
+          'Answer a question about a Contract Version. A question has one answer',
+        requestParams: {
+          path: path.extend({
+            questionId: z
+              .string()
+              .meta({ description: 'The id of the question' }),
+          }),
+        },
+        requestBody: jsonContent(contractQuestionAnswerInputSchema),
+        responses: {
+          200: {
+            description: 'The question with its answer',
+            ...jsonContent(contractQuestionSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
         },
       },
     },

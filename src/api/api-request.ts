@@ -25,6 +25,7 @@ export type ApiRequest = {
     kind?: string
     jointId?: string
     askId?: string
+    questionId?: string
   }
 }
 

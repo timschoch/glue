@@ -35,6 +35,7 @@ import { Route as ApiV1ProjectsProjectMeasureRouteImport } from './routes/api/v1
 import { Route as ApiV1ProjectsProjectMembersRouteImport } from './routes/api/v1.projects.$project.members'
 import { Route as ApiV1ProjectsProjectMineRouteImport } from './routes/api/v1.projects.$project.mine'
 import { Route as ApiV1ProjectsProjectPartsRouteImport } from './routes/api/v1.projects.$project.parts'
+import { Route as ApiV1ProjectsProjectQuestionsRouteImport } from './routes/api/v1.projects.$project.questions'
 import { Route as ApiV1ProjectsProjectSignalsRouteImport } from './routes/api/v1.projects.$project.signals'
 import { Route as ApiV1ProjectsProjectWatchersRouteImport } from './routes/api/v1.projects.$project.watchers'
 import { Route as ApiV1ProjectsProjectAsksAskIdRouteImport } from './routes/api/v1.projects.$project.asks.$askId'
@@ -42,8 +43,10 @@ import { Route as ApiV1ProjectsProjectConceptsConceptRouteImport } from './route
 import { Route as ApiV1ProjectsProjectJointsJointIdRouteImport } from './routes/api/v1.projects.$project.joints.$jointId'
 import { Route as ApiV1ProjectsProjectKindsKindRouteImport } from './routes/api/v1.projects.$project.kinds.$kind'
 import { Route as ApiV1ProjectsProjectPartsRecordIdRouteImport } from './routes/api/v1.projects.$project.parts.$recordId'
+import { Route as ApiV1ProjectsProjectQuestionsQuestionIdRouteImport } from './routes/api/v1.projects.$project.questions.$questionId'
 import { Route as ApiV1ProjectsProjectSignalsInsightsRouteImport } from './routes/api/v1.projects.$project.signals.insights'
 import { Route as ApiV1ProjectsProjectConceptsConceptContractRouteImport } from './routes/api/v1.projects.$project.concepts.$concept.contract'
+import { Route as ApiV1ProjectsProjectConceptsConceptQuestionsRouteImport } from './routes/api/v1.projects.$project.concepts.$concept.questions'
 import { Route as ApiV1ProjectsProjectPartsRecordIdAnswersRouteImport } from './routes/api/v1.projects.$project.parts.$recordId.answers'
 import { Route as ApiV1ProjectsProjectPartsRecordIdQuestionAnswersRouteImport } from './routes/api/v1.projects.$project.parts.$recordId.question-answers'
 
@@ -192,6 +195,12 @@ const ApiV1ProjectsProjectPartsRoute =
     path: '/api/v1/projects/$project/parts',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1ProjectsProjectQuestionsRoute =
+  ApiV1ProjectsProjectQuestionsRouteImport.update({
+    id: '/api/v1/projects/$project/questions',
+    path: '/api/v1/projects/$project/questions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1ProjectsProjectSignalsRoute =
   ApiV1ProjectsProjectSignalsRouteImport.update({
     id: '/api/v1/projects/$project/signals',
@@ -234,6 +243,12 @@ const ApiV1ProjectsProjectPartsRecordIdRoute =
     path: '/$recordId',
     getParentRoute: () => ApiV1ProjectsProjectPartsRoute,
   } as any)
+const ApiV1ProjectsProjectQuestionsQuestionIdRoute =
+  ApiV1ProjectsProjectQuestionsQuestionIdRouteImport.update({
+    id: '/$questionId',
+    path: '/$questionId',
+    getParentRoute: () => ApiV1ProjectsProjectQuestionsRoute,
+  } as any)
 const ApiV1ProjectsProjectSignalsInsightsRoute =
   ApiV1ProjectsProjectSignalsInsightsRouteImport.update({
     id: '/insights',
@@ -244,6 +259,12 @@ const ApiV1ProjectsProjectConceptsConceptContractRoute =
   ApiV1ProjectsProjectConceptsConceptContractRouteImport.update({
     id: '/contract',
     path: '/contract',
+    getParentRoute: () => ApiV1ProjectsProjectConceptsConceptRoute,
+  } as any)
+const ApiV1ProjectsProjectConceptsConceptQuestionsRoute =
+  ApiV1ProjectsProjectConceptsConceptQuestionsRouteImport.update({
+    id: '/questions',
+    path: '/questions',
     getParentRoute: () => ApiV1ProjectsProjectConceptsConceptRoute,
   } as any)
 const ApiV1ProjectsProjectPartsRecordIdAnswersRoute =
@@ -284,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/projects/$project/members': typeof ApiV1ProjectsProjectMembersRoute
   '/api/v1/projects/$project/mine': typeof ApiV1ProjectsProjectMineRoute
   '/api/v1/projects/$project/parts': typeof ApiV1ProjectsProjectPartsRouteWithChildren
+  '/api/v1/projects/$project/questions': typeof ApiV1ProjectsProjectQuestionsRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   '/api/v1/projects/$project/watchers': typeof ApiV1ProjectsProjectWatchersRoute
   '/api/v1/projects/$project/': typeof ApiV1ProjectsProjectIndexRoute
@@ -292,8 +314,10 @@ export interface FileRoutesByFullPath {
   '/api/v1/projects/$project/joints/$jointId': typeof ApiV1ProjectsProjectJointsJointIdRoute
   '/api/v1/projects/$project/kinds/$kind': typeof ApiV1ProjectsProjectKindsKindRoute
   '/api/v1/projects/$project/parts/$recordId': typeof ApiV1ProjectsProjectPartsRecordIdRouteWithChildren
+  '/api/v1/projects/$project/questions/$questionId': typeof ApiV1ProjectsProjectQuestionsQuestionIdRoute
   '/api/v1/projects/$project/signals/insights': typeof ApiV1ProjectsProjectSignalsInsightsRoute
   '/api/v1/projects/$project/concepts/$concept/contract': typeof ApiV1ProjectsProjectConceptsConceptContractRoute
+  '/api/v1/projects/$project/concepts/$concept/questions': typeof ApiV1ProjectsProjectConceptsConceptQuestionsRoute
   '/api/v1/projects/$project/parts/$recordId/answers': typeof ApiV1ProjectsProjectPartsRecordIdAnswersRoute
   '/api/v1/projects/$project/parts/$recordId/question-answers': typeof ApiV1ProjectsProjectPartsRecordIdQuestionAnswersRoute
 }
@@ -321,6 +345,7 @@ export interface FileRoutesByTo {
   '/api/v1/projects/$project/members': typeof ApiV1ProjectsProjectMembersRoute
   '/api/v1/projects/$project/mine': typeof ApiV1ProjectsProjectMineRoute
   '/api/v1/projects/$project/parts': typeof ApiV1ProjectsProjectPartsRouteWithChildren
+  '/api/v1/projects/$project/questions': typeof ApiV1ProjectsProjectQuestionsRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   '/api/v1/projects/$project/watchers': typeof ApiV1ProjectsProjectWatchersRoute
   '/api/v1/projects/$project': typeof ApiV1ProjectsProjectIndexRoute
@@ -329,8 +354,10 @@ export interface FileRoutesByTo {
   '/api/v1/projects/$project/joints/$jointId': typeof ApiV1ProjectsProjectJointsJointIdRoute
   '/api/v1/projects/$project/kinds/$kind': typeof ApiV1ProjectsProjectKindsKindRoute
   '/api/v1/projects/$project/parts/$recordId': typeof ApiV1ProjectsProjectPartsRecordIdRouteWithChildren
+  '/api/v1/projects/$project/questions/$questionId': typeof ApiV1ProjectsProjectQuestionsQuestionIdRoute
   '/api/v1/projects/$project/signals/insights': typeof ApiV1ProjectsProjectSignalsInsightsRoute
   '/api/v1/projects/$project/concepts/$concept/contract': typeof ApiV1ProjectsProjectConceptsConceptContractRoute
+  '/api/v1/projects/$project/concepts/$concept/questions': typeof ApiV1ProjectsProjectConceptsConceptQuestionsRoute
   '/api/v1/projects/$project/parts/$recordId/answers': typeof ApiV1ProjectsProjectPartsRecordIdAnswersRoute
   '/api/v1/projects/$project/parts/$recordId/question-answers': typeof ApiV1ProjectsProjectPartsRecordIdQuestionAnswersRoute
 }
@@ -361,6 +388,7 @@ export interface FileRoutesById {
   '/api/v1/projects/$project/members': typeof ApiV1ProjectsProjectMembersRoute
   '/api/v1/projects/$project/mine': typeof ApiV1ProjectsProjectMineRoute
   '/api/v1/projects/$project/parts': typeof ApiV1ProjectsProjectPartsRouteWithChildren
+  '/api/v1/projects/$project/questions': typeof ApiV1ProjectsProjectQuestionsRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   '/api/v1/projects/$project/watchers': typeof ApiV1ProjectsProjectWatchersRoute
   '/api/v1/projects/$project/': typeof ApiV1ProjectsProjectIndexRoute
@@ -369,8 +397,10 @@ export interface FileRoutesById {
   '/api/v1/projects/$project/joints/$jointId': typeof ApiV1ProjectsProjectJointsJointIdRoute
   '/api/v1/projects/$project/kinds/$kind': typeof ApiV1ProjectsProjectKindsKindRoute
   '/api/v1/projects/$project/parts/$recordId': typeof ApiV1ProjectsProjectPartsRecordIdRouteWithChildren
+  '/api/v1/projects/$project/questions/$questionId': typeof ApiV1ProjectsProjectQuestionsQuestionIdRoute
   '/api/v1/projects/$project/signals/insights': typeof ApiV1ProjectsProjectSignalsInsightsRoute
   '/api/v1/projects/$project/concepts/$concept/contract': typeof ApiV1ProjectsProjectConceptsConceptContractRoute
+  '/api/v1/projects/$project/concepts/$concept/questions': typeof ApiV1ProjectsProjectConceptsConceptQuestionsRoute
   '/api/v1/projects/$project/parts/$recordId/answers': typeof ApiV1ProjectsProjectPartsRecordIdAnswersRoute
   '/api/v1/projects/$project/parts/$recordId/question-answers': typeof ApiV1ProjectsProjectPartsRecordIdQuestionAnswersRoute
 }
@@ -401,6 +431,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/members'
     | '/api/v1/projects/$project/mine'
     | '/api/v1/projects/$project/parts'
+    | '/api/v1/projects/$project/questions'
     | '/api/v1/projects/$project/signals'
     | '/api/v1/projects/$project/watchers'
     | '/api/v1/projects/$project/'
@@ -409,8 +440,10 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/joints/$jointId'
     | '/api/v1/projects/$project/kinds/$kind'
     | '/api/v1/projects/$project/parts/$recordId'
+    | '/api/v1/projects/$project/questions/$questionId'
     | '/api/v1/projects/$project/signals/insights'
     | '/api/v1/projects/$project/concepts/$concept/contract'
+    | '/api/v1/projects/$project/concepts/$concept/questions'
     | '/api/v1/projects/$project/parts/$recordId/answers'
     | '/api/v1/projects/$project/parts/$recordId/question-answers'
   fileRoutesByTo: FileRoutesByTo
@@ -438,6 +471,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/members'
     | '/api/v1/projects/$project/mine'
     | '/api/v1/projects/$project/parts'
+    | '/api/v1/projects/$project/questions'
     | '/api/v1/projects/$project/signals'
     | '/api/v1/projects/$project/watchers'
     | '/api/v1/projects/$project'
@@ -446,8 +480,10 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/joints/$jointId'
     | '/api/v1/projects/$project/kinds/$kind'
     | '/api/v1/projects/$project/parts/$recordId'
+    | '/api/v1/projects/$project/questions/$questionId'
     | '/api/v1/projects/$project/signals/insights'
     | '/api/v1/projects/$project/concepts/$concept/contract'
+    | '/api/v1/projects/$project/concepts/$concept/questions'
     | '/api/v1/projects/$project/parts/$recordId/answers'
     | '/api/v1/projects/$project/parts/$recordId/question-answers'
   id:
@@ -477,6 +513,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/members'
     | '/api/v1/projects/$project/mine'
     | '/api/v1/projects/$project/parts'
+    | '/api/v1/projects/$project/questions'
     | '/api/v1/projects/$project/signals'
     | '/api/v1/projects/$project/watchers'
     | '/api/v1/projects/$project/'
@@ -485,8 +522,10 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/joints/$jointId'
     | '/api/v1/projects/$project/kinds/$kind'
     | '/api/v1/projects/$project/parts/$recordId'
+    | '/api/v1/projects/$project/questions/$questionId'
     | '/api/v1/projects/$project/signals/insights'
     | '/api/v1/projects/$project/concepts/$concept/contract'
+    | '/api/v1/projects/$project/concepts/$concept/questions'
     | '/api/v1/projects/$project/parts/$recordId/answers'
     | '/api/v1/projects/$project/parts/$recordId/question-answers'
   fileRoutesById: FileRoutesById
@@ -510,6 +549,7 @@ export interface RootRouteChildren {
   ApiV1ProjectsProjectMembersRoute: typeof ApiV1ProjectsProjectMembersRoute
   ApiV1ProjectsProjectMineRoute: typeof ApiV1ProjectsProjectMineRoute
   ApiV1ProjectsProjectPartsRoute: typeof ApiV1ProjectsProjectPartsRouteWithChildren
+  ApiV1ProjectsProjectQuestionsRoute: typeof ApiV1ProjectsProjectQuestionsRouteWithChildren
   ApiV1ProjectsProjectSignalsRoute: typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   ApiV1ProjectsProjectWatchersRoute: typeof ApiV1ProjectsProjectWatchersRoute
   ApiV1ProjectsProjectIndexRoute: typeof ApiV1ProjectsProjectIndexRoute
@@ -699,6 +739,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1ProjectsProjectPartsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/projects/$project/questions': {
+      id: '/api/v1/projects/$project/questions'
+      path: '/api/v1/projects/$project/questions'
+      fullPath: '/api/v1/projects/$project/questions'
+      preLoaderRoute: typeof ApiV1ProjectsProjectQuestionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/projects/$project/signals': {
       id: '/api/v1/projects/$project/signals'
       path: '/api/v1/projects/$project/signals'
@@ -748,6 +795,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1ProjectsProjectPartsRecordIdRouteImport
       parentRoute: typeof ApiV1ProjectsProjectPartsRoute
     }
+    '/api/v1/projects/$project/questions/$questionId': {
+      id: '/api/v1/projects/$project/questions/$questionId'
+      path: '/$questionId'
+      fullPath: '/api/v1/projects/$project/questions/$questionId'
+      preLoaderRoute: typeof ApiV1ProjectsProjectQuestionsQuestionIdRouteImport
+      parentRoute: typeof ApiV1ProjectsProjectQuestionsRoute
+    }
     '/api/v1/projects/$project/signals/insights': {
       id: '/api/v1/projects/$project/signals/insights'
       path: '/insights'
@@ -760,6 +814,13 @@ declare module '@tanstack/react-router' {
       path: '/contract'
       fullPath: '/api/v1/projects/$project/concepts/$concept/contract'
       preLoaderRoute: typeof ApiV1ProjectsProjectConceptsConceptContractRouteImport
+      parentRoute: typeof ApiV1ProjectsProjectConceptsConceptRoute
+    }
+    '/api/v1/projects/$project/concepts/$concept/questions': {
+      id: '/api/v1/projects/$project/concepts/$concept/questions'
+      path: '/questions'
+      fullPath: '/api/v1/projects/$project/concepts/$concept/questions'
+      preLoaderRoute: typeof ApiV1ProjectsProjectConceptsConceptQuestionsRouteImport
       parentRoute: typeof ApiV1ProjectsProjectConceptsConceptRoute
     }
     '/api/v1/projects/$project/parts/$recordId/answers': {
@@ -830,12 +891,15 @@ const ApiV1ProjectsProjectAsksRouteWithChildren =
 
 interface ApiV1ProjectsProjectConceptsConceptRouteChildren {
   ApiV1ProjectsProjectConceptsConceptContractRoute: typeof ApiV1ProjectsProjectConceptsConceptContractRoute
+  ApiV1ProjectsProjectConceptsConceptQuestionsRoute: typeof ApiV1ProjectsProjectConceptsConceptQuestionsRoute
 }
 
 const ApiV1ProjectsProjectConceptsConceptRouteChildren: ApiV1ProjectsProjectConceptsConceptRouteChildren =
   {
     ApiV1ProjectsProjectConceptsConceptContractRoute:
       ApiV1ProjectsProjectConceptsConceptContractRoute,
+    ApiV1ProjectsProjectConceptsConceptQuestionsRoute:
+      ApiV1ProjectsProjectConceptsConceptQuestionsRoute,
   }
 
 const ApiV1ProjectsProjectConceptsConceptRouteWithChildren =
@@ -920,6 +984,21 @@ const ApiV1ProjectsProjectPartsRouteWithChildren =
     ApiV1ProjectsProjectPartsRouteChildren,
   )
 
+interface ApiV1ProjectsProjectQuestionsRouteChildren {
+  ApiV1ProjectsProjectQuestionsQuestionIdRoute: typeof ApiV1ProjectsProjectQuestionsQuestionIdRoute
+}
+
+const ApiV1ProjectsProjectQuestionsRouteChildren: ApiV1ProjectsProjectQuestionsRouteChildren =
+  {
+    ApiV1ProjectsProjectQuestionsQuestionIdRoute:
+      ApiV1ProjectsProjectQuestionsQuestionIdRoute,
+  }
+
+const ApiV1ProjectsProjectQuestionsRouteWithChildren =
+  ApiV1ProjectsProjectQuestionsRoute._addFileChildren(
+    ApiV1ProjectsProjectQuestionsRouteChildren,
+  )
+
 interface ApiV1ProjectsProjectSignalsRouteChildren {
   ApiV1ProjectsProjectSignalsInsightsRoute: typeof ApiV1ProjectsProjectSignalsInsightsRoute
 }
@@ -955,6 +1034,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1ProjectsProjectMembersRoute: ApiV1ProjectsProjectMembersRoute,
   ApiV1ProjectsProjectMineRoute: ApiV1ProjectsProjectMineRoute,
   ApiV1ProjectsProjectPartsRoute: ApiV1ProjectsProjectPartsRouteWithChildren,
+  ApiV1ProjectsProjectQuestionsRoute:
+    ApiV1ProjectsProjectQuestionsRouteWithChildren,
   ApiV1ProjectsProjectSignalsRoute:
     ApiV1ProjectsProjectSignalsRouteWithChildren,
   ApiV1ProjectsProjectWatchersRoute: ApiV1ProjectsProjectWatchersRoute,

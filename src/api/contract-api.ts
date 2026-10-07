@@ -8,6 +8,7 @@ import type { Contract, FrozenPart } from '../db/contracts.ts'
 import { evidenceLevels, partTypes } from '../db/parts.ts'
 import { ApiError, handleApiRequest, parseJson } from './api-request.ts'
 import type { ApiRequest } from './api-request.ts'
+import { contractQuestionSchema } from './contract-question-api.ts'
 
 const frozenPartSchema = z
   .object({
@@ -68,6 +69,10 @@ export const contractSchema = z
         description:
           'One slot per Part type of the Kind. A slot is filled when the Version holds a Part of its type',
       }),
+    questions: z.array(contractQuestionSchema).meta({
+      description:
+        'The questions of builders about the Contract that have an answer, the newest first. Each one names the Version that it was asked about',
+    }),
   })
   .meta({ id: 'Contract' }) satisfies z.ZodType<Contract>
 

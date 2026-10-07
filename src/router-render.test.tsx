@@ -16,6 +16,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Ask } from './db/asks.ts'
+import type { ContractQuestion } from './db/contract-questions.ts'
 import type { LeveledPart } from './db/flight-level.ts'
 import type {
   MeasuredPart,
@@ -301,10 +302,11 @@ describe('a section', () => {
         .map((heading) => heading.textContent)
 
     // The Contract is of the whole Concept: only the view with no lens
-    // shows it.
+    // shows it, and the questions about its Versions.
     const all = [
       'Next',
       'Contract',
+      'Questions',
       'Insights',
       'Goals',
       'Decisions',
@@ -3144,5 +3146,120 @@ describe('the Kinds of a Project', () => {
     within(screen.getByRole('region', { name: 'Next' })).getByRole('button', {
       name: 'Add Metric',
     })
+  })
+})
+
+describe('the questions about the Contract of a Concept', () => {
+  const open: ContractQuestion = {
+    id: 2,
+    concept: 'part-model',
+    conceptTitle: 'Part model',
+    version: 1,
+    stale: false,
+    text: 'Does a Joint keep its Version?',
+    askedBy: 'build-agent',
+    askedAt: '2026-10-03T09:00:00.000Z',
+    answer: null,
+  }
+  const closed: ContractQuestion = {
+    ...open,
+    id: 1,
+    stale: true,
+    text: 'Is the body Markdown?',
+    askedAt: '2026-10-02T09:00:00.000Z',
+    answer: { text: 'Yes.', by: 'Ada', at: '2026-10-02T11:00:00.000Z' },
+  }
+  const asked = {
+    fetchContractQuestions: vi.fn(() => Promise.resolve([open, closed])),
+  }
+  const questions = () =>
+    within(screen.getByRole('region', { name: 'Questions' }))
+
+  it('lists the questions of the Concept with their Version, the stale mark and the answer', async () => {
+    const { server } = await renderPage('/glue/part-model', asked)
+
+    expect(server.fetchContractQuestions).toHaveBeenCalledWith({
+      project: 'glue',
+      concept: 'part-model',
+    })
+    expect(
+      questions()
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([
+      'Version 1build-agent 2026-10-03Does a Joint keep its Version?Answer',
+      'Version 1Stalebuild-agent 2026-10-02Is the body Markdown?Yes.Ada 2026-10-02',
+    ])
+  })
+
+  it('sends the answer of the member, and shows at the field why it was not saved', async () => {
+    const { server } = await renderPage('/glue/part-model', {
+      ...asked,
+      answerContractQuestion: vi.fn(() =>
+        Promise.resolve({ message: 'Question 2 has an answer' }),
+      ),
+    })
+
+    await userEvent.click(questions().getByRole('button', { name: 'Answer' }))
+    await userEvent.type(field('Answer'), 'Yes, the Joint keeps it.')
+    await userEvent.click(questions().getByRole('button', { name: 'Send' }))
+
+    await questions().findByText('Question 2 has an answer')
+    expect(server.answerContractQuestion).toHaveBeenCalledWith({
+      project: 'glue',
+      questionId: 2,
+      text: 'Yes, the Joint keeps it.',
+    })
+    expect(field('Answer').getAttribute('aria-invalid')).toBe('true')
+  })
+
+  it('asks about the newest Version of the Concept', async () => {
+    // The server saves the question: the list has it after the write.
+    const saved = [closed]
+    const { server } = await renderPage('/glue/part-model', {
+      fetchContractQuestions: vi.fn(() => Promise.resolve([...saved])),
+      askContractQuestion: vi.fn(() => {
+        saved.unshift(open)
+        return Promise.resolve({ id: open.id })
+      }),
+    })
+
+    await userEvent.click(questions().getByRole('button', { name: 'Ask' }))
+    await userEvent.type(field('Question'), 'Who owns a Joint?')
+    await userEvent.click(questions().getByRole('button', { name: 'Send' }))
+
+    await waitFor(() =>
+      expect(server.askContractQuestion).toHaveBeenCalledWith({
+        project: 'glue',
+        concept: 'part-model',
+        text: 'Who owns a Joint?',
+      }),
+    )
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull())
+  })
+
+  it('has no questions for a Concept with no Contract Version', async () => {
+    await renderPage('/glue/read-model')
+
+    expect(screen.queryByRole('region', { name: 'Questions' })).toBeNull()
+  })
+
+  it('shows the open questions in Mine, with their Concept', async () => {
+    const { expectAddress } = await renderPage('/glue?section=Mine', {
+      fetchMineContractQuestions: vi.fn(() => Promise.resolve([open])),
+    })
+
+    expect(screen.queryByText('No Parts')).toBeNull()
+    expect(
+      questions()
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([
+      'Part modelVersion 1build-agent 2026-10-03Does a Joint keep its Version?Answer',
+    ])
+
+    await userEvent.click(questions().getByRole('link', { name: 'Part model' }))
+
+    await expectAddress('/glue/part-model')
   })
 })

@@ -26,6 +26,10 @@ describe('GET /api/v1/openapi.json', () => {
             'patch /kinds/{kind}',
             'get /concepts/{concept}/contract',
             'post /concepts/{concept}/contract',
+            'get /concepts/{concept}/questions',
+            'post /concepts/{concept}/questions',
+            'get /questions',
+            'patch /questions/{questionId}',
             'get /parts',
             'post /parts',
             'get /parts/{recordId}',
@@ -124,6 +128,38 @@ describe('GET /api/v1/openapi.json', () => {
     expect(Contract.properties.tier1.items).toEqual({
       $ref: '#/components/schemas/FrozenPart',
     })
+  })
+
+  it('describes the questions about a Contract Version', async () => {
+    const document = await handleGetOpenApi().json()
+    const root = '/api/v1/projects/{project}'
+    const { Contract, ContractQuestion } = document.components.schemas
+
+    expect(Contract.properties.questions.items).toEqual({
+      $ref: '#/components/schemas/ContractQuestion',
+    })
+    expect(Object.keys(ContractQuestion.properties)).toEqual([
+      'id',
+      'concept',
+      'conceptTitle',
+      'version',
+      'stale',
+      'text',
+      'askedBy',
+      'askedAt',
+      'answer',
+    ])
+    expect(
+      document.paths[`${root}/concepts/{concept}/questions`].post.requestBody
+        .content['application/json'].schema,
+    ).toEqual({ $ref: '#/components/schemas/ContractQuestionInput' })
+    expect(
+      document.paths[`${root}/questions/{questionId}`].patch.requestBody
+        .content['application/json'].schema,
+    ).toEqual({ $ref: '#/components/schemas/ContractQuestionAnswerInput' })
+    expect(document.paths[`${root}/questions`].get.parameters).toContainEqual(
+      expect.objectContaining({ in: 'query', name: 'member' }),
+    )
   })
 
   it('describes Trust, the Work state, the flags and the answers', async () => {

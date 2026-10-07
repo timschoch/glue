@@ -409,5 +409,6 @@ export function findContract({
     slots: (findConcept({ project: 'glue', concept })?.slots ?? []).map(
       (slot) => ({ ...slot, required: true }),
     ),
+    questions: [],
   }
 }

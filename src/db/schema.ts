@@ -615,6 +615,37 @@ export const contractVersions = pgTable(
   (table) => [unique().on(table.conceptId, table.version)],
 )
 
+// A question of a builder about a Contract Version of the Concept
+// (glue/D62). `askedBy` and `answeredBy` are names: of a member, or of who
+// holds a token. No answer: the question is open.
+export const contractQuestions = pgTable(
+  'contract_questions',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    conceptId: integer('concept_id').notNull(),
+    // The Contract Version that the builder builds with.
+    version: integer('version').notNull(),
+    text: text('text').notNull(),
+    askedBy: text('asked_by').notNull(),
+    askedAt: timestamp('asked_at', { withTimezone: true }).notNull(),
+    answer: text('answer'),
+    answeredBy: text('answered_by'),
+    answeredAt: timestamp('answered_at', { withTimezone: true }),
+  },
+  (table) => [
+    // A question names a Version that the Concept has.
+    foreignKey({
+      columns: [table.conceptId, table.version],
+      foreignColumns: [contractVersions.conceptId, contractVersions.version],
+    }).onDelete('cascade'),
+    check(
+      'contract_questions_answer_check',
+      sql`num_nonnulls(${table.answer}, ${table.answeredBy}, ${table.answeredAt}) in (0, 3)`,
+    ),
+    index('contract_questions_concept_id_index').on(table.conceptId),
+  ],
+)
+
 // The highest number that a record id of one Part type had in the Project.
 // It only grows, so the id of a deleted Part does not come back.
 export const partCounters = pgTable(

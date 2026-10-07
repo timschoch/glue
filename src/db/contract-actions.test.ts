@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { Session } from '../authentication/session.ts'
 import { createContractActions } from './contract-actions.ts'
-import { joinProject } from './members.ts'
+import { assign, joinProject } from './members.ts'
 import { addConcept, addPart, addProject, answerPart } from './part-records.ts'
 import * as schema from './schema.ts'
 import { createTestDatabase } from './test-database.ts'
@@ -63,6 +63,13 @@ const requests = {
   findContractState: () => actions.findContractState(input),
   findContract: () => actions.findContract(input),
   signContract: () => actions.signContract(input),
+  listContractQuestions: () => actions.listContractQuestions(input),
+  listMineContractQuestions: () =>
+    actions.listMineContractQuestions({ project }),
+  askContractQuestion: () =>
+    actions.askContractQuestion({ ...input, text: 'Is the cart saved?' }),
+  answerContractQuestion: () =>
+    actions.answerContractQuestion({ project, questionId: 1, text: 'Yes.' }),
 } satisfies Record<keyof typeof actions, () => Promise<unknown>>
 
 describe('a server function of the Contract without a session', () => {
@@ -125,6 +132,57 @@ describe('a server function of the Contract with a session', () => {
       newestVersion: 1,
       tier1: [{ id: 'F1', title: 'Pay the cart' }],
     })
+  })
+
+  it('asks and answers a question with the name of the member', async () => {
+    await answerPart(db, project, 'F1', { answer: 'supersede' })
+    await actions.signContract(input)
+    await assign(db, project, {
+      member: ada.email,
+      concept: 'cart',
+      role: 'responsible',
+    })
+
+    expect(
+      await actions.askContractQuestion({
+        ...input,
+        text: 'Is the cart saved?',
+      }),
+    ).toEqual({ id: 1 })
+    expect(await actions.listMineContractQuestions({ project })).toMatchObject([
+      { id: 1, version: 1, askedBy: 'Ada', answer: null },
+    ])
+
+    expect(
+      await actions.answerContractQuestion({
+        project,
+        questionId: 1,
+        text: 'Yes.',
+      }),
+    ).toEqual({ id: 1 })
+    expect(await actions.listMineContractQuestions({ project })).toEqual([])
+    expect(await actions.listContractQuestions(input)).toMatchObject([
+      { id: 1, answer: { text: 'Yes.', by: 'Ada' } },
+    ])
+    expect(
+      await actions.answerContractQuestion({
+        project,
+        questionId: 1,
+        text: 'No.',
+      }),
+    ).toEqual({ message: 'Question 1 has an answer' })
+  })
+
+  it('gives a person who is no member no question in Mine, and no way to ask', async () => {
+    await answerPart(db, project, 'F1', { answer: 'supersede' })
+    await actions.signContract(input)
+    await actions.askContractQuestion({ ...input, text: 'Is the cart saved?' })
+    session = { user: { id: 'user-2', name: 'Bo', email: 'bo@example.com' } }
+
+    expect(await actions.listMineContractQuestions({ project })).toEqual([])
+    expect(
+      await actions.askContractQuestion({ ...input, text: 'And the price?' }),
+    ).toEqual({ message: 'Only a member of the Project can change it.' })
   })
 
   it('answers nothing for a Concept and a Version that do not exist', async () => {
