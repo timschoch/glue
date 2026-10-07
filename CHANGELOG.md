@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.1](https://github.com/timschoch/glue/compare/v1.27.0...v1.27.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **api:** a write over HTTP follows the rules of the app ([#376](https://github.com/timschoch/glue/issues/376)) ([855b045](https://github.com/timschoch/glue/commit/855b0452eff4d1bd049636be877b01a62bc2b652)), closes [#373](https://github.com/timschoch/glue/issues/373)
+
 ## [1.27.0](https://github.com/timschoch/glue/compare/v1.26.0...v1.27.0) (2026-10-07)
 
 
