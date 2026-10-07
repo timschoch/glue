@@ -172,6 +172,9 @@ describe('GET /api/v1/openapi.json', () => {
       'supersede',
       'sink',
       'move-to-version',
+      'raise',
+      'verify',
+      'dispute',
     ]) {
       expect(JSON.stringify(schemas.AnswerInput)).toContain(`"${answer}"`)
     }

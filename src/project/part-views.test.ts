@@ -47,6 +47,7 @@ const decision: Part = {
   metric: null,
   enforcedBy: null,
   evidenceLevel: null,
+  evidenceBase: null,
   issueUrl: 'https://github.com/timschoch/glue/issues/1',
   measure: null,
   measured: [],

@@ -171,7 +171,7 @@ describe('the activity of a Part', () => {
 
   it('has a line for the member who answers the question of a Decision', async () => {
     await operations.addPart(project, goal)
-    await operations.addPart(project, insight)
+    await operations.addPart(project, { ...insight, evidenceLevel: 'pattern' })
     await operations.addPart(
       project,
       { ...decision, status: 'proposed', options: ['Cache', 'No cache'] },

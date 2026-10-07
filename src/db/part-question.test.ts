@@ -36,6 +36,7 @@ beforeEach(async () => {
     type: 'insight',
     title: 'Users churn on slow loads',
     source: 'interview',
+    evidenceLevel: 'pattern',
   })
 })
 

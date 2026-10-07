@@ -17,7 +17,6 @@ const values: PartFormValues = {
   source: 'interviews',
   owner: 'Ada',
   date: '2026-10-04',
-  evidenceLevel: 'pattern',
   enforcedBy: 'verify ci',
   goal: 'G1',
   evidence: ['I3', 'R1'],
@@ -60,7 +59,7 @@ describe('the Part that the form adds', () => {
   })
 
   it.each([
-    ['insight', ['source', 'date', 'evidenceLevel']],
+    ['insight', ['source', 'date']],
     ['goal', ['metric', 'source']],
     ['guardrail', ['enforcedBy']],
     ['entity', []],
@@ -107,7 +106,6 @@ describe('the Part that the form edits', () => {
       source: '',
       owner: 'Ada',
       date: '2026-01-15',
-      evidenceLevel: null,
       enforcedBy: '',
       goal: 'G1',
       evidence: ['I3'],

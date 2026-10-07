@@ -274,6 +274,7 @@ function part(
     metric: null,
     enforcedBy: null,
     evidenceLevel: null,
+    evidenceBase: null,
     issueUrl: null,
     measure: null,
     measured: [],

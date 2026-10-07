@@ -50,7 +50,6 @@ export const partFields = {
       name: 'evidenceLevel',
       kind: 'choice',
       required: false,
-      label: 'Evidence level',
       flag: 'level',
     },
     { name: 'status', kind: 'choice', required: false },

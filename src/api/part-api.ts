@@ -239,6 +239,10 @@ export const partSchema = z
     metric: z.string().nullable(),
     enforcedBy: z.string().nullable(),
     evidenceLevel: z.enum(evidenceLevels).nullable(),
+    evidenceBase: z.enum(evidenceLevels).nullable().meta({
+      description:
+        'The level of the strongest evidence of a Decision. A Guardrail counts as confirmed. A Decision on a hunch takes no sign-off. null: no Decision, or no evidence',
+    }),
     issueUrl: z.string().nullable(),
     question: z
       .object({
@@ -328,7 +332,7 @@ export const partSchema = z
           z.object({
             kind: z.enum(activityKinds).meta({
               description:
-                'A step of the Work state, an edit (changed) or a wording fix',
+                'A step of the Work state, an edit (changed), a wording fix, or a step of the evidence level (raised, verified, disputed)',
             }),
             at: z.iso.datetime(),
             by: z.string().optional().meta({
@@ -337,6 +341,10 @@ export const partSchema = z
             version: z.number().optional().meta({
               description:
                 'Only a sign-off has it: the number of the Part Version that it stored',
+            }),
+            note: z.string().optional().meta({
+              description:
+                'Only a step of the evidence level has it: what was tested, or why the Insight is in doubt',
             }),
           }),
           z.object({
@@ -409,7 +417,7 @@ export const jointInputSchema = newJointSchema.meta({ id: 'JointInput' })
 export const answerInputSchema = partAnswerSchema.meta({
   id: 'AnswerInput',
   description:
-    'The answer of the owner. The Work state of the Part says which answers it takes',
+    'The answer of the owner. The Work state of the Part says which answers it takes. verify takes a Pattern to confirmed, and dispute takes a confirmed Insight back to pattern',
 })
 export const questionAnswerInputSchema = questionAnswerSchema.meta({
   id: 'QuestionAnswerInput',

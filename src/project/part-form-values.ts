@@ -65,7 +65,6 @@ export function toNewPart(
         ...common,
         source: values.source,
         date,
-        evidenceLevel: values.evidenceLevel,
       }
     case 'goal':
       return { type, ...common, metric: values.metric, source: values.source }
@@ -124,7 +123,6 @@ export function toFormValues(part: Part): PartFormValues {
     source: part.source ?? '',
     owner: part.owner ?? '',
     date: part.date ?? '',
-    evidenceLevel: part.evidenceLevel,
     enforcedBy: part.enforcedBy ?? '',
     goal: needed.find(({ type }) => type === 'goal')?.id ?? null,
     evidence: needed.filter(({ type }) => isEvidence(type)).map(({ id }) => id),

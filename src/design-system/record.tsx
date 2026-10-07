@@ -125,11 +125,14 @@ export type RecordFlag = {
 }
 
 // What happened to a Part: a step of its Work state, an edit, a wording
-// fix, or a flag that opened or closed.
+// fix, a step of its Evidence level, or a flag that opened or closed.
 const activityKinds = {
   ...workStates,
   changed: 'Edited',
   wording: 'Wording',
+  raised: 'Raised',
+  verified: 'Verified',
+  disputed: 'Disputed',
   'flag-opened': 'Flag opened',
   'flag-closed': 'Flag closed',
 } as const
@@ -147,12 +150,17 @@ export type RecordVersion = {
   evidenceLevel: EvidenceLevel | null
 }
 
+// A note that is a link to the web and nothing else.
+const WEB_LINK = /^https?:\/\/\S+$/
+
 // One entry of the activity list, with its time as ISO. `by` is the name of
-// the member who did it. A sign-off has the Version that it stored.
+// the member who did it. A sign-off has the Version that it stored. A step
+// of the Evidence level has a note: what was tested, or the reason.
 export type RecordActivity = {
   kind: keyof typeof activityKinds
   at: string
   by?: string
+  note?: string
   flag?: RecordFlag
   version?: RecordVersion
 }
@@ -166,6 +174,8 @@ export type RecordPart = RecordPartSummary & {
   metric: string | null
   enforcedBy: string | null
   evidenceLevel: EvidenceLevel | null
+  // The level of the strongest evidence of a Decision.
+  evidenceBase?: EvidenceLevel | null
   issueUrl: string | null
   measure: {
     baseline: number | null
@@ -596,6 +606,9 @@ export function Record({
   const { word, Glyph, className } = signs[part.trust]
   const { measure, issueUrl, question } = part
   const { emptySlots = [], reviewNotes = [] } = part
+  // A Decision on a Hunch takes no sign-off: the reason stands with the
+  // other things that the Part needs.
+  const restsOnHunch = part.evidenceBase === 'hunch'
   const given = question?.answer
   const issueNumber = issueUrl && ISSUE_NUMBER.exec(issueUrl)?.[0]
   const fields: Array<[string, ReactNode]> = [
@@ -675,6 +688,7 @@ export function Record({
             {part.workState && <span>{workStates[part.workState]}</span>}
             {part.owner && <span>{part.owner}</span>}
             {part.date && <time dateTime={part.date}>{part.date}</time>}
+            {part.evidenceBase === 'pattern' && <span>Rests on a Pattern</span>}
           </div>
         )}
       </header>
@@ -712,13 +726,18 @@ export function Record({
         }
         pickParts={jointParts.filter(({ id }) => id !== part.id)}
       />
-      {(emptySlots.length > 0 || part.flags.length > 0) && (
+      {(emptySlots.length > 0 || restsOnHunch || part.flags.length > 0) && (
         <ul aria-label="Flags" className={styles.flags}>
           {emptySlots.map((slot) => (
             <li key={slot} className={styles.flag}>
               <span className={styles.reason}>{slotReasons[slot]}</span>
             </li>
           ))}
+          {restsOnHunch && (
+            <li className={styles.flag}>
+              <span className={styles.reason}>Rests on a Hunch</span>
+            </li>
+          )}
           {part.flags.map(({ reason, part: cause, contract }) => (
             <li key={`${cause.id} ${reason}`} className={styles.flag}>
               <span className={styles.reason}>{flagReasons[reason]}</span>
@@ -880,7 +899,7 @@ export function Record({
             Activity
           </h2>
           <ol className={styles.activity}>
-            {part.activity.map(({ kind, at, by, flag, version }) => {
+            {part.activity.map(({ kind, at, by, note, flag, version }) => {
               const versionKey = `${part.id} ${version?.version}`
               const isOpen = openVersion === versionKey
               return (
@@ -888,6 +907,12 @@ export function Record({
                   <time dateTime={at}>{at.slice(0, DAY_LENGTH)}</time>
                   <span>{activityKinds[kind]}</span>
                   {by && <span>{by}</span>}
+                  {note &&
+                    (WEB_LINK.test(note) ? (
+                      <Link href={note}>{note}</Link>
+                    ) : (
+                      <span>{note}</span>
+                    ))}
                   {flag && (
                     <>
                       <span>{flagReasons[flag.reason]}</span>

@@ -1403,6 +1403,63 @@ describe('the activity of a record', () => {
     expect(screen.getByRole('article').lastElementChild).toBe(group)
   })
 
+  it('shows what was tested as a link, and the reason of a dispute as text', () => {
+    renderRecord({
+      activity: [
+        {
+          kind: 'disputed',
+          at: '2026-10-06T08:00:00.000Z',
+          by: 'Mara',
+          note: 'javascript:alert(1)',
+        },
+        {
+          kind: 'verified',
+          at: '2026-10-05T08:00:00.000Z',
+          by: 'Ada',
+          note: 'https://example.com/test/7',
+        },
+      ],
+    })
+
+    const group = within(screen.getByRole('region', { name: 'Activity' }))
+
+    expect(
+      group.getAllByRole('listitem').map((item) => item.textContent),
+    ).toEqual([
+      '2026-10-06DisputedMarajavascript:alert(1)',
+      '2026-10-05VerifiedAdahttps://example.com/test/7',
+    ])
+    expect(
+      group.getAllByRole('link').map((link) => link.getAttribute('href')),
+    ).toEqual(['https://example.com/test/7'])
+  })
+
+  it('says in its head that a Decision rests on a Pattern', () => {
+    renderRecord({ evidenceBase: 'pattern' })
+
+    expect(
+      within(inRecord('header')).getByText('Rests on a Pattern'),
+    ).toBeTruthy()
+    expect(screen.queryByRole('list', { name: 'Flags' })).toBeNull()
+  })
+
+  it('gives the reason of a Decision that rests on a Hunch', () => {
+    renderRecord({ evidenceBase: 'hunch' })
+
+    expect(
+      within(screen.getByRole('list', { name: 'Flags' }))
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Rests on a Hunch'])
+    expect(screen.queryByText('Rests on a Pattern')).toBeNull()
+  })
+
+  it('says nothing of a Decision with Confirmed evidence', () => {
+    renderRecord({ evidenceBase: 'confirmed' })
+
+    expect(screen.queryByText(/Rests on/)).toBeNull()
+  })
+
   it('keeps an old Version closed', () => {
     renderRecord({ activity: [signed] })
 

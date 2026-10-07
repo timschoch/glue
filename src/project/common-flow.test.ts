@@ -28,6 +28,7 @@ const published: Part = {
   metric: null,
   enforcedBy: null,
   evidenceLevel: null,
+  evidenceBase: null,
   issueUrl: null,
   measure: null,
   measured: [],
@@ -92,15 +93,107 @@ function neededBy(...types: Array<PartSummary['type']>): Part['neededBy'] {
   }))
 }
 
+// Two Signals of two sources on one day.
+const twoSources = [
+  { source: 'github', date: '2026-10-01' },
+  { source: 'support', date: '2026-10-01' },
+]
+
 describe('the common flow of a Part', () => {
-  it('asks to raise the level of an Insight that is a hunch', () => {
+  it('asks a Hunch whose Signals do not agree for the second source', () => {
     expect(
       findCommonFlow({ ...published, type: 'insight', evidenceLevel: 'hunch' }),
     ).toEqual({
       name: 'Evidence to Insight',
       steps: ['Group', 'Check', 'Verify'],
       current: 1,
-      next: { kind: 'edit', label: 'Raise the level' },
+      next: { kind: 'raise', label: 'Raise to Pattern', needsSource: true },
+    })
+  })
+
+  it('opens the Hunch of a published Decision that rests on it', () => {
+    const needs = [
+      {
+        jointId: 1,
+        twoWay: false,
+        link: false,
+        contractVersion: null,
+        part: { ...summary, id: 'I1', type: 'insight' as const },
+      },
+    ]
+    const open = {
+      kind: 'open',
+      part: { id: 'I1', concept: 'glue' },
+      label: `Open I1 ${summary.title}`,
+    }
+    const decision = { ...published, evidenceBase: 'hunch' as const, needs }
+
+    expect(findCommonFlow(decision)).toEqual({
+      name: 'Decision to Brief',
+      steps: ['Fill slots', 'Sign'],
+      current: 0,
+      next: open,
+    })
+    expect(findCommonFlow(decision, [build])?.next).toEqual(open)
+  })
+
+  it('proposes Pattern for a Hunch whose one source keeps giving Signals', () => {
+    const overTime = [
+      { source: 'github', date: '2026-10-01' },
+      { source: 'github', date: '2026-10-04' },
+      { source: 'github', date: '2026-10-08' },
+    ]
+
+    expect(
+      findCommonFlow({ ...published, type: 'insight' }, [], undefined, overTime)
+        ?.next,
+    ).toEqual({ kind: 'raise', label: 'Raise to Pattern', needsSource: false })
+  })
+
+  it('asks to verify a Pattern', () => {
+    expect(
+      findCommonFlow({
+        ...published,
+        type: 'insight',
+        evidenceLevel: 'pattern',
+      }),
+    ).toEqual({
+      name: 'Evidence to Insight',
+      steps: ['Group', 'Check', 'Verify'],
+      current: 2,
+      next: { kind: 'verify', label: 'Verify' },
+    })
+  })
+
+  it('opens the Hunch of a Decision that rests on a Hunch, in place of the sign-off', () => {
+    const hunch = {
+      ...summary,
+      id: 'I1',
+      type: 'insight',
+      title: 'Loads are slow',
+    } as const
+    const needs = [
+      {
+        jointId: 1,
+        twoWay: false,
+        link: false,
+        contractVersion: null,
+        part: hunch,
+      },
+    ]
+
+    expect(
+      findCommonFlow({
+        ...published,
+        ...draft,
+        workState: 'review',
+        evidenceBase: 'hunch',
+        needs,
+      })?.next,
+    ).toEqual({
+      kind: 'open',
+      part: { id: 'I1', concept: 'glue' },
+      label: 'Open I1 Loads are slow',
     })
   })
 
@@ -111,32 +204,35 @@ describe('the common flow of a Part', () => {
       type: 'insight',
       evidenceLevel: 'hunch',
     } as const
-    const raise = { kind: 'raise', level: 'pattern', label: 'Raise to Pattern' }
+    const raise = {
+      kind: 'raise',
+      label: 'Raise to Pattern',
+      needsSource: false,
+    }
 
-    expect(findCommonFlow(hunch, [], undefined, ['github', 'support'])).toEqual(
-      {
-        name: 'Evidence to Insight',
-        steps: ['Group', 'Check', 'Verify'],
-        current: 0,
-        next: raise,
-      },
-    )
+    expect(findCommonFlow(hunch, [], undefined, twoSources)).toEqual({
+      name: 'Evidence to Insight',
+      steps: ['Group', 'Check', 'Verify'],
+      current: 0,
+      next: raise,
+    })
     expect(
-      findCommonFlow({ ...published, type: 'insight' }, [], undefined, [
-        'github',
-        'support',
-      ])?.next,
+      findCommonFlow(
+        { ...published, type: 'insight' },
+        [],
+        undefined,
+        twoSources,
+      )?.next,
     ).toEqual(raise)
   })
 
   it('proposes no Pattern for Signals of one source, a Pattern or a flag', () => {
     const hunch = { ...published, ...draft, type: 'insight' } as const
-    const sources = ['github', 'support']
+    const sources = twoSources
 
-    expect(findCommonFlow(hunch, [], undefined, ['github'])?.next).toEqual({
-      kind: 'answer',
-      answer: 'supersede',
-    })
+    expect(
+      findCommonFlow(hunch, [], undefined, twoSources.slice(0, 1))?.next,
+    ).toEqual({ kind: 'answer', answer: 'supersede' })
     expect(
       findCommonFlow(
         { ...hunch, evidenceLevel: 'pattern' },
@@ -370,7 +466,7 @@ describe('the common flow of a Part', () => {
       name: 'Ask another Project',
       steps: ['Ask', 'Pick', 'Hand back'],
       current: 1,
-      next: { kind: 'edit', label: 'Raise the level' },
+      next: { kind: 'raise', label: 'Raise to Pattern', needsSource: true },
     })
     expect(findCommonFlow(hunch, [], 'hand-back')?.current).toBe(2)
   })

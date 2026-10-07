@@ -23,7 +23,7 @@ import { findPart, listPartsByRecordId } from './parts.ts'
 import type { Part, PartSummary } from './parts.ts'
 import { InvalidRecordError, PartNotFoundError } from './record-errors.ts'
 import { typeOfRecordId } from './record-id.ts'
-import { addSignalInsight } from './signals.ts'
+import { addSignalInsight, listSignals } from './signals.ts'
 import type { SignalInsight } from './signals.ts'
 
 // A Part after a write, with what became of its downstream issue. When
@@ -184,7 +184,20 @@ export function createPartOperations({
       answeredBy?: string,
     ) {
       const wasAccepted = await isAccepted(project, recordId)
-      await answerPart(db, project, recordId, answer, answeredBy)
+      // The Signals come live from their tools: a raise reads them.
+      const listLevelSignals = async () => {
+        const sources = createSignalSources(github)
+        const { signals } = await listSignals(db, sources, project)
+        return signals.filter(({ insight }) => insight?.id === recordId)
+      }
+      await answerPart(
+        db,
+        project,
+        recordId,
+        answer,
+        answeredBy,
+        listLevelSignals,
+      )
       return toChangedPart(project, recordId, wasAccepted)
     },
 

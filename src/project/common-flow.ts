@@ -2,20 +2,24 @@ import type { AskStep } from '../db/asks.ts'
 import type { Build } from '../db/builds.ts'
 import type { ContractState } from '../db/contracts.ts'
 import type { Answer, Part, PartSummary, PartType } from '../db/parts.ts'
+import { canRaiseToPattern } from '../evidence-level.ts'
+import type { LevelSignal } from '../evidence-level.ts'
 
 // The common flows of docs/concept.md, section 7: which one a Part or a
 // Concept is in, the step it is at, and the one next step.
 
-// The one next step: an answer of the owner, the form of the Part, a higher
-// Evidence level that Glue proposes, a new Part that needs this one, the
-// home Concept, the Joint to the Insight that an Ask handed back, the Part
+// The one next step: an answer of the owner, the step of a Hunch to
+// Pattern, the test that confirms a Pattern, a new Part that needs
+// this one, the home Concept, the Joint to the Insight that an Ask handed back, the Part
 // where the loop goes on, or the build in GitHub. It is never an answer
 // that breaks the Part (glue/D58). A Concept has two more: its sign-off, and
 // the Contract Version to build from.
 export type NextStep =
   | { kind: 'answer'; answer: Answer }
-  | { kind: 'edit'; label: string }
-  | { kind: 'raise'; level: 'pattern'; label: string }
+  // `needsSource`: the Signals do not agree, so the member names the second
+  // source that agrees.
+  | { kind: 'raise'; label: string; needsSource: boolean }
+  | { kind: 'verify'; label: string }
   | { kind: 'add'; type: PartType; label: string }
   | { kind: 'concept'; label: string }
   | { kind: 'glue'; label: string }
@@ -72,13 +76,17 @@ const addInsight = addPart('insight')
 function openPart({ id, concept, title }: PartSummary): NextStep {
   return { kind: 'open', part: { id, concept }, label: `Open ${id} ${title}` }
 }
-// Several sources agree (glue/D54). Glue proposes, the member decides.
+// The Signals agree (glue/D54, glue/D60). Glue proposes, the member decides.
 const raiseToPattern: NextStep = {
   kind: 'raise',
-  level: 'pattern',
   label: 'Raise to Pattern',
+  needsSource: false,
 }
-const PATTERN_SOURCES = 2
+// An Insight that a member wrote has no Signals that agree: the member
+// names the second source that agrees (glue/D60).
+const raiseWithSource: NextStep = { ...raiseToPattern, needsSource: true }
+// A test confirms a Pattern: the member says what was tested (glue/D60).
+const verify: NextStep = { kind: 'verify', label: 'Verify' }
 // No Contract exists yet, so each Concept waits for its sign-off.
 const openConcept: NextStep = { kind: 'concept', label: 'Open Concept' }
 
@@ -118,10 +126,14 @@ function findPublishedFlow(
 
   switch (part.type) {
     case 'insight': {
-      const current = evidenceSteps[part.evidenceLevel ?? 'hunch']
-      if (current < flows.evidence.steps.length) {
-        const next = { kind: 'edit', label: 'Raise the level' } as const
-        return { ...flows.evidence, current, next }
+      const level = part.evidenceLevel ?? 'hunch'
+      const current = evidenceSteps[level]
+      // Signals that agree need no second source: see findCommonFlow.
+      if (level === 'hunch') {
+        return { ...flows.evidence, current, next: raiseWithSource }
+      }
+      if (level === 'pattern') {
+        return { ...flows.evidence, current, next: verify }
       }
       const decisions = listNeeding('decision')
       const next = decisions.length > 0 ? openNeeding(decisions) : addDecision
@@ -229,15 +241,15 @@ export function findConceptFlow(
 // comes before the flow of its type. A sunk Part is in no flow. `ask` is the
 // step of the open Ask of the Part: the Part shows the steps of the Ask and
 // keeps the next step of its own flow, until the Insight is handed back.
-// Then the next step glues it. `signalSources` are the sources that gave
-// the Signals of the Part: the next step of a Hunch with two or more is to
-// raise it to Pattern. `built` are the ids of the Decisions that need the
+// Then the next step glues it. `signals` are the Signals of the Part: a
+// Hunch is raised to Pattern with no second source when they agree, see
+// canRaiseToPattern. `built` are the ids of the Decisions that need the
 // Part and are built.
 export function findCommonFlow(
   part: Part,
   builds: ReadonlyArray<GatedBuild> = [],
   ask?: AskStep,
-  signalSources: ReadonlyArray<string> = [],
+  signals: ReadonlyArray<LevelSignal> = [],
   built: ReadonlyArray<string> = [],
 ): CommonFlow | undefined {
   const own = findOwnFlow(part, builds, built)
@@ -245,7 +257,7 @@ export function findCommonFlow(
   const agreed =
     part.type === 'insight' &&
     (part.evidenceLevel ?? 'hunch') === 'hunch' &&
-    new Set(signalSources).size >= PATTERN_SOURCES
+    canRaiseToPattern(signals)
   const flow =
     own && agreed && !flagged ? { ...own, next: raiseToPattern } : own
   if (!flow || !ask || flagged) return flow
@@ -258,6 +270,13 @@ function findOwnFlow(
   builds: ReadonlyArray<GatedBuild>,
   built: ReadonlyArray<string>,
 ): CommonFlow | undefined {
+  // A Decision on a Hunch goes on at the Hunch (glue/D60): the step opens
+  // the first Insight that it needs, so the member can raise it. A draft
+  // and a Decision in review take no sign-off before.
+  const hunch =
+    part.evidenceBase === 'hunch'
+      ? part.needs.find(({ part: needed }) => needed.type === 'insight')
+      : undefined
   switch (part.workState) {
     case 'sunk':
       return undefined
@@ -275,11 +294,16 @@ function findOwnFlow(
         next: part.waitsOn ? openPart(part.waitsOn) : undefined,
       }
     case 'draft':
-    case 'review':
-      return { ...draftFlows[part.type], next: signOff }
-    case 'published':
-      return builds.length > 0
-        ? findBuildFlow(builds)
-        : findPublishedFlow(part, built)
+    case 'review': {
+      const next = hunch ? openPart(hunch.part) : signOff
+      return { ...draftFlows[part.type], next }
+    }
+    case 'published': {
+      const flow =
+        builds.length > 0
+          ? findBuildFlow(builds)
+          : findPublishedFlow(part, built)
+      return hunch ? { ...flow, next: openPart(hunch.part) } : flow
+    }
   }
 }

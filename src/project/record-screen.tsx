@@ -7,6 +7,7 @@ import type { Build } from '../db/builds.ts'
 import type { Answer, ConceptNode, Part, PartSummary } from '../db/parts.ts'
 import { partTypes } from '../design-system/card.tsx'
 import { Record } from '../design-system/record.tsx'
+import type { LevelSignal } from '../evidence-level.ts'
 import type { RecordAction } from '../design-system/record.tsx'
 import { AssigneesControl } from './assignees-control.tsx'
 import { findCommonFlow } from './common-flow.ts'
@@ -44,7 +45,7 @@ export function RecordScreen({
   builds = [],
   built,
   ask,
-  signalSources,
+  signals,
   askable = [],
 }: {
   part: Part
@@ -55,8 +56,8 @@ export function RecordScreen({
   built?: ReadonlyArray<string>
   // The open Ask of the Part.
   ask?: Ask | null
-  // The sources that gave the Signals of a Hunch.
-  signalSources?: ReadonlyArray<string>
+  // The Signals of a Hunch: the source and the day of each one.
+  signals?: ReadonlyArray<LevelSignal>
   // The Projects that the Project may ask.
   askable?: ReadonlyArray<{ slug: string; name: string }>
 }) {
@@ -91,8 +92,8 @@ export function RecordScreen({
     [part, recordHref, parts],
   )
   const flow = useMemo(
-    () => findCommonFlow(part, builds, ask?.step, signalSources, built),
-    [part, builds, ask, signalSources, built],
+    () => findCommonFlow(part, builds, ask?.step, signals, built),
+    [part, builds, ask, signals, built],
   )
   const handleOpen = useCallback(
     (recordId: string, event: MouseEvent<HTMLAnchorElement>) => {
@@ -205,6 +206,9 @@ export function RecordScreen({
   // ask the owner. Only the owner answers a flag.
   const next = flow?.next
   const { answeredBy } = part
+  // The button sends the answer in words and the option of a question. A
+  // Decision whose step is another one has no field for them.
+  const signs = !answeredBy && next?.kind === 'answer'
   // A member asks another Project to check a Hunch that has no open Ask, or
   // for a Decision that a Part waits for. The member who asked takes the Ask
   // back while nobody picked it. An Ask that names no such member: a member
@@ -299,36 +303,76 @@ export function RecordScreen({
       ? answerActions
       : next.kind === 'link'
         ? [{ label: next.label, href: next.href }, ...answerActions]
-        : [
-            {
-              label: next.label,
-              onClick: () =>
-                void (next.kind === 'glue'
-                  ? glue()
-                  : next.kind === 'concept'
-                    ? router.navigate({ href: conceptHref(part.concept) })
-                    : next.kind === 'open'
-                      ? router.navigate({ href: recordHref(next.part) })
-                      : next.kind === 'raise'
-                        ? write('Saving', () =>
-                            updatePart({
-                              project,
-                              recordId: part.id,
-                              change: { evidenceLevel: next.level },
-                            }),
-                          )
-                        : changeSearch(
-                            next.kind === 'add'
-                              ? { ...search, add: next.type }
-                              : { ...search, edit: true },
-                          )),
+        : next.kind === 'verify'
+          ? [
+              {
+                label: next.label,
+                note: {
+                  label: 'Tested',
+                  missing: 'Enter what was tested.',
+                  onSend: (tested) => answer({ answer: 'verify', tested }),
+                },
+              },
+              ...answerActions,
+            ]
+          : next.kind === 'raise' && next.needsSource
+            ? [
+                {
+                  label: next.label,
+                  note: {
+                    label: 'Second source',
+                    missing: 'Enter the second source.',
+                    onSend: (source) => answer({ answer: 'raise', source }),
+                  },
+                },
+                ...answerActions,
+              ]
+            : [
+                {
+                  label: next.label,
+                  onClick: () =>
+                    void (next.kind === 'glue'
+                      ? glue()
+                      : next.kind === 'concept'
+                        ? router.navigate({ href: conceptHref(part.concept) })
+                        : next.kind === 'open'
+                          ? router.navigate({ href: recordHref(next.part) })
+                          : next.kind === 'raise'
+                            ? answer({ answer: 'raise' })
+                            : changeSearch(
+                                next.kind === 'add'
+                                  ? { ...search, add: next.type }
+                                  : { ...search, edit: true },
+                              )),
+                },
+                ...answerActions,
+              ]
+  // A member who doubts a Confirmed Insight says why (glue/D60).
+  const dispute: Array<RecordAction> =
+    part.type === 'insight' &&
+    part.evidenceLevel === 'confirmed' &&
+    part.workState === 'published'
+      ? [
+          {
+            label: 'Dispute',
+            note: {
+              label: 'Reason',
+              missing: 'Enter a reason.',
+              onSend: (reason) => answer({ answer: 'dispute', reason }),
             },
-            ...answerActions,
-          ]
-  // The step of the flow stays the button: the Ask comes after it.
+          },
+        ]
+      : []
+  // The step of the flow stays the button: the dispute and the Ask come
+  // after it.
   const actions = answeredBy
     ? flowActions
-    : [...flowActions.slice(0, 1), ...askAction, ...flowActions.slice(1)]
+    : [
+        ...flowActions.slice(0, 1),
+        ...dispute,
+        ...askAction,
+        ...flowActions.slice(1),
+      ]
 
   return (
     <Record
@@ -343,12 +387,10 @@ export function RecordScreen({
       pending={pending}
       error={failure}
       words={
-        takesWords && !answeredBy
-          ? { value: words, onChange: setWords }
-          : undefined
+        takesWords && signs ? { value: words, onChange: setWords } : undefined
       }
       choice={
-        asks && !answeredBy ? { value: option, onChange: setOption } : undefined
+        asks && signs ? { value: option, onChange: setOption } : undefined
       }
       onEdit={() => void changeSearch({ ...search, edit: true })}
       jointParts={bodyParts}
