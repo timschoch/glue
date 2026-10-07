@@ -31,15 +31,15 @@ export function ProjectFrame({
   project,
   projects,
   parts,
-  mineCount,
+  newFlagCount,
   children,
 }: {
   project: Project
   projects: ReadonlyArray<Pick<Project, 'slug' | 'name'>>
   // The Parts of the Project: the trail and the pins take their titles here.
   parts: ReadonlyArray<PartSummary>
-  // The count of the Parts of the Project that Mine lists.
-  mineCount: number
+  // The count of the flags that the person did not see yet (glue/D61).
+  newFlagCount: number
   children: ReactNode
 }) {
   const navigate = useNavigate()
@@ -71,7 +71,7 @@ export function ProjectFrame({
           void navigate({ to: '/$project', params: { project: next.slug } })
       }}
       section={search.section}
-      mineCount={mineCount}
+      newFlagCount={newFlagCount}
       // A second click on the section takes the lens away.
       sectionHref={(section) =>
         conceptHref(concept, {

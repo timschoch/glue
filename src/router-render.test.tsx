@@ -981,12 +981,41 @@ describe('the section Mine', () => {
     { ...parts[0], trust: 'not-ready', workState: 'draft' },
   ]
 
-  it('lists the Parts of the Project that need the owner, with their count beside it', async () => {
+  it('shows the count of the new flags beside Mine on a record page, and sees no flag there', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', {
+      fetchNewFlagCount: vi.fn(() => Promise.resolve(2)),
+    })
+
+    expect(section('Mine 2')).toBeDefined()
+    expect(server.setFlagsSeen).not.toHaveBeenCalled()
+  })
+
+  it('sees the new flags when Mine opens, and shows no count after it', async () => {
+    let count = 2
+    const server = {
+      fetchMine: vi.fn(() => Promise.resolve(mine)),
+      fetchNewFlagCount: vi.fn(() => Promise.resolve(count)),
+      setFlagsSeen: vi.fn(() => {
+        count = 0
+        return Promise.resolve(undefined)
+      }),
+    }
+    await renderPage('/glue/read-model', server)
+
+    await userEvent.click(section('Mine 2'))
+
+    await waitFor(() => expect(section('Mine')).toBeDefined())
+    expect(server.setFlagsSeen).toHaveBeenCalledExactlyOnceWith({
+      project: 'glue',
+    })
+  })
+
+  it('lists the Parts of the Project that need the owner', async () => {
     const { expectAddress } = await renderPage('/glue/read-model', {
       fetchMine: vi.fn(() => Promise.resolve(mine)),
     })
 
-    await userEvent.click(section('Mine 2'))
+    await userEvent.click(section('Mine'))
 
     await expectAddress('/glue/read-model', { section: 'Mine' })
     expect(pageTitle()).toBe('Mine')
@@ -1030,7 +1059,6 @@ describe('the section Mine', () => {
 
     const watched = within(screen.getByRole('list', { name: 'Watched' }))
 
-    expect(section('Mine 2')).toBeDefined()
     expect(
       watched.getAllByRole('link').map((link) => link.textContent),
     ).toEqual([
@@ -2467,7 +2495,6 @@ describe('an Ask to another Project', () => {
       fetchPeople: vi.fn(() => Promise.resolve({ ...people, me: 2 })),
     })
 
-    expect(section('Mine 1')).toBeDefined()
     expect(mineAsks()).toEqual([[`Solid Insight I3 ${I3} Glue`, 'Pick']])
 
     await userEvent.click(button('Pick'))

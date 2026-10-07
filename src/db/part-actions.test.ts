@@ -128,6 +128,8 @@ const requests = {
       answer: { option: 1 },
     }),
   listMine: () => actions.listMine({ project }),
+  getNewFlagCount: () => actions.getNewFlagCount({ project }),
+  setFlagsSeen: () => actions.setFlagsSeen({ project }),
   listMeasured: () => actions.listMeasured({ project }),
   listMapJoints: () => actions.listMapJoints({ project }),
   listSignals: () => actions.listSignals({ project }),

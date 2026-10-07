@@ -77,6 +77,8 @@ export function createRouterContext(
       keepSignInTarget(server.fetchParts(project), `/${project}`),
     fetchMine: (project) =>
       keepSignInTarget(server.fetchMine(project), `/${project}`),
+    fetchNewFlagCount: (project) =>
+      keepSignInTarget(server.fetchNewFlagCount(project), `/${project}`),
     fetchWatched: (project) =>
       keepSignInTarget(server.fetchWatched(project), `/${project}`),
     fetchMeasured: (project) =>

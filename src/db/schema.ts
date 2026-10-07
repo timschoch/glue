@@ -725,6 +725,24 @@ export const watchers = pgTable(
   ],
 )
 
+// A flag that a member saw (glue/D61). A flag with no row is new for the
+// member. A second reason is a second flag, so it is new again.
+export const seenFlags = pgTable(
+  'seen_flags',
+  {
+    flagId: integer('flag_id')
+      .notNull()
+      .references(() => flags.id, { onDelete: 'cascade' }),
+    memberId: integer('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.flagId, table.memberId] }),
+    index('seen_flags_member_id_index').on(table.memberId),
+  ],
+)
+
 // The fields of a Part that a Part Version holds next to its title and its
 // body.
 export type VersionFields = {

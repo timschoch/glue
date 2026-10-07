@@ -1,5 +1,5 @@
 import { getRouteApi, useRouter } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import type { Ask, AskPart } from '../db/asks.ts'
 import type { ProjectBuilds } from '../db/builds.ts'
@@ -78,6 +78,7 @@ export function ConceptScreen({
     project: { kinds },
     parts,
     mine,
+    newFlagCount,
     asks,
     watched,
     measured,
@@ -90,6 +91,7 @@ export function ConceptScreen({
     addJoint,
     addSignalInsight,
     signContract,
+    setFlagsSeen,
   } = projectRoute.useRouteContext()
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
@@ -105,6 +107,13 @@ export function ConceptScreen({
   const kindWrite = useWrite()
   const [hunchGroup, setHunchGroup] = useState<string>()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
+  // Mine is open: the person saw the new flags, so the count beside Mine
+  // goes away (glue/D61).
+  const seesFlags = search.section === 'Mine' && newFlagCount > 0
+  useEffect(() => {
+    if (!seesFlags) return
+    void setFlagsSeen({ project }).then(() => router.invalidate())
+  }, [seesFlags, setFlagsSeen, project, router])
 
   if (isPartType(search.add)) {
     // The key gives each Part type its own form with its own values.

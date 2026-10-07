@@ -42,6 +42,7 @@ import {
   fetchMeasured,
   fetchMine,
   fetchMineAsks,
+  fetchNewFlagCount,
   fetchPart,
   fetchParts,
   fetchPeople,
@@ -65,6 +66,7 @@ import {
   submitQuestionAnswer,
   submitRemoveConcept,
   submitRemoveJoint,
+  submitSetFlagsSeen,
   submitSetLoopSteps,
   submitUnassign,
   submitUnwatch,
@@ -86,6 +88,12 @@ export const server = {
   fetchParts: (project: string) => fetchParts({ data: { project } }),
   // The Parts of the Project that need the owner, the newest change first.
   fetchMine: (project: string) => fetchMine({ data: { project } }),
+  // The count of the flags that the person can answer and did not see yet.
+  fetchNewFlagCount: (project: string) =>
+    fetchNewFlagCount({ data: { project } }),
+  // The person saw them: Mine is open.
+  setFlagsSeen: (project: { project: string }) =>
+    submitSetFlagsSeen({ data: project }),
   // The Parts of the Project that the person watches, each with its open
   // flags.
   fetchWatched: (project: string) => fetchWatched({ data: { project } }),
