@@ -88,6 +88,9 @@ Build the smallest Glue that runs the whole [loop](docs/concept.md#1-the-loop), 
 - AI calls: Vercel AI Gateway, free models first. Team budget $5 per month. Never buy credits.
 - Hugging Face models (for example Laya for classifying Insights) are free. Use them when they fit.
 - A paid tool that Glue really needs: propose a trial to the Owner.
+- Vercel build minutes are money. Each Vercel project of this repo has an Ignored Build Step (`commandForIgnoringBuildStep`): `glue` builds only `release`, the Storybook and the Mocks build only on `main` when their own files changed. A new Vercel project gets the rule before its first push. Check: `vercel api /v9/projects/<name>`.
+  - Bad: a new Mock project on Vercel with no rule. Each push of each Worker builds it.
+  - Good: `[ "$VERCEL_GIT_COMMIT_REF" != "main" ] || git diff HEAD^ HEAD --quiet -- .` set on the project, then the first push.
 
 ### Design
 
