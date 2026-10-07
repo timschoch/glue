@@ -448,7 +448,7 @@ function listPartPaths() {
         responses: {
           200: {
             description:
-              'The build holds, or it breaks with the reasons. A check in CI fails on `breaks`',
+              'The build holds, or it breaks with the reasons. A check in CI fails on `breaks`. `guardrails` lists each Guardrail of the Contract Version with its state',
             ...jsonContent(gateSchema),
           },
           400: errorResponses[400],

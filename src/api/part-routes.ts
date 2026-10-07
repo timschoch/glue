@@ -150,7 +150,7 @@ export const buildsHandlers = {
 }
 
 export const gateHandlers = {
-  POST: (route: RouteRequest) => handleValidateBuild(toApiRequest(route)),
+  POST: (route: RouteRequest) => handleValidateBuild(toChangeRequest(route)),
 }
 
 export const signalInsightsHandlers = {

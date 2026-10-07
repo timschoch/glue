@@ -844,6 +844,26 @@ export const asks = pgTable(
 export const gateResults = ['holds', 'breaks'] as const
 export type GateResult = (typeof gateResults)[number]
 
+// What the gate saw of a Guardrail on the head commit of a build (glue/D59).
+// `by-person`: no check of the repository enforces the Guardrail.
+export const guardrailStates = [
+  'passed',
+  'failed',
+  'waiting',
+  'by-person',
+] as const
+export type GuardrailState = (typeof guardrailStates)[number]
+
+// A Guardrail of the Contract Version of a build, as the gate saw it.
+export type GateGuardrail = {
+  id: string
+  title: string
+  // The slug of the home Concept.
+  concept: string
+  enforcedBy: string
+  state: GuardrailState
+}
+
 // What the gate said about a build the last time (glue/D48). A build is a
 // pull request of the repository of the Project, by its number. The pull
 // request stays in GitHub.
@@ -857,6 +877,11 @@ export const buildGates = pgTable(
     result: text('result').notNull().$type<GateResult>(),
     // Why the build breaks. None: it holds.
     reasons: jsonb('reasons').notNull().$type<string[]>(),
+    // The Guardrails of the Contract Version that the build names.
+    guardrails: jsonb('guardrails')
+      .notNull()
+      .default([])
+      .$type<GateGuardrail[]>(),
     checkedAt: timestamp('checked_at', { withTimezone: true }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.projectId, table.number] })],

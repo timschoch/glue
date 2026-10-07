@@ -24,6 +24,7 @@ const OPEN: BuildRow = {
   contract: null,
   stale: false,
   gate: 'holds',
+  guardrails: [],
 }
 
 const OLD: BuildRow = {
@@ -35,6 +36,17 @@ const OLD: BuildRow = {
   contract: { title: 'Technique videos', version: 1, href: '#videos-1' },
   stale: true,
   gate: 'breaks',
+  guardrails: [
+    { id: 'R1', title: 'Tests come first', href: '#R1', state: 'passed' },
+    { id: 'R2', title: 'No raw colour', href: '#R2', state: 'failed' },
+    { id: 'R3', title: 'No query over 200ms', href: '#R3', state: 'waiting' },
+    {
+      id: 'R4',
+      title: 'No text that describes the UI',
+      href: '#R4',
+      state: 'by-person',
+    },
+  ],
 }
 
 afterEach(cleanup)
@@ -111,6 +123,35 @@ describe('Builds', () => {
       within(row(OPEN.title)).queryByRole('img', { name: 'Breaks' }),
     ).toBeNull()
     expect(within(row(unchecked.title)).queryByRole('img')).toBeNull()
+  })
+
+  it('shows each Guardrail of a build as a link to it, with its state', async () => {
+    const onOpenGuardrail = vi.fn(
+      (_guardrail: unknown, event: { preventDefault: () => void }) =>
+        event.preventDefault(),
+    )
+    render(<Builds builds={[OPEN, OLD]} onOpenGuardrail={onOpenGuardrail} />)
+
+    const guardrails = within(
+      within(row(OLD.title)).getByRole('list', { name: 'Guardrails' }),
+    ).getAllByRole('listitem')
+    const first = within(guardrails[0]).getByRole('link')
+    await userEvent.click(first)
+
+    expect(guardrails.map((guardrail) => guardrail.textContent)).toEqual([
+      'R1 Tests come first Passed',
+      'R2 No raw colour Failed',
+      'R3 No query over 200ms Waiting',
+      'R4 No text that describes the UI By a person',
+    ])
+    expect(first.getAttribute('href')).toBe('#R1')
+    expect(onOpenGuardrail).toHaveBeenCalledWith(
+      OLD.guardrails[0],
+      expect.anything(),
+    )
+    expect(
+      within(row(OPEN.title)).queryByRole('list', { name: 'Guardrails' }),
+    ).toBeNull()
   })
 
   it('says that there are no builds, or why', () => {

@@ -153,6 +153,48 @@ describe('searchPullRequests', () => {
   })
 })
 
+describe('listCheckRuns', () => {
+  const PULL_URL = `${REPOSITORY_URL}/pulls/12`
+  const CHECKS_URL = `${REPOSITORY_URL}/commits/abc123/check-runs?per_page=100`
+
+  it('reads the checks on the head commit of the pull request, each with its state', async () => {
+    stubGithub({
+      [`GET ${PULL_URL}`]: [200, { head: { sha: 'abc123' } }],
+      [`GET ${CHECKS_URL}`]: [
+        200,
+        {
+          check_runs: [
+            { name: 'verify', status: 'completed', conclusion: 'success' },
+            { name: 'ai-review', status: 'completed', conclusion: 'skipped' },
+            { name: 'audit', status: 'completed', conclusion: 'failure' },
+            { name: 'release', status: 'in_progress', conclusion: null },
+          ],
+        },
+      ],
+    })
+
+    const checks = await createGithubClient().listCheckRuns(
+      'timschoch/glue',
+      12,
+    )
+
+    expect(checks).toEqual([
+      { name: 'verify', state: 'passed' },
+      { name: 'ai-review', state: 'passed' },
+      { name: 'audit', state: 'failed' },
+      { name: 'release', state: 'waiting' },
+    ])
+  })
+
+  it('throws with the status when GitHub refuses', async () => {
+    stubGithub({ [`GET ${PULL_URL}`]: [404, { message: 'Not Found' }] })
+
+    await expect(
+      createGithubClient().listCheckRuns('timschoch/glue', 12),
+    ).rejects.toThrow(/GitHub read pull request: 404/)
+  })
+})
+
 describe('createIssue', () => {
   it('creates a missing label, then the issue, and returns its address', async () => {
     stubGithub({

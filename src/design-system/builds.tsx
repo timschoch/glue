@@ -21,6 +21,15 @@ export type BuildPart = {
 // The Contract Version that a build names.
 export type BuildContract = { title: string; version: number; href: string }
 
+// A Guardrail of the Contract Version that a build names, as the gate saw it.
+export type BuildGuardrail = {
+  // The record id, for example R3.
+  id: string
+  title: string
+  href: string
+  state: keyof typeof guardrailStates
+}
+
 // One build: a pull request that stays in GitHub, with its address there.
 export type BuildRow = {
   number: number
@@ -33,9 +42,19 @@ export type BuildRow = {
   stale: boolean
   // The newest result of its gate. None: no gate checked it.
   gate: keyof typeof gateSigns | null
+  guardrails: ReadonlyArray<BuildGuardrail>
 }
 
 const states = { open: 'Open', merged: 'Merged' } as const
+
+// What the gate saw of a Guardrail: the result of its check, or that a
+// person enforces it.
+const guardrailStates = {
+  passed: 'Passed',
+  failed: 'Failed',
+  waiting: 'Waiting',
+  'by-person': 'By a person',
+} as const
 
 // Holds or breaks, with the signs of Trust.
 const gateSigns = {
@@ -62,16 +81,21 @@ export type BuildsProps = {
     contract: BuildContract,
     event: MouseEvent<HTMLAnchorElement>,
   ) => void
+  onOpenGuardrail?: (
+    guardrail: BuildGuardrail,
+    event: MouseEvent<HTMLAnchorElement>,
+  ) => void
 }
 
 // The builds of a Project: each one with the sign of its gate, its link out,
-// its state, the stale mark, and the Decisions and the Contract Version that
-// it names.
+// its state, the stale mark, the Decisions and the Contract Version that it
+// names, and the Guardrails of that Version with their states.
 export function Builds({
   builds,
   reason,
   onOpenPart,
   onOpenContract,
+  onOpenGuardrail,
 }: BuildsProps) {
   const listId = useId()
 
@@ -128,6 +152,26 @@ export function Builds({
                     >
                       {named.contract.title} Version {named.contract.version}
                     </Link>
+                  )}
+                  {named.guardrails.length > 0 && (
+                    <ul aria-label="Guardrails" className={styles.guardrails}>
+                      {named.guardrails.map((guardrail) => (
+                        <li key={guardrail.id} className={styles.guardrail}>
+                          <Link
+                            href={guardrail.href}
+                            onClick={
+                              onOpenGuardrail &&
+                              ((event) => onOpenGuardrail(guardrail, event))
+                            }
+                          >
+                            {guardrail.id} {guardrail.title}
+                          </Link>{' '}
+                          <span className={styles.label}>
+                            {guardrailStates[guardrail.state]}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </div>
               </li>

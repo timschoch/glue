@@ -28,7 +28,8 @@ export type ApiRequest = {
   }
 }
 
-// A request that can accept a Decision, and so open its downstream issue.
+// A request that needs GitHub: it can accept a Decision, and so open its
+// downstream issue, or it reads from the repository of the Project.
 export type ChangeRequest = ApiRequest & { github: GithubClient }
 
 const errorCodes = [

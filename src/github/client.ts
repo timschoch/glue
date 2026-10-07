@@ -24,6 +24,9 @@ export type PullRequest = {
   body: string
 }
 
+// A check on a commit as Glue reads it. Two checks can have one name.
+export type CheckRun = { name: string; state: 'passed' | 'failed' | 'waiting' }
+
 export type GithubClient = {
   // Opens an issue and returns its web address.
   createIssue: (repository: string, issue: IssueInput) => Promise<string>
@@ -37,13 +40,15 @@ export type GithubClient = {
     repository: string,
     text: string,
   ) => Promise<PullRequest[]>
+  // The checks on the head commit of the pull request.
+  listCheckRuns: (repository: string, number: number) => Promise<CheckRun[]>
 }
 
 const API_URL = 'https://api.github.com'
 const NOT_FOUND = 404
 // A new label takes the colour GitHub shows for ready work.
 const LABEL_COLOR = '0e8a16'
-// The most issues that GitHub gives in one answer.
+// The most issues, pull requests or checks that GitHub gives in one answer.
 const PAGE_SIZE = 100
 
 // GitHub lists pull requests as issues, with the key `pull_request`.
@@ -69,6 +74,15 @@ type ListedPullRequest = {
 type FoundPullRequest = Omit<ListedPullRequest, 'merged_at'> & {
   pull_request: { merged_at: string | null }
 }
+
+type ListedCheckRun = {
+  name: string
+  status: string
+  conclusion: string | null
+}
+
+// The conclusions of a check that GitHub takes as passed.
+const PASSED = ['success', 'neutral', 'skipped']
 
 // A pull request that was closed with no merge is not a build.
 function toPullRequests(listed: ListedPullRequest[]): PullRequest[] {
@@ -172,6 +186,21 @@ export function createGithubClient(): GithubClient {
           merged_at: pull_request.merged_at,
         })),
       )
+    },
+    listCheckRuns: async (repository, number) => {
+      const pull = await fetchGithub(`/repos/${repository}/pulls/${number}`)
+      await validateResponse(pull, 'read pull request')
+      const { head }: { head: { sha: string } } = await pull.json()
+      const response = await fetchGithub(
+        `/repos/${repository}/commits/${head.sha}/check-runs?per_page=${PAGE_SIZE}`,
+      )
+      await validateResponse(response, 'list check runs')
+      const listed: { check_runs: ListedCheckRun[] } = await response.json()
+      return listed.check_runs.map(({ name, status, conclusion }) => {
+        if (status !== 'completed') return { name, state: 'waiting' }
+        const passed = conclusion !== null && PASSED.includes(conclusion)
+        return { name, state: passed ? 'passed' : 'failed' }
+      })
     },
   }
 }

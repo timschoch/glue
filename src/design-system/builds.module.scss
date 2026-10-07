@@ -1,3 +1,4 @@
+@use '@carbon/react/scss/breakpoint' as *;
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
 @use '@carbon/react/scss/type' as *;
@@ -40,6 +41,11 @@
   min-block-size: $spacing-08;
   overflow-wrap: anywhere;
   padding-block: $spacing-03;
+
+  // A narrow window: what the build names gets its own row.
+  @include breakpoint-down('md') {
+    grid-template-columns: $spacing-05 minmax(0, 1fr) $spacing-10 $spacing-09;
+  }
 }
 
 .sign {
@@ -52,9 +58,29 @@
   color: $text-primary;
 }
 
-// The Decisions and the Contract Version that the build names.
-.named {
+// The Decisions and the Contract Version that the build names, and the
+// Guardrails of that Version.
+.named,
+.guardrails {
   display: flex;
   flex-direction: column;
   gap: $spacing-03;
+}
+
+.named {
+  @include breakpoint-down('md') {
+    grid-column: 2 / -1;
+
+    &:empty {
+      display: none;
+    }
+  }
+}
+
+// One Guardrail: its link, then its state.
+.guardrail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: $spacing-02 $spacing-03;
 }
