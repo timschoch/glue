@@ -1,0 +1,8 @@
+@use '@carbon/react/scss/spacing' as *;
+
+// A step keeps its width, so no word is cut. The steps that have no room
+// start a new row.
+.bar {
+  flex-wrap: wrap;
+  row-gap: $spacing-05;
+}

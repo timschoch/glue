@@ -1,4 +1,4 @@
-// Ask another team in the HTTP API (glue/D51, glue/D56): a Project asks
+// Ask another Project in the HTTP API (glue/D51, glue/D56): a Project asks
 // another one to check a Hunch or for a Decision, a member of that Project
 // picks the Ask and hands back an Insight or a Decision. The handlers stay
 // free of TanStack and of `process.env`, so a test calls them with a

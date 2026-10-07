@@ -278,6 +278,12 @@ $text-width: $card-width * 2;
   }
 }
 
+// The padding of the button is the gap before its words, so the gap is the
+// one of the line, and on a line of its own the words start below the day.
+.versionButton {
+  margin-inline-start: -$spacing-05;
+}
+
 // An old Version takes the line below its entry. The border sets the frozen
 // text apart from the list.
 .version {

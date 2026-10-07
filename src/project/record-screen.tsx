@@ -242,7 +242,7 @@ export function RecordScreen({
             (part.evidenceLevel ?? 'hunch') === 'hunch'
               ? [
                   {
-                    label: 'Ask another team',
+                    label: 'Ask another Project',
                     choose: {
                       label: 'Project',
                       options: askedProjects,
@@ -262,7 +262,7 @@ export function RecordScreen({
               choose: {
                 label: 'Project',
                 options: askedProjects,
-                words: 'Question',
+                words: { label: 'Question', missing: 'Enter a question.' },
                 onPick: (toProject: string, question: string) =>
                   void write('Saving', () =>
                     addAsk({
@@ -339,6 +339,7 @@ export function RecordScreen({
       bodyParts={bodyParts}
       actions={actions}
       hasStep={Boolean(answeredBy) || next !== undefined}
+      askQuestion={ask?.question ?? undefined}
       pending={pending}
       error={failure}
       words={

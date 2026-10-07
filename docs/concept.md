@@ -265,7 +265,7 @@ Each common flow shows as a step bar with the one next step.
 | Decision to Brief   | A Decision                                   | Fill the Brief's slots     | Signed-off Brief          |
 | Brief to build      | A Brief                                      | Version, build, gate       | Shipped build             |
 | Use to Insight      | A shipped build                              | Read Metric against target | New Insight               |
-| Ask another team    | A Hunch, or a Part that waits for a Decision | Ask, pick, hand back       | Glued Insight or Decision |
+| Ask another Project | A Hunch, or a Part that waits for a Decision | Ask, pick, hand back       | Glued Insight or Decision |
 | React to a change   | A flag                                       | Check, answer              | Solid Part again          |
 
 ## 8. People

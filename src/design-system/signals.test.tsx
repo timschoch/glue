@@ -153,6 +153,38 @@ describe('Signals', () => {
     screen.getByText('2 sources')
   })
 
+  it('shows the words of each survey answer in its row, not the title that Glue gave it', () => {
+    const answers = [
+      'The fold step is hard to find',
+      'I gave up at the fold step',
+    ].map((text, position) => ({
+      ...ANSWER,
+      url: `${ANSWER.url}${position}`,
+      titleBy: 'glue' as const,
+      text,
+    }))
+    renderSignals({
+      signals: answers,
+      groups: [
+        { title: answers[0].text, signals: answers.map(({ url }) => url) },
+      ],
+    })
+
+    expect(titles()).toEqual([
+      'The fold step is hard to find',
+      'I gave up at the fold step',
+    ])
+    expect(
+      screen.getByRole('checkbox', { name: 'I gave up at the fold step' }),
+    ).toBeTruthy()
+  })
+
+  it('keeps the title that Glue gave a survey answer with no words', () => {
+    renderSignals({ signals: [{ ...ANSWER, titleBy: 'glue', text: '' }] })
+
+    expect(titles()).toEqual([ANSWER.title])
+  })
+
   it('turns a group into a Hunch with one button', async () => {
     const { onMakeHunch } = renderSignals({
       signals: [SLOW, LOST, GROWN],

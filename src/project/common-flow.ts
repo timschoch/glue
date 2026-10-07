@@ -46,7 +46,7 @@ const flows = {
   build: { name: 'Brief to build', steps: ['Version', 'Build', 'Gate'] },
   use: { name: 'Use to Insight', steps: ['Measure', 'Read'] },
   change: { name: 'React to a change', steps: ['Check', 'Answer'] },
-  ask: { name: 'Ask another team', steps: ['Ask', 'Pick', 'Hand back'] },
+  ask: { name: 'Ask another Project', steps: ['Ask', 'Pick', 'Hand back'] },
   concept: {
     name: 'Concept to build',
     steps: ['Fill slots', 'Sign', 'Build', 'Gate'],

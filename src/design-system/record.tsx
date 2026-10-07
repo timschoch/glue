@@ -1,4 +1,6 @@
 import {
+  ChevronDown,
+  ChevronUp,
   Edit,
   Launch,
   Pin,
@@ -373,18 +375,23 @@ function Body({
   )
 }
 
-// An old Version of the Part, in the activity list: its frozen title, body
-// and type fields. It is read-only.
+// An old Version of the Part, in the activity list: its number, the day of
+// its sign-off, and its frozen title, body and fields. It is read-only.
 function FrozenVersion({
   version,
+  at,
   parts,
   onOpen,
 }: {
   version: RecordVersion
+  // The time of the sign-off, as ISO.
+  at: string
   parts: ReadonlyArray<RecordPartSummary>
   onOpen?: OpenHandler
 }) {
   const fields = [
+    ['Owner', version.owner],
+    ['Date', version.date],
     ['Metric', version.metric],
     ['Enforced by', version.enforcedBy],
     [
@@ -399,13 +406,11 @@ function FrozenVersion({
       aria-label={`Version ${version.version}`}
       className={styles.version}
     >
+      <div className={styles.state}>
+        <span>Version {version.version}</span>
+        <time dateTime={at}>{at.slice(0, DAY_LENGTH)}</time>
+      </div>
       <h3 className={styles.versionTitle}>{version.title}</h3>
-      {(version.owner || version.date) && (
-        <div className={styles.state}>
-          {version.owner && <span>{version.owner}</span>}
-          {version.date && <time dateTime={version.date}>{version.date}</time>}
-        </div>
-      )}
       {version.body.trim() !== '' && (
         <Body body={version.body} parts={parts} onOpen={onOpen} />
       )}
@@ -509,6 +514,8 @@ export type RecordProps = {
   // false: no step is left. The box Next has no button, and each action is
   // in the menu.
   hasStep?: boolean
+  // The question of the open Ask that the Part waits on.
+  askQuestion?: string
   // The words of the action that runs. They take the place of the button.
   pending?: string
   // Why the last action failed.
@@ -556,6 +563,7 @@ export function Record({
   onOpen,
   actions = [],
   hasStep,
+  askQuestion,
   pending,
   error,
   words,
@@ -610,6 +618,7 @@ export function Record({
         </Link>
       ),
     ],
+    ['Question', askQuestion],
   ]
   const shownFields = fields.filter(([, value]) => value != null)
 
@@ -896,6 +905,8 @@ export function Record({
                     <Button
                       kind="ghost"
                       size="sm"
+                      className={styles.versionButton}
+                      renderIcon={isOpen ? ChevronUp : ChevronDown}
                       aria-expanded={isOpen}
                       onClick={() =>
                         setOpenVersion(isOpen ? undefined : versionKey)
@@ -907,6 +918,7 @@ export function Record({
                   {version && isOpen && (
                     <FrozenVersion
                       version={version}
+                      at={at}
                       parts={bodyParts}
                       onOpen={onOpen}
                     />

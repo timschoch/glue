@@ -39,7 +39,9 @@ type PartPick = { label: string; onPick: (recordId: string) => void }
 type OptionPick = {
   label: string
   options: ReadonlyArray<{ value: string; text: string }>
-  words?: string
+  // The words that the choice needs: the label of their field, and the
+  // reason that the field shows while it is empty.
+  words?: { label: string; missing: string }
   onPick: (value: string, words: string) => void
 }
 
@@ -108,6 +110,7 @@ export function NextBox({
     choose: OptionPick
     chosen: string | undefined
     words: string
+    missing?: boolean
   }>()
   // The focus goes back to the button of the box when the choice closes
   // with Escape or with the button. The button is away while a write saves.
@@ -133,7 +136,10 @@ export function NextBox({
   const send = () => {
     if (choosing?.chosen === undefined) return
     const said = choosing.words.trim()
-    if (choosing.choose.words !== undefined && said === '') return
+    if (choosing.choose.words !== undefined && said === '') {
+      setChoosing({ ...choosing, missing: true })
+      return
+    }
     refocus.current = true
     setChoosing(undefined)
     choosing.choose.onPick(choosing.chosen, said)
@@ -245,11 +251,17 @@ export function NextBox({
           <div className={styles.words}>
             <TextArea
               id={chooseWordsId}
-              labelText={choosing.choose.words}
+              labelText={choosing.choose.words.label}
               rows={2}
               value={choosing.words}
+              invalid={choosing.missing}
+              invalidText={choosing.choose.words.missing}
               onChange={({ target }) =>
-                setChoosing({ ...choosing, words: target.value })
+                setChoosing({
+                  ...choosing,
+                  words: target.value,
+                  missing: false,
+                })
               }
             />
           </div>
