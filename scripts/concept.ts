@@ -9,6 +9,7 @@ import {
   handBackAsk,
   listMineAsks,
   pickAsk,
+  startStudy,
   takeBackAsk,
 } from '../src/db/asks.ts'
 import type { Ask, AskKind } from '../src/db/asks.ts'
@@ -611,6 +612,7 @@ function formatHelp() {
     'pnpm concept ask <id> --to-project <slug> [--member <e-mail>]',
     'pnpm concept ask <id> --to-project <slug> --kind decision --question <text> [--member <e-mail>]',
     'pnpm concept ask pick <ask> --member <e-mail>',
+    'pnpm concept ask study <ask> --member <e-mail>',
     'pnpm concept ask hand-back <ask> --insight <id>',
     'pnpm concept ask hand-back <ask> --decision <id>',
     'pnpm concept ask take-back <ask> --member <e-mail>',
@@ -693,6 +695,7 @@ function formatHelp() {
     'ask with --member names the member who asks. Only this member takes the Ask back.',
     'ask pick and ask hand-back take the Project that is asked as --project. hand-back names a published Insight of that Project, or a published Decision for an Ask of the kind decision.',
     'ask hand-back with --decision ends the Ask: the record that waits needs the Decision.',
+    'ask study starts the study of an Ask as the member who picked it: a Concept of the Project that is asked. It prints the slug of the study. An Ask has one study. Then ask hand-back names a published Insight of the study and ends the Ask: the record that waits needs the Insight.',
     'ask take-back takes the Project that asked as --project, and the member who asked as --member. An Ask that names no such member: a member who has the Hunch, or each member when nobody has it. It works while no member picked the Ask.',
     'mine lists the open Asks too: pick and hand-back in the Project that is asked, check in the Project that asked. joint add <id> <project>/<id> glues the Insight to the Hunch: the Ask is done.',
     'list with --member: each record with its flight level for the member. operational: the record is of a loop step of the member, or the member is Responsible or Co-Author of the record or of its Concept. strategic: each other record.',
@@ -1391,7 +1394,7 @@ async function handleMemberCommand(
   }
 }
 
-function formatAsk({ id, step, part, question, handedBack }: Ask) {
+function formatAsk({ id, step, part, question, handedBack, study }: Ask) {
   return [
     `Ask ${id}`,
     step,
@@ -1399,13 +1402,15 @@ function formatAsk({ id, step, part, question, handedBack }: Ask) {
     part.title,
     ...(question === null ? [] : [question]),
     ...(handedBack ? [`${handedBack.project.slug}/${handedBack.id}`] : []),
+    ...(study ? [`study ${study.slug}`] : []),
   ].join('  ')
 }
 
 // `ask <id> --to-project <slug>` asks another Project to check a Hunch.
 // With `--kind decision --question <text>` it asks for a Decision.
 // `ask pick` and `ask hand-back` are the steps of the Project that is asked.
-// `ask take-back` is a step of the member who asked.
+// `ask take-back` is a step of the member who asked. `ask study` starts the
+// study of an Ask.
 async function handleAskCommand(db: ConceptDb, [first, ...rest]: string[]) {
   const flags = parseFlags(rest)
   const project = await readProject(db, flags)
@@ -1416,6 +1421,13 @@ async function handleAskCommand(db: ConceptDb, [first, ...rest]: string[]) {
       if (!Number.isInteger(askId) || !member)
         throw new Error('ask pick needs <ask> --member <e-mail>')
       await pickAsk(db, project, askId, member)
+      return
+    }
+    case 'study': {
+      const member = flags.member as string | undefined
+      if (!Number.isInteger(askId) || !member)
+        throw new Error('ask study needs <ask> --member <e-mail>')
+      console.log(await startStudy(db, project, askId, member))
       return
     }
     case 'hand-back': {

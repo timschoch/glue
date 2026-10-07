@@ -7,6 +7,7 @@ import {
   listAskableProjects,
   listMineAsks,
   pickAsk,
+  startStudy,
   takeBackAsk,
 } from './asks.ts'
 import { joinProject } from './members.ts'
@@ -17,7 +18,7 @@ import {
   answerPart,
   updatePart,
 } from './part-records.ts'
-import { findPart } from './parts.ts'
+import { findConcept, findPart } from './parts.ts'
 import { addProjectReference } from './projects.ts'
 import { InvalidRecordError } from './record-errors.ts'
 import * as schema from './schema.ts'
@@ -77,6 +78,7 @@ const asked = {
   askedBy: null,
   pickedBy: null,
   handedBack: null,
+  study: null,
   askedAt: '2026-10-03T12:00:00.000Z',
 }
 
@@ -418,6 +420,7 @@ describe('an Ask for a Decision', () => {
         askedBy: { name: 'Mara', email: mara },
         pickedBy: null,
         handedBack: null,
+        study: null,
         askedAt: '2026-10-03T12:00:00.000Z',
       },
     ])
@@ -473,6 +476,112 @@ describe('an Ask for a Decision', () => {
     await expect(handBackAsk(db, 'ux', 1, 'I1')).rejects.toThrow(
       new InvalidRecordError('"I1" is not a Decision'),
     )
+  })
+})
+
+// Fred picked the Ask of the Hunch I1 of `bakeday`.
+describe('a study for an Ask', () => {
+  const picked = {
+    ...asked,
+    step: 'hand-back',
+    pickedBy: { name: 'Fred', email: fred },
+  }
+
+  beforeEach(async () => {
+    await addAsk(db, 'bakeday', { part: 'I1', toProject: 'ux' })
+    await pickAsk(db, 'ux', 1, fred)
+  })
+
+  it('is a Concept of the asked Project that names its Ask', async () => {
+    const slug = await startStudy(db, 'ux', 1, fred)
+
+    expect(slug).toBe('study-1')
+    expect(await listMineAsks(db, 'ux', fred)).toEqual([
+      { ...picked, study: { slug: 'study-1', title: 'Novices skip the fold' } },
+    ])
+    expect(await findConcept(db, 'ux', 'study-1')).toMatchObject({
+      slug: 'study-1',
+      title: 'Novices skip the fold',
+      path: [{ slug: 'ux', title: 'UX team' }],
+      ask: {
+        id: 1,
+        part: {
+          project: { slug: 'bakeday', name: 'Bakeday' },
+          id: 'I1',
+          type: 'insight',
+          title: 'Novices skip the fold',
+          trust: 'solid',
+          concept: 'bakeday',
+        },
+      },
+    })
+  })
+
+  it('refuses a second study for one Ask', async () => {
+    await startStudy(db, 'ux', 1, fred)
+
+    await expect(startStudy(db, 'ux', 1, fred)).rejects.toThrow(
+      new InvalidRecordError('Ask 1 has a study already'),
+    )
+  })
+
+  it('refuses a member who did not pick the Ask', async () => {
+    await expect(startStudy(db, 'ux', 1, uma)).rejects.toThrow(
+      new InvalidRecordError('uma@example.com did not pick Ask 1'),
+    )
+    expect(await findConcept(db, 'ux', 'study-1')).toBeUndefined()
+  })
+})
+
+// Fred started the study of the Ask. The Insight I1 of `ux` is published
+// and I2 is a draft, both in the study. I3 is published in the root Concept.
+describe('an Ask with a study', () => {
+  const finding = {
+    type: 'insight' as const,
+    title: 'Novices do not know the word fold',
+    source: 'study',
+  }
+
+  beforeEach(async () => {
+    await addAsk(db, 'bakeday', { part: 'I1', toProject: 'ux' })
+    await pickAsk(db, 'ux', 1, fred)
+    await startStudy(db, 'ux', 1, fred)
+    await addPart(db, 'ux', { ...finding, concept: 'study-1' }, fred)
+    await addPart(
+      db,
+      'ux',
+      { ...finding, concept: 'study-1', status: 'draft' },
+      fred,
+    )
+    await addPart(db, 'ux', finding, fred)
+  })
+
+  it('is done when an Insight of the study is handed back: the Part that asked needs it', async () => {
+    await handBackAsk(db, 'ux', 1, 'I1')
+
+    expect((await findPart(db, 'bakeday', 'I1'))?.needs).toMatchObject([
+      {
+        project: { slug: 'ux', name: 'UX team' },
+        part: { id: 'I1', title: 'Novices do not know the word fold' },
+      },
+    ])
+    expect(await findOpenAsk(db, 'bakeday', 'I1')).toBeUndefined()
+    expect(await listMineAsks(db, 'bakeday', mara)).toEqual([])
+    expect(await listMineAsks(db, 'ux', fred)).toEqual([])
+  })
+
+  it('refuses an Insight of the study that is not published', async () => {
+    await expect(handBackAsk(db, 'ux', 1, 'I2')).rejects.toThrow(
+      new InvalidRecordError('"I2" is not published'),
+    )
+    expect((await findPart(db, 'bakeday', 'I1'))?.needs).toEqual([])
+  })
+
+  it('refuses an Insight with its home in another Concept', async () => {
+    await expect(handBackAsk(db, 'ux', 1, 'I3')).rejects.toThrow(
+      new InvalidRecordError('"I3" is not in the study of Ask 1'),
+    )
+    expect((await findPart(db, 'bakeday', 'I1'))?.needs).toEqual([])
   })
 })
 

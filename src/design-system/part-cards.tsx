@@ -1,4 +1,4 @@
-import { InlineLoading, InlineNotification } from '@carbon/react'
+import { Button, InlineLoading, InlineNotification } from '@carbon/react'
 import { useId, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 
@@ -52,6 +52,9 @@ export type PartCardsAsk = {
           onPick: (recordId: string) => void
         }
       }
+  // The other way to answer the Ask. A card holds one button, so this one
+  // is below the card.
+  otherAction?: { label: string; onClick: () => void }
 }
 
 export type PartCardsProps = {
@@ -119,7 +122,7 @@ function Asks({
         Asks
       </h2>
       <ul aria-labelledby={titleId} className={styles.items}>
-        {asks.map(({ id, part, action }) => (
+        {asks.map(({ id, part, action, otherAction }) => (
           <li key={id} className={styles.ask}>
             <Card
               type={part.type}
@@ -138,6 +141,16 @@ function Asks({
                   'pick' in action ? setPicking(id) : action.onClick(),
               }}
             />
+            {otherAction && (
+              <Button
+                kind="ghost"
+                size="sm"
+                disabled={pending !== undefined}
+                onClick={otherAction.onClick}
+              >
+                {otherAction.label}
+              </Button>
+            )}
             {picking === id && 'pick' in action && pending === undefined && (
               <PartSearch
                 id={pickId}

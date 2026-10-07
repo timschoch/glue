@@ -619,6 +619,8 @@ export type RecordProps = {
   hasStep?: boolean
   // The question of the open Ask that the Part waits on.
   askQuestion?: string
+  // The study of the open Ask: the Concept that answers it.
+  askStudy?: { title: string; href: string }
   // The words of the action that runs. They take the place of the button.
   pending?: string
   // Why the last action failed.
@@ -671,6 +673,7 @@ export function Record({
   actions = [],
   hasStep,
   askQuestion,
+  askStudy,
   pending,
   error,
   words,
@@ -731,6 +734,7 @@ export function Record({
       ),
     ],
     ['Question', askQuestion],
+    ['Study', askStudy && <Link href={askStudy.href}>{askStudy.title}</Link>],
   ]
   const shownFields = fields.filter(([, value]) => value != null)
 

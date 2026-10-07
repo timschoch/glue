@@ -685,6 +685,34 @@ describe('runConcept', () => {
     ])
   })
 
+  it('starts the study of an Ask, and prints the Ask with its study', async () => {
+    await addProject(db, 'ux', 'UX team')
+    await run('project', 'set', 'flexibeck', '--references', 'ux')
+    await joinProject(db, 'ux', {
+      id: 'user-fred',
+      name: 'Fred',
+      email: 'fred@example.com',
+    })
+    await addPart(db, 'flexibeck', {
+      type: 'insight',
+      title: 'Novices skip the fold',
+      source: 'support',
+      evidenceLevel: 'hunch',
+    })
+    await run('ask', 'I1', '--to-project', 'ux', '--project', 'flexibeck')
+    const fred = ['--member', 'fred@example.com', '--project', 'ux']
+    await run('ask', 'pick', '1', ...fred)
+    vi.mocked(console.log).mockClear()
+
+    await run('ask', 'study', '1', ...fred)
+    await run('mine', ...fred)
+
+    expect(logged()).toEqual([
+      'study-1',
+      'Ask 1  hand-back  flexibeck/I1  Novices skip the fold  study study-1',
+    ])
+  })
+
   it('asks another Project for a Decision, and the hand back glues it', async () => {
     await addProject(db, 'ux', 'UX team')
     await run('project', 'set', 'flexibeck', '--references', 'ux')

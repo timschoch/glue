@@ -190,6 +190,22 @@ export type Concept = {
   }[]
   // One slot per Part type of the Kind. Empty when the Concept has no Kind.
   slots: ConceptSlot[]
+  // Only a study has it: the Ask that the Concept answers.
+  ask?: ConceptAsk
+}
+
+// The Ask of a study, with the Part of the other Project that waits.
+export type ConceptAsk = {
+  id: number
+  part: {
+    project: { slug: string; name: string }
+    id: string
+    type: PartType
+    title: string
+    trust: Trust
+    // The slug of its home Concept.
+    concept: string
+  }
 }
 
 // One Joint as one of its two Parts sees it: `part` is the Part at the
@@ -407,6 +423,7 @@ async function listConcepts(db: ConceptDb, projectSlug: string) {
         slug: concepts.slug,
         title: concepts.title,
         kind: kinds.slug,
+        askId: concepts.askId,
         projectName: projects.name,
       })
       .from(concepts)
@@ -490,7 +507,7 @@ export async function findConcept(
     parentId = parent.parentId
   }
 
-  const [homeParts, jointRows, slots] = await Promise.all([
+  const [homeParts, jointRows, slots, ask] = await Promise.all([
     listSummaries(db, eq(parts.conceptId, concept.id)),
     // A reference is not a Joint of the Concept: its Parts are of two
     // Projects.
@@ -505,6 +522,7 @@ export async function findConcept(
       ),
     ),
     listConceptSlots(db, concept.id),
+    concept.askId === null ? undefined : findConceptAsk(db, concept.askId),
   ])
 
   const linked = new Map<string, PartSummary>()
@@ -531,7 +549,35 @@ export async function findConcept(
       link,
     })),
     slots,
+    ask,
   }
+}
+
+// The Ask with the id, as its study shows it.
+async function findConceptAsk(
+  db: ConceptDb,
+  askId: number,
+): Promise<ConceptAsk | undefined> {
+  const found = await db
+    .select({
+      id: schema.asks.id,
+      project: { slug: projects.slug, name: projects.name },
+      part: {
+        id: parts.recordId,
+        type: parts.type,
+        title: parts.title,
+        trust: parts.trust,
+        concept: concepts.slug,
+      },
+    })
+    .from(schema.asks)
+    .innerJoin(parts, eq(schema.asks.partId, parts.id))
+    .innerJoin(concepts, eq(parts.conceptId, concepts.id))
+    .innerJoin(projects, eq(parts.projectId, projects.id))
+    .where(eq(schema.asks.id, askId))
+  return found
+    .map(({ id, project, part }) => ({ id, part: { project, ...part } }))
+    .at(0)
 }
 
 // The Parts of the Project: all of them, or the ones of the given types. An

@@ -17,6 +17,7 @@ import type { SignalFilter } from '../db/signal-filters.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { partTypes } from '../design-system/card.tsx'
 import { ConceptView } from '../design-system/concept-view.tsx'
+import type { NextAction } from '../design-system/next-box.tsx'
 import { PartCards } from '../design-system/part-cards.tsx'
 import type { PartCardsAsk } from '../design-system/part-cards.tsx'
 import { flagReasons } from '../design-system/record.tsx'
@@ -102,6 +103,7 @@ export function ConceptScreen({
     updateConcept,
     removeConcept,
     pickAsk,
+    startStudy,
     handBackAsk,
     addJoint,
     addSignalInsight,
@@ -316,6 +318,7 @@ export function ConceptScreen({
     part: hunch,
     question,
     handedBack: insight,
+    study,
   }: Ask): PartCardsAsk => {
     if (step === 'check' && insight) {
       return {
@@ -336,10 +339,35 @@ export function ConceptScreen({
         },
       }
     }
+    // An Ask with a study is answered from the study.
+    if (study) {
+      return {
+        id: askId,
+        part: toAskCard(hunch, question ?? undefined),
+        action: {
+          label: 'Open study',
+          onClick: () =>
+            void router.navigate({ href: conceptHref(study.slug, {}) }),
+        },
+      }
+    }
     const fitting = published.filter(({ type }) => type === kind)
     return {
       id: askId,
       part: toAskCard(hunch, question ?? undefined),
+      otherAction:
+        step === 'hand-back'
+          ? {
+              label: 'Start study',
+              onClick: () =>
+                void write(
+                  'Saving',
+                  () => startStudy({ project, askId }),
+                  ({ slug }) =>
+                    router.navigate({ href: conceptHref(slug, {}) }),
+                ),
+            }
+          : undefined,
       action:
         step === 'pick'
           ? {
@@ -471,6 +499,35 @@ export function ConceptScreen({
     }
   }
   const step = flow?.next
+  // The study of an Ask hands a published Insight back: the first step of
+  // the box, before the step of the flow. One Insight goes with a click, one
+  // of more with a pick.
+  const studyAsk =
+    search.section === undefined
+      ? asks.find(
+          (ask) => ask.study?.slug === concept.slug && ask.step === 'hand-back',
+        )
+      : undefined
+  const findings = concept.parts.filter(
+    ({ type, workState }) => type === 'insight' && workState === 'published',
+  )
+  const handBack = (recordId: string) =>
+    studyAsk &&
+    void stepWrite.write('Saving', () =>
+      handBackAsk({ project, askId: studyAsk.id, part: recordId }),
+    )
+  const handBackActions: Array<NextAction> =
+    !studyAsk || findings.length === 0
+      ? []
+      : findings.length === 1
+        ? [{ label: 'Hand back', onClick: () => handBack(findings[0].id) }]
+        : [{ label: 'Hand back', pick: { label: 'Insight', onPick: handBack } }]
+  const flowActions: Array<NextAction> =
+    !step || step.kind === 'answer'
+      ? []
+      : step.kind === 'link'
+        ? [{ label: step.label, href: step.href }]
+        : [{ label: step.label, onClick: () => void takeStep(step) }]
 
   return (
     <ConceptView
@@ -535,17 +592,19 @@ export function ConceptScreen({
       flow={
         flow && { name: flow.name, steps: flow.steps, current: flow.current }
       }
+      ask={concept.ask && { part: toAskCard(concept.ask.part) }}
       next={
-        flow && {
-          actions:
-            !step || step.kind === 'answer'
-              ? []
-              : step.kind === 'link'
-                ? [{ label: step.label, href: step.href }]
-                : [{ label: step.label, onClick: () => void takeStep(step) }],
-          pending: stepWrite.pending,
-          error: stepWrite.failure,
-        }
+        flow || handBackActions.length > 0
+          ? {
+              actions: [...handBackActions, ...flowActions],
+              pending: stepWrite.pending,
+              error: stepWrite.failure,
+              pickParts: findings.map((part) => ({
+                ...part,
+                href: recordHref(part),
+              })),
+            }
+          : undefined
       }
     >
       {live}

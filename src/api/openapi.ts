@@ -682,7 +682,7 @@ function listPartPaths() {
       patch: {
         operationId: 'updateAsk',
         summary:
-          'Take the next step of an Ask as the asked Project: pick it, or hand back a published Insight or Decision. A Decision that is handed back ends the Ask: the Part that waits needs it',
+          'Take the next step of an Ask as the asked Project: pick it, start its study, or hand back a published Insight or Decision. A Decision that is handed back ends the Ask: the Part that waits needs it. So does an Insight of the study',
         requestParams: {
           path: path.extend({
             askId: z.string().meta({ description: 'The id of the Ask' }),

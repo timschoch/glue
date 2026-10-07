@@ -12,6 +12,7 @@ import {
   listMineAsks,
   newAskSchema,
   pickAsk,
+  startStudy,
   takeBackAsk,
 } from '../db/asks.ts'
 import type { Ask } from '../db/asks.ts'
@@ -56,6 +57,10 @@ export const askSchema = z
     handedBack: askPartSchema.nullable().meta({
       description: 'The Part of the asked Project that was handed back',
     }),
+    study: z.object({ slug: z.string(), title: z.string() }).nullable().meta({
+      description:
+        'The Concept of the asked Project that answers the Ask. An Ask with a study takes back a published Insight of that Concept, and Glue adds the Joint',
+    }),
     askedAt: z.iso.datetime(),
   })
   .meta({ id: 'Ask' }) satisfies z.ZodType<Ask>
@@ -81,9 +86,15 @@ export const askStepInputSchema = z
       }),
     }),
     z.strictObject({
+      studyBy: z.string().trim().min(1).meta({
+        description:
+          'Start the study of the Ask, a Concept of the asked Project: the e-mail address of the member who picked the Ask',
+      }),
+    }),
+    z.strictObject({
       insight: z.string().meta({
         description:
-          'Hand back to an Ask for an Insight: the record id of a published Insight of the asked Project',
+          'Hand back to an Ask for an Insight, or to an Ask with a study: the record id of a published Insight of the asked Project. With a study: an Insight of the study, and it ends the Ask',
       }),
     }),
     z.strictObject({
@@ -130,6 +141,8 @@ export function handleUpdateAsk(input: ApiRequest) {
     const step = askStepInputSchema.parse(await parseJson(request))
     if ('pickedBy' in step) {
       await pickAsk(db, params.project, askId, step.pickedBy)
+    } else if ('studyBy' in step) {
+      await startStudy(db, params.project, askId, step.studyBy)
     } else {
       const recordId = 'insight' in step ? step.insight : step.decision
       await handBackAsk(db, params.project, askId, recordId)

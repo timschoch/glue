@@ -194,6 +194,10 @@ export const submitPickAsk = createServerFn({ method: 'POST' })
   .validator(askPickInputSchema)
   .handler(({ data }) => actions.pickAsk(data))
 
+export const submitStartStudy = createServerFn({ method: 'POST' })
+  .validator(askPickInputSchema)
+  .handler(({ data }) => actions.startStudy(data))
+
 export const submitHandBackAsk = createServerFn({ method: 'POST' })
   .validator(askHandBackInputSchema)
   .handler(({ data }) => actions.handBackAsk(data))

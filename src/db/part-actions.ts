@@ -9,6 +9,7 @@ import {
   listMineAsks,
   newAskSchema,
   pickAsk,
+  startStudy,
   takeBackAsk,
 } from './asks.ts'
 import { listBuilds } from './builds.ts'
@@ -455,6 +456,14 @@ export function createPartActions(request: ActionRequest) {
     pickAsk: withMember((db, { project, askId }: AskPickInput, member) =>
       pickAsk(db, project, askId, member.email).then(
         () => undefined,
+        toFailure,
+      ),
+    ),
+
+    // The member of the session starts the study of the Ask.
+    startStudy: withMember((db, { project, askId }: AskPickInput, member) =>
+      startStudy(db, project, askId, member.email).then(
+        (slug) => ({ slug }),
         toFailure,
       ),
     ),
