@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.21.0](https://github.com/timschoch/glue/compare/v1.20.0...v1.21.0) (2026-10-07)
+
+
+### Features
+
+* **flow:** show the next step of the loop in every state ([#338](https://github.com/timschoch/glue/issues/338)) ([96e06c1](https://github.com/timschoch/glue/commit/96e06c158bf640ea02ce7ad049fad21579f50ada))
+* **gate:** check the Guardrails of the Contract Version ([#343](https://github.com/timschoch/glue/issues/343)) ([61e42de](https://github.com/timschoch/glue/commit/61e42deb81104a941d1127e701984fda4e2dd9df))
+* **kinds:** let a team add a Kind and change its slots ([#337](https://github.com/timschoch/glue/issues/337)) ([6b11fed](https://github.com/timschoch/glue/commit/6b11fedd590a1cb6ac14d57f1664e133a0e7df7f))
+
 ## [1.20.0](https://github.com/timschoch/glue/compare/v1.19.0...v1.20.0) (2026-10-07)
 
 
