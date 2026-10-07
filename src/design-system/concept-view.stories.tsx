@@ -129,6 +129,11 @@ export const Empty: Story = {
   args: { concept: { ...concept, parts: [], linkedParts: [] } },
 }
 
+// The removal of an empty Concept runs.
+export const Removing: Story = {
+  args: { ...Empty.args, onRemove: () => {}, removePending: 'Removing' },
+}
+
 // Nothing can be added: the empty slots show their type alone.
 export const ReadOnly: Story = {
   args: { concept: brief, onAddPart: undefined, onAddConcept: undefined },

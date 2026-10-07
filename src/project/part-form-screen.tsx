@@ -43,10 +43,11 @@ export function PartFormScreen({
   const { people } = projectRoute.useLoaderData()
   const { project, concept, search, recordHref, open, changeSearch } =
     useProjectLinks()
-  const { pending, failure, failurePlace, write } = useWrite()
+  const { pending, failure, failurePlace, clearFailure, write } = useWrite()
   const [errors, setErrors] = useState<ReturnType<typeof findProblems>>({})
   const [emptyStep, setEmptyStep] = useState(-1)
-  // The server names the step that it refused: the reason shows there.
+  // The server names the step that it refused: the reason shows there, at
+  // the Entity, because the server refuses only the Entity of a step.
   const refusedStep =
     failurePlace?.field === 'steps' ? failurePlace.row : undefined
   const formParts = useMemo(
@@ -85,7 +86,10 @@ export function PartFormScreen({
     const problems = findProblems(type, values)
     setErrors(problems)
     setEmptyStep(findEmptyStep(values.steps))
-    if (Object.keys(problems).length > 0) return
+    if (Object.keys(problems).length > 0) {
+      clearFailure()
+      return
+    }
 
     if (edited) {
       void write(
@@ -138,6 +142,7 @@ export function PartFormScreen({
       members={people.members}
       errors={refusedStep === undefined ? errors : { steps: failure }}
       invalidStep={refusedStep ?? emptyStep}
+      invalidStepField={refusedStep === undefined ? 'text' : 'entity'}
       serverError={refusedStep === undefined ? failure : undefined}
       pending={pending !== undefined}
       onSave={handleSave}

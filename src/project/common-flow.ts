@@ -134,17 +134,18 @@ function readInsight(part: Part): CommonFlow {
 // the Metrics of its Goal that the Decision shows. With no Metric the step
 // adds one that needs the first Goal of the Decision, so each Decision of
 // that Goal has it. A Decision that needs no Goal has no step. With no
-// reading of a Metric there is nothing to read: the step waits for the
-// first one.
+// reading of a Metric there is nothing to read: the step opens the first
+// Metric that has no measure, so the member can give it one. When each
+// Metric has its measure, the step waits for the first reading.
 function findShippedFlow(part: Part): CommonFlow {
   if (part.goalMetrics.length > 0) {
     const flow = readInsight(part)
     const isRead = part.goalMetrics.some(
       ({ measure }) => measure?.latestValue != null,
     )
-    return isRead || flow.next !== addInsight
-      ? flow
-      : { ...flow, next: undefined }
+    if (isRead || flow.next !== addInsight) return flow
+    const unmeasured = part.goalMetrics.find(({ measure }) => !measure)
+    return { ...flow, next: unmeasured && openPart(unmeasured) }
   }
   const goal = part.needs.find(({ part: needed }) => needed.type === 'goal')
   const next = goal && { ...addPart('metric'), needed: goal.part }
@@ -334,7 +335,7 @@ export function findSignalsFlow(
   )
   const next: HunchStep = {
     kind: 'hunch',
-    label: `Make Hunch, ${title}`,
+    label: `Make Hunch ${title}`,
     signals,
   }
   return { ...flows.evidence, current: 0, next }

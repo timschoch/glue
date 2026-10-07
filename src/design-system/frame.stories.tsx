@@ -92,6 +92,18 @@ export const ReadOnly: StoryObj<typeof meta> = {
   },
 }
 
+// The sign-out runs.
+export const SigningOut: StoryObj<typeof meta> = {
+  args: { signOutPending: 'Signing out' },
+}
+
+// The server gave no answer to the sign-out.
+export const SignOutFailure: StoryObj<typeof meta> = {
+  args: {
+    signOutFailure: 'This did not work. Check your connection, then try again.',
+  },
+}
+
 // A screen that has no Project.
 export const Plain: StoryObj<typeof meta> = {
   render: () => <PlainFrame />,

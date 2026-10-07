@@ -1,3 +1,4 @@
+@use '@carbon/react/scss/breakpoint' as *;
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
 @use '@carbon/react/scss/type' as *;
@@ -119,10 +120,15 @@ $text-width: $spacing-13 * 4;
 }
 
 // The wrapper of a Carbon icon button is inline, with room below its line.
+// Beside the inputs the controls start below the label line, as the inputs
+// do: a reason below an input does not move them.
 .rowControls {
   display: flex;
-  align-self: flex-end;
   margin-inline-start: auto;
+
+  @include breakpoint('md') {
+    margin-block-start: $spacing-06;
+  }
 
   > * {
     display: flex;

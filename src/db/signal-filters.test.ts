@@ -64,19 +64,52 @@ describe('addSignalFilter', () => {
     })
   })
 
+  // What a request over HTTP can send: the types do not hold there.
+  const sent = (filter: object) => filter as { name: string }
+
   it.each([
-    { filter: { name: ' ', mustHold: ['slow'] }, reason: 'name' },
-    { filter: { name: 'Slow lists', mustHold: [' '] }, reason: 'mustHold' },
+    {
+      filter: { name: ' ', mustHold: ['slow'] },
+      reason: 'A filter needs a name',
+    },
+    { filter: sent({ mustHold: ['slow'] }), reason: 'A filter needs a name' },
+    {
+      filter: { name: 'Slow lists', mustHold: [' '] },
+      reason: 'A word has at least 1 character',
+    },
+    {
+      filter: sent({ name: 'Slow lists', mustHold: 'slow' }),
+      reason: 'The words are a list',
+    },
+    {
+      filter: sent({ name: 'Slow lists', mustNotHold: [7] }),
+      reason: 'A word is a text',
+    },
+    {
+      filter: sent({ name: 'Slow lists', sources: 'github' }),
+      reason: 'The sources are a list',
+    },
+    {
+      filter: sent({ name: 'Slow lists', sources: [7] }),
+      reason: 'A source is a name',
+    },
+    {
+      filter: sent({ name: 'Slow lists', mustHold: ['slow'], colour: 'red' }),
+      reason: 'A filter has no "colour"',
+    },
     { filter: { name: 'All' }, reason: 'A filter needs a word or a source' },
-  ])('refuses a filter with no $reason', async ({ filter, reason }) => {
-    await addProject(db, 'glue')
+  ])(
+    'refuses a filter with one plain reason: $reason',
+    async ({ filter, reason }) => {
+      await addProject(db, 'glue')
 
-    const refused = addSignalFilter(db, 'glue', filter)
+      const refused = addSignalFilter(db, 'glue', filter)
 
-    await expect(refused).rejects.toThrow(InvalidRecordError)
-    await expect(refused).rejects.toThrow(reason)
-    expect(await listSignalFilters(db, 'glue')).toEqual([])
-  })
+      await expect(refused).rejects.toThrow(InvalidRecordError)
+      await expect(refused).rejects.toMatchObject({ message: reason })
+      expect(await listSignalFilters(db, 'glue')).toEqual([])
+    },
+  )
 
   it('refuses a second filter with the name of a filter of the Project', async () => {
     await addProject(db, 'glue')
@@ -137,8 +170,10 @@ describe('addSignalFilter', () => {
     const refused = addSignalFilter(db, 'glue', filter)
 
     await expect(refused).rejects.toThrow(InvalidRecordError)
-    await expect(refused).rejects.toThrow(reason)
-    await expect(refused).rejects.toMatchObject({ place: { field } })
+    await expect(refused).rejects.toMatchObject({
+      message: reason,
+      place: { field },
+    })
     expect(await listSignalFilters(db, 'glue')).toEqual([])
   })
 })

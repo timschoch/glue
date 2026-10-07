@@ -97,6 +97,21 @@ describe('Assignees', () => {
     expect(group && getComputedStyle(group).maxInlineSize).toBe('100%')
   })
 
+  it('shows that a write runs on the line of the label, so it takes no room below', () => {
+    render(
+      <Assignees
+        members={MEMBERS}
+        responsible={1}
+        coAuthors={[]}
+        pending="Saving"
+        onChange={() => {}}
+      />,
+    )
+    const saving = screen.getByText('Saving').parentElement
+
+    expect(saving && getComputedStyle(saving).position).toBe('absolute')
+  })
+
   it('says why a write failed', () => {
     render(
       <Assignees

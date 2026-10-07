@@ -261,6 +261,75 @@ describe('the Ask routes', () => {
     })
   })
 
+  // Ben is a second member of `bakeday`. Each of the two has a token.
+  describe('with the token of a member who asks', () => {
+    const memberTokens = { mara: '', ben: '' }
+
+    beforeEach(async () => {
+      await joinProject(db, 'bakeday', {
+        id: 'user-ben',
+        name: 'Ben',
+        email: 'ben@example.com',
+      })
+      memberTokens.mara = (
+        await createToken(db, 'bakeday', 'mara', 'mara@example.com')
+      ).token
+      memberTokens.ben = (
+        await createToken(db, 'bakeday', 'ben', 'ben@example.com')
+      ).token
+    })
+
+    it.each([
+      ['names another member', { ...ask, askedBy: 'ben@example.com' }],
+      ['names no member', ask],
+    ])(
+      'ask as the member of the token when the body %s',
+      async (_name, body) => {
+        await call(handleAddAsk, 'POST', {
+          project: 'bakeday',
+          token: memberTokens.mara,
+          body,
+        })
+        const asks = await call(handleListAsks, 'GET', { project: 'ux' })
+
+        expect(asks.body).toMatchObject([
+          { id: 1, askedBy: { name: 'Mara', email: 'mara@example.com' } },
+        ])
+      },
+    )
+
+    it('take back as the member of the token, not as the member that the request names', async () => {
+      await call(handleAddAsk, 'POST', {
+        project: 'bakeday',
+        token: memberTokens.mara,
+        body: ask,
+      })
+
+      const refused = await call(handleRemoveAsk, 'DELETE', {
+        project: 'bakeday',
+        askId: '1',
+        token: memberTokens.ben,
+        query: '?member=mara@example.com',
+      })
+      const takenBack = await call(handleRemoveAsk, 'DELETE', {
+        project: 'bakeday',
+        askId: '1',
+        token: memberTokens.mara,
+      })
+
+      expect(refused).toEqual({
+        status: 400,
+        body: {
+          error: {
+            code: 'invalid-request',
+            message: 'ben@example.com did not make Ask 1',
+          },
+        },
+      })
+      expect(takenBack).toEqual({ status: 204, body: undefined })
+    })
+  })
+
   it('take an Ask for a Decision, with its question and the member who asks', async () => {
     const added = await call(handleAddAsk, 'POST', {
       project: 'bakeday',

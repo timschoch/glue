@@ -55,7 +55,7 @@ function titles() {
 
 // The button that turns the group of a Signal into a Hunch.
 function hunchButton({ title }: SignalRow) {
-  return screen.getByRole('button', { name: `Make Hunch, ${title}` })
+  return screen.getByRole('button', { name: `Make Hunch ${title}` })
 }
 
 function filter(name: string) {
@@ -210,7 +210,7 @@ describe('Signals', () => {
       heading.compareDocumentPosition(row(TICKET.title)) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    screen.getByRole('button', { name: `Make Hunch, ${title}` })
+    screen.getByRole('button', { name: `Make Hunch ${title}` })
   })
 
   it('names the group in the name of its button, and makes no landmark of a group', () => {
@@ -239,7 +239,7 @@ describe('Signals', () => {
 
     screen.getByText('Saving')
     expect(
-      screen.queryByRole('button', { name: `Make Hunch, ${TICKET.title}` }),
+      screen.queryByRole('button', { name: `Make Hunch ${TICKET.title}` }),
     ).toBeNull()
     expect(hunchButton(SLOW)).toHaveProperty('disabled', true)
   })
@@ -308,7 +308,7 @@ describe('Signals', () => {
               next: {
                 actions: [
                   {
-                    label: `Make Hunch, ${shown[0].title}`,
+                    label: `Make Hunch ${shown[0].title}`,
                     onClick: () => onStep(shown[0].signals),
                   },
                 ],
@@ -317,7 +317,7 @@ describe('Signals', () => {
     })
     const next = () => within(screen.getByRole('region', { name: 'Next' }))
 
-    next().getByRole('button', { name: 'Make Hunch, The list is slow' })
+    next().getByRole('button', { name: 'Make Hunch The list is slow' })
     expect(
       screen.getByRole('region', { name: 'Next' }).previousElementSibling,
     ).toBe(screen.getByRole('list', { name: 'Evidence to Insight' }))
@@ -325,7 +325,7 @@ describe('Signals', () => {
     await userEvent.click(filter('GitHub'))
     await userEvent.click(
       next().getByRole('button', {
-        name: 'Make Hunch, I lose my place in the list',
+        name: 'Make Hunch I lose my place in the list',
       }),
     )
 

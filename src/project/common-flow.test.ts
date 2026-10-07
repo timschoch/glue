@@ -511,21 +511,30 @@ describe('the common flow of a Part', () => {
     },
   }
 
-  it.each([
-    ['has no reading', unreadMetric],
-    ['is not measured', { ...unreadMetric, measure: null }],
-  ])(
-    'waits for the first reading when the Metric of a built Decision %s',
-    (_, metric) => {
-      const flow = findCommonFlow(
-        { ...withGoal, goalMetrics: [metric] },
-        shipped,
-      )
+  it('waits for the first reading when the Metric of a built Decision has no reading', () => {
+    const flow = findCommonFlow(
+      { ...withGoal, goalMetrics: [unreadMetric] },
+      shipped,
+    )
 
-      expect(flow).toMatchObject({ name: 'Use to Insight', current: 0 })
-      expect(flow?.next).toBeUndefined()
-    },
-  )
+    expect(flow).toMatchObject({ name: 'Use to Insight', current: 0 })
+    expect(flow?.next).toBeUndefined()
+  })
+
+  it('opens the first Metric of a built Decision that has no measure', () => {
+    const unmeasured = { ...unreadMetric, id: 'M2', measure: null }
+    const flow = findCommonFlow(
+      { ...withGoal, goalMetrics: [unreadMetric, unmeasured] },
+      shipped,
+    )
+
+    expect(flow).toMatchObject({ name: 'Use to Insight', current: 0 })
+    expect(flow?.next).toEqual({
+      kind: 'open',
+      part: { id: 'M2', concept: unmeasured.concept },
+      label: 'Open M2 Signup to paid',
+    })
+  })
 
   it('asks for the Insight when one of the Metrics has a reading', () => {
     const flow = findCommonFlow(
@@ -1028,7 +1037,7 @@ describe('findSignalsFlow', () => {
       current: 0,
       next: {
         kind: 'hunch',
-        label: 'Make Hunch, I lose my place in the list',
+        label: 'Make Hunch I lose my place in the list',
         signals: [
           'https://github.com/timschoch/glue/issues/5',
           'https://github.com/timschoch/glue/issues/6',
@@ -1046,7 +1055,7 @@ describe('findSignalsFlow', () => {
     const refund = { ...slow, title: 'Where is my refund?' }
 
     expect(findSignalsFlow([slow, refund])?.next.label).toBe(
-      'Make Hunch, The list is slow',
+      'Make Hunch The list is slow',
     )
   })
 
@@ -1087,7 +1096,7 @@ describe('findSignalsFlow', () => {
       findSignalsFlow(applySignalFilters(listed, [noSlow]).groups)?.next,
     ).toEqual({
       kind: 'hunch',
-      label: 'Make Hunch, Where is my refund?',
+      label: 'Make Hunch Where is my refund?',
       signals: [
         'https://github.com/timschoch/glue/issues/3',
         'https://github.com/timschoch/glue/issues/4',

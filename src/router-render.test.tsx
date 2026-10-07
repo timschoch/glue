@@ -130,7 +130,7 @@ function alerts(): Array<string> {
 function groupButtons(title: string): Array<HTMLElement> {
   const box = screen.queryByRole('region', { name: 'Next' })
   return screen
-    .queryAllByRole('button', { name: `Make Hunch, ${title}` })
+    .queryAllByRole('button', { name: `Make Hunch ${title}` })
     .filter((found) => !box?.contains(found))
 }
 
@@ -213,15 +213,20 @@ describe('the start of a Project', () => {
     await expectAddress('/glue')
   })
 
-  it('shows the removal in place of the button until the server answers', async () => {
-    await renderPage('/glue/flows', {
+  it('shows the removal at its button, which keeps the focus and starts no second one', async () => {
+    const { server } = await renderPage('/glue/flows', {
       removeConcept: vi.fn(() => new Promise<undefined>(() => {})),
     })
 
     await userEvent.click(button('Remove Concept'))
 
     await waitFor(() => within(screen.getByRole('main')).getByText('Removing'))
-    expect(screen.queryByRole('button', { name: 'Remove Concept' })).toBeNull()
+    expect(document.activeElement).toBe(button('Remove Concept'))
+    expect(button('Remove Concept').getAttribute('aria-disabled')).toBe('true')
+
+    await userEvent.keyboard('{Enter}')
+
+    expect(server.removeConcept).toHaveBeenCalledOnce()
   })
 
   it('has no button that removes a Concept with a Part', async () => {
@@ -649,7 +654,7 @@ describe('a section', () => {
 
     await userEvent.click(
       nextBox().getByRole('button', {
-        name: 'Make Hunch, I cannot find the export',
+        name: 'Make Hunch I cannot find the export',
       }),
     )
 
@@ -686,7 +691,7 @@ describe('a section', () => {
 
     await userEvent.click(
       nextBox().getByRole('button', {
-        name: 'Make Hunch, I cannot find the export',
+        name: 'Make Hunch I cannot find the export',
       }),
     )
 
@@ -698,7 +703,7 @@ describe('a section', () => {
 
     await nextBox().findByText('A Signal is not in the Project')
     nextBox().getByRole('button', {
-      name: 'Make Hunch, I cannot find the export',
+      name: 'Make Hunch I cannot find the export',
     })
   })
 
@@ -789,7 +794,7 @@ describe('a section', () => {
 
     await userEvent.click(button('No phone'))
     await userEvent.click(
-      nextBox().getByRole('button', { name: 'Make Hunch, The list is slow' }),
+      nextBox().getByRole('button', { name: 'Make Hunch The list is slow' }),
     )
 
     expect(server.addSignalInsight).toHaveBeenCalledWith({
@@ -903,6 +908,31 @@ describe('a section', () => {
         .getAttribute('aria-invalid'),
     ).toBe('true')
     expect(alerts()).toEqual([])
+  })
+
+  it('shows the new reason of the filter form in place of an old refusal of the server', async () => {
+    const { server } = await renderFilteredSignals({
+      addSignalFilter: vi.fn(() =>
+        Promise.resolve({
+          message: '"Slow" is a filter already',
+          place: { field: 'name' },
+        }),
+      ),
+    })
+    const name = () => screen.getByRole('textbox', { name: 'Name' })
+    await userEvent.click(button('Add filter'))
+    await userEvent.type(name(), 'Slow')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Market' }))
+    await userEvent.click(button('Save'))
+    await screen.findByText('"Slow" is a filter already')
+
+    await userEvent.clear(name())
+    await userEvent.type(name(), 'No phone')
+    await userEvent.click(button('Save'))
+
+    screen.getByText('A filter has this name already.')
+    expect(screen.queryByText('"Slow" is a filter already')).toBeNull()
+    expect(server.addSignalFilter).toHaveBeenCalledOnce()
   })
 
   it('shows at the words that a word is too long, and saves nothing', async () => {
@@ -1411,7 +1441,7 @@ describe('the steps of a Flow and the fields of an Entity', () => {
     expect(server.updatePart).not.toHaveBeenCalled()
   })
 
-  it('shows at the step why the server refused it', async () => {
+  it('shows at the Entity of the step why the server refused it', async () => {
     await renderFlowForm({
       updatePart: vi.fn(() =>
         Promise.resolve({
@@ -1425,9 +1455,34 @@ describe('the steps of a Flow and the fields of an Entity', () => {
     await userEvent.click(button('Save'))
 
     await screen.findByText('"E1" is not an Entity')
-    expect(field('Step 1').getAttribute('aria-invalid')).toBe('true')
-    expect(field('Step 2').getAttribute('aria-invalid')).toBeNull()
+    const entity = (place: number) =>
+      screen.getByRole('combobox', { name: `Entity of step ${place}` })
+    expect(entity(1).getAttribute('aria-invalid')).toBe('true')
+    expect(entity(2).getAttribute('aria-invalid')).toBeNull()
+    expect(field('Step 1').getAttribute('aria-invalid')).toBeNull()
     expect(alerts()).toEqual([])
+  })
+
+  it('shows the new reason of the form in place of an old refusal of the server', async () => {
+    const { server } = await renderFlowForm({
+      updatePart: vi.fn(() =>
+        Promise.resolve({
+          message: '"E1" is not an Entity',
+          place: { field: 'steps', row: 0 },
+        }),
+      ),
+    })
+    await userEvent.type(field('Step 2'), 'Close it')
+    await userEvent.click(button('Save'))
+    await screen.findByText('"E1" is not an Entity')
+
+    await userEvent.clear(field('Step 2'))
+    await userEvent.click(button('Save'))
+
+    screen.getByText('Enter a text.')
+    expect(screen.queryByText('"E1" is not an Entity')).toBeNull()
+    expect(field('Step 2').getAttribute('aria-invalid')).toBe('true')
+    expect(server.updatePart).toHaveBeenCalledOnce()
   })
 
   it('shows the fields of an Entity, each name with its meaning, and saves another meaning', async () => {
@@ -2472,9 +2527,9 @@ describe('the common flow of a record', () => {
     await expectAddress('/glue/read-model/R1', { trail: ['D4'] })
   })
 
-  // The build of D4 shipped, its Goal has a Metric with no reading: the
-  // step waits for the first one.
-  it('has no button while the Metric of a shipped Decision has no reading', async () => {
+  // The build of D4 shipped, its Goal has a Metric with no measure: no
+  // reading can come, so the step opens that Metric.
+  it('opens the Metric of a shipped Decision that has no measure', async () => {
     const metric: MeasuredPart = {
       ...parts[0],
       id: 'M1',
@@ -2496,6 +2551,7 @@ describe('the common flow of a record', () => {
         .map((step) => step.getAttribute('aria-current')),
     ).toEqual(['step'])
     expect(next.getAllByRole('button')).toEqual([
+      next.getByRole('button', { name: 'Open M1 Agents read files' }),
       next.getByRole('button', { name: 'Additional actions' }),
     ])
   })
@@ -3140,16 +3196,22 @@ describe('the session', () => {
     expect(pageTitle()).toBe('Sign in to Glue')
   })
 
-  it('shows that the sign-out runs in place of its button', async () => {
-    await renderPage('/glue', {
+  it('shows that the sign-out runs at its button, which keeps the focus and starts no second one', async () => {
+    const { server } = await renderPage('/glue', {
       signOut: vi.fn(() => new Promise<void>(() => {})),
     })
     const panel = within(screen.getByRole('navigation', { name: 'Main' }))
+    const signOut = () => panel.getByRole('button', { name: 'Sign out' })
 
-    await userEvent.click(panel.getByRole('button', { name: 'Sign out' }))
+    await userEvent.click(signOut())
 
     await waitFor(() => panel.getByText('Signing out'))
-    expect(panel.queryByRole('button', { name: 'Sign out' })).toBeNull()
+    expect(document.activeElement).toBe(signOut())
+    expect(signOut().getAttribute('aria-disabled')).toBe('true')
+
+    await userEvent.keyboard('{Enter}')
+
+    expect(server.signOut).toHaveBeenCalledOnce()
   })
 
   it('shows why the sign-out failed below its button', async () => {
@@ -3166,6 +3228,12 @@ describe('the session', () => {
       ).toBe('This did not work. Check your connection, then try again.'),
     )
     panel.getByRole('button', { name: 'Sign out' })
+
+    await userEvent.click(
+      panel.getByRole('button', { name: 'close notification' }),
+    )
+
+    expect(panel.queryByRole('alert')).toBeNull()
   })
 
   it('shows why the sign-in got no answer as one notification', async () => {

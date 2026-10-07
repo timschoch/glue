@@ -24,6 +24,62 @@ async function countFaults(code: string): Promise<number> {
   return messages.filter(({ message }) => message === MESSAGE).length
 }
 
+// The messages of the import rule for the code of a file, as the config of
+// the repo gives the rule to that file.
+async function findImportFaults(file: string, code: string) {
+  const { rules } = await new ESLint().calculateConfigForFile(file)
+  const eslint = new ESLint({
+    overrideConfigFile: true,
+    overrideConfig: {
+      rules: { 'no-restricted-imports': rules['no-restricted-imports'] },
+    },
+  })
+  const [{ messages }] = await eslint.lintText(code)
+  return messages.map(({ ruleId }) => ruleId)
+}
+
+// A screen cannot go around `useWrite`: it cannot start a write itself and
+// it cannot call a server function (glue-build/D55).
+describe('the lint rule for the imports of a write', () => {
+  it.each([
+    ['starts a write itself', "import { startWrite } from './use-write.ts'"],
+    [
+      'starts a write itself, from another folder',
+      "import { startWrite, useWrite } from '../project/use-write.ts'",
+    ],
+    [
+      'calls a server function',
+      "import { updatePartFn } from '../db/parts.functions.ts'",
+    ],
+  ])('finds a screen that %s', async (_name, code) => {
+    expect(
+      await findImportFaults('src/project/record-screen.tsx', code),
+    ).toEqual(['no-restricted-imports'])
+  })
+
+  it('passes a screen that takes useWrite', async () => {
+    expect(
+      await findImportFaults(
+        'src/project/record-screen.tsx',
+        "import { toWrite, useWrite } from './use-write.ts'",
+      ),
+    ).toEqual([])
+  })
+
+  it.each([
+    [
+      'src/router-server.ts',
+      "import { updatePartFn } from './db/parts.functions.ts'",
+    ],
+    [
+      'src/router.test.ts',
+      "import { startWrite } from './project/use-write.ts'",
+    ],
+  ])('passes %s, a part of the router context', async (file, code) => {
+    expect(await findImportFaults(file, code)).toEqual([])
+  })
+})
+
 describe('the lint rule for useWrite', () => {
   it.each([
     ['no loading state', 'const { failure, write } = useWrite()'],

@@ -62,7 +62,7 @@ export type FrameProps = {
   onAddConcept?: () => void
   // With the callback the left panel ends with one button that signs out.
   onSignOut?: () => void
-  // The sign-out that runs: it shows in place of the button.
+  // The sign-out that runs: it shows beside the button.
   signOutPending?: string
   // Why the sign-out failed.
   signOutFailure?: string
@@ -286,11 +286,19 @@ export function Frame({
               {onSignOut && <SideNavDivider />}
               {onSignOut && (
                 <li>
-                  {signOutPending === undefined ? (
-                    <Button kind="ghost" size="sm" onClick={onSignOut}>
-                      Sign out
-                    </Button>
-                  ) : (
+                  {/* The button stays while the sign-out runs: it keeps
+                      the keyboard focus. */}
+                  <Button
+                    kind="ghost"
+                    size="sm"
+                    aria-disabled={signOutPending !== undefined}
+                    onClick={
+                      signOutPending === undefined ? onSignOut : undefined
+                    }
+                  >
+                    Sign out
+                  </Button>
+                  {signOutPending !== undefined && (
                     <InlineLoading
                       description={signOutPending}
                       className={styles.signOutPending}
@@ -301,8 +309,8 @@ export function Frame({
                       kind="error"
                       role="alert"
                       lowContrast
-                      hideCloseButton
                       title={signOutFailure}
+                      className={styles.signOutFailure}
                     />
                   )}
                 </li>

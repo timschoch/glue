@@ -20,7 +20,7 @@ import { FieldRows, StepRows } from './part-form-lists.tsx'
 import styles from './part-form.module.scss'
 import { PartSearch } from './part-search.tsx'
 import type { PartType } from './card.tsx'
-import type { FieldValue, StepValue } from './part-form-lists.tsx'
+import type { FieldValue, StepField, StepValue } from './part-form-lists.tsx'
 import type { PartFormPart } from './part-search.tsx'
 
 export type { PartFormPart }
@@ -188,6 +188,8 @@ export type PartFormProps = {
   // The place of the step that the reason of the steps is about. The first
   // step has 0. None: the reason is about the list.
   invalidStep?: number
+  // The input of that step that the reason is about.
+  invalidStepField?: StepField
   serverError?: string
   // The form saves: it takes no second save.
   pending?: boolean
@@ -207,6 +209,7 @@ export function PartForm({
   members = [],
   errors = {},
   invalidStep,
+  invalidStepField,
   serverError,
   pending = false,
   onSave,
@@ -302,6 +305,7 @@ export function PartForm({
             entities={parts.filter((part) => part.type === 'entity')}
             invalidText={errors[field]}
             invalidRow={invalidStep}
+            invalidField={invalidStepField}
             onChange={(rows) => change({ steps: rows })}
           />
         )

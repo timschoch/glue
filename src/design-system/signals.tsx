@@ -318,7 +318,7 @@ export function Signals({
                     <Button
                       size="sm"
                       kind="ghost"
-                      aria-label={`Make Hunch, ${title}`}
+                      aria-label={`Make Hunch ${title}`}
                       disabled={saving}
                       onClick={() => onMakeHunch(members.map(({ url }) => url))}
                     >

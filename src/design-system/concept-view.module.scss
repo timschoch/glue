@@ -1,3 +1,4 @@
+@use '@carbon/react/scss/breakpoint' as *;
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
 @use '@carbon/react/scss/type' as *;
@@ -50,6 +51,16 @@ $card-width: $spacing-13 * 2;
 // A write that runs takes no more room than its text.
 .pending {
   inline-size: auto;
+}
+
+// The words of the removal that runs are after the button in a narrow
+// window and before it in a wide one: the button does not move.
+.removePending {
+  inline-size: auto;
+
+  @include breakpoint('md') {
+    order: -1;
+  }
 }
 
 .switch {
