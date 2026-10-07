@@ -125,9 +125,14 @@ export function listAnswers(workState: WorkState): Answer[] {
   )
 }
 
-// A step of the evidence level of an Insight that a member takes with a
-// note (glue/D60): what was tested, or why the Insight is in doubt.
-export type LevelStep = { kind: 'verified' | 'disputed'; note: string }
+// A step of the evidence level of an Insight that a member takes
+// (glue/D60), with its note: the second source that agrees, what was
+// tested, or why the Insight is in doubt. A Hunch whose Signals agree is
+// raised with no note.
+export type LevelStep = {
+  kind: 'raised' | 'verified' | 'disputed'
+  note: string | null
+}
 
 // The value of "published_at" for a write that gives the Part the Work state:
 // the first time that it is published stays.

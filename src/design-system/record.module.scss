@@ -273,6 +273,12 @@ $text-width: $card-width * 2;
     min-block-size: $spacing-07;
   }
 
+  // A long note or a long address goes on in the next line.
+  li > :is(span, a) {
+    max-inline-size: 100%;
+    overflow-wrap: anywhere;
+  }
+
   time {
     color: $text-secondary;
   }

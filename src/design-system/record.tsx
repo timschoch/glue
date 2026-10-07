@@ -130,6 +130,7 @@ const activityKinds = {
   ...workStates,
   changed: 'Edited',
   wording: 'Wording',
+  raised: 'Raised',
   verified: 'Verified',
   disputed: 'Disputed',
   'flag-opened': 'Flag opened',

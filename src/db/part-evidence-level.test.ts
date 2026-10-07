@@ -4,6 +4,7 @@ import { createFakeGithub } from '../test/github.ts'
 import { joinProject } from './members.ts'
 import { createPartOperations } from './part-operations.ts'
 import { addProject } from './part-records.ts'
+import { setProductRepository } from './projects.ts'
 import * as schema from './schema.ts'
 import { createTestDatabase } from './test-database.ts'
 
@@ -20,6 +21,72 @@ beforeEach(async () => {
   await addProject(db, project)
   await joinProject(db, project, { id: 'user-tim', name: 'Tim', email: tim })
   await joinProject(db, project, { id: 'user-ada', name: 'Ada', email: ada })
+})
+
+describe('the step Raise', () => {
+  it('takes a Hunch to Pattern when its Signals agree', async () => {
+    operations = createPartOperations({
+      db,
+      github: createFakeGithub(issues).github,
+    })
+    await setProductRepository(db, project, 'timschoch/glue')
+    await operations.addSignalInsight(project, {
+      signals: issues.map(({ url }) => url),
+    })
+
+    const { part } = await operations.answerPart(
+      project,
+      'I1',
+      { answer: 'raise' },
+      ada,
+    )
+
+    expect(part.evidenceLevel).toBe('pattern')
+    expect(part.activity[0]).toMatchObject({ kind: 'raised', by: 'Ada' })
+    expect(part.activity[0]).not.toHaveProperty('note')
+  })
+
+  it('refuses a Hunch whose Signals do not agree', async () => {
+    await operations.addPart(project, insight)
+
+    await expect(
+      operations.answerPart(project, 'I1', { answer: 'raise' }, ada),
+    ).rejects.toThrow(
+      'the Signals of "I1" do not agree: name the second source that agrees',
+    )
+    expect((await operations.getPart(project, 'I1')).evidenceLevel).toBeNull()
+  })
+
+  it('takes such a Hunch with the second source that agrees and keeps it', async () => {
+    await operations.addPart(project, insight)
+
+    const { part } = await operations.answerPart(
+      project,
+      'I1',
+      { answer: 'raise', source: 'Bo said the same in the review' },
+      ada,
+    )
+
+    expect(part.evidenceLevel).toBe('pattern')
+    expect(part.activity[0]).toMatchObject({
+      kind: 'raised',
+      by: 'Ada',
+      note: 'Bo said the same in the review',
+    })
+  })
+
+  it('refuses a Pattern', async () => {
+    await operations.addPart(project, { ...insight, evidenceLevel: 'pattern' })
+
+    await expect(
+      operations.answerPart(
+        project,
+        'I1',
+        { answer: 'raise', source: 'Bo said the same' },
+        ada,
+      ),
+    ).rejects.toThrow('"I1" is not a Hunch')
+  })
 })
 
 describe('the step Verify', () => {
@@ -174,6 +241,14 @@ describe('the sign-off of a Decision', () => {
     expect(part.evidenceBase).toBeNull()
   })
 })
+
+// Three issues of one source on three days, eight days apart: they agree.
+const issues = [1, 5, 9].map((day) => ({
+  url: `https://github.com/timschoch/glue/issues/${day}`,
+  title: 'Loads are slow',
+  body: '',
+  createdAt: `2026-10-0${day}T08:00:00Z`,
+}))
 
 const insight = {
   type: 'insight' as const,

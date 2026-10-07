@@ -206,6 +206,9 @@ export function RecordScreen({
   // ask the owner. Only the owner answers a flag.
   const next = flow?.next
   const { answeredBy } = part
+  // The button sends the answer in words and the option of a question. A
+  // Decision whose step is another one has no field for them.
+  const signs = !answeredBy && next?.kind === 'answer'
   // A member asks another Project to check a Hunch that has no open Ask, or
   // for a Decision that a Part waits for. The member who asked takes the Ask
   // back while nobody picked it. An Ask that names no such member: a member
@@ -312,32 +315,38 @@ export function RecordScreen({
               },
               ...answerActions,
             ]
-          : [
-              {
-                label: next.label,
-                onClick: () =>
-                  void (next.kind === 'glue'
-                    ? glue()
-                    : next.kind === 'concept'
-                      ? router.navigate({ href: conceptHref(part.concept) })
-                      : next.kind === 'open'
-                        ? router.navigate({ href: recordHref(next.part) })
-                        : next.kind === 'raise'
-                          ? write('Saving', () =>
-                              updatePart({
-                                project,
-                                recordId: part.id,
-                                change: { evidenceLevel: next.level },
-                              }),
-                            )
-                          : changeSearch(
-                              next.kind === 'add'
-                                ? { ...search, add: next.type }
-                                : { ...search, edit: true },
-                            )),
-              },
-              ...answerActions,
-            ]
+          : next.kind === 'raise' && next.needsSource
+            ? [
+                {
+                  label: next.label,
+                  note: {
+                    label: 'Second source',
+                    missing: 'Enter the second source.',
+                    onSend: (source) => answer({ answer: 'raise', source }),
+                  },
+                },
+                ...answerActions,
+              ]
+            : [
+                {
+                  label: next.label,
+                  onClick: () =>
+                    void (next.kind === 'glue'
+                      ? glue()
+                      : next.kind === 'concept'
+                        ? router.navigate({ href: conceptHref(part.concept) })
+                        : next.kind === 'open'
+                          ? router.navigate({ href: recordHref(next.part) })
+                          : next.kind === 'raise'
+                            ? answer({ answer: 'raise' })
+                            : changeSearch(
+                                next.kind === 'add'
+                                  ? { ...search, add: next.type }
+                                  : { ...search, edit: true },
+                              )),
+                },
+                ...answerActions,
+              ]
   // A member who doubts a Confirmed Insight says why (glue/D60).
   const dispute: Array<RecordAction> =
     part.type === 'insight' &&
@@ -378,12 +387,10 @@ export function RecordScreen({
       pending={pending}
       error={failure}
       words={
-        takesWords && !answeredBy
-          ? { value: words, onChange: setWords }
-          : undefined
+        takesWords && signs ? { value: words, onChange: setWords } : undefined
       }
       choice={
-        asks && !answeredBy ? { value: option, onChange: setOption } : undefined
+        asks && signs ? { value: option, onChange: setOption } : undefined
       }
       onEdit={() => void changeSearch({ ...search, edit: true })}
       jointParts={bodyParts}

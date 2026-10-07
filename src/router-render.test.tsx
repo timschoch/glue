@@ -1620,13 +1620,31 @@ describe('the common flow of a record', () => {
     )
   })
 
-  it('has no step to Pattern for a Hunch without Signals, and no level in its form', async () => {
+  it('has no level in the form of a Hunch', async () => {
     await renderPage('/glue/part-model/I3?edit=true')
 
     expect(screen.queryByLabelText('Evidence level')).toBeNull()
-    expect(
-      screen.queryByRole('button', { name: 'Raise to Pattern' }),
-    ).toBeNull()
+  })
+
+  it('raises a Hunch without Signals with the second source that agrees', async () => {
+    const { server } = await renderPage('/glue/part-model/I3', {
+      fetchPart: vi.fn(changedPart('I3', { evidenceLevel: 'hunch' })),
+    })
+
+    await act('Raise to Pattern')
+    await userEvent.click(button('Send'))
+
+    expect(server.answerPart).not.toHaveBeenCalled()
+    expect(screen.queryByText('Enter the second source.')).not.toBeNull()
+
+    await userEvent.type(field('Second source'), 'Bo said the same')
+    await userEvent.click(button('Send'))
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledExactlyOnceWith(
+        answered('I3', { answer: 'raise', source: 'Bo said the same' }),
+      ),
+    )
   })
 
   it('verifies a Pattern with what was tested', async () => {
@@ -1715,6 +1733,18 @@ describe('the common flow of a record', () => {
       ),
     ).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Sign off' })).toBeNull()
+    // No button sends an answer in words, so the record has no field for it.
+    expect(screen.queryByLabelText('Answer')).toBeNull()
+
+    await act(`Open I3 ${I3}`)
+
+    await expectAddress('/glue/part-model/I3', { trail: ['D4'] })
+  })
+
+  it('opens the Hunch of a published Decision that rests on it', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model/D4', {
+      fetchPart: vi.fn(changedPart('D4', { evidenceBase: 'hunch' })),
+    })
 
     await act(`Open I3 ${I3}`)
 
@@ -1754,12 +1784,11 @@ describe('the common flow of a record', () => {
     await act('Raise to Pattern')
 
     await waitFor(() =>
-      expect(server.updatePart).toHaveBeenCalledWith({
-        project: 'glue',
-        recordId: 'I3',
-        change: { evidenceLevel: 'pattern' },
-      }),
+      expect(server.answerPart).toHaveBeenCalledExactlyOnceWith(
+        answered('I3', { answer: 'raise' }),
+      ),
     )
+    expect(screen.queryByLabelText('Second source')).toBeNull()
   })
 
   it('reads no Signals for a Hunch that grew from one Signal', async () => {
@@ -1772,9 +1801,7 @@ describe('the common flow of a record', () => {
       ),
     })
 
-    expect(
-      screen.queryByRole('button', { name: 'Raise to Pattern' }),
-    ).toBeNull()
+    expect(button('Raise to Pattern')).toBeTruthy()
     expect(server.fetchSignals).not.toHaveBeenCalled()
   })
 
@@ -2703,7 +2730,7 @@ describe('an Ask to another Project', () => {
 
     expect(choice()).toBeNull()
     expect(server.addAsk).not.toHaveBeenCalled()
-    expect(document.activeElement).toBe(button('Additional actions'))
+    expect(document.activeElement).toBe(button('Raise to Pattern'))
 
     await act('Ask another Project')
     await userEvent.click(button('Send'))
@@ -2711,7 +2738,7 @@ describe('an Ask to another Project', () => {
     await waitFor(() => expect(choice()).toBeNull())
     // The button is away while the Ask saves, and has the focus after it.
     await waitFor(() =>
-      expect(document.activeElement).toBe(button('Additional actions')),
+      expect(document.activeElement).toBe(button('Raise to Pattern')),
     )
     expect(server.addAsk).toHaveBeenCalledExactlyOnceWith({
       project: 'glue',

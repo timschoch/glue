@@ -332,7 +332,7 @@ export const partSchema = z
           z.object({
             kind: z.enum(activityKinds).meta({
               description:
-                'A step of the Work state, an edit (changed), a wording fix, or a step of the evidence level (verified, disputed)',
+                'A step of the Work state, an edit (changed), a wording fix, or a step of the evidence level (raised, verified, disputed)',
             }),
             at: z.iso.datetime(),
             by: z.string().optional().meta({

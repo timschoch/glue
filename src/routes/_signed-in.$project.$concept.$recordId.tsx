@@ -57,8 +57,8 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
       // Each Part can have an Ask to another Project.
       const asking = await context.fetchAskState({ project, recordId })
       // The Signals come live from their tools, and only they name their
-      // source and their day. Only a Hunch that grew from two Signals or
-      // more can be a Pattern (glue/D54, glue/D60).
+      // source and their day. Only the Signals of a Hunch that grew from
+      // two or more can agree (glue/D54, glue/D60).
       const isHunch =
         part.type === 'insight' && (part.evidenceLevel ?? 'hunch') === 'hunch'
       const signals =

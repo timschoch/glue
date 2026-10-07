@@ -2,6 +2,8 @@ import type { SQL } from 'drizzle-orm'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { canRaiseToPattern } from '../evidence-level.ts'
+import type { LevelSignal } from '../evidence-level.ts'
 import { findMentions } from '../mention.ts'
 import { evidenceTypes, isEvidence } from '../part-fields.ts'
 import { todayUtc } from '../today-utc.ts'
@@ -1636,6 +1638,14 @@ export const partAnswerSchema = z.discriminatedUnion('answer', [
     by: answerWords.by,
   }),
   z.strictObject({
+    answer: z.literal('raise'),
+    source: text.optional().meta({
+      description:
+        'The second source that agrees, in words or as a link. A Hunch whose Signals agree needs none',
+    }),
+    by: answerWords.by,
+  }),
+  z.strictObject({
     answer: z.literal('verify'),
     tested: text.meta({
       description: 'What was tested, in words or as a link',
@@ -1661,7 +1671,9 @@ export type PartAnswer = z.input<typeof partAnswerSchema>
 // not see, and of two answers at the same time only the first one writes.
 // `wait` locks the awaited Part and asks that it is not sunk.
 // `move-to-version` answers one flag only: see moveToVersion.
-// `verify` and `dispute` move the evidence level of an Insight: see moveLevel.
+// `raise`, `verify` and `dispute` move the evidence level of an Insight: see
+// moveLevel. A raise that names no second source asks `listLevelSignals`
+// for the Signals of the Insight: they must agree, see canRaiseToPattern.
 // `answeredBy` is the e-mail address of the member who answers. Only the
 // owner answers a flag (D47): a Part with an open flag and an owner refuses
 // the answer of each other member.
@@ -1671,6 +1683,8 @@ export async function answerPart(
   recordId: string,
   input: PartAnswer,
   answeredBy?: string,
+  listLevelSignals: () => Promise<ReadonlyArray<LevelSignal>> = () =>
+    Promise.resolve([]),
 ): Promise<void> {
   const given = parseInput(partAnswerSchema, input)
   const projectId = await getProjectId(db, projectSlug)
@@ -1684,7 +1698,14 @@ export async function answerPart(
   }
   if (given.answer === 'move-to-version')
     await moveToVersion(db, projectId, part, given, answeredBy)
-  else if (given.answer === 'verify')
+  else if (given.answer === 'raise') {
+    const { source = null } = given
+    if (source === null && !canRaiseToPattern(await listLevelSignals()))
+      throw new InvalidRecordError(
+        `the Signals of "${recordId}" do not agree: name the second source that agrees`,
+      )
+    await moveLevel(db, projectId, part, raiseStep, source, answeredBy)
+  } else if (given.answer === 'verify')
     await moveLevel(db, projectId, part, verifyStep, given.tested, answeredBy)
   else if (given.answer === 'dispute')
     await moveLevel(db, projectId, part, disputeStep, given.reason, answeredBy)
@@ -1755,40 +1776,56 @@ async function moveToVersion(
     )
 }
 
-// A step of the evidence level that a member takes with a note (glue/D60).
+// A step of the evidence level that a member takes (glue/D60).
 type LevelMove = {
   kind: LevelStep['kind']
   from: schema.EvidenceLevel
   to: schema.EvidenceLevel
+  // The Work state that the Insight must have, as SQL.
+  workState: SQL
   // What the Insight must be, for the refusal.
   needs: string
+}
+
+const isPublished = sql`"work_state" = 'published'`
+
+// A draft is raised too: Glue proposes Pattern before the sign-off.
+const raiseStep: LevelMove = {
+  kind: 'raised',
+  from: 'hunch',
+  to: 'pattern',
+  workState: sql`"work_state" <> 'sunk'`,
+  needs: 'Hunch',
 }
 
 const verifyStep: LevelMove = {
   kind: 'verified',
   from: 'pattern',
   to: 'confirmed',
-  needs: 'Pattern',
+  workState: isPublished,
+  needs: 'published Pattern',
 }
 
 const disputeStep: LevelMove = {
   kind: 'disputed',
   from: 'confirmed',
   to: 'pattern',
-  needs: 'Confirmed Insight',
+  workState: isPublished,
+  needs: 'published Confirmed Insight',
 }
 
-// Moves the evidence level of a published Insight one step, and keeps the
-// note with the activity of the Part: what was tested, or why the Insight is
-// in doubt. A dispute flags each Part that needs the Insight. The statement
-// asks for the level that the step starts from, so of two steps at the same
-// time only the first one writes.
+// Moves the evidence level of an Insight one step, and keeps the note with
+// the activity of the Part: the second source that agrees, what was tested,
+// or why the Insight is in doubt. A dispute flags each Part that needs the
+// Insight. The statement asks for the level that the step starts from, so
+// of two steps at the same time only the first one writes. An Insight with
+// no level is a Hunch.
 async function moveLevel(
   db: ConceptDb,
   projectId: number,
   part: FoundPart,
   move: LevelMove,
-  note: string,
+  note: string | null,
   answeredBy?: string,
 ): Promise<void> {
   const result = await db.execute(sql`
@@ -1798,16 +1835,14 @@ async function moveLevel(
         "changed_at" = now()
       where "id" = ${part.id}::integer
         and "type" = 'insight'
-        and "work_state" = 'published'
-        and "evidence_level" = ${move.from}::text
+        and ${move.workState}
+        and coalesce("evidence_level", 'hunch') = ${move.from}::text
       returning ${historyFields}
     )${spreadTrust('moved', { closesFlags: sql`false`, member: selectMemberId(projectId, answeredBy), step: { kind: move.kind, note } })}
     select "id" from moved
   `)
   if (idRowsSchema.parse(result).rows.length === 0)
-    throw new InvalidRecordError(
-      `"${part.recordId}" is not a published ${move.needs}`,
-    )
+    throw new InvalidRecordError(`"${part.recordId}" is not a ${move.needs}`)
 }
 
 // The write of answerPart and of answerQuestion. With a question, the same
@@ -1820,7 +1855,7 @@ async function writeAnswer(
   part: Awaited<ReturnType<typeof findParts>>[number],
   given: Exclude<
     z.output<typeof partAnswerSchema>,
-    { answer: 'move-to-version' | 'verify' | 'dispute' }
+    { answer: 'move-to-version' | 'raise' | 'verify' | 'dispute' }
   >,
   question?: schema.Question,
   answeredBy?: string,

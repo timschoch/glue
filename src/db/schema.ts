@@ -780,12 +780,13 @@ export const partVersions = pgTable(
 
 // What a line of the activity of a Part says: the Work state that the Part
 // stepped to, an edit, a wording fix, or a step of the Evidence level of an
-// Insight (glue/D60): a member verified a Pattern, or disputed a Confirmed
-// Insight.
+// Insight (glue/D60): a member raised a Hunch, verified a Pattern, or
+// disputed a Confirmed Insight.
 export const activityKinds = [
   ...workStates,
   'changed',
   'wording',
+  'raised',
   'verified',
   'disputed',
 ] as const
@@ -795,8 +796,8 @@ export type ActivityKind = (typeof activityKinds)[number]
 // or a change, with the member and the time. `version` is the Part Version
 // that the step signed off. No member: a token wrote it, or Glue did. The
 // flags of a Part keep their own times: see `flags`. `note` is what the
-// member said with a step of the Evidence level: what was tested, or why
-// the Insight is disputed.
+// member said with a step of the Evidence level: the second source that
+// agrees, what was tested, or why the Insight is disputed.
 export const partActivity = pgTable(
   'part_activity',
   {
@@ -815,7 +816,7 @@ export const partActivity = pgTable(
   (table) => [
     check(
       'part_activity_kind_check',
-      sql`${table.kind} in ('to-check', 'waiting', 'draft', 'review', 'published', 'sunk', 'changed', 'wording', 'verified', 'disputed')`,
+      sql`${table.kind} in ('to-check', 'waiting', 'draft', 'review', 'published', 'sunk', 'changed', 'wording', 'raised', 'verified', 'disputed')`,
     ),
     index('part_activity_part_id_index').on(table.partId),
   ],
