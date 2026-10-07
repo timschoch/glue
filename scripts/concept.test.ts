@@ -1157,6 +1157,30 @@ describe('runConcept', () => {
       ])
     })
 
+    it('wants a number for the question of an answer', async () => {
+      await expect(
+        run(
+          'contract',
+          'answer',
+          'first',
+          '--text',
+          'Yes.',
+          '--by',
+          'Mara',
+          '--project',
+          'flexibeck',
+        ),
+      ).rejects.toThrow(
+        'contract answer needs <question number>, --text and --by',
+      )
+    })
+
+    it('wants a Concept for the list of the questions', async () => {
+      await expect(
+        run('contract', 'questions', '--project', 'flexibeck'),
+      ).rejects.toThrow('contract questions needs <concept>')
+    })
+
     it('prints the answered question with the Contract', async () => {
       vi.setSystemTime(new Date('2026-10-04T09:00Z'))
       await run(

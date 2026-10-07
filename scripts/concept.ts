@@ -1198,8 +1198,10 @@ function printContractQuestion(question: ContractQuestion) {
 // the one of `--version`.
 async function handleContractCommand(
   db: ConceptDb,
-  [command, concept, ...rest]: string[],
+  [command, ...rest]: string[],
 ) {
+  // The word after the command, when it is no flag.
+  const concept = rest[0]?.startsWith('--') ? undefined : rest[0]
   const flags = parseFlags(rest)
   const project = await readProject(db, flags)
   switch (command) {
@@ -1213,6 +1215,7 @@ async function handleContractCommand(
       return
     }
     case 'show': {
+      if (!concept) throw new Error('contract show needs <concept>')
       const sent = flags.version as string | undefined
       const version = sent === undefined ? undefined : Number(sent)
       const contract = await findContract(db, project, concept, version)
@@ -1265,13 +1268,14 @@ async function handleContractCommand(
       const text = flags.text as string | undefined
       const answeredBy = flags.by as string | undefined
       // The second word is the number of the question here.
-      if (!concept || !text || !answeredBy) {
+      const questionId = Number(concept)
+      if (!Number.isInteger(questionId) || !text || !answeredBy) {
         throw new Error(
           'contract answer needs <question number>, --text and --by',
         )
       }
       printContractQuestion(
-        await answerContractQuestion(db, project, Number(concept), {
+        await answerContractQuestion(db, project, questionId, {
           text,
           answeredBy,
         }),
@@ -1279,6 +1283,7 @@ async function handleContractCommand(
       return
     }
     case 'questions': {
+      if (!concept) throw new Error('contract questions needs <concept>')
       const questions = await listContractQuestions(db, project, concept)
       questions.forEach(printContractQuestion)
       return

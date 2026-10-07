@@ -3244,6 +3244,16 @@ describe('the questions about the Contract of a Concept', () => {
     expect(screen.queryByRole('region', { name: 'Questions' })).toBeNull()
   })
 
+  it('gives a person who is no member the questions, with no way to ask or to answer', async () => {
+    await renderPage('/glue/part-model', {
+      ...asked,
+      fetchPeople: vi.fn(() => Promise.resolve({ ...people, me: null })),
+    })
+
+    expect(questions().getAllByRole('listitem')).toHaveLength(2)
+    expect(questions().queryByRole('button')).toBeNull()
+  })
+
   it('shows the open questions in Mine, with their Concept', async () => {
     const { expectAddress } = await renderPage('/glue?section=Mine', {
       fetchMineContractQuestions: vi.fn(() => Promise.resolve([open])),

@@ -68,12 +68,15 @@ $text-width: $spacing-13 * 4;
   padding-inline-start: $spacing-05;
 }
 
-// A field with its button below it.
+// A field with its button below it. The text area fills the field.
 .field {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: $spacing-03;
   inline-size: 100%;
   max-inline-size: $text-width;
+}
+
+.send {
+  align-self: flex-start;
 }

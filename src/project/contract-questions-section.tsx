@@ -22,6 +22,8 @@ export function ContractQuestionsSection({
 }) {
   const { askContractQuestion, answerContractQuestion } =
     projectRoute.useRouteContext()
+  // Only a member of the Project asks and answers.
+  const isMember = projectRoute.useLoaderData().people.me !== null
   const { project, conceptHref, open } = useProjectLinks()
   const { pending, failure, write } = useWrite()
   // The field of the write that runs, or that failed.
@@ -42,7 +44,7 @@ export function ContractQuestionsSection({
       }))}
       write={at === undefined ? undefined : { at, pending, failure }}
       onAsk={
-        asked === undefined
+        asked === undefined || !isMember
           ? undefined
           : (text) => {
               setAt('ask')
@@ -51,12 +53,16 @@ export function ContractQuestionsSection({
               )
             }
       }
-      onAnswer={(questionId, text) => {
-        setAt(questionId)
-        void write('Saving', () =>
-          answerContractQuestion({ project, questionId, text }),
-        )
-      }}
+      onAnswer={
+        isMember
+          ? (questionId, text) => {
+              setAt(questionId)
+              void write('Saving', () =>
+                answerContractQuestion({ project, questionId, text }),
+              )
+            }
+          : undefined
+      }
       onOpenConcept={({ concept }, event) =>
         concept && open(concept.href, event)
       }

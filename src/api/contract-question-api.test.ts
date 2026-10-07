@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { signContract } from '../db/contracts.ts'
 import { assign, joinProject } from '../db/members.ts'
-import { addConcept, addPart } from '../db/part-records.ts'
+import { addConcept, addPart, addProject } from '../db/part-records.ts'
 import * as schema from '../db/schema.ts'
 import { createTestDatabase } from '../db/test-database.ts'
 import { createToken } from '../db/tokens.ts'
@@ -113,6 +113,39 @@ describe('POST a question about the Contract of a Concept', () => {
     )
 
     expect(status).toBe(401)
+  })
+})
+
+describe('a token of another Project', () => {
+  it.each([
+    ['ask', handleAskContractQuestion, 'POST'],
+    ['list', handleListContractQuestions, 'GET'],
+    ['list of a member', handleListMineContractQuestions, 'GET'],
+    ['answer', handleAnswerContractQuestion, 'PATCH'],
+  ] as const)('gets 404 on %s', async (_name, handler, method) => {
+    await ask()
+    await addProject(db, 'glue')
+    const other = await createToken(db, 'glue', 'other agent')
+
+    const { status } = await call(
+      handler,
+      method,
+      {
+        questionId: '1',
+        query: '?member=mara@example.com',
+        body:
+          method === 'GET'
+            ? undefined
+            : { text: 'Yes.', askedBy: 'spy', answeredBy: 'spy' },
+      },
+      other.token,
+    )
+
+    expect(status).toBe(404)
+    expect(await call(handleListContractQuestions, 'GET')).toEqual({
+      status: 200,
+      body: [asked],
+    })
   })
 })
 

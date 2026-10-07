@@ -102,6 +102,9 @@ describe('ContractQuestions', () => {
     )
 
     within(row(OPEN.text)).getByText('Saving')
+    expect(
+      screen.getByRole('textbox', { name: 'Answer' }).hasAttribute('readonly'),
+    ).toBe(true)
     expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
   })
 

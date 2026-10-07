@@ -91,6 +91,7 @@ function WordsField({
         labelText={label.field}
         rows={2}
         value={words}
+        readOnly={pending !== undefined}
         invalid={isMissing || failure !== undefined}
         invalidText={isMissing ? missing : failure}
         onChange={({ target }) => {
@@ -104,6 +105,7 @@ function WordsField({
         <Button
           kind="tertiary"
           size="sm"
+          className={styles.send}
           onClick={() => {
             const said = words.trim()
             if (said === '') setIsMissing(true)
