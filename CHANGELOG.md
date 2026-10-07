@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.28.0](https://github.com/timschoch/glue/compare/v1.27.2...v1.28.0) (2026-10-07)
+
+
+### Features
+
+* **parts:** the Responsible member is the owner of a Part ([#384](https://github.com/timschoch/glue/issues/384)) ([3c801fe](https://github.com/timschoch/glue/commit/3c801fe0c24cb7713fe13de96105d147d6ba41f3)), closes [#381](https://github.com/timschoch/glue/issues/381) [#379](https://github.com/timschoch/glue/issues/379)
+
+
+### Bug Fixes
+
+* **app:** open points of three reviews ([#385](https://github.com/timschoch/glue/issues/385)) ([246c765](https://github.com/timschoch/glue/commit/246c7655d90341d9063164dca8cf4d703d653e6e)), closes [#382](https://github.com/timschoch/glue/issues/382)
+
 ## [1.27.2](https://github.com/timschoch/glue/compare/v1.27.1...v1.27.2) (2026-10-07)
 
 
