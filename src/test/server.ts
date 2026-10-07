@@ -85,6 +85,7 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
     unwatch: vi.fn(() => Promise.resolve(undefined)),
     addAsk: vi.fn(() => Promise.resolve({ id: 1 })),
     pickAsk: vi.fn(() => Promise.resolve(undefined)),
+    startStudy: vi.fn(() => Promise.resolve({ slug: 'study-1' })),
     handBackAsk: vi.fn(() => Promise.resolve(undefined)),
     takeBackAsk: vi.fn(() => Promise.resolve(undefined)),
     signIn: vi.fn(() => Promise.resolve(undefined)),

@@ -307,6 +307,11 @@ export const concepts = pgTable(
     // this column with its check.
     kind: text('kind'),
     kindId: integer('kind_id'),
+    // Only a study has it: the Ask that the Concept answers (glue/D69). An
+    // Ask has one study.
+    askId: integer('ask_id')
+      .unique()
+      .references((): AnyPgColumn => asks.id, { onDelete: 'set null' }),
   },
   (table) => [
     unique().on(table.projectId, table.slug),

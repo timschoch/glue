@@ -167,6 +167,7 @@ const requests = {
       ask: { kind: 'insight', part: 'I1', toProject: 'ux' },
     }),
   pickAsk: () => actions.pickAsk({ project, askId: 1 }),
+  startStudy: () => actions.startStudy({ project, askId: 1 }),
   handBackAsk: () => actions.handBackAsk({ project, askId: 1, part: 'I1' }),
   takeBackAsk: () => actions.takeBackAsk({ project, askId: 1 }),
 } satisfies Record<keyof typeof actions, () => Promise<unknown>>
@@ -736,6 +737,12 @@ describe('an Ask to another Project', () => {
     expect(await actions.listMineAsks({ project })).toMatchObject([
       { id: 1, step: 'hand-back', pickedBy: { email: 'ada@example.com' } },
     ])
+    expect(await actions.startStudy({ project, askId: 1 })).toEqual({
+      slug: 'study-1',
+    })
+    expect(await actions.startStudy({ project, askId: 1 })).toEqual({
+      message: 'Ask 1 has a study already',
+    })
     expect(
       await actions.findAskState({ project: 'ux', recordId: 'I1' }),
     ).toMatchObject({
@@ -789,6 +796,7 @@ const writes = [
   'unwatch',
   'addAsk',
   'pickAsk',
+  'startStudy',
   'handBackAsk',
   'takeBackAsk',
 ] as const

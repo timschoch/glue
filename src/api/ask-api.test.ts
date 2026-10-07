@@ -154,10 +154,35 @@ describe('the Ask routes', () => {
             trust: 'solid',
             concept: 'ux',
           },
+          study: null,
           askedAt: '2026-10-03T12:00:00.000Z',
         },
       ],
     })
+  })
+
+  it('start the study of an Ask as the member who picked it', async () => {
+    await call(handleAddAsk, 'POST', { project: 'bakeday', body: ask })
+    await call(handleUpdateAsk, 'PATCH', {
+      project: 'ux',
+      askId: '1',
+      body: { pickedBy: 'fred@example.com' },
+    })
+
+    const started = await call(handleUpdateAsk, 'PATCH', {
+      project: 'ux',
+      askId: '1',
+      body: { studyBy: 'fred@example.com' },
+    })
+    const toHandBack = await call(handleListAsks, 'GET', {
+      project: 'ux',
+      query: '?member=fred@example.com',
+    })
+
+    expect(started.status).toBe(204)
+    expect(toHandBack.body).toMatchObject([
+      { id: 1, study: { slug: 'study-1', title: 'Novices skip the fold' } },
+    ])
   })
 
   it('take an Ask for a Decision, with its question and the member who asks', async () => {

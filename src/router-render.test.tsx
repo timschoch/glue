@@ -27,7 +27,14 @@ import type {
 import { createRouterContext } from './router-context.ts'
 import type { Server } from './router-server.ts'
 import { routeTree } from './routeTree.gen'
-import { builds, findPart, OLD_TITLE, parts, people } from './test/project.ts'
+import {
+  builds,
+  findConcept,
+  findPart,
+  OLD_TITLE,
+  parts,
+  people,
+} from './test/project.ts'
 import './test/render.tsx'
 import { createMemoryServer } from './test/server.ts'
 
@@ -3072,7 +3079,7 @@ describe('an Ask to another Project', () => {
   }
   const bo = { user: { id: 'user-2', name: 'Bo', email: 'bo@example.com' } }
 
-  // The Asks of Mine: the group, the text of each card and its one step.
+  // The Asks of Mine: the group, the text of each card and the step on it.
   function mineAsks() {
     const group = screen.queryByRole('list', { name: 'Asks' })
     if (!group) return []
@@ -3080,7 +3087,7 @@ describe('an Ask to another Project', () => {
       .getAllByRole('listitem')
       .map((item) => [
         within(item).getByRole('link').textContent,
-        within(item).getByRole('button').textContent,
+        within(item).getAllByRole('button')[0].textContent,
       ])
   }
 
@@ -3116,6 +3123,7 @@ describe('an Ask to another Project', () => {
           askedBy: { name: 'Ada', email: 'ada@example.com' },
           pickedBy: null,
           handedBack: null,
+          study: null,
           askedAt: '2026-10-03T12:00:00.000Z',
         }
         return Promise.resolve({ id: 1 })
@@ -3246,6 +3254,7 @@ describe('an Ask to another Project', () => {
     askedBy: null,
     pickedBy: null,
     handedBack: null,
+    study: null,
     askedAt: '2026-10-03T12:00:00.000Z',
   }
   const picked: Ask = {
@@ -3539,6 +3548,165 @@ describe('an Ask to another Project', () => {
     )
 
     await waitFor(() => expect(steps()).toEqual([true, true]))
+  })
+})
+
+describe('the study of an Ask', () => {
+  // The Ask of flexibeck to Glue that Ada picked.
+  const picked: Ask = {
+    id: 7,
+    kind: 'insight',
+    step: 'hand-back',
+    part: {
+      project: { slug: 'flexibeck', name: 'flexibeck' },
+      id: 'I9',
+      type: 'insight',
+      title: 'Bakers plan a week',
+      trust: 'solid',
+      concept: 'flexibeck',
+    },
+    project: { slug: 'glue', name: 'Glue' },
+    question: null,
+    askedBy: null,
+    pickedBy: { name: 'Ada', email: 'ada@example.com' },
+    handedBack: null,
+    study: null,
+    askedAt: '2026-10-03T12:00:00.000Z',
+  }
+  // The Concept of Glue as the study of the Ask.
+  const studyOf = (slug: string, title: string): Partial<Server> => ({
+    fetchMineAsks: vi.fn(() =>
+      Promise.resolve([{ ...picked, study: { slug, title } }]),
+    ),
+    fetchConcept: vi.fn((input) => {
+      const concept = findConcept(input)
+      return Promise.resolve(
+        concept && input.concept === slug
+          ? { ...concept, ask: { id: picked.id, part: picked.part } }
+          : concept,
+      )
+    }),
+  })
+  const asks = () => within(screen.getByRole('list', { name: 'Asks' }))
+
+  it('starts from the Ask in Mine, and opens', async () => {
+    const { server, expectAddress } = await renderPage('/glue?section=Mine', {
+      fetchMineAsks: vi.fn(() => Promise.resolve([picked])),
+      startStudy: vi.fn(() => Promise.resolve({ slug: 'flows' })),
+    })
+
+    await userEvent.click(asks().getByRole('button', { name: 'Start study' }))
+
+    await expectAddress('/glue/flows')
+    expect(server.startStudy).toHaveBeenCalledExactlyOnceWith({
+      project: 'glue',
+      askId: 7,
+    })
+  })
+
+  it('opens from its Ask in Mine, and the Ask has no second study', async () => {
+    const { expectAddress } = await renderPage(
+      '/glue?section=Mine',
+      studyOf('flows', 'Flows'),
+    )
+
+    expect(
+      asks()
+        .getAllByRole('button')
+        .map(({ textContent }) => textContent),
+    ).toEqual(['Open study'])
+
+    await userEvent.click(asks().getByRole('button', { name: 'Open study' }))
+
+    await expectAddress('/glue/flows')
+  })
+
+  it('names its Ask with a link to the Part that asked', async () => {
+    await renderPage('/glue/part-model', studyOf('part-model', 'Part model'))
+
+    const link = within(screen.getByRole('region', { name: 'Ask' })).getByRole(
+      'link',
+    )
+
+    expect([link.textContent, link.getAttribute('href')]).toEqual([
+      'Solid Insight I9 Bakers plan a week flexibeck',
+      '/flexibeck/flexibeck/I9',
+    ])
+  })
+
+  it('hands its published Insight back from the box Next', async () => {
+    const { server } = await renderPage(
+      '/glue/part-model',
+      studyOf('part-model', 'Part model'),
+    )
+
+    await userEvent.click(
+      within(screen.getByRole('region', { name: 'Next' })).getByRole('button', {
+        name: 'Hand back',
+      }),
+    )
+
+    await waitFor(() =>
+      expect(server.handBackAsk).toHaveBeenCalledExactlyOnceWith({
+        project: 'glue',
+        askId: 7,
+        part: 'I3',
+      }),
+    )
+  })
+
+  it('shows why the server refused the hand-back in the box Next', async () => {
+    await renderPage('/glue/part-model', {
+      ...studyOf('part-model', 'Part model'),
+      handBackAsk: vi.fn(() =>
+        Promise.resolve({ message: '"I3" is not published' }),
+      ),
+    })
+
+    await userEvent.click(
+      within(screen.getByRole('region', { name: 'Next' })).getByRole('button', {
+        name: 'Hand back',
+      }),
+    )
+
+    await waitFor(() => expect(alerts()).toEqual(['"I3" is not published']))
+  })
+
+  it('has no hand-back step before it has a published Insight', async () => {
+    await renderPage('/glue/flows', studyOf('flows', 'Flows'))
+
+    expect(pageTitle()).toBe('Flows')
+    expect(
+      within(screen.getByRole('main')).queryByRole('button', {
+        name: 'Hand back',
+      }),
+    ).toBeNull()
+  })
+
+  it('shows on the record of the Part that asked', async () => {
+    await renderPage('/glue/part-model/I3', {
+      fetchAskState: vi.fn(() =>
+        Promise.resolve({
+          ask: {
+            ...picked,
+            part: { ...picked.part, project: picked.project, id: 'I3' },
+            project: { slug: 'flexibeck', name: 'flexibeck' },
+            study: { slug: 'study-7', title: 'Agents read files' },
+          },
+          projects: [],
+        }),
+      ),
+    })
+
+    const term = await screen.findByText('Study', { selector: 'dt' })
+    const link = within(term.nextElementSibling as HTMLElement).getByRole(
+      'link',
+    )
+
+    expect([link.textContent, link.getAttribute('href')]).toEqual([
+      'Agents read files',
+      '/flexibeck/study-7',
+    ])
   })
 })
 

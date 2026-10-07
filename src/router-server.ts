@@ -70,6 +70,7 @@ import {
   submitAssign,
   submitHandBackAsk,
   submitPickAsk,
+  submitStartStudy,
   submitTakeBackAsk,
   submitQuestionAnswer,
   submitRemoveConcept,
@@ -194,6 +195,7 @@ export const server = {
   // The Project of `pickAsk` and `handBackAsk` is the one that is asked.
   addAsk: (ask: AskAddInput) => submitAddAsk({ data: ask }),
   pickAsk: (ask: AskPickInput) => submitPickAsk({ data: ask }),
+  startStudy: (ask: AskPickInput) => submitStartStudy({ data: ask }),
   handBackAsk: (ask: AskHandBackInput) => submitHandBackAsk({ data: ask }),
   takeBackAsk: (ask: AskTakeBackInput) => submitTakeBackAsk({ data: ask }),
   signIn: (credentials: SignIn) => submitSignIn({ data: credentials }),

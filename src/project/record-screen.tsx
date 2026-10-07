@@ -392,6 +392,17 @@ export function RecordScreen({
       actions={actions}
       hasStep={Boolean(answeredBy) || next !== undefined}
       askQuestion={ask?.question ?? undefined}
+      askStudy={
+        ask?.study
+          ? {
+              title: ask.study.title,
+              href: router.buildLocation({
+                to: '/$project/$concept',
+                params: { project: ask.project.slug, concept: ask.study.slug },
+              }).href,
+            }
+          : undefined
+      }
       pending={pending}
       error={failure}
       words={

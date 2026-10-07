@@ -39,11 +39,18 @@ $card-width: $spacing-13 * 2;
   color: $text-primary;
 }
 
-// An Ask: its card, and the search of its step below it.
+// An Ask: its card, then its other button and the search of its step.
 .ask {
   display: flex;
   flex-direction: column;
+  align-items: start;
   gap: $spacing-03;
+
+  // The card and the search fill the column. The button is as wide as its
+  // words.
+  > :not(button) {
+    align-self: stretch;
+  }
 }
 
 // The cards, in columns of one width.

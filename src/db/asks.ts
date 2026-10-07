@@ -4,7 +4,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
-import { addJoint } from './part-records.ts'
+import { addJoint, findConceptId } from './part-records.ts'
 import { canReference, getProjectId } from './projects.ts'
 import { InvalidRecordError, PartNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
@@ -19,6 +19,8 @@ import * as schema from './schema.ts'
 // member who asked checks the Insight and glues it to the Hunch.
 // An Ask for a Decision (glue/D56): each Part can wait, and the member
 // writes a question. Glue adds the Joint when the Decision is handed back.
+// A study (glue/D69): the member who picked the Ask starts a Concept for
+// it. A published Insight of the study goes back, and Glue adds the Joint.
 //
 // The Neon HTTP driver has no transaction of its own. Thus each function
 // writes with one statement, and the hand back of a Decision with two.
@@ -57,6 +59,8 @@ export type Ask = {
   askedBy: { name: string; email: string } | null
   pickedBy: { name: string; email: string } | null
   handedBack: AskPart | null
+  // The Concept of the asked Project that answers the Ask.
+  study: { slug: string; title: string } | null
   askedAt: string
 }
 
@@ -66,6 +70,7 @@ const waitingProjects = alias(projects, 'waiting_projects')
 const handedBackParts = alias(parts, 'handed_back')
 const handedBackConcepts = alias(concepts, 'handed_back_concepts')
 const askers = alias(members, 'askers')
+const studies = alias(concepts, 'studies')
 
 // The Part that waits needs the Part that was handed back: the Ask is done.
 const isDone = sql`exists (
@@ -103,6 +108,7 @@ async function listOpenAsks(
         trust: handedBackParts.trust,
         concept: handedBackConcepts.slug,
       },
+      study: { slug: studies.slug, title: studies.title },
     })
     .from(asks)
     .innerJoin(waiting, eq(asks.partId, waiting.id))
@@ -116,6 +122,7 @@ async function listOpenAsks(
       handedBackConcepts,
       eq(handedBackParts.conceptId, handedBackConcepts.id),
     )
+    .leftJoin(studies, eq(studies.askId, asks.id))
     .where(and(matches, sql`not ${isDone}`))
     .orderBy(asks.id)
 
@@ -140,6 +147,7 @@ async function listOpenAsks(
       askedBy: ask.askedBy,
       pickedBy: ask.pickedBy,
       handedBack,
+      study: ask.study,
       askedAt: askedAt.toISOString(),
     }
   })
@@ -258,8 +266,10 @@ async function getPart(db: ConceptDb, projectSlug: string, recordId: string) {
       type: parts.type,
       evidenceLevel: parts.evidenceLevel,
       workState: parts.workState,
+      concept: concepts.slug,
     })
     .from(parts)
+    .innerJoin(concepts, eq(parts.conceptId, concepts.id))
     .where(and(eq(parts.projectId, projectId), eq(parts.recordId, recordId)))
   const part = found.at(0)
   if (!part) throw new PartNotFoundError(recordId)
@@ -378,6 +388,36 @@ export async function pickAsk(
     )
 }
 
+// The member who picked the Ask starts its study: a Concept of the asked
+// Project that names the Ask. It takes the title of the Part that waits.
+// An Ask has one study. Gives back the slug of the study.
+export async function startStudy(
+  db: ConceptDb,
+  projectSlug: string,
+  askId: number,
+  memberEmail: string,
+): Promise<string> {
+  const ask = await getAsk(db, projectSlug, askId)
+  if (ask.step === 'pick')
+    throw new InvalidRecordError(`Ask ${askId} is not picked yet`)
+  const email = memberEmail.trim()
+  if (ask.pickedBy?.email.toLowerCase() !== email.toLowerCase())
+    throw new InvalidRecordError(`${email} did not pick Ask ${askId}`)
+  const slug = `study-${askId}`
+  const projectId = await getProjectId(db, projectSlug)
+  const parentId = await findConceptId(db, projectId, undefined)
+  const started = ask.study
+    ? []
+    : await db
+        .insert(concepts)
+        .values({ projectId, parentId, slug, title: ask.part.title, askId })
+        .onConflictDoNothing()
+        .returning({ slug: concepts.slug })
+  if (started.length === 0)
+    throw new InvalidRecordError(`Ask ${askId} has a study already`)
+  return slug
+}
+
 // The Part type that an Ask of each kind takes back, in words.
 const handedBackTypes: Record<AskKind, string> = {
   insight: 'an Insight',
@@ -388,7 +428,8 @@ const handedBackTypes: Record<AskKind, string> = {
 // Project: an Insight or a Decision, as the kind of the Ask says. An Ask
 // with an Insight shows in Mine of the Project that asked from now on. An
 // Ask with a Decision is done: Glue adds the Joint from the Part that waits
-// to the Decision.
+// to the Decision. An Ask with a study takes an Insight with its home in
+// the study, and is done in the same way.
 export async function handBackAsk(
   db: ConceptDb,
   projectSlug: string,
@@ -400,9 +441,14 @@ export async function handBackAsk(
   if (ask.step === 'pick')
     throw new InvalidRecordError(`Ask ${askId} is not picked yet`)
   const part = await getPart(db, projectSlug, recordId)
-  if (part.type !== ask.kind)
+  const kind = ask.study ? 'insight' : ask.kind
+  if (part.type !== kind)
     throw new InvalidRecordError(
-      `"${recordId}" is not ${handedBackTypes[ask.kind]}`,
+      `"${recordId}" is not ${handedBackTypes[kind]}`,
+    )
+  if (ask.study && part.concept !== ask.study.slug)
+    throw new InvalidRecordError(
+      `"${recordId}" is not in the study of Ask ${askId}`,
     )
   if (part.workState !== 'published')
     throw new InvalidRecordError(`"${recordId}" is not published`)
@@ -413,7 +459,7 @@ export async function handBackAsk(
     .returning({ id: asks.id })
   if (handedBack.length === 0)
     throw new InvalidRecordError(`Ask ${askId} is handed back already`)
-  if (ask.kind === 'decision')
+  if (ask.kind === 'decision' || ask.study)
     await addJoint(db, ask.part.project.slug, {
       part: ask.part.id,
       needs: `${projectSlug}/${recordId}`,

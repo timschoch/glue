@@ -7,7 +7,7 @@ import {
   InlineNotification,
   Switch,
 } from '@carbon/react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { MouseEvent, ReactElement, ReactNode, SyntheticEvent } from 'react'
 
 import { Card, partTypes } from './card.tsx'
@@ -230,6 +230,14 @@ export type ConceptViewProps = {
   flow?: StepBarProps
   // The box Next of the Concept, below the step bar.
   next?: NextBoxProps
+  // Only a study has it: the Part of the Ask that the Concept answers.
+  ask?: {
+    part: Pick<ConceptViewPart, 'id' | 'type' | 'title' | 'trust'> & {
+      // The name of its Project.
+      concept: string
+      href: string
+    }
+  }
 }
 
 // One Concept in the main window: its head, the step bar of its flow with
@@ -264,7 +272,9 @@ export function ConceptView({
   assignees,
   flow,
   next,
+  ask,
 }: ConceptViewProps) {
+  const askId = useId()
   const groups = typeGroups
     .map((words) => ({
       ...words,
@@ -367,6 +377,23 @@ export function ConceptView({
       {assignees}
       {flow && <StepBar {...flow} />}
       {next && <NextBox {...next} />}
+      {ask && (
+        <section aria-labelledby={askId} className={styles.group}>
+          <h2 id={askId} className={styles.groupTitle}>
+            Ask
+          </h2>
+          <div className={styles.items}>
+            <Card
+              type={ask.part.type}
+              recordId={ask.part.id}
+              title={ask.part.title}
+              trust={ask.part.trust}
+              concept={ask.part.concept}
+              href={ask.part.href}
+            />
+          </div>
+        </section>
+      )}
       {contract}
       {view === 'map' && (
         <div className={styles.map}>
