@@ -37,6 +37,13 @@ const HUNCH = {
   href: '/bakeday/bakeday/I7',
 } as const
 
+// An open Ask that waits for its pick.
+const ASK = {
+  id: 1,
+  part: HUNCH,
+  action: { label: 'Pick', onClick: () => {} },
+}
+
 // jsdom has no layout, Carbon's dropdown scrolls to the highlighted item.
 Element.prototype.scrollIntoView = () => {}
 
@@ -67,11 +74,23 @@ describe('PartCards', () => {
     expect(onOpen).toHaveBeenCalledExactlyOnceWith(DECISION, expect.anything())
   })
 
-  it('shows the title alone without a Part', () => {
-    render(<PartCards title="Mine" parts={[]} />)
+  it('shows plain words in place of the lists when it has no Part and no Ask', () => {
+    render(<PartCards title="Mine" parts={[]} asks={[]} watched={[]} />)
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Mine')
+    expect(screen.getByText('No Parts')).toBeTruthy()
     expect(screen.queryByRole('list')).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it.each([
+    { name: 'a Part', shown: { parts: [GOAL] } },
+    { name: 'a watched Part', shown: { watched: [GOAL] } },
+    { name: 'an Ask', shown: { asks: [ASK] } },
+  ])('shows no such words with $name', ({ shown }) => {
+    render(<PartCards title="Mine" parts={[]} {...shown} />)
+
+    expect(screen.queryByText('No Parts')).toBeNull()
   })
 
   it('shows the watched Parts in a group of their own, each with its note', () => {

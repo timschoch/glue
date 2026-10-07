@@ -178,10 +178,12 @@ export function PartCards({
   onOpen,
 }: PartCardsProps) {
   const watchedId = useId()
+  const empty = asks.length + parts.length + watched.length === 0
 
   return (
     <div className={styles.list}>
       <h1 className={styles.title}>{title}</h1>
+      {empty && <p className={styles.label}>No Parts</p>}
       {asks.length > 0 && (
         <Asks asks={asks} pending={pending} error={error} onOpen={onOpen} />
       )}

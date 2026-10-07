@@ -81,6 +81,22 @@ describe('Assignees', () => {
     ])
   })
 
+  it('is no wider than its place, so a narrow record page does not scroll sideways', () => {
+    render(
+      <Assignees
+        members={MEMBERS}
+        responsible={1}
+        coAuthors={[]}
+        onChange={() => {}}
+      />,
+    )
+    const group = screen
+      .getByRole('combobox', { name: 'Responsible' })
+      .closest('body > div > *')
+
+    expect(group && getComputedStyle(group).maxInlineSize).toBe('100%')
+  })
+
   it('says why a write failed', () => {
     render(
       <Assignees
