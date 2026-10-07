@@ -217,3 +217,29 @@ describe('comments', () => {
     }
   })
 })
+
+describe('GET /comments/{id}', () => {
+  it('shows the Comment as a page, without a read key', async () => {
+    const posted = await postComment({
+      handle: 'flexibeck',
+      author: 'ada',
+      text: 'Too many <options> to pick from',
+    })
+    const { id } = (await posted.json()) as { id: string }
+
+    const response = await app.request(`/comments/${id}`)
+
+    expect(response.status).toBe(200)
+    const page = await response.text()
+    expect(page).toContain('<h1>ada about flexibeck</h1>')
+    expect(page).toContain('<p>Too many &lt;options&gt; to pick from</p>')
+  })
+
+  it('answers 404 to a Comment that it does not have', async () => {
+    for (const id of ['00000000-0000-4000-8000-000000000000', 'first']) {
+      const response = await app.request(`/comments/${id}`)
+
+      expect(response.status).toBe(404)
+    }
+  })
+})

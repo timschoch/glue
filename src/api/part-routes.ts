@@ -48,6 +48,12 @@ import {
   handleWatch,
 } from './people-api.ts'
 import { handleAddSignalInsight, handleListSignals } from './signal-api.ts'
+import {
+  handleAddSignalFilter,
+  handleListSignalFilters,
+  handleRemoveSignalFilter,
+  handleUpdateSignalFilter,
+} from './signal-filter-api.ts'
 import { handleValidateBuild, handleListBuilds } from './build-api.ts'
 
 type PathParams = {
@@ -57,6 +63,7 @@ type PathParams = {
   jointId?: string
   askId?: string
   questionId?: string
+  filterId?: string
 } & ({ project: string } | { product: string })
 
 type RouteRequest = { request: Request; params: PathParams }
@@ -166,6 +173,17 @@ export const askHandlers = {
 
 export const signalsHandlers = {
   GET: (route: RouteRequest) => handleListSignals(toChangeRequest(route)),
+}
+
+export const signalFiltersHandlers = {
+  GET: (route: RouteRequest) => handleListSignalFilters(toApiRequest(route)),
+  POST: (route: RouteRequest) => handleAddSignalFilter(toApiRequest(route)),
+}
+
+export const signalFilterHandlers = {
+  PATCH: (route: RouteRequest) => handleUpdateSignalFilter(toApiRequest(route)),
+  DELETE: (route: RouteRequest) =>
+    handleRemoveSignalFilter(toApiRequest(route)),
 }
 
 export const buildsHandlers = {

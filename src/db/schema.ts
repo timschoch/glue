@@ -33,6 +33,8 @@ export const projects = pgTable('projects', {
   socialHandle: text('social_handle'),
   // The address of the Product's help desk. Its tickets are Signals.
   supportUrl: text('support_url'),
+  // The address of the Product's market analysis. Its findings are Signals.
+  marketUrl: text('market_url'),
   // When the newest comment the measure run counted was posted. The next run
   // reads after it, so a comment counts once. null: read from the start.
   commentsReadUntil: timestamp('comments_read_until', {
@@ -587,6 +589,25 @@ export const signals = pgTable(
     unique().on(table.projectId, table.url),
     index('signals_part_id_index').on(table.partId),
   ],
+)
+
+// A filter of the Signals list that a member saved (glue/D66). Each member
+// of the Project sees it. A Signal passes when it holds each word of
+// `mustHold`, holds no word of `mustNotHold`, and comes from one of
+// `sources`. No source: each source passes.
+export const signalFilters = pgTable(
+  'signal_filters',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id),
+    name: text('name').notNull(),
+    mustHold: jsonb('must_hold').notNull().$type<string[]>(),
+    mustNotHold: jsonb('must_not_hold').notNull().$type<string[]>(),
+    sources: jsonb('sources').notNull().$type<string[]>(),
+  },
+  (table) => [unique().on(table.projectId, table.name)],
 )
 
 // A Part as a Contract Version holds it: its content at the time of the

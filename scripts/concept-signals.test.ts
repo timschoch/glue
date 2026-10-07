@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// The tests read mock support itself. The CLI never imports the Mock.
+// The tests read mock support and mock market themselves. The CLI never
+// imports a Mock.
+import { createApp as createMarketApp } from '../mocks/market/src/create-app.ts'
 import { createApp as createSupportApp } from '../mocks/support/src/create-app.ts'
 import { setProductRepository } from '../src/db/projects.ts'
 import { addProject } from '../src/db/part-records.ts'
@@ -122,6 +124,33 @@ describe('pnpm concept signals', () => {
     await run('signals', '--source', 'support')
 
     expect(log).not.toHaveBeenCalled()
+  })
+
+  it('lists the findings of the market analysis of --market, and none after an empty --market', async () => {
+    const market = createMarketApp({
+      findings: [
+        {
+          id: 2,
+          title: 'Coding agents get rules as free text',
+          summary: 'No tool checks a build against its rules.',
+          published_at: '2026-09-22T08:00:00Z',
+        },
+      ],
+    })
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) =>
+      market.request(new Request(input, init)),
+    )
+
+    await run('project', 'set', 'glue', '--market', 'https://market.test')
+    await run('signals', '--source', 'market')
+    await run('project', 'set', 'glue', '--market', '')
+    await run('signals', '--source', 'market')
+
+    expect(log.mock.calls).toEqual([
+      [
+        '2026-09-22  market  https://market.test/findings/2  Coding agents get rules as free text',
+      ],
+    ])
   })
 
   it('adds the Insight that grows from the Signals, and lists it on them', async () => {

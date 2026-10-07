@@ -578,6 +578,178 @@ describe('a section', () => {
     screen.getByRole('heading', { name: 'Signals' })
   })
 
+  const noPhone = {
+    id: 1,
+    name: 'No phone',
+    mustHold: ['slow'],
+    mustNotHold: ['phone'],
+    sources: [],
+  }
+
+  // The list of Glue with the saved filter No phone. Three Signals say that
+  // the list is slow, one of them on a phone.
+  function renderFilteredSignals(changed: Partial<Server> = {}) {
+    const again = {
+      ...signals[0],
+      url: 'https://support.test/agent/tickets/4',
+      title: 'The list is slow to open',
+      source: 'support',
+    }
+    const phone = {
+      ...signals[0],
+      url: 'https://github.com/timschoch/glue/issues/9',
+      title: 'The list is slow on my phone',
+    }
+    return renderPage('/glue?section=Understand', {
+      fetchSignals: vi.fn(() =>
+        Promise.resolve({
+          signals: [signals[0], again, phone, signals[1]],
+          failures: [],
+          groups: [
+            {
+              title: signals[0].title,
+              signals: [signals[0].url, again.url, phone.url],
+              sources: ['github', 'support'],
+            },
+          ],
+        }),
+      ),
+      fetchSignalFilters: vi.fn(() => Promise.resolve([noPhone])),
+      ...changed,
+    })
+  }
+
+  const signalTitles = () =>
+    screen
+      .getAllByRole('link', { name: /list|open each/ })
+      .map((link) => link.textContent)
+
+  it('shows the Signals that pass a saved filter, and their group', async () => {
+    await renderFilteredSignals()
+
+    expect(signalTitles()).toEqual([
+      'The list is slow',
+      'The list is slow to open',
+      'The list is slow on my phone',
+      'Agents open each file',
+    ])
+
+    await userEvent.click(button('No phone'))
+
+    expect(signalTitles()).toEqual([
+      'The list is slow',
+      'The list is slow to open',
+    ])
+    button('Make Hunch, The list is slow')
+    expect(button('No phone').getAttribute('aria-pressed')).toBe('true')
+
+    await userEvent.click(button('No phone'))
+
+    expect(signalTitles()).toHaveLength(4)
+  })
+
+  it('saves a new filter of the Signals, then shows the list again', async () => {
+    const { server } = await renderFilteredSignals()
+
+    await userEvent.click(button('Add filter'))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Slow')
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Must hold' }),
+      'slow list',
+    )
+    await userEvent.click(screen.getByRole('checkbox', { name: 'GitHub' }))
+    await userEvent.click(button('Save'))
+
+    await screen.findByRole('heading', { name: 'Signals' })
+    expect(server.addSignalFilter).toHaveBeenCalledWith({
+      project: 'glue',
+      filter: {
+        name: 'Slow',
+        mustHold: ['slow', 'list'],
+        mustNotHold: [],
+        sources: ['github'],
+      },
+    })
+  })
+
+  it('changes a saved filter that is on', async () => {
+    const { server } = await renderFilteredSignals()
+
+    await userEvent.click(button('No phone'))
+    await userEvent.click(button('Edit No phone'))
+    await userEvent.clear(
+      screen.getByRole('textbox', { name: 'Must not hold' }),
+    )
+    await userEvent.click(button('Save'))
+
+    await screen.findByRole('heading', { name: 'Signals' })
+    expect(server.updateSignalFilter).toHaveBeenCalledWith({
+      project: 'glue',
+      filterId: 1,
+      filter: {
+        name: 'No phone',
+        mustHold: ['slow'],
+        mustNotHold: [],
+        sources: [],
+      },
+    })
+  })
+
+  it('deletes a saved filter', async () => {
+    const { server } = await renderFilteredSignals()
+
+    await userEvent.click(button('No phone'))
+    await userEvent.click(button('Edit No phone'))
+    await userEvent.click(button('Delete'))
+
+    await screen.findByRole('heading', { name: 'Signals' })
+    expect(server.removeSignalFilter).toHaveBeenCalledWith({
+      project: 'glue',
+      filterId: 1,
+    })
+  })
+
+  it('shows at the name that a saved filter has it, and saves nothing', async () => {
+    const { server } = await renderFilteredSignals()
+
+    await userEvent.click(button('Add filter'))
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Name' }),
+      'No phone',
+    )
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Market' }))
+    await userEvent.click(button('Save'))
+
+    screen.getByText('A filter has this name already.')
+    expect(server.addSignalFilter).not.toHaveBeenCalled()
+  })
+
+  it('shows in the form that the filter saves, then why it was not saved', async () => {
+    let answer = (_: { message: string }) => {}
+    const saved = new Promise<{ message: string }>((resolve) => {
+      answer = resolve
+    })
+    await renderFilteredSignals({ addSignalFilter: vi.fn(() => saved) })
+
+    await userEvent.click(button('Add filter'))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Slow')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Market' }))
+    await userEvent.click(button('Save'))
+
+    await screen.findByText('Saving')
+
+    answer({ message: 'Only a member of the Project can change it.' })
+
+    await screen.findByText('Only a member of the Project can change it.')
+    button('Save')
+  })
+
+  it('reads the saved filters only in the section Understand', async () => {
+    const { server } = await renderPage('/glue/part-model?section=Decide')
+
+    expect(server.fetchSignalFilters).not.toHaveBeenCalled()
+  })
+
   it('goes from a record to its Concept, keeps the pins and ends the trail', async () => {
     const { expectAddress } = await renderPage(
       `/glue/part-model/D4?pins=${encodeURIComponent('["I3"]')}&trail=${encodeURIComponent('["R1"]')}`,

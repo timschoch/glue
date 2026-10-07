@@ -83,6 +83,17 @@ import {
   submitUpdatePart,
   submitWatch,
 } from './db/parts.functions.ts'
+import type {
+  SignalFilterAddInput,
+  SignalFilterRemoveInput,
+  SignalFilterUpdateInput,
+} from './db/signal-filter-actions.ts'
+import {
+  fetchSignalFilters,
+  submitAddSignalFilter,
+  submitRemoveSignalFilter,
+  submitUpdateSignalFilter,
+} from './db/signal-filters.functions.ts'
 
 type ConceptInput = { project: string; concept: string }
 
@@ -113,6 +124,9 @@ export const server = {
   fetchPart: (part: { project: string; recordId: string }) =>
     fetchPart({ data: part }),
   fetchSignals: (project: string) => fetchSignals({ data: { project } }),
+  // The saved filters of the Signals of the Project, by name.
+  fetchSignalFilters: (project: string) =>
+    fetchSignalFilters({ data: { project } }),
   // Without `named`: the builds of the Project. With it: each build that
   // names the Decision or the Contract of the Concept.
   fetchBuilds: (project: string, named?: BuildsNamed) =>
@@ -142,6 +156,13 @@ export const server = {
   removeJoint: (joint: JointRemoveInput) => submitRemoveJoint({ data: joint }),
   addSignalInsight: (insight: SignalInsightAddInput) =>
     submitAddSignalInsight({ data: insight }),
+  // A change of a saved filter puts its values in place of all the old ones.
+  addSignalFilter: (filter: SignalFilterAddInput) =>
+    submitAddSignalFilter({ data: filter }),
+  updateSignalFilter: (filter: SignalFilterUpdateInput) =>
+    submitUpdateSignalFilter({ data: filter }),
+  removeSignalFilter: (filter: SignalFilterRemoveInput) =>
+    submitRemoveSignalFilter({ data: filter }),
   fetchContractState: (concept: ConceptInput) =>
     fetchContractState({ data: concept }),
   // Without a version: the newest Contract Version.

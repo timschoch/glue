@@ -10,6 +10,7 @@ import {
   JointNotFoundError,
   PartNotFoundError,
   ProductNotFoundError,
+  SignalFilterNotFoundError,
 } from '../db/record-errors.ts'
 import { canReference } from '../db/projects.ts'
 import { findProductByToken } from '../db/tokens.ts'
@@ -26,6 +27,7 @@ export type ApiRequest = {
     jointId?: string
     askId?: string
     questionId?: string
+    filterId?: string
   }
 }
 
@@ -76,7 +78,8 @@ function toApiError(error: unknown): ApiError {
   if (
     error instanceof ProductNotFoundError ||
     error instanceof JointNotFoundError ||
-    error instanceof ConceptNotFoundError
+    error instanceof ConceptNotFoundError ||
+    error instanceof SignalFilterNotFoundError
   ) {
     return new ApiError('not-found', error.message)
   }

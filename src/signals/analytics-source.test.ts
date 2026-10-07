@@ -64,6 +64,8 @@ afterAll(async () => {
 const flexibeck = {
   repository: null,
   supportUrl: null,
+  socialHandle: null,
+  marketUrl: null,
   analyticsProject: 'phc_flexibeck',
 }
 
@@ -183,6 +185,8 @@ describe('createAnalyticsSource with the seed of the Mock', () => {
   const seeded = {
     repository: null,
     supportUrl: null,
+    socialHandle: null,
+    marketUrl: null,
     analyticsProject: 'phc_seeded',
   }
 

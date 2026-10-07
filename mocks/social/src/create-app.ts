@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { bearerAuth } from 'hono/bearer-auth'
 import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
+import { html } from 'hono/html'
 
 import { comments } from './schema.ts'
 import type { SocialDatabase } from './schema.ts'
@@ -16,6 +17,9 @@ const MAX_BODY_BYTES = 64 * 1024
 
 // Most comments one read lists, and the default.
 const MAX_LIMIT = 500
+
+// The id of a comment. Another text is the id of no comment.
+const UUID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/
 
 type CommentInput = { handle: string; author: string; text: string }
 
@@ -96,6 +100,32 @@ export function createApp(options: {
         created_at: row.createdAt.toISOString(),
       })),
     })
+  })
+
+  // The page of one comment for a person. Public, like the comment.
+  app.get('/comments/:id', async (context) => {
+    const id = context.req.param('id')
+    if (!UUID.test(id)) return context.notFound()
+    const rows = await database
+      .select()
+      .from(comments)
+      .where(eq(comments.id, id))
+    const comment = rows.at(0)
+    if (!comment) return context.notFound()
+    return context.html(
+      html`<!doctype html>
+        <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <title>${comment.author} about ${comment.handle}</title>
+          </head>
+          <body>
+            <h1>${comment.author} about ${comment.handle}</h1>
+            <p>${comment.text}</p>
+            <p>${comment.createdAt.toISOString()}</p>
+          </body>
+        </html>`,
+    )
   })
 
   return app

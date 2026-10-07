@@ -14,6 +14,8 @@ const glue = {
   repository: 'timschoch/glue',
   analyticsProject: null,
   supportUrl: null,
+  socialHandle: null,
+  marketUrl: null,
 }
 
 describe('createGithubSource', () => {

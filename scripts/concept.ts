@@ -71,6 +71,7 @@ import {
   findBuildProject,
   getProjectId,
   setAnalyticsProject,
+  setMarketUrl,
   setProductRepository,
   setSocialHandle,
   setSupportUrl,
@@ -153,6 +154,7 @@ const KNOWN_FIELDS = new Set([
   'repository',
   'social_handle',
   'support',
+  'market',
   'waits_on',
   'words',
   'by',
@@ -633,7 +635,7 @@ function formatHelp() {
     'pnpm concept joint add <id> <project>/<needed id>',
     'pnpm concept joint remove <id> <needed id>',
     'pnpm concept project add <slug>',
-    'pnpm concept project set <slug> [--analytics-project <key>] [--repository <owner/name>] [--social-handle <handle>] [--support <url>] [--references <slug>]',
+    'pnpm concept project set <slug> [--analytics-project <key>] [--repository <owner/name>] [--social-handle <handle>] [--support <url>] [--market <url>] [--references <slug>]',
     'pnpm concept token create --project <slug> --name <name>',
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
@@ -671,7 +673,7 @@ function formatHelp() {
     '--words is an answer in words: it goes to the end of the body with the name of --by and the date.',
     'answer with --option or --text answers the question of a proposed Decision: the Decision keeps the answer and becomes accepted.',
     'mine lists what needs the owner: the records in to-check, draft or review.',
-    'signals lists the Signals of the Project in each source. github: the issues with the label user-feedback in its repository. support: the tickets of its help desk. analytics: the survey answers with a low score in its analytics project.',
+    'signals lists the Signals of the Project in each source. github: the issues with the label user-feedback in its repository. support: the tickets of its help desk. analytics: the survey answers with a low score in its analytics project. social: the Comments under its social handle. market: the findings of its market analysis.',
     'signals groups lists the groups of Signals that say the same thing: the sources, then the addresses. signals insight with the addresses of a group turns it into a Hunch.',
     'signals insight adds a draft Insight at the level hunch that grows from the Signals. Without --title it takes the title of the newest Signal.',
     'builds lists the pull requests of the repository of the Project, each with the Decisions or the Contract Version that it names. stale: the Contract Version is old, or a Decision is sunk.',
@@ -1466,10 +1468,11 @@ async function handleJointCommand(
 // `project add <slug>` adds a Project with its root Concept.
 //
 // `project set <slug> --analytics-project <key> --repository owner/name
-// --social-handle <handle> --support <url>`: the analytics project the
-// Product's Goals are measured from, the GitHub repository that builds the
-// Product, its handle in the social channel, and the address of its help
-// desk. An empty key, handle or address removes it.
+// --social-handle <handle> --support <url> --market <url>`: the analytics
+// project the Product's Goals are measured from, the GitHub repository that
+// builds the Product, its handle in the social channel, the address of its
+// help desk, and the address of its market analysis. An empty key, handle
+// or address removes it.
 // `--references <slug>`: a Part of the Project may need a Part of that one.
 async function handleProjectCommand(
   db: ConceptDb,
@@ -1488,6 +1491,7 @@ async function handleProjectCommand(
   const repository = flags.repository as string | undefined
   const socialHandle = flags.social_handle as string | undefined
   const supportUrl = flags.support as string | undefined
+  const marketUrl = flags.market as string | undefined
   const references = flags.references as string | undefined
   if (
     !slug ||
@@ -1495,14 +1499,18 @@ async function handleProjectCommand(
       !repository &&
       socialHandle === undefined &&
       supportUrl === undefined &&
+      marketUrl === undefined &&
       !references)
   ) {
     throw new Error(
-      'project set needs <slug> and --analytics-project, --repository owner/name, --social-handle, --support or --references',
+      'project set needs <slug> and --analytics-project, --repository owner/name, --social-handle, --support, --market or --references',
     )
   }
   if (supportUrl !== undefined) {
     await setSupportUrl(db, slug, supportUrl || null)
+  }
+  if (marketUrl !== undefined) {
+    await setMarketUrl(db, slug, marketUrl || null)
   }
   if (references) await addProjectReference(db, slug, references)
   if (analyticsProject !== undefined) {

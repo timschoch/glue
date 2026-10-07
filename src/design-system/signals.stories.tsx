@@ -90,6 +90,62 @@ export const HunchFailed: Story = {
   },
 }
 
+const fiveSources: Story['args'] = {
+  signals: [
+    ...meta.args.signals,
+    {
+      url: 'https://social.example.com/comments/12',
+      title: 'The list is slow on my phone',
+      date: '2026-09-29',
+      source: 'social',
+      insight: null,
+    },
+    {
+      url: 'https://market.example.com/findings/2',
+      title: 'Teams leave tools with a slow list',
+      date: '2026-09-28',
+      source: 'market',
+      insight: null,
+    },
+  ],
+  onAddFilter: () => {},
+  onEditFilter: () => {},
+  onSavedFilterChange: () => {},
+}
+
+export const FiveSources: Story = { args: fiveSources }
+
+export const SavedFilters: Story = {
+  args: {
+    ...fiveSources,
+    savedFilters: [
+      { id: 1, name: 'Slow list', selected: false },
+      { id: 2, name: 'Search', selected: false },
+    ],
+  },
+}
+
+// The filter "Slow list" is on: the list holds the Signals that pass it.
+export const SavedFilterOn: Story = {
+  args: {
+    ...fiveSources,
+    signals: fiveSources.signals?.filter(({ title }) => /slow/.test(title)),
+    groups: [
+      {
+        title: 'The list is slow',
+        signals: [
+          'https://github.com/timschoch/glue/issues/7',
+          'https://social.example.com/comments/12',
+        ],
+      },
+    ],
+    savedFilters: [
+      { id: 1, name: 'Slow list', selected: true },
+      { id: 2, name: 'Search', selected: false },
+    ],
+  },
+}
+
 export const NoSignals: Story = { args: { signals: [] } }
 
 export const FailedSource: Story = {

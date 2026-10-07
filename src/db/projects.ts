@@ -164,6 +164,24 @@ export async function setSupportUrl(
   if (updated.length === 0) throw new ProductNotFoundError(productSlug)
 }
 
+// The address of the market analysis of the Product. null removes it: the
+// Product has no Signals from the market.
+export async function setMarketUrl(
+  db: ConceptDb,
+  productSlug: string,
+  marketUrl: string | null,
+): Promise<void> {
+  if (marketUrl !== null && !URL.canParse(marketUrl)) {
+    throw new InvalidRecordError(`market "${marketUrl}" must be a URL`)
+  }
+  const updated = await db
+    .update(projects)
+    .set({ marketUrl })
+    .where(eq(projects.slug, productSlug))
+    .returning({ id: projects.id })
+  if (updated.length === 0) throw new ProductNotFoundError(productSlug)
+}
+
 // null removes it: Glue stops reading the Product's comments. A new handle is
 // read from its first comment; the same handle keeps its read position.
 export async function setSocialHandle(

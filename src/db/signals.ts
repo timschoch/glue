@@ -9,7 +9,9 @@ import { findProduct } from './projects.ts'
 import { addInsightOfSignals } from './part-records.ts'
 import { InvalidRecordError, ProductNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
-import { groupSignals, toTitle } from './signal-groups.ts'
+import { applySignalFilters } from './signal-filter-rule.ts'
+import { getSignalFilter } from './signal-filters.ts'
+import { toTitle } from './signal-groups.ts'
 import type { SignalGroup } from './signal-groups.ts'
 
 // A Signal as its tool gives it.
@@ -29,7 +31,11 @@ export type SourceSignal = {
 // The settings of a Project that say where its Signals are.
 export type SignalProject = Pick<
   typeof schema.projects.$inferSelect,
-  'repository' | 'analyticsProject' | 'supportUrl'
+  | 'repository'
+  | 'analyticsProject'
+  | 'supportUrl'
+  | 'socialHandle'
+  | 'marketUrl'
 >
 
 // The seam to a tool that holds Signals. An adapter reads the tool of the
@@ -112,13 +118,17 @@ async function readSources(
 }
 
 // The Signals of the Project in all sources, or in the source of the name.
+// `filter` is the id of a saved filter of the Project: only the Signals
+// that pass it, and their groups.
 export async function listSignals(
   db: ConceptDb,
   sources: ReadonlyArray<SignalSource>,
   projectSlug: string,
-  { source }: { source?: string } = {},
+  { source, filter }: { source?: string; filter?: number } = {},
 ): Promise<ProjectSignals> {
   const project = await getProject(db, projectSlug)
+  const filters =
+    filter === undefined ? [] : [await getSignalFilter(db, projectSlug, filter)]
   const asked =
     source === undefined
       ? sources
@@ -144,7 +154,7 @@ export async function listSignals(
     // A day as yyyy-mm-dd sorts as text. Signals of one day keep the
     // order of the sources.
     .sort((first, second) => second.date.localeCompare(first.date))
-  return { failures, signals: listed, groups: groupSignals(listed) }
+  return { failures, ...applySignalFilters(listed, filters) }
 }
 
 // Adds an Insight as a draft that grows from the Signals. Its level is
