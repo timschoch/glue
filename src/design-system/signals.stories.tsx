@@ -82,7 +82,7 @@ export const Flow: Story = {
         current: 0,
       },
       next: {
-        actions: [{ label: `Make Hunch ${largest.title}`, onClick: () => {} }],
+        actions: [{ label: `Make Hunch, ${largest.title}`, onClick: () => {} }],
       },
     }),
   },

@@ -46,6 +46,9 @@ export function createSocialSource(options: {
         new Date(until.getTime() - WINDOW_DAYS * MS_PER_DAY).toISOString(),
       )
       endpoint.searchParams.set('until', until.toISOString())
+      // A busy channel has more Comments than one read gives: the list
+      // shows the newest ones.
+      endpoint.searchParams.set('order', 'newest')
       const response = await send(endpoint, {
         headers: { authorization: `Bearer ${readKey}` },
         signal: AbortSignal.timeout(TIMEOUT_MS),

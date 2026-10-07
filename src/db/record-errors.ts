@@ -1,8 +1,17 @@
+import type { FailurePlace } from '../authentication/session.ts'
 import { typeOfRecordId } from './record-id.ts'
 
 // A record breaks a rule: a missing field, or a link to a record that does
-// not exist. The HTTP API answers it with 400.
-export class InvalidRecordError extends Error {}
+// not exist. The HTTP API answers it with 400. `place` is the field that
+// breaks the rule, when one field does.
+export class InvalidRecordError extends Error {
+  constructor(
+    message: string,
+    readonly place?: FailurePlace,
+  ) {
+    super(message)
+  }
+}
 
 // The Product of the request does not exist. The HTTP API answers it with 404.
 export class ProductNotFoundError extends InvalidRecordError {

@@ -48,7 +48,10 @@ export const Deleting: Story = {
 }
 
 export const TakenName: Story = {
-  args: { ...ChangeFilter.args, error: 'A filter has this name already.' },
+  args: {
+    ...ChangeFilter.args,
+    errors: { name: 'A filter has this name already.' },
+  },
 }
 
 export const ServerFailure: Story = {

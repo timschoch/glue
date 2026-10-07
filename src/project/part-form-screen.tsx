@@ -7,6 +7,7 @@ import type { PartFormValues } from '../design-system/part-form.tsx'
 import { isEvidence } from '../part-fields.ts'
 import { todayUtc } from '../today-utc.ts'
 import {
+  findEmptyStep,
   findProblems,
   toExpectedPart,
   toFormValues,
@@ -41,8 +42,12 @@ export function PartFormScreen({
   const { session, addPart, updatePart } = projectRoute.useRouteContext()
   const { project, concept, search, recordHref, open, changeSearch } =
     useProjectLinks()
-  const { pending, failure, write } = useWrite()
+  const { pending, failure, failurePlace, write } = useWrite()
   const [errors, setErrors] = useState<ReturnType<typeof findProblems>>({})
+  const [emptyStep, setEmptyStep] = useState(-1)
+  // The server names the step that it refused: the reason shows there.
+  const refusedStep =
+    failurePlace?.field === 'steps' ? failurePlace.row : undefined
   const formParts = useMemo(
     () => toRecordSummaries(parts, recordHref),
     [parts, recordHref],
@@ -69,6 +74,7 @@ export function PartFormScreen({
   function handleSave(values: PartFormValues) {
     const problems = findProblems(type, values)
     setErrors(problems)
+    setEmptyStep(findEmptyStep(values.steps))
     if (Object.keys(problems).length > 0) return
 
     if (edited) {
@@ -115,8 +121,9 @@ export function PartFormScreen({
       recordId={edited?.id}
       values={startValues}
       parts={formParts}
-      errors={errors}
-      serverError={failure}
+      errors={refusedStep === undefined ? errors : { steps: failure }}
+      invalidStep={refusedStep ?? emptyStep}
+      serverError={refusedStep === undefined ? failure : undefined}
       pending={pending !== undefined}
       onSave={handleSave}
       onCancel={() => void changeSearch(closed)}

@@ -82,11 +82,64 @@ describe('addSignalFilter', () => {
     await addProject(db, 'glue')
     await addSignalFilter(db, 'glue', slowLists)
 
-    await expect(
-      addSignalFilter(db, 'glue', { name: 'Slow lists', mustHold: ['list'] }),
-    ).rejects.toThrow(
-      new InvalidRecordError('"Slow lists" is a filter already'),
-    )
+    const refused = addSignalFilter(db, 'glue', {
+      name: 'Slow lists',
+      mustHold: ['list'],
+    })
+
+    await expect(refused).rejects.toThrow(InvalidRecordError)
+    await expect(refused).rejects.toMatchObject({
+      message: '"Slow lists" is a filter already',
+      place: { field: 'name' },
+    })
+  })
+
+  const twentyWords = Array.from({ length: 20 }, (_, index) => `word${index}`)
+
+  it('saves a filter at the limits of its name and its words', async () => {
+    await addProject(db, 'glue')
+    const atLimits = {
+      name: 'n'.repeat(60),
+      mustHold: twentyWords,
+      mustNotHold: ['w'.repeat(60)],
+      sources: ['github', 'support', 'analytics', 'social', 'market'],
+    }
+
+    const added = await addSignalFilter(db, 'glue', atLimits)
+
+    expect(added).toEqual({ id: 1, ...atLimits })
+  })
+
+  it.each([
+    {
+      filter: { name: 'n'.repeat(61), mustHold: ['slow'] },
+      reason: 'A name has at most 60 characters',
+      field: 'name',
+    },
+    {
+      filter: { name: 'Slow lists', mustHold: ['w'.repeat(61)] },
+      reason: 'A word has at most 60 characters',
+      field: 'mustHold',
+    },
+    {
+      filter: { name: 'Slow lists', mustNotHold: [...twentyWords, 'more'] },
+      reason: 'A list has at most 20 words',
+      field: 'mustNotHold',
+    },
+    {
+      filter: { name: 'Slow lists', sources: ['github', 'fax'] },
+      reason: '"fax" is no source',
+      field: 'sources',
+    },
+  ])('refuses a filter: $reason', async ({ filter, reason, field }) => {
+    await addProject(db, 'glue')
+
+    const refused = addSignalFilter(db, 'glue', filter)
+
+    await expect(refused).rejects.toThrow(InvalidRecordError)
+    await expect(refused).rejects.toThrow(reason)
+    await expect(refused).rejects.toMatchObject({ place: { field } })
+    expect(await listSignalFilters(db, 'glue')).toEqual([])
   })
 })
 

@@ -308,7 +308,7 @@ describe('Signals', () => {
               next: {
                 actions: [
                   {
-                    label: `Make Hunch ${shown[0].title}`,
+                    label: `Make Hunch, ${shown[0].title}`,
                     onClick: () => onStep(shown[0].signals),
                   },
                 ],
@@ -317,7 +317,7 @@ describe('Signals', () => {
     })
     const next = () => within(screen.getByRole('region', { name: 'Next' }))
 
-    next().getByRole('button', { name: 'Make Hunch The list is slow' })
+    next().getByRole('button', { name: 'Make Hunch, The list is slow' })
     expect(
       screen.getByRole('region', { name: 'Next' }).previousElementSibling,
     ).toBe(screen.getByRole('list', { name: 'Evidence to Insight' }))
@@ -325,7 +325,7 @@ describe('Signals', () => {
     await userEvent.click(filter('GitHub'))
     await userEvent.click(
       next().getByRole('button', {
-        name: 'Make Hunch I lose my place in the list',
+        name: 'Make Hunch, I lose my place in the list',
       }),
     )
 

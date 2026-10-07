@@ -679,6 +679,24 @@ describe('the steps of a Flow in the Part form', () => {
     expect(iconButton('Move step 2 down')).toHaveProperty('disabled', true)
   })
 
+  it('shows the reason of a wrong step at that step', () => {
+    renderFlow({
+      values: {
+        title: 'Pay the cart',
+        steps: [
+          { text: 'Open the cart', entity: null },
+          { text: '', entity: null },
+        ],
+      },
+      errors: { steps: 'Enter a text.' },
+      invalidStep: 1,
+    })
+
+    expect(field('Step 1').getAttribute('aria-invalid')).toBeNull()
+    expect(field('Step 2').getAttribute('aria-invalid')).toBe('true')
+    expect(screen.getAllByText('Enter a text.')).toHaveLength(1)
+  })
+
   it('shows the reason of wrong steps at the steps', () => {
     renderFlow({ errors: { steps: '"E7" is not an Entity' } })
 

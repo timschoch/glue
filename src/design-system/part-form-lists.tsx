@@ -78,23 +78,29 @@ function swapRows<TRow>(rows: ReadonlyArray<TRow>, index: number, to: number) {
 }
 
 // The steps of a Flow, in their order: each a text and the Entity that it
-// works on, with the controls that move it and remove it.
+// works on, with the controls that move it and remove it. The reason of a
+// wrong step shows at that step, each other reason at the list.
 export function StepRows({
   id,
   label,
   rows,
   entities,
   invalidText,
+  invalidRow = -1,
   onChange,
 }: RowsProps<StepValue> & {
   // The Entities of the Project that a step can name.
   entities: ReadonlyArray<PartFormPart>
+  // The place of the step that the reason is about.
+  invalidRow?: number
 }) {
+  const atRow = invalidText !== undefined && invalidRow in rows
+
   return (
     <Rows
       label={label}
       addLabel="Add step"
-      invalidText={invalidText}
+      invalidText={atRow ? undefined : invalidText}
       onAdd={() => onChange([...rows, { text: '', entity: null }])}
     >
       {rows.length > 0 && (
@@ -108,6 +114,8 @@ export function StepRows({
                   id={`${id}-${place}-text`}
                   labelText={`Step ${place}`}
                   value={text}
+                  invalid={atRow && index === invalidRow}
+                  invalidText={invalidText}
                   className={styles.rowText}
                   onChange={({ target }) =>
                     onChange(replaceRow(rows, index, { text: target.value }))

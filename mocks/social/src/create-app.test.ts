@@ -153,6 +153,39 @@ describe('comments', () => {
     expect(comments.at(-1)?.author).toBe('user499')
   })
 
+  it('lists the newest 500 comments with `order=newest`, newest first', async () => {
+    await addComments(
+      Array.from({ length: 501 }, (_, index) => [
+        `user${index}`,
+        new Date(Date.UTC(2026, 8, 1) + index * 1000).toISOString(),
+      ]),
+    )
+
+    const comments = await listComments('handle=flexibeck&order=newest')
+
+    expect(comments).toHaveLength(500)
+    expect(comments.at(0)?.author).toBe('user500')
+    expect(comments.at(-1)?.author).toBe('user1')
+  })
+
+  it('never splits comments of the same time with `order=newest`', async () => {
+    await addComments([
+      ['ada', '2026-09-30T09:00:00.000Z'],
+      ['bob', '2026-09-30T09:00:01.000Z'],
+      ['cy', '2026-09-30T09:00:01.000Z'],
+      ['dee', '2026-09-30T09:00:02.000Z'],
+    ])
+
+    const comments = await listComments('handle=flexibeck&limit=2&order=newest')
+
+    expect(comments.at(0)?.author).toBe('dee')
+    expect(comments.map((comment) => comment.author).sort()).toEqual([
+      'bob',
+      'cy',
+      'dee',
+    ])
+  })
+
   it('lists `limit` comments, and never splits comments of the same time', async () => {
     await addComments([
       ['ada', '2026-09-30T09:00:00.000Z'],
@@ -174,8 +207,14 @@ describe('comments', () => {
     expect(nextPage.map((comment) => comment.author)).toEqual(['dee'])
   })
 
-  it('answers 400 to a bad `until` or `limit`', async () => {
-    for (const query of ['until=today', 'limit=0', 'limit=501', 'limit=ten']) {
+  it('answers 400 to a bad `until`, `limit` or `order`', async () => {
+    for (const query of [
+      'until=today',
+      'limit=0',
+      'limit=501',
+      'limit=ten',
+      'order=random',
+    ]) {
       const response = await app.request(
         `/api/comments?handle=flexibeck&${query}`,
         { headers: { Authorization: `Bearer ${readKey}` } },

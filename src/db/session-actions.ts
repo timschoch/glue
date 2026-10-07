@@ -17,7 +17,10 @@ export type ActionRequest = {
 // A record that breaks a rule is an answer for the person, not an error
 // of the server.
 export async function toFailure(error: unknown): Promise<Failure> {
-  if (error instanceof InvalidRecordError) return { message: error.message }
+  if (error instanceof InvalidRecordError) {
+    const { message, place } = error
+    return place ? { message, place } : { message }
+  }
   throw error
 }
 

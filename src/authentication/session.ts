@@ -11,7 +11,11 @@ export type User = { id: string; name: string; email: string }
 
 export type Session = { user: User }
 
-export type Failure = { message: string }
+// Where in a form a write failed: the field, and for a list field the row,
+// from 0. A form shows the reason there.
+export type FailurePlace = { field: string; row?: number }
+
+export type Failure = { message: string; place?: FailurePlace }
 
 // The part of the Neon Auth server that Glue uses.
 export type AuthenticationServer = {

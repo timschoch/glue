@@ -23,13 +23,22 @@ export type SignalFilterFormValues = {
   sources: Array<string>
 }
 
+// The fields that a person types in: each one shows the reason of its wrong
+// value.
+export const signalFilterFormFields = [
+  'name',
+  'mustHold',
+  'mustNotHold',
+] as const
+type SignalFilterFormField = (typeof signalFilterFormFields)[number]
+
 export type SignalFilterFormProps = {
   // The filter that the form changes. None: the form adds a filter.
   filter?: {
     [Key in keyof SignalFilterFormValues]: Readonly<SignalFilterFormValues[Key]>
   }
-  // The reason of a wrong name.
-  error?: string
+  // The reason of each field with a wrong value.
+  errors?: Partial<Record<SignalFilterFormField, string>>
   serverError?: string
   // The write that runs: the form takes no second one.
   pending?: 'Saving' | 'Deleting'
@@ -47,7 +56,7 @@ const toWords = (text: string) => text.split(/[\s,]+/).filter(Boolean)
 // Signal must hold and must not hold, and its sources.
 export function SignalFilterForm({
   filter,
-  error,
+  errors = {},
   serverError,
   pending,
   onSave,
@@ -92,20 +101,24 @@ export function SignalFilterForm({
       <TextInput
         id={`${formId}-name`}
         labelText="Name"
-        invalid={error !== undefined}
-        invalidText={error}
+        invalid={errors.name !== undefined}
+        invalidText={errors.name}
         value={name}
         onChange={({ target }) => setName(target.value)}
       />
       <TextInput
         id={`${formId}-must-hold`}
         labelText="Must hold"
+        invalid={errors.mustHold !== undefined}
+        invalidText={errors.mustHold}
         value={mustHold}
         onChange={({ target }) => setMustHold(target.value)}
       />
       <TextInput
         id={`${formId}-must-not-hold`}
         labelText="Must not hold"
+        invalid={errors.mustNotHold !== undefined}
+        invalidText={errors.mustNotHold}
         value={mustNotHold}
         onChange={({ target }) => setMustNotHold(target.value)}
       />

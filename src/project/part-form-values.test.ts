@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { PartFormValues } from '../design-system/part-form.tsx'
 import { findPart } from '../test/project.ts'
 import {
+  findEmptyStep,
   findProblems,
   toExpectedPart,
   toFormValues,
@@ -79,9 +80,12 @@ describe('the Part that the form adds', () => {
     )
   })
 
-  it('has the steps of a Flow with a text, and the fields of an Entity with a name', () => {
+  it('has each step of a Flow, and the fields of an Entity with a name', () => {
     expect(toNewPart('flow', values, place)).toMatchObject({
-      steps: [{ text: 'Open the cart', entity: 'E1' }],
+      steps: [
+        { text: 'Open the cart', entity: 'E1' },
+        { text: ' ', entity: null },
+      ],
     })
     expect(toNewPart('entity', values, place)).toMatchObject({
       fields: [{ name: 'total', meaning: 'The sum to pay' }],
@@ -117,6 +121,15 @@ describe('the values of the Part form', () => {
       fields: 'A field has one name. "total" is there twice.',
     })
     expect(findProblems('entity', values)).toEqual({})
+  })
+
+  it('names the first step of a Flow with no text', () => {
+    const steps = [{ text: 'Open the cart', entity: 'E1' }]
+
+    expect(findProblems('flow', values)).toEqual({ steps: 'Enter a text.' })
+    expect(findEmptyStep(values.steps)).toBe(1)
+    expect(findProblems('flow', { ...values, steps })).toEqual({})
+    expect(findEmptyStep(steps)).toBe(-1)
   })
 
   it('asks no date of a type without one', () => {
@@ -171,7 +184,7 @@ describe('the Part that the form edits', () => {
     ).toEqual({
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
-      steps: [{ text: 'Open the cart', entity: 'E1' }],
+      steps: values.steps,
       sameMeaning: true,
     })
   })
@@ -180,7 +193,7 @@ describe('the Part that the form edits', () => {
     expect(toPartChange('flow', values, { goal: null })).toEqual({
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
-      steps: [{ text: 'Open the cart', entity: 'E1' }],
+      steps: values.steps,
     })
   })
 

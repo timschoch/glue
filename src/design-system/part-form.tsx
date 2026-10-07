@@ -180,6 +180,9 @@ export type PartFormProps = {
   parts?: ReadonlyArray<PartFormPart>
   // The reason of each field with a wrong value.
   errors?: Partial<Record<Field, string>>
+  // The place of the step that the reason of the steps is about. The first
+  // step has 0. None: the reason is about the list.
+  invalidStep?: number
   serverError?: string
   // The form saves: it takes no second save.
   pending?: boolean
@@ -197,6 +200,7 @@ export function PartForm({
   values: startValues,
   parts = [],
   errors = {},
+  invalidStep,
   serverError,
   pending = false,
   onSave,
@@ -290,6 +294,7 @@ export function PartForm({
             rows={values.steps}
             entities={parts.filter((part) => part.type === 'entity')}
             invalidText={errors[field]}
+            invalidRow={invalidStep}
             onChange={(rows) => change({ steps: rows })}
           />
         )

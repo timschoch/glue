@@ -125,6 +125,15 @@ function alerts(): Array<string> {
     .filter((text) => text !== '')
 }
 
+// The buttons "Make Hunch" of a group in the list of the Signals. The box
+// Next has a button with the same name for the largest group.
+function groupButtons(title: string): Array<HTMLElement> {
+  const box = screen.queryByRole('region', { name: 'Next' })
+  return screen
+    .queryAllByRole('button', { name: `Make Hunch, ${title}` })
+    .filter((found) => !box?.contains(found))
+}
+
 function field(name: string): HTMLElement {
   return screen.getByRole('textbox', { name })
 }
@@ -528,7 +537,7 @@ describe('a section', () => {
     )
 
     screen.getByText('2 sources')
-    await userEvent.click(button('Make Hunch, The list is slow'))
+    await userEvent.click(groupButtons('The list is slow')[0])
 
     await expectAddress('/glue/part-model/I3', { section: 'Understand' })
     expect(server.addSignalInsight).toHaveBeenCalledWith({
@@ -571,17 +580,15 @@ describe('a section', () => {
       addSignalInsight: vi.fn(() => saved),
     })
 
-    await userEvent.click(button('Make Hunch, The list is slow'))
+    await userEvent.click(groupButtons('The list is slow')[0])
 
     await screen.findByText('Saving')
-    expect(
-      screen.queryByRole('button', { name: 'Make Hunch, The list is slow' }),
-    ).toBeNull()
+    expect(groupButtons('The list is slow')).toEqual([])
 
     answer({ message: 'A Signal is not in the Project' })
 
     await screen.findByText('A Signal is not in the Project')
-    button('Make Hunch, The list is slow')
+    expect(groupButtons('The list is slow')).toHaveLength(1)
   })
 
   // The list of Glue with two groups: two Signals say that the list is
@@ -642,7 +649,7 @@ describe('a section', () => {
 
     await userEvent.click(
       nextBox().getByRole('button', {
-        name: 'Make Hunch I cannot find the export',
+        name: 'Make Hunch, I cannot find the export',
       }),
     )
 
@@ -679,22 +686,19 @@ describe('a section', () => {
 
     await userEvent.click(
       nextBox().getByRole('button', {
-        name: 'Make Hunch I cannot find the export',
+        name: 'Make Hunch, I cannot find the export',
       }),
     )
 
     await nextBox().findByText('Saving')
     expect(nextBox().queryByRole('button')).toBeNull()
-    expect(button('Make Hunch, The list is slow')).toHaveProperty(
-      'disabled',
-      true,
-    )
+    expect(groupButtons('The list is slow')[0]).toHaveProperty('disabled', true)
 
     answer({ message: 'A Signal is not in the Project' })
 
     await nextBox().findByText('A Signal is not in the Project')
     nextBox().getByRole('button', {
-      name: 'Make Hunch I cannot find the export',
+      name: 'Make Hunch, I cannot find the export',
     })
   })
 
@@ -772,7 +776,7 @@ describe('a section', () => {
       'The list is slow',
       'The list is slow to open',
     ])
-    button('Make Hunch, The list is slow')
+    expect(groupButtons('The list is slow')).toHaveLength(1)
     expect(button('No phone').getAttribute('aria-pressed')).toBe('true')
 
     await userEvent.click(button('No phone'))
@@ -784,7 +788,9 @@ describe('a section', () => {
     const { server } = await renderFilteredSignals()
 
     await userEvent.click(button('No phone'))
-    await userEvent.click(button('Make Hunch The list is slow'))
+    await userEvent.click(
+      nextBox().getByRole('button', { name: 'Make Hunch, The list is slow' }),
+    )
 
     expect(server.addSignalInsight).toHaveBeenCalledWith({
       project: 'glue',
@@ -871,6 +877,51 @@ describe('a section', () => {
     await userEvent.click(button('Save'))
 
     screen.getByText('A filter has this name already.')
+    expect(server.addSignalFilter).not.toHaveBeenCalled()
+  })
+
+  it('shows at the name that the server found a filter with it', async () => {
+    await renderFilteredSignals({
+      addSignalFilter: vi.fn(() =>
+        Promise.resolve({
+          message: '"Slow" is a filter already',
+          place: { field: 'name' },
+        }),
+      ),
+    })
+
+    await userEvent.click(button('Add filter'))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Slow')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Market' }))
+    await userEvent.click(button('Save'))
+
+    // One text: the reason shows at the field and not in a notice too.
+    await screen.findByText('"Slow" is a filter already')
+    expect(
+      screen
+        .getByRole('textbox', { name: 'Name' })
+        .getAttribute('aria-invalid'),
+    ).toBe('true')
+    expect(alerts()).toEqual([])
+  })
+
+  it('shows at the words that a word is too long, and saves nothing', async () => {
+    const { server } = await renderFilteredSignals()
+
+    await userEvent.click(button('Add filter'))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Slow')
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Must not hold' }),
+      `phone ${'w'.repeat(61)}`,
+    )
+    await userEvent.click(button('Save'))
+
+    screen.getByText('A word has at most 60 characters')
+    expect(
+      screen
+        .getByRole('textbox', { name: 'Must not hold' })
+        .getAttribute('aria-invalid'),
+    ).toBe('true')
     expect(server.addSignalFilter).not.toHaveBeenCalled()
   })
 
@@ -1331,6 +1382,52 @@ describe('the steps of a Flow and the fields of an Entity', () => {
       }),
       expected: expect.objectContaining({ title: R1, steps: seen }),
     })
+  })
+
+  // The Flow R1 of Glue with one step, open in its form.
+  async function renderFlowForm(changed: Partial<Server> = {}) {
+    const rendered = await renderPage('/glue/read-model/R1?edit=true', {
+      fetchParts: vi.fn(() => Promise.resolve([...parts, E1])),
+      fetchPart: vi.fn(
+        changedPart('R1', {
+          type: 'flow',
+          steps: [{ text: 'Open the Concept', entity: 'E1' }],
+        }),
+      ),
+      ...changed,
+    })
+    await userEvent.click(button('Add step'))
+    return rendered
+  }
+
+  it('shows at a step with no text that it needs one, and saves nothing', async () => {
+    const { server } = await renderFlowForm()
+
+    await userEvent.click(button('Save'))
+
+    screen.getByText('Enter a text.')
+    expect(field('Step 1').getAttribute('aria-invalid')).toBeNull()
+    expect(field('Step 2').getAttribute('aria-invalid')).toBe('true')
+    expect(server.updatePart).not.toHaveBeenCalled()
+  })
+
+  it('shows at the step why the server refused it', async () => {
+    await renderFlowForm({
+      updatePart: vi.fn(() =>
+        Promise.resolve({
+          message: '"E1" is not an Entity',
+          place: { field: 'steps', row: 0 },
+        }),
+      ),
+    })
+
+    await userEvent.type(field('Step 2'), 'Close it')
+    await userEvent.click(button('Save'))
+
+    await screen.findByText('"E1" is not an Entity')
+    expect(field('Step 1').getAttribute('aria-invalid')).toBe('true')
+    expect(field('Step 2').getAttribute('aria-invalid')).toBeNull()
+    expect(alerts()).toEqual([])
   })
 
   it('shows the fields of an Entity, each name with its meaning, and saves another meaning', async () => {
@@ -2371,6 +2468,34 @@ describe('the common flow of a record', () => {
     await act('Open R1 No query over 200ms')
 
     await expectAddress('/glue/read-model/R1', { trail: ['D4'] })
+  })
+
+  // The build of D4 shipped, its Goal has a Metric with no reading: the
+  // step waits for the first one.
+  it('has no button while the Metric of a shipped Decision has no reading', async () => {
+    const metric: MeasuredPart = {
+      ...parts[0],
+      id: 'M1',
+      type: 'metric',
+      measure: null,
+    }
+    await renderPage('/glue/part-model/D4', {
+      fetchBuilds: vi.fn(() =>
+        Promise.resolve({ builds: [builds[0]], reason: null }),
+      ),
+      fetchPart: vi.fn(changedPart('D4', { goalMetrics: [metric] })),
+    })
+
+    const next = within(screen.getByRole('region', { name: 'Next' }))
+
+    expect(
+      within(screen.getByRole('list', { name: 'Use to Insight' }))
+        .getAllByRole('button')
+        .map((step) => step.getAttribute('aria-current')),
+    ).toEqual(['step'])
+    expect(next.getAllByRole('button')).toEqual([
+      next.getByRole('button', { name: 'Additional actions' }),
+    ])
   })
 
   // The build of D4 shipped, its Goal has a Metric, and the Insight of the

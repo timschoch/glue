@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, lte } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, lte } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bearerAuth } from 'hono/bearer-auth'
 import { bodyLimit } from 'hono/body-limit'
@@ -28,7 +28,13 @@ type CommentQuery = {
   since: Date | null
   until: Date | null
   limit: number
+  order: Order
 }
+
+// Which comments a read with more comments than its limit lists, and which
+// one comes first.
+const orders = ['oldest', 'newest'] as const
+type Order = (typeof orders)[number]
 
 export function createApp(options: {
   database: SocialDatabase
@@ -64,13 +70,14 @@ export function createApp(options: {
   app.get('/api/comments', bearerAuth({ token: readKey }), async (context) => {
     const query = parseCommentQuery(context.req.query())
     if (typeof query === 'string') return context.json({ error: query }, 400)
-    const { handle, since, until, limit } = query
+    const { handle, since, until, limit, order: listed } = query
+    const [sort, upTo] = listed === 'newest' ? [desc, gte] : [asc, lte]
     const inRange = and(
       eq(comments.handle, handle),
       since ? gt(comments.createdAt, since) : undefined,
       until ? lte(comments.createdAt, until) : undefined,
     )
-    const order = [asc(comments.createdAt), asc(comments.id)]
+    const order = [sort(comments.createdAt), sort(comments.id)]
     // The time of the comment at the limit. The page ends after all comments
     // of that time, so a reader that goes on after the last one misses none.
     const atLimit = (
@@ -88,7 +95,7 @@ export function createApp(options: {
       .where(
         and(
           inRange,
-          atLimit ? lte(comments.createdAt, atLimit.createdAt) : undefined,
+          atLimit ? upTo(comments.createdAt, atLimit.createdAt) : undefined,
         ),
       )
       .orderBy(...order)
@@ -158,7 +165,13 @@ function parseCommentInput(body: unknown): CommentInput | string {
 function parseCommentQuery(
   params: Record<string, string>,
 ): CommentQuery | string {
-  const { handle, since, until, limit = String(MAX_LIMIT) } = params
+  const {
+    handle,
+    since,
+    until,
+    limit = String(MAX_LIMIT),
+    order = 'oldest',
+  } = params
   if (!handle) return 'handle is required'
   const dates = { since: parseDate(since), until: parseDate(until) }
   for (const [name, date] of Object.entries(dates)) {
@@ -172,11 +185,14 @@ function parseCommentQuery(
   ) {
     return `limit must be a whole number from 1 to ${MAX_LIMIT}`
   }
+  const listed = orders.find((known) => known === order)
+  if (!listed) return `order must be ${orders.join(' or ')}`
   return {
     handle,
     since: dates.since ?? null,
     until: dates.until ?? null,
     limit: limitNumber,
+    order: listed,
   }
 }
 
