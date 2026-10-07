@@ -195,7 +195,9 @@ export function RecordScreen({
       : [...answers, supersede]
   // The next step of the flow is the button. A next step that is an answer
   // is the usual answer, which comes first already. Each other next step
-  // opens a form or the home Concept.
+  // opens a form, the home Concept, another Part or the build. With no next
+  // step the box has no button: an answer that breaks the Part is never the
+  // button (glue/D58).
   // A member who is not the owner of a Part with a flag has one step: to
   // ask the owner. Only the owner answers a flag.
   const next = flow?.next
@@ -292,30 +294,34 @@ export function RecordScreen({
       ]
     : next === undefined || next.kind === 'answer'
       ? answerActions
-      : [
-          {
-            label: next.label,
-            onClick: () =>
-              void (next.kind === 'glue'
-                ? glue()
-                : next.kind === 'concept'
-                  ? router.navigate({ href: conceptHref(part.concept) })
-                  : next.kind === 'raise'
-                    ? write('Saving', () =>
-                        updatePart({
-                          project,
-                          recordId: part.id,
-                          change: { evidenceLevel: next.level },
-                        }),
-                      )
-                    : changeSearch(
-                        next.kind === 'edit'
-                          ? { ...search, edit: true }
-                          : { ...search, add: next.type },
-                      )),
-          },
-          ...answerActions,
-        ]
+      : next.kind === 'link'
+        ? [{ label: next.label, href: next.href }, ...answerActions]
+        : [
+            {
+              label: next.label,
+              onClick: () =>
+                void (next.kind === 'glue'
+                  ? glue()
+                  : next.kind === 'concept'
+                    ? router.navigate({ href: conceptHref(part.concept) })
+                    : next.kind === 'open'
+                      ? router.navigate({ href: recordHref(next.part) })
+                      : next.kind === 'raise'
+                        ? write('Saving', () =>
+                            updatePart({
+                              project,
+                              recordId: part.id,
+                              change: { evidenceLevel: next.level },
+                            }),
+                          )
+                        : changeSearch(
+                            next.kind === 'add'
+                              ? { ...search, add: next.type }
+                              : { ...search, edit: true },
+                          )),
+            },
+            ...answerActions,
+          ]
   // The step of the flow stays the button: the Ask comes after it.
   const actions = answeredBy
     ? flowActions
@@ -329,6 +335,7 @@ export function RecordScreen({
       }
       bodyParts={bodyParts}
       actions={actions}
+      hasStep={Boolean(answeredBy) || next !== undefined}
       pending={pending}
       error={failure}
       words={

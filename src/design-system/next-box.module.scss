@@ -1,0 +1,31 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The width of a card in the pinned column.
+$card-width: $spacing-13 * 2;
+
+// The longest line of a text.
+$text-width: $card-width * 2;
+
+// The place of the button, with the reason of a failed action below it.
+.box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-03;
+}
+
+.title {
+  @include type-style('heading-compact-02');
+}
+
+// The answer in words is as wide as the text.
+.words {
+  inline-size: 100%;
+  max-inline-size: $text-width;
+}
+
+// The search and the choice of an action are as wide as one card.
+.search {
+  max-inline-size: $card-width;
+}

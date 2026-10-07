@@ -1,13 +1,23 @@
 import type { AskStep } from '../db/asks.ts'
 import type { Build } from '../db/builds.ts'
-import type { Answer, Part, PartType } from '../db/parts.ts'
+import type { ContractState } from '../db/contracts.ts'
+import type {
+  Answer,
+  Concept,
+  Part,
+  PartSummary,
+  PartType,
+} from '../db/parts.ts'
 
-// The common flows of docs/concept.md, section 7: which one a Part is in,
-// the step it is at, and the one next step.
+// The common flows of docs/concept.md, section 7: which one a Part or a
+// Concept is in, the step it is at, and the one next step.
 
 // The one next step: an answer of the owner, the form of the Part, a higher
 // Evidence level that Glue proposes, a new Part that needs this one, the
-// home Concept, or the Joint to the Insight that an Ask handed back.
+// home Concept, the Joint to the Insight that an Ask handed back, the Part
+// where the loop goes on, or the build in GitHub. It is never an answer
+// that breaks the Part (glue/D58). A Concept has two more: its sign-off, and
+// the Contract Version to build from.
 export type NextStep =
   | { kind: 'answer'; answer: Answer }
   | { kind: 'edit'; label: string }
@@ -15,6 +25,10 @@ export type NextStep =
   | { kind: 'add'; type: PartType; label: string }
   | { kind: 'concept'; label: string }
   | { kind: 'glue'; label: string }
+  | { kind: 'open'; part: { id: string; concept: string }; label: string }
+  | { kind: 'link'; href: string; label: string }
+  | { kind: 'sign'; label: string }
+  | { kind: 'version'; version: number; label: string }
 
 export type CommonFlow = {
   name: string
@@ -39,6 +53,10 @@ const flows = {
   use: { name: 'Use to Insight', steps: ['Measure', 'Read'] },
   change: { name: 'React to a change', steps: ['Check', 'Answer'] },
   ask: { name: 'Ask another team', steps: ['Ask', 'Pick', 'Hand back'] },
+  concept: {
+    name: 'Concept to build',
+    steps: ['Fill slots', 'Sign', 'Build', 'Gate'],
+  },
 } as const
 
 // The step that an open Ask is at. `check`: all the steps are done.
@@ -47,10 +65,18 @@ const askSteps: Record<AskStep, number> = { pick: 1, 'hand-back': 2, check: 3 }
 const checkAndGlue: NextStep = { kind: 'glue', label: 'Check and glue' }
 
 const signOff: NextStep = { kind: 'answer', answer: 'supersede' }
-const addDecision: NextStep = {
-  kind: 'add',
-  type: 'decision',
-  label: 'Add Decision',
+
+// A new Part of the type. The name of a Part type is one word.
+function addPart(type: PartType): NextStep {
+  const name = `${type.charAt(0).toUpperCase()}${type.slice(1)}`
+  return { kind: 'add', type, label: `Add ${name}` }
+}
+const addDecision = addPart('decision')
+const addInsight = addPart('insight')
+
+// The loop goes on at another Part: the step opens it.
+function openPart({ id, concept }: PartSummary): NextStep {
+  return { kind: 'open', part: { id, concept }, label: `Open ${id}` }
 }
 // Several sources agree (glue/D54). Glue proposes, the member decides.
 const raiseToPattern: NextStep = {
@@ -65,14 +91,17 @@ const openConcept: NextStep = { kind: 'concept', label: 'Open Concept' }
 // The step after each Evidence level. An Insight with no level is a hunch.
 const evidenceSteps = { hunch: 1, pattern: 2, confirmed: 3 }
 
-// The flow of a published Part, by its type.
+// The flow of a published Part, by its type. A flow that ended because a
+// Part needs this one goes on at that Part.
 function findPublishedFlow(part: Part): CommonFlow {
-  // A Part of one of the types needs this Part and is not sunk.
-  const isNeededBy = (...types: Array<PartType>) =>
-    part.neededBy.some(
+  // The first Part of one of the types that needs this Part and is not sunk.
+  const findNeeding = (...types: Array<PartType>) =>
+    part.neededBy.find(
       ({ part: needing }) =>
         types.includes(needing.type) && needing.workState !== 'sunk',
-    )
+    )?.part
+  const isNeededBy = (...types: Array<PartType>) =>
+    findNeeding(...types) !== undefined
 
   switch (part.type) {
     case 'insight': {
@@ -81,29 +110,32 @@ function findPublishedFlow(part: Part): CommonFlow {
         const next = { kind: 'edit', label: 'Raise the level' } as const
         return { ...flows.evidence, current, next }
       }
-      const next = isNeededBy('decision') ? undefined : addDecision
+      const decision = findNeeding('decision')
+      const next = decision ? openPart(decision) : addDecision
       return { ...flows.evidence, current, next }
     }
-    case 'goal':
-      return isNeededBy('decision')
-        ? { ...flows.decision, current: 3, next: undefined }
-        : { ...flows.decision, current: 1, next: addDecision }
+    case 'goal': {
+      const decision = findNeeding('decision')
+      if (!decision) return { ...flows.decision, current: 1, next: addDecision }
+      // A reading against the target of the Goal becomes an Insight.
+      if (part.measure?.latestValue == null) {
+        return { ...flows.decision, current: 3, next: openPart(decision) }
+      }
+      const insight = findNeeding('insight')
+      return insight
+        ? { ...flows.use, current: 2, next: openPart(insight) }
+        : { ...flows.use, current: 1, next: addInsight }
+    }
     case 'decision':
       return isNeededBy('flow', 'entity')
         ? { ...flows.brief, current: 1, next: openConcept }
-        : {
-            ...flows.brief,
-            current: 0,
-            next: { kind: 'add', type: 'flow', label: 'Add Flow' },
-          }
-    case 'metric':
-      return {
-        ...flows.use,
-        current: 1,
-        next: isNeededBy('insight')
-          ? undefined
-          : { kind: 'add', type: 'insight', label: 'Add Insight' },
-      }
+        : { ...flows.brief, current: 0, next: addPart('flow') }
+    case 'metric': {
+      const insight = findNeeding('insight')
+      return insight
+        ? { ...flows.use, current: 2, next: openPart(insight) }
+        : { ...flows.use, current: 1, next: addInsight }
+    }
     default:
       return { ...flows.brief, current: 1, next: openConcept }
   }
@@ -120,17 +152,73 @@ const draftFlows: Record<PartType, Omit<CommonFlow, 'next'>> = {
   metric: { ...flows.use, current: 0 },
 }
 
-// A build that names the Part, with the newest result of its gate.
-export type GatedBuild = Pick<Build, 'number' | 'gate'>
+// A build that names the Part or the Contract, with the Contract Version
+// that it names and the newest result of its gate.
+export type GatedBuild = Pick<Build, 'number' | 'url' | 'contract' | 'gate'>
 
-// The flow of a published Part that builds name. It is at the gate until the
-// gate of the newest build holds.
-function findBuildFlow(builds: ReadonlyArray<GatedBuild>): CommonFlow {
-  const newest = builds.reduce((found, build) =>
+function findNewest(builds: ReadonlyArray<GatedBuild>): GatedBuild {
+  return builds.reduce((found, build) =>
     build.number > found.number ? build : found,
   )
-  const current = newest.gate?.result === 'holds' ? 3 : 2
-  return { ...flows.build, current, next: undefined }
+}
+
+// The build is in GitHub: the step opens it there.
+function openBuild({ number, url }: GatedBuild): NextStep {
+  return { kind: 'link', href: url, label: `Open build ${number}` }
+}
+
+// The flow of a published Part that builds name, by its newest build. The
+// build names a Contract Version, then a gate checks it. The flow ends when
+// the gate holds.
+function findBuildFlow(builds: ReadonlyArray<GatedBuild>): CommonFlow {
+  const newest = findNewest(builds)
+  if (newest.gate?.result === 'holds') {
+    return { ...flows.build, current: 3, next: undefined }
+  }
+  const current = newest.gate ? 2 : newest.contract ? 1 : 0
+  return { ...flows.build, current, next: openBuild(newest) }
+}
+
+// A slot that the Kind requires and that is not filled: it blocks the
+// sign-off.
+export function isEmptySlot({ required, filled }: Concept['slots'][number]) {
+  return required && !filled
+}
+
+// The common flow of a Concept (glue/D58): it fills the slots of its Kind,
+// its owner signs it off as a Contract Version, a build names that Version,
+// and the gate of the build holds. `builds` are the builds that name a
+// Contract Version of the Concept. A Concept that is ahead of its Contract
+// is at the sign-off again. A Part without Trust solid blocks the sign-off:
+// the step opens the first one.
+export function findConceptFlow(
+  concept: { slots: ReadonlyArray<Concept['slots'][number]> },
+  contract: ContractState,
+  builds: ReadonlyArray<GatedBuild> = [],
+): CommonFlow {
+  const empty = concept.slots.find(isEmptySlot)
+  if (empty) return { ...flows.concept, current: 0, next: addPart(empty.type) }
+
+  const newest = contract.versions.at(0)
+  if (!newest || contract.ahead) {
+    const blocking = contract.blocking.at(0)
+    const next: NextStep = blocking
+      ? openPart(blocking)
+      : { kind: 'sign', label: 'Sign off' }
+    return { ...flows.concept, current: 1, next }
+  }
+
+  const { version } = newest
+  const named = builds.filter((build) => build.contract?.version === version)
+  if (named.length === 0) {
+    const label = `Open Version ${version}`
+    const next: NextStep = { kind: 'version', version, label }
+    return { ...flows.concept, current: 2, next }
+  }
+  const build = findNewest(named)
+  return build.gate?.result === 'holds'
+    ? { ...flows.concept, current: 4, next: undefined }
+    : { ...flows.concept, current: 3, next: openBuild(build) }
 }
 
 // The common flow that fits the type and the state of the Part. A flag
@@ -173,8 +261,13 @@ function findOwnFlow(
         current: 0,
         next: { kind: 'answer', answer: 'fine' },
       }
+    // The answer comes when the awaited Part changes: the step opens it.
     case 'waiting':
-      return { ...flows.change, current: 1, next: undefined }
+      return {
+        ...flows.change,
+        current: 1,
+        next: part.waitsOn ? openPart(part.waitsOn) : undefined,
+      }
     case 'draft':
     case 'review':
       return { ...draftFlows[part.type], next: signOff }

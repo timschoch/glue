@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import type { Gate } from '../db/gate.ts'
 import type { Part, PartSummary } from '../db/parts.ts'
-import { findCommonFlow } from './common-flow.ts'
+import type { ContractState } from '../db/contracts.ts'
+import { findCommonFlow, findConceptFlow } from './common-flow.ts'
+import type { GatedBuild } from './common-flow.ts'
 
 const summary: PartSummary = {
   id: 'D1',
@@ -44,6 +46,29 @@ const published: Part = {
 }
 
 const CHECKED_AT = '2026-10-05T09:00:00.000Z'
+
+const holds: Gate = { result: 'holds', reasons: [], checkedAt: CHECKED_AT }
+const breaks: Gate = {
+  result: 'breaks',
+  reasons: ['Decision "D1" is sunk and has no successor.'],
+  checkedAt: CHECKED_AT,
+}
+
+// A build that names the Part, and no Contract Version. No gate checked it.
+const build: GatedBuild = {
+  number: 12,
+  url: 'https://github.com/timschoch/glue/pull/12',
+  contract: null,
+  gate: null,
+}
+
+// The newest Contract Version of the Concept.
+const contract = {
+  concept: 'glue',
+  title: 'Glue',
+  version: 2,
+  newestVersion: 2,
+}
 
 const draft = {
   trust: 'not-ready',
@@ -144,9 +169,6 @@ describe('the common flow of a Part', () => {
       current: 3,
       next: { kind: 'add', type: 'decision', label: 'Add Decision' },
     })
-    expect(
-      findCommonFlow({ ...insight, neededBy: neededBy('decision') })?.next,
-    ).toBeUndefined()
   })
 
   it('asks for a Decision on a Goal that has none', () => {
@@ -165,7 +187,7 @@ describe('the common flow of a Part', () => {
         type: 'goal',
         neededBy: neededBy('decision'),
       }),
-    ).toMatchObject({ current: 3, next: undefined })
+    ).toMatchObject({ current: 3, next: { kind: 'open', label: 'Open X0' } })
   })
 
   it('asks for the sign-off of a Decision in review', () => {
@@ -263,37 +285,47 @@ describe('the common flow of a Part', () => {
     ).toMatchObject({ name: 'React to a change', current: 1, next: undefined })
   })
 
-  it('puts a published Decision with a build at the gate', () => {
-    expect(findCommonFlow(published, [{ number: 12, gate: null }])).toEqual({
+  it('keeps a build that names no Contract Version at the step Version', () => {
+    expect(findCommonFlow(published, [build])).toEqual({
       name: 'Brief to build',
       steps: ['Version', 'Build', 'Gate'],
+      current: 0,
+      next: {
+        kind: 'link',
+        href: 'https://github.com/timschoch/glue/pull/12',
+        label: 'Open build 12',
+      },
+    })
+  })
+
+  it('builds from the Contract Version that the build names, until a gate checks it', () => {
+    expect(findCommonFlow(published, [{ ...build, contract }])).toMatchObject({
+      current: 1,
+      next: { kind: 'link', label: 'Open build 12' },
+    })
+  })
+
+  it('puts a build at the gate while its gate breaks', () => {
+    expect(
+      findCommonFlow(published, [{ ...build, contract, gate: breaks }]),
+    ).toMatchObject({
       current: 2,
-      next: undefined,
+      next: { kind: 'link', label: 'Open build 12' },
     })
   })
 
   it('ends the flow of a build when the gate of the newest build holds', () => {
-    const holds: Gate = {
-      result: 'holds',
-      reasons: [],
-      checkedAt: CHECKED_AT,
-    }
-    const breaks: Gate = {
-      result: 'breaks',
-      reasons: ['Decision "D1" is sunk and has no successor.'],
-      checkedAt: CHECKED_AT,
-    }
+    const done = findCommonFlow(published, [
+      { ...build, number: 11, gate: breaks },
+      { ...build, gate: holds },
+    ])
 
+    expect(done?.current).toBe(3)
+    expect(done?.next).toBeUndefined()
     expect(
       findCommonFlow(published, [
-        { number: 11, gate: breaks },
-        { number: 12, gate: holds },
-      ])?.current,
-    ).toBe(3)
-    expect(
-      findCommonFlow(published, [
-        { number: 12, gate: breaks },
-        { number: 11, gate: holds },
+        { ...build, gate: breaks },
+        { ...build, number: 11, gate: holds },
       ])?.current,
     ).toBe(2)
   })
@@ -302,7 +334,7 @@ describe('the common flow of a Part', () => {
     expect(
       findCommonFlow(
         { ...published, trust: 'flagged', workState: 'to-check' },
-        [{ number: 12, gate: null }],
+        [build],
       )?.name,
     ).toBe('React to a change')
   })
@@ -348,5 +380,278 @@ describe('the common flow of a Part', () => {
     expect(
       findCommonFlow({ ...published, trust: 'wrong', workState: 'sunk' }),
     ).toBeUndefined()
+  })
+})
+
+// glue/D58: the step that moves the loop on, for each Part type, each Work
+// state, and a Part that another Part needs or not.
+describe('the next step of a Part in every state', () => {
+  const types = [
+    'insight',
+    'goal',
+    'decision',
+    'guardrail',
+    'entity',
+    'flow',
+    'metric',
+  ] as const
+  const awaited: PartSummary = { ...summary, id: 'G9', type: 'goal' }
+  // The first Part of `neededBy`.
+  const openNeeding = {
+    kind: 'open',
+    part: { id: 'X0', concept: 'glue' },
+    label: 'Open X0',
+  }
+  const addDecision = { kind: 'add', type: 'decision', label: 'Add Decision' }
+  const openConcept = { kind: 'concept', label: 'Open Concept' }
+
+  // A confirmed Insight: a Hunch and a Pattern raise their level first.
+  function partOf(type: PartSummary['type'], changed: Partial<Part>): Part {
+    return { ...published, type, evidenceLevel: 'confirmed', ...changed }
+  }
+
+  it.each([
+    ['insight', null, addDecision],
+    ['insight', 'decision', openNeeding],
+    ['goal', null, addDecision],
+    ['goal', 'decision', openNeeding],
+    ['decision', null, { kind: 'add', type: 'flow', label: 'Add Flow' }],
+    ['decision', 'flow', openConcept],
+    ['guardrail', null, openConcept],
+    ['guardrail', 'decision', openConcept],
+    ['entity', null, openConcept],
+    ['entity', 'flow', openConcept],
+    ['flow', null, openConcept],
+    ['flow', 'entity', openConcept],
+    ['metric', null, { kind: 'add', type: 'insight', label: 'Add Insight' }],
+    ['metric', 'insight', openNeeding],
+  ] as const)('of a published %s that %s needs', (type, needing, next) => {
+    const flow = findCommonFlow(
+      partOf(type, { neededBy: needing ? neededBy(needing) : [] }),
+    )
+
+    expect(flow?.next).toEqual(next)
+  })
+
+  it.each(types)('of a %s with another Work state', (type) => {
+    const next = (changed: Partial<Part>) =>
+      findCommonFlow(partOf(type, changed))?.next
+    const needed = neededBy('decision')
+
+    for (const ends of [[], needed]) {
+      expect(next({ workState: 'draft', neededBy: ends })).toEqual({
+        kind: 'answer',
+        answer: 'supersede',
+      })
+      expect(next({ workState: 'review', neededBy: ends })).toEqual({
+        kind: 'answer',
+        answer: 'supersede',
+      })
+      expect(next({ workState: 'to-check', neededBy: ends })).toEqual({
+        kind: 'answer',
+        answer: 'fine',
+      })
+      expect(
+        next({ workState: 'waiting', waitsOn: awaited, neededBy: ends }),
+      ).toEqual({
+        kind: 'open',
+        part: { id: 'G9', concept: 'glue' },
+        label: 'Open G9',
+      })
+      expect(next({ workState: 'sunk', neededBy: ends })).toBeUndefined()
+    }
+  })
+
+  it('never is an answer that breaks the Part', () => {
+    const states = ['to-check', 'waiting', 'draft', 'review', 'published']
+    const nexts = types.flatMap((type) =>
+      states.flatMap((workState) =>
+        [[], neededBy('decision', 'flow', 'insight')].map(
+          (ends) =>
+            findCommonFlow(
+              partOf(type, { workState, neededBy: ends } as Partial<Part>),
+            )?.next,
+        ),
+      ),
+    )
+
+    expect(
+      nexts.filter(
+        (next) =>
+          next?.kind === 'answer' &&
+          (next.answer === 'not-ready' || next.answer === 'sink'),
+      ),
+    ).toEqual([])
+    expect(nexts).toHaveLength(70)
+  })
+
+  it('reads a published Goal with a reading against its target', () => {
+    const goal = partOf('goal', {
+      neededBy: neededBy('decision'),
+      measure: {
+        measure: {
+          kind: 'funnel',
+          source: 'mock-analytics',
+          steps: ['signed-up', 'paid'],
+          target: 0.25,
+          window_days: 7,
+        },
+        baseline: null,
+        latestValue: 0.1,
+        latestBreakdownValue: null,
+        measuredAt: '2026-10-04T00:00:00.000Z',
+        target: 0.25,
+        onTarget: false,
+      },
+    })
+
+    expect(findCommonFlow(goal)).toEqual({
+      name: 'Use to Insight',
+      steps: ['Measure', 'Read'],
+      current: 1,
+      next: { kind: 'add', type: 'insight', label: 'Add Insight' },
+    })
+    expect(
+      findCommonFlow({ ...goal, neededBy: neededBy('decision', 'insight') }),
+    ).toMatchObject({
+      current: 2,
+      next: {
+        kind: 'open',
+        part: { id: 'X1', concept: 'glue' },
+        label: 'Open X1',
+      },
+    })
+  })
+
+  it('ends the flow of a Metric with its Insight', () => {
+    expect(
+      findCommonFlow(partOf('metric', { neededBy: neededBy('insight') }))
+        ?.current,
+    ).toBe(2)
+  })
+
+  it('has no step for a waiting Part that names no Part', () => {
+    const flow = findCommonFlow(partOf('flow', { workState: 'waiting' }))
+
+    expect(flow).toMatchObject({ name: 'React to a change', current: 1 })
+    expect(flow?.next).toBeUndefined()
+  })
+})
+
+describe('the common flow of a Concept', () => {
+  const filled = { slots: [{ type: 'goal', required: true, filled: true }] } as const
+  const version = {
+    version: 2,
+    checksum: 'a81d03c5e7f9',
+    signedBy: 'Ada',
+    signedAt: '2026-10-04T08:30:00.000Z',
+  }
+  const unsigned: ContractState = {
+    versions: [],
+    ahead: false,
+    blocking: [],
+    emptySlots: [],
+  }
+  const signed: ContractState = { ...unsigned, versions: [version] }
+  const named = { ...build, contract }
+
+  it('asks for the Part of the first empty slot that the Kind requires', () => {
+    const brief = {
+      slots: [
+        { type: 'goal', required: true, filled: true },
+        { type: 'insight', required: false, filled: false },
+        { type: 'metric', required: true, filled: false },
+        { type: 'flow', required: true, filled: false },
+      ],
+    } as const
+
+    expect(findConceptFlow(brief, signed, [{ ...named, gate: holds }])).toEqual(
+      {
+        name: 'Concept to build',
+        steps: ['Fill slots', 'Sign', 'Build', 'Gate'],
+        current: 0,
+        next: { kind: 'add', type: 'metric', label: 'Add Metric' },
+      },
+    )
+  })
+
+  it('asks for the sign-off of a Concept with no empty slot and no Contract Version', () => {
+    expect(findConceptFlow(filled, unsigned)).toMatchObject({
+      current: 1,
+      next: { kind: 'sign', label: 'Sign off' },
+    })
+    expect(findConceptFlow({ slots: [] }, unsigned)).toMatchObject({
+      current: 1,
+      next: { kind: 'sign', label: 'Sign off' },
+    })
+    // An empty slot that the Kind does not require does not block.
+    expect(
+      findConceptFlow(
+        { slots: [{ type: 'insight', required: false, filled: false }] },
+        unsigned,
+      ),
+    ).toMatchObject({ current: 1, next: { kind: 'sign', label: 'Sign off' } })
+  })
+
+  it('asks for the sign-off of a Concept that is ahead of its Contract', () => {
+    expect(
+      findConceptFlow(filled, { ...signed, ahead: true }, [
+        { ...named, gate: holds },
+      ]),
+    ).toMatchObject({ current: 1, next: { kind: 'sign', label: 'Sign off' } })
+  })
+
+  it('opens the first Part that blocks the sign-off', () => {
+    const blocking = [
+      { ...summary, id: 'F5', concept: 'videos', trust: 'flagged' } as const,
+      { ...summary, id: 'F6', trust: 'not-ready' } as const,
+    ]
+
+    expect(findConceptFlow(filled, { ...unsigned, blocking })).toMatchObject({
+      current: 1,
+      next: {
+        kind: 'open',
+        part: { id: 'F5', concept: 'videos' },
+        label: 'Open F5',
+      },
+    })
+  })
+
+  it('shows the Contract Version to build from, until a build names it', () => {
+    const next = { kind: 'version', version: 2, label: 'Open Version 2' }
+    const old = { ...contract, version: 1 }
+
+    expect(findConceptFlow(filled, signed)).toMatchObject({ current: 2, next })
+    expect(
+      findConceptFlow(filled, signed, [
+        { ...build, contract: old, gate: holds },
+      ]),
+    ).toMatchObject({ current: 2, next })
+  })
+
+  it('shows the newest build that names the Contract Version, until its gate holds', () => {
+    const next = {
+      kind: 'link',
+      href: 'https://github.com/timschoch/glue/pull/12',
+      label: 'Open build 12',
+    }
+
+    expect(findConceptFlow(filled, signed, [named])).toMatchObject({
+      current: 3,
+      next,
+    })
+    expect(
+      findConceptFlow(filled, signed, [
+        { ...named, gate: breaks },
+        { ...named, number: 11, gate: holds },
+      ]),
+    ).toMatchObject({ current: 3, next })
+  })
+
+  it('has no step left when the gate of the build holds', () => {
+    const flow = findConceptFlow(filled, signed, [{ ...named, gate: holds }])
+
+    expect(flow.current).toBe(4)
+    expect(flow.next).toBeUndefined()
   })
 })

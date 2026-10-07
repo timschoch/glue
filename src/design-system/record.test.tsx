@@ -660,6 +660,37 @@ describe('Record', () => {
     expect(onRemove).not.toHaveBeenCalled()
   })
 
+  it('has no button with no step left: each action is in the menu', async () => {
+    const onSink = vi.fn()
+    renderRecord(
+      {},
+      {
+        hasStep: false,
+        actions: [
+          { label: 'Not ready', onClick: () => {} },
+          { label: 'Sink', onClick: onSink },
+        ],
+      },
+    )
+
+    const next = within(screen.getByRole('region', { name: 'Next' }))
+    const [menu, ...others] = next.getAllByRole('button')
+
+    expect(others).toEqual([])
+    expect(menu).toBe(iconButton('Additional actions'))
+
+    await userEvent.click(menu)
+
+    expect(menuItems().map((item) => item.textContent)).toEqual([
+      'Not ready',
+      'Sink',
+    ])
+
+    await userEvent.click(menuItems()[1])
+
+    expect(onSink).toHaveBeenCalledOnce()
+  })
+
   it('asks before an action that cannot be undone, and runs it on the button of the dialog', async () => {
     const onClick = vi.fn()
     renderRecord(

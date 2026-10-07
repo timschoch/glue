@@ -12,6 +12,10 @@ import type { MouseEvent, ReactElement, ReactNode, SyntheticEvent } from 'react'
 
 import { Card, partTypes } from './card.tsx'
 import type { PartType, ReviewNote, Slot, Trust } from './card.tsx'
+import { NextBox } from './next-box.tsx'
+import type { NextBoxProps } from './next-box.tsx'
+import { StepBar } from './step-bar.tsx'
+import type { StepBarProps } from './step-bar.tsx'
 import styles from './concept-view.module.scss'
 import { KindSelect } from './kind-select.tsx'
 import type { KindOption } from './kind-select.tsx'
@@ -222,9 +226,14 @@ export type ConceptViewProps = {
   contract?: ReactNode
   // The Responsible and the Co-Authors of the Concept.
   assignees?: ReactNode
+  // The common flow that the Concept is in, with its current step.
+  flow?: StepBarProps
+  // The box Next of the Concept, below the step bar.
+  next?: NextBoxProps
 }
 
-// One Concept in the main window: its head, the Concepts inside it, and its
+// One Concept in the main window: its head, the step bar of its flow with
+// the box Next, the Concepts inside it, and its
 // Parts in one group per Part type. A linked Part names its home Concept on
 // its card. A required slot of the Kind that is not filled shows as an
 // empty slot at the place of its type. A type with no Part and no such slot
@@ -253,6 +262,8 @@ export function ConceptView({
   children,
   contract,
   assignees,
+  flow,
+  next,
 }: ConceptViewProps) {
   const groups = typeGroups
     .map((words) => ({
@@ -354,6 +365,8 @@ export function ConceptView({
         />
       )}
       {assignees}
+      {flow && <StepBar {...flow} />}
+      {next && <NextBox {...next} />}
       {contract}
       {view === 'map' && (
         <div className={styles.map}>

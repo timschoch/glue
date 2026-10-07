@@ -26,7 +26,7 @@ import type {
 import { createRouterContext } from './router-context.ts'
 import type { Server } from './router-server.ts'
 import { routeTree } from './routeTree.gen'
-import { findPart, OLD_TITLE, parts, people } from './test/project.ts'
+import { builds, findPart, OLD_TITLE, parts, people } from './test/project.ts'
 import './test/render.tsx'
 import { createMemoryServer } from './test/server.ts'
 
@@ -303,6 +303,7 @@ describe('a section', () => {
     // The Contract is of the whole Concept: only the view with no lens
     // shows it.
     const all = [
+      'Next',
       'Contract',
       'Insights',
       'Goals',
@@ -749,7 +750,12 @@ describe('a new Part', () => {
   it('opens the Part form from the button of an empty slot, and shows the record after the save', async () => {
     const { expectAddress, server } = await renderPage('/glue/part-model')
 
-    await userEvent.click(button('Add Metric'))
+    await userEvent.click(
+      within(screen.getByRole('region', { name: 'Metrics' })).getByRole(
+        'button',
+        { name: 'Add Metric' },
+      ),
+    )
     await expectAddress('/glue/part-model', { add: 'metric' })
     expect(pageTitle()).toBe('Metric')
     await userEvent.type(field('Title'), 'Time to the first Decision')
@@ -1670,6 +1676,54 @@ describe('the common flow of a record', () => {
     await waitFor(() =>
       expect(server.answerPart).toHaveBeenCalledWith(
         answered('R1', { answer: 'not-ready' }),
+      ),
+    )
+  })
+
+  it('goes on from a published Goal at the Decision that needs it', async () => {
+    const { expectAddress } = await renderPage('/glue/glue/G1')
+
+    await act('Open D4')
+
+    await expectAddress('/glue/part-model/D4', { trail: ['G1'] })
+  })
+
+  it('opens the Part that a waiting Part waits on', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model/D4', {
+      fetchPart: vi.fn(
+        changedPart('D4', {
+          workState: 'waiting',
+          waitsOn: parts[3],
+          answers: ['fine', 'supersede'],
+        }),
+      ),
+    })
+
+    expect(currentStep('React to a change')).toBe('Answer')
+
+    await act('Open R1')
+
+    await expectAddress('/glue/read-model/R1', { trail: ['D4'] })
+  })
+
+  it('has no button with no step left, and keeps the answers in the menu', async () => {
+    const { server } = await renderPage('/glue/part-model/D4', {
+      fetchBuilds: vi.fn(() =>
+        Promise.resolve({ builds: [builds[0]], reason: null }),
+      ),
+    })
+
+    const next = within(screen.getByRole('region', { name: 'Next' }))
+
+    expect(next.getAllByRole('button')).toEqual([
+      next.getByRole('button', { name: 'Additional actions' }),
+    ])
+
+    await act('Not ready')
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('D4', { answer: 'not-ready' }),
       ),
     )
   })

@@ -20,7 +20,9 @@ import { flagReasons } from '../design-system/record.tsx'
 import { SectionView } from '../design-system/section-view.tsx'
 import { Signals } from '../design-system/signals.tsx'
 import { AssigneesControl } from './assignees-control.tsx'
-import { ContractSection } from './contract-screen.tsx'
+import { findConceptFlow, isEmptySlot } from './common-flow.ts'
+import type { NextStep } from './common-flow.ts'
+import { ContractSection, useVersionHref } from './contract-screen.tsx'
 import { KindFormScreen } from './kind-form-screen.tsx'
 import { LinkedBuilds } from './linked-builds.tsx'
 import { MapPanelScreen, MapScreen } from './map-screen.tsx'
@@ -87,10 +89,15 @@ export function ConceptScreen({
     handBackAsk,
     addJoint,
     addSignalInsight,
+    signContract,
   } = projectRoute.useRouteContext()
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
   const { pending, failure, write } = useWrite()
+  const versionHref = useVersionHref()
+  // The next step of the Concept has its own write: its box shows that it
+  // saves, or why it failed.
+  const stepWrite = useWrite()
   // The Hunch of a group of Signals has its own write: the list shows at
   // the group that it saves, or why it was not made.
   const hunchWrite = useWrite()
@@ -343,6 +350,33 @@ export function ConceptScreen({
   // After the removal the screen shows the parent Concept.
   const parent = concept.path.at(-1)?.slug ?? project
 
+  // The common flow of a Concept that has something to fill or to sign. A
+  // lens shows a part of the Concept, so no flow.
+  const flow =
+    search.section === undefined &&
+    (hasContract || concept.slots.some(isEmptySlot))
+      ? findConceptFlow(concept, contract, builds?.builds)
+      : undefined
+  // The next step opens the form of the empty slot, signs the Concept off,
+  // or opens the Part that blocks, the Contract Version or the build.
+  const takeStep = (step: NextStep) => {
+    switch (step.kind) {
+      case 'add':
+        return changeSearch({ ...search, add: step.type })
+      case 'sign':
+        return stepWrite.write('Saving', () =>
+          signContract({ project, concept: concept.slug }),
+        )
+      case 'open':
+        return router.navigate({ href: recordHref(step.part) })
+      case 'version':
+        return router.navigate({ href: versionHref(step.version) })
+      default:
+        return undefined
+    }
+  }
+  const step = flow?.next
+
   return (
     <ConceptView
       concept={concept}
@@ -385,11 +419,31 @@ export function ConceptScreen({
       }
       removeFailure={failure}
       contract={
-        hasContract && (
+        // The sign-off is in the box Next, so a Contract with no Version,
+        // no Part that blocks and no empty slot has nothing to show.
+        hasContract &&
+        (contract.versions.length > 0 ||
+          contract.blocking.length > 0 ||
+          contract.emptySlots.length > 0) && (
           <ContractSection contract={contract} builds={builds?.builds} />
         )
       }
       assignees={<AssigneesControl target={{ concept: concept.slug }} />}
+      flow={
+        flow && { name: flow.name, steps: flow.steps, current: flow.current }
+      }
+      next={
+        flow && {
+          actions:
+            !step || step.kind === 'answer'
+              ? []
+              : step.kind === 'link'
+                ? [{ label: step.label, href: step.href }]
+                : [{ label: step.label, onClick: () => void takeStep(step) }],
+          pending: stepWrite.pending,
+          error: stepWrite.failure,
+        }
+      }
     >
       {live}
     </ConceptView>
