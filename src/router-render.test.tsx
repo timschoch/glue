@@ -566,6 +566,120 @@ describe('a section', () => {
     button('Make Hunch, The list is slow')
   })
 
+  // The list of Glue with two groups: two Signals say that the list is
+  // slow, three ask for an export.
+  function renderGroupedSignals(changed: Partial<Server> = {}) {
+    const again = {
+      ...signals[0],
+      url: 'https://support.test/agent/tickets/4',
+      title: 'The list is slow to open',
+      source: 'support',
+    }
+    const lost = [11, 12, 13].map((issue) => ({
+      ...signals[0],
+      url: `https://github.com/timschoch/glue/issues/${issue}`,
+      title: 'I cannot find the export',
+    }))
+    return renderPage('/glue/part-model?section=Understand', {
+      fetchSignals: vi.fn(() =>
+        Promise.resolve({
+          signals: [signals[0], again, ...lost, signals[1]],
+          failures: [],
+          groups: [
+            {
+              title: signals[0].title,
+              signals: [signals[0].url, again.url],
+              sources: ['github', 'support'],
+            },
+            {
+              title: lost[0].title,
+              signals: lost.map(({ url }) => url),
+              sources: ['github'],
+            },
+          ],
+        }),
+      ),
+      ...changed,
+    })
+  }
+
+  const nextBox = () => within(screen.getByRole('region', { name: 'Next' }))
+
+  it('shows the flow from evidence to an Insight at the Signals, then makes a Hunch from the largest group', async () => {
+    const { expectAddress, server } = await renderGroupedSignals()
+
+    const bar = screen.getByRole('list', { name: 'Evidence to Insight' })
+    expect(
+      within(bar)
+        .getAllByRole('button')
+        .map((step) => [step.title, step.getAttribute('aria-current')]),
+    ).toEqual([
+      ['Group', 'step'],
+      ['Check', null],
+      ['Verify', null],
+    ])
+    expect(
+      screen.getByRole('region', { name: 'Next' }).previousElementSibling,
+    ).toBe(bar)
+
+    await userEvent.click(
+      nextBox().getByRole('button', {
+        name: 'Make Hunch I cannot find the export',
+      }),
+    )
+
+    await expectAddress('/glue/part-model/I3', { section: 'Understand' })
+    expect(server.addSignalInsight).toHaveBeenCalledWith({
+      project: 'glue',
+      insight: {
+        signals: [
+          'https://github.com/timschoch/glue/issues/11',
+          'https://github.com/timschoch/glue/issues/12',
+          'https://github.com/timschoch/glue/issues/13',
+        ],
+        concept: 'part-model',
+      },
+    })
+  })
+
+  it('shows no step bar and no box Next at Signals with no group', async () => {
+    await renderPage('/glue/part-model?section=Understand')
+
+    screen.getByRole('heading', { name: 'Signals' })
+    expect(
+      screen.queryByRole('list', { name: 'Evidence to Insight' }),
+    ).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Next' })).toBeNull()
+  })
+
+  it('shows in the box Next that the Hunch saves, then why it was not made', async () => {
+    let answer = (_: { message: string }) => {}
+    const saved = new Promise<{ message: string }>((resolve) => {
+      answer = resolve
+    })
+    await renderGroupedSignals({ addSignalInsight: vi.fn(() => saved) })
+
+    await userEvent.click(
+      nextBox().getByRole('button', {
+        name: 'Make Hunch I cannot find the export',
+      }),
+    )
+
+    await nextBox().findByText('Saving')
+    expect(nextBox().queryByRole('button')).toBeNull()
+    expect(button('Make Hunch, The list is slow')).toHaveProperty(
+      'disabled',
+      true,
+    )
+
+    answer({ message: 'A Signal is not in the Project' })
+
+    await nextBox().findByText('A Signal is not in the Project')
+    nextBox().getByRole('button', {
+      name: 'Make Hunch I cannot find the export',
+    })
+  })
+
   it('goes back to the Signals when the form is cancelled', async () => {
     await renderPage('/glue?section=Understand')
 
@@ -646,6 +760,24 @@ describe('a section', () => {
     await userEvent.click(button('No phone'))
 
     expect(signalTitles()).toHaveLength(4)
+  })
+
+  it('makes the Hunch of the next step from the Signals that pass the saved filter', async () => {
+    const { server } = await renderFilteredSignals()
+
+    await userEvent.click(button('No phone'))
+    await userEvent.click(button('Make Hunch The list is slow'))
+
+    expect(server.addSignalInsight).toHaveBeenCalledWith({
+      project: 'glue',
+      insight: {
+        signals: [
+          'https://github.com/timschoch/glue/issues/7',
+          'https://support.test/agent/tickets/4',
+        ],
+        concept: 'glue',
+      },
+    })
   })
 
   it('saves a new filter of the Signals, then shows the list again', async () => {

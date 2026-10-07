@@ -34,6 +34,15 @@ export type NextStep =
   | { kind: 'link'; href: string; label: string }
   | { kind: 'sign'; label: string }
   | { kind: 'version'; version: number; label: string }
+  | HunchStep
+
+// The Signals of a group become a Hunch: their addresses, in the order of
+// the list.
+type HunchStep = {
+  kind: 'hunch'
+  label: string
+  signals: ReadonlyArray<string>
+}
 
 export type CommonFlow = {
   name: string
@@ -297,6 +306,27 @@ export function findConceptFlow(
   return unread
     ? { ...flows.use, current: 0, next: openPart(unread) }
     : { ...flows.concept, current: 4, next: undefined }
+}
+
+// The common flow of the Signals list (glue/D68): it is at the step Group,
+// and the step makes a Hunch from the largest of the groups. `groups` are
+// the groups that the member sees, so a filter that is on counts. Of two
+// groups of one size the first one in the list wins. The Signals of a Hunch
+// are in no group. With no group the list is in no flow: no step that
+// never ends.
+export function findSignalsFlow(
+  groups: ReadonlyArray<{ title: string; signals: ReadonlyArray<string> }>,
+): (CommonFlow & { next: HunchStep }) | undefined {
+  if (groups.length === 0) return undefined
+  const { title, signals } = groups.reduce((largest, group) =>
+    group.signals.length > largest.signals.length ? group : largest,
+  )
+  const next: HunchStep = {
+    kind: 'hunch',
+    label: `Make Hunch ${title}`,
+    signals,
+  }
+  return { ...flows.evidence, current: 0, next }
 }
 
 // The common flow that fits the type and the state of the Part. A flag

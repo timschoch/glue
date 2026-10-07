@@ -10,6 +10,10 @@ import {
 import { useId, useState } from 'react'
 import type { MouseEvent } from 'react'
 
+import { NextBox } from './next-box.tsx'
+import type { NextBoxProps } from './next-box.tsx'
+import { StepBar } from './step-bar.tsx'
+import type { StepBarProps } from './step-bar.tsx'
 import styles from './signals.module.scss'
 
 // One Signal: an item that stays in its tool, with its address there.
@@ -51,6 +55,11 @@ export type SignalsProps = {
   // group is the address of its first Signal. While one is on its way, no
   // second one starts.
   hunch?: { group: string; pending?: string; failure?: string }
+  // The common flow of the list, for the groups that the filters show: its
+  // step bar and its box Next. Nothing: the list is in no flow.
+  findFlow?: (
+    groups: ReadonlyArray<{ title: string; signals: Array<string> }>,
+  ) => { bar: StepBarProps; next: NextBoxProps } | undefined
   // The saved filters of the Project. The caller gives the Signals that
   // pass the ones that are on, and their groups.
   savedFilters?: ReadonlyArray<{ id: number; name: string; selected: boolean }>
@@ -74,12 +83,15 @@ export type SignalsProps = {
 // stand beside them. A saved filter that is on has a button that opens its
 // form. The groups come first, each under its title, with the button that
 // turns it into a Hunch. A group shows when the filters show two of its
-// Signals or more.
+// Signals or more. The step bar of the flow and the box Next stand under
+// the title. The next step makes a Hunch too: while it saves, no group
+// starts a second one.
 export function Signals({
   signals,
   failures = [],
   groups = [],
   hunch,
+  findFlow,
   savedFilters = [],
   onSavedFilterChange,
   onAddFilter,
@@ -113,6 +125,14 @@ export function Signals({
       members: shown.filter(({ url }) => group.signals.includes(url)),
     }))
     .filter(({ members }) => members.length > 1)
+  const flow = findFlow?.(
+    shownGroups.map(({ title, members }) => ({
+      title,
+      signals: members.map(({ url }) => url),
+    })),
+  )
+  const saving =
+    hunch?.pending !== undefined || flow?.next.pending !== undefined
   const hasSaved = savedFilters.length > 0
   // A list with no Signal and no saved filter has nothing to filter.
   const canAdd = onAddFilter && (signals.length > 0 || hasSaved)
@@ -205,6 +225,12 @@ export function Signals({
       <h2 id={listId} className={styles.title}>
         Signals
       </h2>
+      {flow && (
+        <div className={styles.flow}>
+          <StepBar {...flow.bar} />
+          <NextBox {...flow.next} />
+        </div>
+      )}
       {failures.map(({ source, reason }) => {
         const label = toSourceLabel(source)
         // A reason that names its source stands alone.
@@ -293,7 +319,7 @@ export function Signals({
                       size="sm"
                       kind="ghost"
                       aria-label={`Make Hunch, ${title}`}
-                      disabled={hunch?.pending !== undefined}
+                      disabled={saving}
                       onClick={() => onMakeHunch(members.map(({ url }) => url))}
                     >
                       Make Hunch
@@ -323,6 +349,7 @@ export function Signals({
           )}
           <Button
             size="sm"
+            kind="tertiary"
             className={styles.action}
             disabled={picked.length === 0}
             onClick={() => onMakeInsight(picked.map(({ url }) => url))}

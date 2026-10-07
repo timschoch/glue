@@ -23,7 +23,7 @@ import { flagReasons } from '../design-system/record.tsx'
 import { SectionView } from '../design-system/section-view.tsx'
 import { Signals } from '../design-system/signals.tsx'
 import { AssigneesControl } from './assignees-control.tsx'
-import { findConceptFlow } from './common-flow.ts'
+import { findConceptFlow, findSignalsFlow } from './common-flow.ts'
 import { ContractQuestionsSection } from './contract-questions-section.tsx'
 import type { NextStep } from './common-flow.ts'
 import { ContractSection, useVersionHref } from './contract-screen.tsx'
@@ -112,8 +112,8 @@ export function ConceptScreen({
     useProjectLinks()
   const { pending, failure, write } = useWrite()
   const versionHref = useVersionHref()
-  // The next step of the Concept has its own write: its box shows that it
-  // saves, or why it failed.
+  // The next step of the Concept or of the Signals has its own write: its
+  // box shows that it saves, or why it failed.
   const stepWrite = useWrite()
   // The Hunch of a group of Signals has its own write: the list shows at
   // the group that it saves, or why it was not made.
@@ -192,6 +192,29 @@ export function ConceptScreen({
     },
   }))
 
+  // The Hunch of a group is a draft in the open Concept. The server gives
+  // it the title of the group. Then the member is on the Hunch, where the
+  // flow goes on. `saved` is the write that shows it: the one of the group,
+  // or the one of the next step.
+  const makeHunch = (
+    urls: ReadonlyArray<string>,
+    saved: ReturnType<typeof useWrite>,
+  ) =>
+    void saved.write(
+      'Saving',
+      () =>
+        addSignalInsight({
+          project,
+          insight: { signals: [...urls], concept: concept.slug },
+        }),
+      ({ id }) =>
+        router.navigate({
+          to: '/$project/$concept/$recordId',
+          params: { project, concept: concept.slug, recordId: id },
+          search: { section: search.section, pins: search.pins },
+        }),
+    )
+
   const levels = new Map(parts.map(({ id, flightLevel }) => [id, flightLevel]))
   // What comes live from the tools of a section, after its Parts.
   const live = (
@@ -224,24 +247,29 @@ export function ConceptScreen({
           onMakeInsight={(urls) =>
             setPicked(signals.signals.filter(({ url }) => urls.includes(url)))
           }
-          // The Hunch of a group is a draft in the open Concept. The server
-          // gives it the title of the group.
           onMakeHunch={(urls) => {
             setHunchGroup(urls[0])
-            void hunchWrite.write(
-              'Saving',
-              () =>
-                addSignalInsight({
-                  project,
-                  insight: { signals: urls, concept: concept.slug },
-                }),
-              ({ id }) =>
-                router.navigate({
-                  to: '/$project/$concept/$recordId',
-                  params: { project, concept: concept.slug, recordId: id },
-                  search: { section: search.section, pins: search.pins },
-                }),
-            )
+            makeHunch(urls, hunchWrite)
+          }}
+          // The flow from evidence to an Insight starts at the Signals
+          // (glue/D68): the next step makes the Hunch of the largest group.
+          findFlow={(groups) => {
+            const flow = findSignalsFlow(groups)
+            if (!flow) return undefined
+            const { name, steps, current, next } = flow
+            return {
+              bar: { name, steps, current },
+              next: {
+                actions: [
+                  {
+                    label: next.label,
+                    onClick: () => makeHunch(next.signals, stepWrite),
+                  },
+                ],
+                pending: stepWrite.pending,
+                error: stepWrite.failure,
+              },
+            }
           }}
           onOpenInsight={(recordId, event) => {
             const opened = listed.find(

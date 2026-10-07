@@ -70,6 +70,24 @@ export const Groups: Story = {
   },
 }
 
+// The list is in the flow from evidence to an Insight: the next step makes
+// the Hunch of the largest group.
+export const Flow: Story = {
+  args: {
+    ...Groups.args,
+    findFlow: ([largest]) => ({
+      bar: {
+        name: 'Evidence to Insight',
+        steps: ['Group', 'Check', 'Verify'],
+        current: 0,
+      },
+      next: {
+        actions: [{ label: `Make Hunch ${largest.title}`, onClick: () => {} }],
+      },
+    }),
+  },
+}
+
 export const HunchSaves: Story = {
   args: {
     ...Groups.args,

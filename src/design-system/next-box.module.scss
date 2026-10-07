@@ -19,6 +19,13 @@ $text-width: $card-width * 2;
   @include type-style('heading-compact-02');
 }
 
+// The button is never wider than the box: its label has the title of a
+// Part or of a group of Signals, and a narrow screen has no room for it in
+// one line.
+.box > :global(.cds--btn) {
+  max-inline-size: min(100%, #{$card-width});
+}
+
 // The button with its menu is as wide as its label, up to the width of the
 // box. Carbon cuts the label at a fixed width, and a label has the title of
 // a Part.
