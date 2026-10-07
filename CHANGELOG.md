@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.1](https://github.com/timschoch/glue/compare/v1.25.0...v1.25.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **trust:** publish a waiting Part again when its cause is dropped ([#362](https://github.com/timschoch/glue/issues/362)) ([917ddf9](https://github.com/timschoch/glue/commit/917ddf9936e8ede8215f86eb092275b9148ec144))
+
 ## [1.25.0](https://github.com/timschoch/glue/compare/v1.24.0...v1.25.0) (2026-10-07)
 
 
