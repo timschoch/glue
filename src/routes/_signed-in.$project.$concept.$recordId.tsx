@@ -36,11 +36,8 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
         part.type === 'decision'
           ? await context.fetchBuilds(project, { decision: part.id })
           : undefined
-      // Only an Insight has an Ask to another Project.
-      const asking =
-        part.type === 'insight'
-          ? await context.fetchAskState({ project, recordId })
-          : undefined
+      // Each Part can have an Ask to another Project.
+      const asking = await context.fetchAskState({ project, recordId })
       // The Signals come live from their tools, and only they name their
       // source. Only a Hunch that grew from two Signals or more can have
       // two sources (glue/D54).
@@ -83,9 +80,9 @@ function OpenRecord() {
       part={part}
       parts={parts}
       builds={builds?.builds}
-      ask={asking?.ask}
+      ask={asking.ask}
       signalSources={signalSources}
-      askable={asking?.projects}
+      askable={asking.projects}
     />
   )
 }

@@ -429,13 +429,13 @@ function listPartPaths() {
       get: {
         operationId: 'listAsks',
         summary:
-          'List the Asks in Mine of the Project: the ones to pick or to hand back, and the ones with an Insight to check',
+          'List the Asks in Mine of the Project: the ones to pick or to hand back, and the ones with a Part to check',
         requestParams: {
           path,
           query: z.object({
             member: z.string().optional().meta({
               description:
-                'The e-mail address of a member: only the Asks that nobody picked, the ones that the member picked, and the ones of the Hunches that the member has',
+                'The e-mail address of a member: only the Asks that nobody picked, the ones that the member picked, and the ones of the Parts that the member has',
             }),
           }),
         },
@@ -450,7 +450,7 @@ function listPartPaths() {
       post: {
         operationId: 'addAsk',
         summary:
-          'Ask another Project to check a Hunch. The Project must be one that this Project may reference',
+          'Ask another Project to check a Hunch, or for a Decision. The Project must be one that this Project may reference',
         requestParams: { path },
         requestBody: jsonContent(askInputSchema),
         responses: {
@@ -467,7 +467,7 @@ function listPartPaths() {
       patch: {
         operationId: 'updateAsk',
         summary:
-          'Take the next step of an Ask as the asked Project: pick it, or hand back a published Insight',
+          'Take the next step of an Ask as the asked Project: pick it, or hand back a published Insight or Decision. A Decision that is handed back ends the Ask: the Part that waits needs it',
         requestParams: {
           path: path.extend({
             askId: z.string().meta({ description: 'The id of the Ask' }),

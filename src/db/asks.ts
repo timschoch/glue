@@ -4,53 +4,70 @@ import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
+import { addJoint } from './part-records.ts'
 import { canReference, getProjectId } from './projects.ts'
 import { InvalidRecordError, PartNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
 
-// Ask another team (glue/D51): a member with a Hunch asks another Project to
-// check it. A member of that Project picks the Ask and hands back a
-// published Insight of the own Project. The member who asked glues it to
-// the Hunch: the Joint of a reference. Nothing moves and nothing is copied.
+// Ask another team. A member names a Part that waits for an answer and asks
+// another Project for it. A member of that Project picks the Ask and hands
+// back a published Part of the own Project. The Ask is done when the Part
+// that waits needs that Part: the Joint of a reference. Nothing moves and
+// nothing is copied.
+//
+// An Ask for an Insight (glue/D51): the Part that waits is a Hunch. The
+// member who asked checks the Insight and glues it to the Hunch.
+// An Ask for a Decision (glue/D56): each Part can wait, and the member
+// writes a question. Glue adds the Joint when the Decision is handed back.
 //
 // The Neon HTTP driver has no transaction of its own. Thus each function
-// writes with one statement.
+// writes with one statement, and the hand back of a Decision with two.
 
 const { asks, concepts, members, parts, projects } = schema
 
+export const askKinds = schema.askKinds
+export type AskKind = schema.AskKind
+
 // What the Ask waits for: a member of the asked Project who picks it, the
-// Insight that this member hands back, or the check of the member who asked.
+// Part that this member hands back, or the check of the member who asked.
 export type AskStep = 'pick' | 'hand-back' | 'check'
 
 // A Part of an Ask, with its Project and the slug of its home Concept.
 export type AskPart = {
   project: { slug: string; name: string }
   id: string
+  type: schema.PartType
   title: string
   trust: schema.Trust
   concept: string
 }
 
-// An Ask that is open: the Hunch does not need the Insight yet.
+// An Ask that is open: the Part that waits does not need the Part that was
+// handed back yet.
 export type Ask = {
   id: number
+  kind: AskKind
   step: AskStep
-  hunch: AskPart
+  // The Part that waits for the answer.
+  part: AskPart
   // The Project that is asked.
   project: { slug: string; name: string }
+  question: string | null
+  // The member who made the Ask. An Ask from before glue/D56 has none.
+  askedBy: { name: string; email: string } | null
   pickedBy: { name: string; email: string } | null
-  // The Insight that was handed back.
-  insight: AskPart | null
+  handedBack: AskPart | null
   askedAt: string
 }
 
-const hunches = alias(parts, 'hunches')
-const hunchConcepts = alias(concepts, 'hunch_concepts')
-const hunchProjects = alias(projects, 'hunch_projects')
-const insights = alias(parts, 'handed_back')
-const insightConcepts = alias(concepts, 'handed_back_concepts')
+const waiting = alias(parts, 'waiting')
+const waitingConcepts = alias(concepts, 'waiting_concepts')
+const waitingProjects = alias(projects, 'waiting_projects')
+const handedBackParts = alias(parts, 'handed_back')
+const handedBackConcepts = alias(concepts, 'handed_back_concepts')
+const askers = alias(members, 'askers')
 
-// The Hunch needs the Insight that was handed back: the Ask is done.
+// The Part that waits needs the Part that was handed back: the Ask is done.
 const isDone = sql`exists (
   select 1 from "joints"
   where "joints"."part_id" = ${asks.partId}
@@ -65,56 +82,73 @@ async function listOpenAsks(
   const found = await db
     .select({
       id: asks.id,
+      kind: asks.kind,
+      question: asks.question,
       askedAt: asks.askedAt,
-      hunch: {
-        id: hunches.recordId,
-        title: hunches.title,
-        trust: hunches.trust,
-        concept: hunchConcepts.slug,
+      part: {
+        id: waiting.recordId,
+        type: waiting.type,
+        title: waiting.title,
+        trust: waiting.trust,
+        concept: waitingConcepts.slug,
       },
-      hunchProject: { slug: hunchProjects.slug, name: hunchProjects.name },
+      partProject: { slug: waitingProjects.slug, name: waitingProjects.name },
       project: { slug: projects.slug, name: projects.name },
+      askedBy: { name: askers.name, email: askers.email },
       pickedBy: { name: members.name, email: members.email },
-      insight: {
-        id: insights.recordId,
-        title: insights.title,
-        trust: insights.trust,
-        concept: insightConcepts.slug,
+      handedBack: {
+        id: handedBackParts.recordId,
+        type: handedBackParts.type,
+        title: handedBackParts.title,
+        trust: handedBackParts.trust,
+        concept: handedBackConcepts.slug,
       },
     })
     .from(asks)
-    .innerJoin(hunches, eq(asks.partId, hunches.id))
-    .innerJoin(hunchConcepts, eq(hunches.conceptId, hunchConcepts.id))
-    .innerJoin(hunchProjects, eq(hunches.projectId, hunchProjects.id))
+    .innerJoin(waiting, eq(asks.partId, waiting.id))
+    .innerJoin(waitingConcepts, eq(waiting.conceptId, waitingConcepts.id))
+    .innerJoin(waitingProjects, eq(waiting.projectId, waitingProjects.id))
     .innerJoin(projects, eq(asks.projectId, projects.id))
+    .leftJoin(askers, eq(asks.askedById, askers.id))
     .leftJoin(members, eq(asks.pickedById, members.id))
-    .leftJoin(insights, eq(asks.handedBackPartId, insights.id))
-    .leftJoin(insightConcepts, eq(insights.conceptId, insightConcepts.id))
+    .leftJoin(handedBackParts, eq(asks.handedBackPartId, handedBackParts.id))
+    .leftJoin(
+      handedBackConcepts,
+      eq(handedBackParts.conceptId, handedBackConcepts.id),
+    )
     .where(and(matches, sql`not ${isDone}`))
     .orderBy(asks.id)
 
-  return found.map(({ id, askedAt, hunch, hunchProject, project, ...ask }) => {
-    const { id: insightId, title, trust, concept } = ask.insight
-    // The Insight is of the asked Project.
-    const insight =
-      insightId === null || title === null || trust === null || concept === null
+  return found.map(({ askedAt, part, partProject, project, ...ask }) => {
+    const { id, type, title, trust, concept } = ask.handedBack
+    // The Part that was handed back is of the asked Project.
+    const handedBack =
+      id === null ||
+      type === null ||
+      title === null ||
+      trust === null ||
+      concept === null
         ? null
-        : { project, id: insightId, title, trust, concept }
+        : { project, id, type, title, trust, concept }
     return {
-      id,
-      step: insight ? 'check' : ask.pickedBy ? 'hand-back' : 'pick',
-      hunch: { project: hunchProject, ...hunch },
+      id: ask.id,
+      kind: ask.kind,
+      step: handedBack ? 'check' : ask.pickedBy ? 'hand-back' : 'pick',
+      part: { project: partProject, ...part },
       project,
+      question: ask.question,
+      askedBy: ask.askedBy,
       pickedBy: ask.pickedBy,
-      insight,
+      handedBack,
       askedAt: askedAt.toISOString(),
     }
   })
 }
 
-// The member has the Hunch of the Ask, or nobody has it. Such a member is
-// the one who asks: the Ask has no record of the member who sent it.
-const hasHunch = (memberEmail: string) => sql`(
+// The member has the Part that waits, or nobody has it. Such a member
+// checks what was handed back, and stands for the member who asked when the
+// Ask names none.
+const hasPart = (memberEmail: string) => sql`(
   not exists (
     select 1 from "assignments"
     where "assignments"."part_id" = ${asks.partId}
@@ -128,11 +162,11 @@ const hasHunch = (memberEmail: string) => sql`(
   )
 )`
 
-// The Asks in Mine of a Project. For the asked Project: each Ask without an
-// Insight, until a member picks it, and then only for that member. For the
-// Project that asked: each Ask with an Insight to check, for the members who
-// have the Hunch and for each member when nobody has it. Without the e-mail
-// address of a member: all of them.
+// The Asks in Mine of a Project. For the asked Project: each Ask with
+// nothing handed back, until a member picks it, and then only for that
+// member. For the Project that asked: each Ask with a Part to check, for the
+// members who have the Part that waits and for each member when nobody has
+// it. Without the e-mail address of a member: all of them.
 export function listMineAsks(
   db: ConceptDb,
   projectSlug: string,
@@ -147,14 +181,14 @@ export function listMineAsks(
       : sql`(${asks.pickedById} is null or ${isMember})`,
   )
   const toCheck = and(
-    eq(hunchProjects.slug, projectSlug),
+    eq(waitingProjects.slug, projectSlug),
     isNotNull(asks.handedBackPartId),
-    memberEmail === undefined ? undefined : hasHunch(memberEmail),
+    memberEmail === undefined ? undefined : hasPart(memberEmail),
   )
   return listOpenAsks(db, sql`(${toPickOrHandBack} or ${toCheck})`)
 }
 
-// The open Ask of the Hunch.
+// The open Ask of the Part that waits.
 export async function findOpenAsk(
   db: ConceptDb,
   projectSlug: string,
@@ -162,7 +196,7 @@ export async function findOpenAsk(
 ): Promise<Ask | undefined> {
   const found = await listOpenAsks(
     db,
-    and(eq(hunchProjects.slug, projectSlug), eq(hunches.recordId, recordId)),
+    and(eq(waitingProjects.slug, projectSlug), eq(waiting.recordId, recordId)),
   )
   return found.at(0)
 }
@@ -176,9 +210,12 @@ export function listAskableProjects(
   return db
     .select({ slug: projects.slug, name: projects.name })
     .from(projectReferences)
-    .innerJoin(hunchProjects, eq(projectReferences.projectId, hunchProjects.id))
+    .innerJoin(
+      waitingProjects,
+      eq(projectReferences.projectId, waitingProjects.id),
+    )
     .innerJoin(projects, eq(projectReferences.referencedProjectId, projects.id))
-    .where(eq(hunchProjects.slug, projectSlug))
+    .where(eq(waitingProjects.slug, projectSlug))
     .orderBy(projects.slug)
 }
 
@@ -192,75 +229,93 @@ function parseInput<TOutput>(inputSchema: z.ZodType<TOutput>, input: unknown) {
 const idRowsSchema = z.object({ rows: z.array(z.object({ id: z.number() })) })
 
 export const newAskSchema = z.strictObject({
-  insight: z
-    .string()
-    .meta({ description: 'The record id of the Insight of the level Hunch' }),
+  kind: z.enum(askKinds).default('insight').meta({
+    description:
+      'What the Ask asks for. insight: the check of a Hunch. decision: a Decision',
+  }),
+  part: z.string().meta({
+    description:
+      'The record id of the Part that waits for the answer. An Ask for an Insight: an Insight of the level Hunch',
+  }),
   toProject: z.string().meta({
     description:
       'The slug of the Project that is asked: one that this Project may reference',
+  }),
+  question: z.string().trim().min(1).optional().meta({
+    description:
+      'What the member who asks wants to know. An Ask for a Decision needs it',
   }),
 })
 
 export type NewAsk = z.input<typeof newAskSchema>
 
-// The Insight of the Project with the record id.
-async function getInsight(
-  db: ConceptDb,
-  projectSlug: string,
-  recordId: string,
-) {
+// The Part of the Project with the record id.
+async function getPart(db: ConceptDb, projectSlug: string, recordId: string) {
   const projectId = await getProjectId(db, projectSlug)
   const found = await db
     .select({
       id: parts.id,
+      type: parts.type,
       evidenceLevel: parts.evidenceLevel,
       workState: parts.workState,
     })
     .from(parts)
-    .where(
-      and(
-        eq(parts.projectId, projectId),
-        eq(parts.recordId, recordId),
-        eq(parts.type, 'insight'),
-      ),
-    )
-  const insight = found.at(0)
-  if (!insight) throw new PartNotFoundError(recordId)
-  return insight
+    .where(and(eq(parts.projectId, projectId), eq(parts.recordId, recordId)))
+  const part = found.at(0)
+  if (!part) throw new PartNotFoundError(recordId)
+  return part
 }
 
-// Asks the other Project to check the Hunch, and gives back the id of the
-// Ask. The Project must be one that this Project may reference. A Hunch has
-// one open Ask. An Insight with no level is a Hunch.
+// Asks the other Project, and gives back the id of the Ask. The Project must
+// be one that this Project may reference. A Part has one open Ask, and a
+// sunk Part has none. An Ask for an Insight is the Ask of a Hunch: an
+// Insight with no level is a Hunch. An Ask for a Decision has a question.
+// `memberEmail` is the member of the Project who asks.
 export async function addAsk(
   db: ConceptDb,
   projectSlug: string,
   ask: NewAsk,
+  memberEmail?: string,
   now = new Date(),
 ): Promise<number> {
-  const { insight, toProject } = parseInput(newAskSchema, ask)
-  const hunch = await getInsight(db, projectSlug, insight)
-  if ((hunch.evidenceLevel ?? 'hunch') !== 'hunch')
-    throw new InvalidRecordError(`"${insight}" is not a Hunch`)
+  const { kind, part, toProject, question } = parseInput(newAskSchema, ask)
+  const waits = await getPart(db, projectSlug, part)
+  const isHunch =
+    waits.type === 'insight' && (waits.evidenceLevel ?? 'hunch') === 'hunch'
+  if (kind === 'insight' && !isHunch)
+    throw new InvalidRecordError(`"${part}" is not a Hunch`)
+  if (kind === 'decision' && question === undefined)
+    throw new InvalidRecordError('an Ask for a Decision needs a question')
+  if (waits.workState === 'sunk')
+    throw new InvalidRecordError(`"${part}" is sunk`)
   if (!(await canReference(db, projectSlug, toProject)))
     throw new InvalidRecordError(
       `Project "${projectSlug}" cannot ask Project "${toProject}"`,
     )
+  const asker =
+    memberEmail === undefined
+      ? null
+      : await getMember(db, projectSlug, memberEmail)
   const askedId = await getProjectId(db, toProject)
   const result = await db.execute(sql`
-    insert into "asks" ("part_id", "project_id", "asked_at")
+    insert into "asks" (
+      "kind", "part_id", "project_id", "question", "asked_by_id", "asked_at"
+    )
     select
-      ${hunch.id}::integer,
+      ${kind}::text,
+      ${waits.id}::integer,
       ${askedId}::integer,
+      ${question ?? null}::text,
+      ${asker?.id ?? null}::integer,
       ${now.toISOString()}::timestamptz
     where not exists (
       select 1 from "asks"
-      where "asks"."part_id" = ${hunch.id}::integer and not ${isDone}
+      where "asks"."part_id" = ${waits.id}::integer and not ${isDone}
     )
     returning "id"
   `)
   const added = idRowsSchema.parse(result).rows.at(0)
-  if (!added) throw new InvalidRecordError(`"${insight}" has an Ask already`)
+  if (!added) throw new InvalidRecordError(`"${part}" has an Ask already`)
   return added.id
 }
 
@@ -323,48 +378,74 @@ export async function pickAsk(
     )
 }
 
-// The member who picked the Ask hands back a published Insight of the own
-// Project. From now on the Ask shows in Mine of the Project that asked.
+// The Part type that an Ask of each kind takes back, in words.
+const handedBackTypes: Record<AskKind, string> = {
+  insight: 'an Insight',
+  decision: 'a Decision',
+}
+
+// The member who picked the Ask hands back a published Part of the own
+// Project: an Insight or a Decision, as the kind of the Ask says. An Ask
+// with an Insight shows in Mine of the Project that asked from now on. An
+// Ask with a Decision is done: Glue adds the Joint from the Part that waits
+// to the Decision.
 export async function handBackAsk(
   db: ConceptDb,
   projectSlug: string,
   askId: number,
-  insightId: string,
+  recordId: string,
   now = new Date(),
 ): Promise<void> {
   const ask = await getAsk(db, projectSlug, askId)
   if (ask.step === 'pick')
     throw new InvalidRecordError(`Ask ${askId} is not picked yet`)
-  const insight = await getInsight(db, projectSlug, insightId)
-  if (insight.workState !== 'published')
-    throw new InvalidRecordError(`"${insightId}" is not published`)
+  const part = await getPart(db, projectSlug, recordId)
+  if (part.type !== ask.kind)
+    throw new InvalidRecordError(
+      `"${recordId}" is not ${handedBackTypes[ask.kind]}`,
+    )
+  if (part.workState !== 'published')
+    throw new InvalidRecordError(`"${recordId}" is not published`)
   const handedBack = await db
     .update(asks)
-    .set({ handedBackPartId: insight.id, handedBackAt: now })
+    .set({ handedBackPartId: part.id, handedBackAt: now })
     .where(and(eq(asks.id, askId), isNull(asks.handedBackPartId)))
     .returning({ id: asks.id })
   if (handedBack.length === 0)
-    throw new InvalidRecordError(`Ask ${askId} has an Insight already`)
+    throw new InvalidRecordError(`Ask ${askId} is handed back already`)
+  if (ask.kind === 'decision')
+    await addJoint(db, ask.part.project.slug, {
+      part: ask.part.id,
+      needs: `${projectSlug}/${recordId}`,
+    })
 }
 
 // The member who asked takes the Ask back while no member picked it. The
-// Ask is gone, and the Hunch can ask again.
+// Ask is gone, and the Part can ask again. An Ask that names no member who
+// asked: a member who has the Part that waits, or each member when nobody
+// has it.
 export async function takeBackAsk(
   db: ConceptDb,
   projectSlug: string,
   askId: number,
   memberEmail: string,
 ): Promise<void> {
-  const isAsk = and(eq(hunchProjects.slug, projectSlug), eq(asks.id, askId))
+  const isAsk = and(eq(waitingProjects.slug, projectSlug), eq(asks.id, askId))
   const found = await listOpenAsks(db, isAsk)
   const ask = found.at(0)
   if (!ask) throw new InvalidRecordError(`Ask ${askId} not found`)
   await getMember(db, projectSlug, memberEmail)
-  const own = await listOpenAsks(db, and(isAsk, hasHunch(memberEmail.trim())))
-  if (own.length === 0)
-    throw new InvalidRecordError(
-      `${memberEmail.trim()} does not have the Hunch of Ask ${askId}`,
-    )
+  const email = memberEmail.trim()
+  if (ask.askedBy) {
+    if (ask.askedBy.email.toLowerCase() !== email.toLowerCase())
+      throw new InvalidRecordError(`${email} did not make Ask ${askId}`)
+  } else {
+    const own = await listOpenAsks(db, and(isAsk, hasPart(email)))
+    if (own.length === 0)
+      throw new InvalidRecordError(
+        `${email} does not have the Hunch of Ask ${askId}`,
+      )
+  }
   const takenBack = ask.pickedBy
     ? []
     : await db

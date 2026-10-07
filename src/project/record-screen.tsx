@@ -50,7 +50,7 @@ export function RecordScreen({
   parts: ReadonlyArray<PartSummary>
   // The builds that name the record.
   builds?: ReadonlyArray<Build>
-  // The open Ask of a Hunch.
+  // The open Ask of the Part.
   ask?: Ask | null
   // The sources that gave the Signals of a Hunch.
   signalSources?: ReadonlyArray<string>
@@ -200,16 +200,26 @@ export function RecordScreen({
   // ask the owner. Only the owner answers a flag.
   const next = flow?.next
   const { answeredBy } = part
-  // A member asks another Project to check a Hunch that has no open Ask. The
-  // member who asked takes the Ask back while nobody picked it: a member who
-  // has the Hunch, or each member when nobody has it.
+  // A member asks another Project to check a Hunch that has no open Ask, or
+  // for a Decision that a Part waits for. The member who asked takes the Ask
+  // back while nobody picked it. An Ask that names no such member: a member
+  // who has the Part, or each member when nobody has it.
   const holders = people.assignments.filter(
     ({ part: held }) => held === part.id,
   )
+  const me = people.members.find(({ id }) => id === people.me)
   const isAsker =
-    people.me !== null &&
-    (holders.length === 0 ||
-      holders.some(({ memberId }) => memberId === people.me))
+    me !== undefined &&
+    (ask?.askedBy
+      ? ask.askedBy.email === me.email
+      : holders.length === 0 ||
+        holders.some(({ memberId }) => memberId === me.id))
+  const asksNow =
+    part.workState !== 'sunk' && !ask && askable.length > 0 && me !== undefined
+  const askedProjects = askable.map((asked) => ({
+    value: asked.slug,
+    text: asked.name,
+  }))
   const askAction: Array<RecordAction> =
     ask?.step === 'pick' && isAsker
       ? [
@@ -221,31 +231,51 @@ export function RecordScreen({
               ),
           },
         ]
-      : part.type === 'insight' &&
-          (part.evidenceLevel ?? 'hunch') === 'hunch' &&
-          part.workState !== 'sunk' &&
-          !ask &&
-          askable.length > 0 &&
-          people.me !== null
+      : asksNow
         ? [
+            ...(part.type === 'insight' &&
+            (part.evidenceLevel ?? 'hunch') === 'hunch'
+              ? [
+                  {
+                    label: 'Ask another team',
+                    choose: {
+                      label: 'Project',
+                      options: askedProjects,
+                      onPick: (toProject: string) =>
+                        void write('Saving', () =>
+                          addAsk({
+                            project,
+                            ask: { kind: 'insight', part: part.id, toProject },
+                          }),
+                        ),
+                    },
+                  },
+                ]
+              : []),
             {
-              label: 'Ask another team',
+              label: 'Ask for a Decision',
               choose: {
                 label: 'Project',
-                options: askable.map((asked) => ({
-                  value: asked.slug,
-                  text: asked.name,
-                })),
-                onPick: (toProject) =>
+                options: askedProjects,
+                words: 'Question',
+                onPick: (toProject: string, question: string) =>
                   void write('Saving', () =>
-                    addAsk({ project, ask: { insight: part.id, toProject } }),
+                    addAsk({
+                      project,
+                      ask: {
+                        kind: 'decision',
+                        part: part.id,
+                        toProject,
+                        question,
+                      },
+                    }),
                   ),
               },
             },
           ]
         : []
-  // The last step of an Ask: the Hunch needs the Insight that came back.
-  const handedBack = ask?.insight
+  // The last step of an Ask: the Part needs the Part that came back.
+  const handedBack = ask?.handedBack
   const glue = async () => {
     if (!handedBack) return
     const needs = `${handedBack.project.slug}/${handedBack.id}`

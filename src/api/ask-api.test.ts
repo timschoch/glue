@@ -81,7 +81,7 @@ async function call(
   return { status: response.status, body: text ? JSON.parse(text) : undefined }
 }
 
-const ask = { insight: 'I1', toProject: 'ux' }
+const ask = { part: 'I1', toProject: 'ux' }
 
 describe('the Ask routes', () => {
   it.each([
@@ -132,19 +132,24 @@ describe('the Ask routes', () => {
       body: [
         {
           id: 1,
+          kind: 'insight',
           step: 'check',
-          hunch: {
+          part: {
             project: { slug: 'bakeday', name: 'Bakeday' },
             id: 'I1',
+            type: 'insight',
             title: 'Novices skip the fold',
             trust: 'solid',
             concept: 'bakeday',
           },
           project: { slug: 'ux', name: 'UX team' },
+          question: null,
+          askedBy: null,
           pickedBy: { name: 'Fred', email: 'fred@example.com' },
-          insight: {
+          handedBack: {
             project: { slug: 'ux', name: 'UX team' },
             id: 'I1',
+            type: 'insight',
             title: 'Novices do not know the word fold',
             trust: 'solid',
             concept: 'ux',
@@ -155,10 +160,52 @@ describe('the Ask routes', () => {
     })
   })
 
+  it('take an Ask for a Decision, with its question and the member who asks', async () => {
+    const added = await call(handleAddAsk, 'POST', {
+      project: 'bakeday',
+      body: {
+        ...ask,
+        kind: 'decision',
+        question: 'Which fold do we teach first?',
+        askedBy: 'mara@example.com',
+      },
+    })
+    await call(handleUpdateAsk, 'PATCH', {
+      project: 'ux',
+      askId: '1',
+      body: { pickedBy: 'fred@example.com' },
+    })
+    const toHandBack = await call(handleListAsks, 'GET', { project: 'ux' })
+    const refused = await call(handleUpdateAsk, 'PATCH', {
+      project: 'ux',
+      askId: '1',
+      body: { decision: 'I1' },
+    })
+
+    expect(added).toEqual({ status: 201, body: { id: 1 } })
+    expect(toHandBack.body).toMatchObject([
+      {
+        id: 1,
+        kind: 'decision',
+        question: 'Which fold do we teach first?',
+        askedBy: { name: 'Mara', email: 'mara@example.com' },
+      },
+    ])
+    expect(refused).toEqual({
+      status: 400,
+      body: {
+        error: {
+          code: 'invalid-request',
+          message: '"I1" is not a Decision',
+        },
+      },
+    })
+  })
+
   it('answer 400 to a rule that the Ask breaks', async () => {
     const response = await call(handleAddAsk, 'POST', {
       project: 'ux',
-      body: { insight: 'I1', toProject: 'bakeday' },
+      body: { part: 'I1', toProject: 'bakeday' },
     })
 
     expect(response).toEqual({

@@ -2318,17 +2318,21 @@ describe('an Ask to another Project', () => {
       addAsk: vi.fn(() => {
         ask = {
           id: 1,
+          kind: 'insight',
           step: 'pick',
-          hunch: {
+          part: {
             project: { slug: 'glue', name: 'Glue' },
             id: 'I3',
+            type: 'insight',
             title: I3,
             trust: 'solid',
             concept: 'part-model',
           },
           project: flexibeck,
+          question: null,
+          askedBy: { name: 'Ada', email: 'ada@example.com' },
           pickedBy: null,
-          insight: null,
+          handedBack: null,
           askedAt: '2026-10-03T12:00:00.000Z',
         }
         return Promise.resolve({ id: 1 })
@@ -2341,13 +2345,14 @@ describe('an Ask to another Project', () => {
         }
         return Promise.resolve(undefined)
       }),
-      handBackAsk: vi.fn(({ insight }) => {
+      handBackAsk: vi.fn(({ part }) => {
         ask = ask && {
           ...ask,
           step: 'check',
-          insight: {
+          handedBack: {
             project: flexibeck,
-            id: insight,
+            id: part,
+            type: 'insight',
             title: study.title,
             trust: 'solid',
             concept: 'flexibeck',
@@ -2382,7 +2387,7 @@ describe('an Ask to another Project', () => {
     )
     expect(asking.addAsk).toHaveBeenCalledExactlyOnceWith({
       project: 'glue',
-      ask: { insight: 'I3', toProject: 'flexibeck' },
+      ask: { kind: 'insight', part: 'I3', toProject: 'flexibeck' },
     })
     cleanup()
 
@@ -2418,7 +2423,7 @@ describe('an Ask to another Project', () => {
     expect(asking.handBackAsk).toHaveBeenCalledExactlyOnceWith({
       project: 'flexibeck',
       askId: 1,
-      insight: 'I1',
+      part: 'I1',
     })
     cleanup()
 
@@ -2444,17 +2449,21 @@ describe('an Ask to another Project', () => {
   // The Ask of Glue to flexibeck that nobody picked.
   const open: Ask = {
     id: 1,
+    kind: 'insight',
     step: 'pick',
-    hunch: {
+    part: {
       project: { slug: 'glue', name: 'Glue' },
       id: 'I3',
+      type: 'insight',
       title: I3,
       trust: 'solid',
       concept: 'part-model',
     },
     project: flexibeck,
+    question: null,
+    askedBy: null,
     pickedBy: null,
-    insight: null,
+    handedBack: null,
     askedAt: '2026-10-03T12:00:00.000Z',
   }
   const picked: Ask = {
@@ -2465,9 +2474,10 @@ describe('an Ask to another Project', () => {
   const handedBack: Ask = {
     ...picked,
     step: 'check',
-    insight: {
+    handedBack: {
       project: flexibeck,
       id: 'I1',
+      type: 'insight',
       title: study.title,
       trust: 'solid',
       concept: 'flexibeck',
@@ -2517,7 +2527,7 @@ describe('an Ask to another Project', () => {
     )
     expect(server.addAsk).toHaveBeenCalledExactlyOnceWith({
       project: 'glue',
-      ask: { insight: 'I3', toProject: 'flexibeck' },
+      ask: { kind: 'insight', part: 'I3', toProject: 'flexibeck' },
     })
   })
 
@@ -2551,13 +2561,6 @@ describe('an Ask to another Project', () => {
   })
 
   it('does not take back the Ask of a Hunch that another member has', async () => {
-    const ofBo: (typeof people.assignments)[number] = {
-      id: 3,
-      memberId: 2,
-      role: 'responsible',
-      concept: null,
-      part: 'I3',
-    }
     await renderPage('/glue/part-model/I3', {
       ...hunchWith(open),
       fetchPeople: vi.fn(() =>
@@ -2569,6 +2572,125 @@ describe('an Ask to another Project', () => {
     })
 
     await expect(act('Take back')).rejects.toThrow('No action Take back')
+  })
+
+  const ada = { name: 'Ada', email: 'ada@example.com' }
+  const ofBo: (typeof people.assignments)[number] = {
+    id: 3,
+    memberId: 2,
+    role: 'responsible',
+    concept: null,
+    part: 'I3',
+  }
+
+  it('lets the member who made the Ask take it back, with the Hunch of another member', async () => {
+    const { server } = await renderPage('/glue/part-model/I3', {
+      ...hunchWith({ ...open, askedBy: ada }),
+      fetchPeople: vi.fn(() =>
+        Promise.resolve({
+          ...people,
+          assignments: [...people.assignments, ofBo],
+        }),
+      ),
+    })
+
+    await act('Take back')
+
+    await waitFor(() =>
+      expect(server.takeBackAsk).toHaveBeenCalledExactlyOnceWith({
+        project: 'glue',
+        askId: 1,
+      }),
+    )
+  })
+
+  it('does not take back the Ask that another member made', async () => {
+    await renderPage(
+      '/glue/part-model/I3',
+      hunchWith({
+        ...open,
+        askedBy: { name: 'Bo', email: 'bo@example.com' },
+      }),
+    )
+
+    await expect(act('Take back')).rejects.toThrow('No action Take back')
+  })
+
+  it('asks for a Decision from a Guardrail, and Bo hands a Decision back', async () => {
+    const question = 'How long may a query of the map take?'
+    // The published Decision of flexibeck that Bo hands back.
+    const decided: LeveledPart = {
+      ...parts[2],
+      id: 'D1',
+      title: 'The map loads in two steps',
+      concept: 'flexibeck',
+      conceptTitle: 'flexibeck',
+    }
+    const asked: Ask = {
+      ...picked,
+      kind: 'decision',
+      part: {
+        ...open.part,
+        id: 'R1',
+        type: 'guardrail',
+        title: R1,
+        concept: 'read-model',
+      },
+      question,
+      askedBy: ada,
+    }
+
+    const { server } = await renderPage('/glue/read-model/R1', hunchWith(null))
+    await act('Ask for a Decision')
+    await userEvent.click(button('Send'))
+
+    // An Ask for a Decision waits for its question.
+    expect(server.addAsk).not.toHaveBeenCalled()
+
+    await userEvent.type(field('Question'), question)
+    await userEvent.click(button('Send'))
+
+    await waitFor(() =>
+      expect(server.addAsk).toHaveBeenCalledExactlyOnceWith({
+        project: 'glue',
+        ask: {
+          kind: 'decision',
+          part: 'R1',
+          toProject: 'flexibeck',
+          question,
+        },
+      }),
+    )
+    cleanup()
+
+    const mine = await renderPage('/flexibeck?section=Mine', {
+      ...mineOfBo([asked]),
+      fetchParts: vi.fn(() => Promise.resolve([study, decided])),
+    })
+
+    expect(mineAsks()).toEqual([
+      [`Solid Guardrail R1 ${R1} ${question} Glue`, 'Hand back'],
+    ])
+
+    await userEvent.click(button('Hand back'))
+    await userEvent.click(screen.getByRole('combobox', { name: 'Decision' }))
+
+    // Only a Decision goes back.
+    expect(
+      screen.getAllByRole('option').map(({ textContent }) => textContent),
+    ).toEqual(['D1 The map loads in two steps'])
+
+    await userEvent.click(
+      screen.getByRole('option', { name: 'D1 The map loads in two steps' }),
+    )
+
+    await waitFor(() =>
+      expect(mine.server.handBackAsk).toHaveBeenCalledExactlyOnceWith({
+        project: 'flexibeck',
+        askId: 1,
+        part: 'D1',
+      }),
+    )
   })
 
   it('does not take back an Ask that a member picked', async () => {
@@ -2591,7 +2713,7 @@ describe('an Ask to another Project', () => {
   })
 
   it('turns the steps of all Asks off while one step saves', async () => {
-    const other = { ...open, id: 2, hunch: { ...open.hunch, id: 'I4' } }
+    const other = { ...open, id: 2, part: { ...open.part, id: 'I4' } }
     await renderPage('/flexibeck?section=Mine', {
       ...mineOfBo([open, other]),
       pickAsk: vi.fn(() => new Promise<undefined>(() => {})),
