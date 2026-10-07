@@ -1,0 +1,57 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The width of a card in the pinned column.
+$card-width: $spacing-13 * 2;
+
+// The longest line of a text.
+$text-width: $card-width * 2;
+
+// The place of the button, with the reason of a failed action below it.
+.box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-03;
+}
+
+.title {
+  @include type-style('heading-compact-02');
+}
+
+// The button with its menu is as wide as its label, up to the width of the
+// box. Carbon cuts the label at a fixed width, and a label has the title of
+// a Part.
+.combo {
+  max-inline-size: 100%;
+
+  :global(.cds--combo-button__container) {
+    max-inline-size: 100%;
+  }
+
+  :global(.cds--combo-button__primary-action) {
+    min-inline-size: 0;
+  }
+
+  :global(.cds--combo-button__primary-action .cds--btn) {
+    max-inline-size: none;
+  }
+}
+
+// The link of a step, with the menu of the other actions after it.
+.row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+// The answer in words is as wide as the text.
+.words {
+  inline-size: 100%;
+  max-inline-size: $text-width;
+}
+
+// The search and the choice of an action are as wide as one card.
+.search {
+  max-inline-size: $card-width;
+}

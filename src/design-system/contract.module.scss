@@ -103,10 +103,6 @@ $text-width: $card-width * 2;
   grid-template-columns: repeat(auto-fill, minmax(min($card-width, 100%), 1fr));
 }
 
-.action {
-  align-self: flex-start;
-}
-
 // The line below the title of a Version: the checksum, who signed and when.
 .state {
   @include type-style('label-01');

@@ -7,6 +7,7 @@ import {
 
 import { isRecordId } from '../db/record-id.ts'
 import { PageState } from '../design-system/page-state.tsx'
+import { isBuilt } from '../project/common-flow.ts'
 import { LoadError } from '../project/load-error.tsx'
 import { RecordScreen } from '../project/record-screen.tsx'
 
@@ -36,6 +37,23 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
         part.type === 'decision'
           ? await context.fetchBuilds(project, { decision: part.id })
           : undefined
+      // A published Part goes on at a Decision that needs it, until that
+      // Decision is built. Each such Decision is one search of GitHub.
+      const needing =
+        part.workState === 'published' && part.type !== 'decision'
+          ? part.neededBy.filter(
+              ({ part: { type, workState } }) =>
+                type === 'decision' && workState === 'published',
+            )
+          : []
+      const named = await Promise.all(
+        needing.map(({ part: { id } }) =>
+          context.fetchBuilds(project, { decision: id }),
+        ),
+      )
+      const built = needing
+        .filter((_, index) => isBuilt(named[index].builds))
+        .map(({ part: { id } }) => id)
       // Each Part can have an Ask to another Project.
       const asking = await context.fetchAskState({ project, recordId })
       // The Signals come live from their tools, and only they name their
@@ -49,7 +67,7 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
               .filter(({ insight }) => insight?.id === part.id)
               .map(({ source }) => source)
           : undefined
-      return { part, builds, asking, signalSources }
+      return { part, builds, built, asking, signalSources }
     },
     head: ({ loaderData, match, params }) => ({
       meta: [
@@ -73,13 +91,14 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/$recordId')(
 
 function OpenRecord() {
   const { parts } = projectRoute.useLoaderData()
-  const { part, builds, asking, signalSources } = Route.useLoaderData()
+  const { part, builds, built, asking, signalSources } = Route.useLoaderData()
 
   return (
     <RecordScreen
       part={part}
       parts={parts}
       builds={builds?.builds}
+      built={built}
       ask={asking.ask}
       signalSources={signalSources}
       askable={asking.projects}

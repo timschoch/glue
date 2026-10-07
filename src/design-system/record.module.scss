@@ -70,20 +70,6 @@ $text-width: $card-width * 2;
   max-inline-size: 100%;
 }
 
-// The place of the button, with the reason of a failed action below it.
-.action {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: $spacing-03;
-}
-
-// The answer in words is as wide as the text.
-.words {
-  inline-size: 100%;
-  max-inline-size: $text-width;
-}
-
 // The options of a question, one per line. The bar marks the chosen one, as in the side nav.
 .options {
   @include type-style('body-compact-01');

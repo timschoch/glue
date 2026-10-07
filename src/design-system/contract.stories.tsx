@@ -55,7 +55,6 @@ const meta = {
     blocking: [],
     emptySlots: [],
     versionHref: () => '#',
-    onSignOff: () => {},
   },
 } satisfies Meta<typeof ContractPanel>
 
@@ -69,7 +68,6 @@ export const Ahead: Story = { args: { ahead: true } }
 
 export const NoVersion: Story = { args: { versions: [] } }
 
-// The cause of the grey button is above it.
 export const Blocked: Story = { args: { ahead: true, blocking } }
 
 // A required slot of the Kind is empty: its chip is the cause.
@@ -81,10 +79,6 @@ export const EmptySlots: Story = {
       { type: 'flow', count: 1, minCount: 2 },
     ],
   },
-}
-
-export const Failed: Story = {
-  args: { ahead: true, failure: 'sign-off needs Trust solid: F5' },
 }
 
 // A frozen Version: text, no control. It is superseded and its Brief has

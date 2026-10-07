@@ -1,4 +1,4 @@
-import { Button, InlineNotification, Link } from '@carbon/react'
+import { Link } from '@carbon/react'
 import { useId } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 
@@ -48,9 +48,6 @@ export type ContractPanelProps = {
     part: ContractBlockingPart,
     event: MouseEvent<HTMLAnchorElement>,
   ) => void
-  onSignOff: () => void
-  // Why the last sign-off failed.
-  failure?: string
   // What the tools outside Glue have on the Contract. It comes after the
   // Versions.
   children?: ReactNode
@@ -89,8 +86,8 @@ function EmptySlots({ slots }: { slots: ReadonlyArray<EmptySlot> }) {
 }
 
 // The Contract of a Concept: its Contract Versions as a list, the mark of a
-// Concept that is ahead, the Parts and the empty slots that block, and the
-// one action. The action is there when the Concept has something to sign.
+// Concept that is ahead, and the Parts and the empty slots that block. The
+// sign-off is the next step of the Concept, in its box Next.
 export function ContractPanel({
   versions,
   ahead,
@@ -99,8 +96,6 @@ export function ContractPanel({
   versionHref,
   onOpenVersion,
   onOpenPart,
-  onSignOff,
-  failure,
   children,
 }: ContractPanelProps) {
   const titleId = useId()
@@ -160,25 +155,6 @@ export function ContractPanel({
         </div>
       )}
       <EmptySlots slots={emptySlots} />
-      {failure && (
-        <InlineNotification
-          lowContrast
-          hideCloseButton
-          role="alert"
-          kind="error"
-          title={failure}
-        />
-      )}
-      {(ahead || versions.length === 0) && (
-        <Button
-          size="md"
-          className={styles.action}
-          disabled={blocking.length > 0 || emptySlots.length > 0}
-          onClick={onSignOff}
-        >
-          Sign off
-        </Button>
-      )}
     </section>
   )
 }

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import './theme.scss'
 import { ContractPanel, ContractVersionView } from './contract.tsx'
@@ -43,7 +42,6 @@ const BLOCKING: ContractPanelProps['blocking'] = [
 afterEach(cleanup)
 
 function renderPanel(props: Partial<ContractPanelProps> = {}) {
-  const onSignOff = vi.fn()
   render(
     <ContractPanel
       versions={VERSIONS}
@@ -51,12 +49,10 @@ function renderPanel(props: Partial<ContractPanelProps> = {}) {
       blocking={[]}
       emptySlots={[]}
       versionHref={(version) => `#version-${version}`}
-      onSignOff={onSignOff}
       {...props}
     />,
   )
   return {
-    onSignOff,
     panel: within(screen.getByRole('region', { name: 'Contract' })),
   }
 }
@@ -102,39 +98,29 @@ describe('the Contract of a Concept', () => {
     expect(panel.queryByRole('button')).toBeNull()
   })
 
-  it('marks a Concept that is ahead of its Contract, and signs it off', async () => {
-    const { panel, onSignOff } = renderPanel({ ahead: true })
-
-    await userEvent.click(panel.getByRole('button', { name: 'Sign off' }))
+  it('marks a Concept that is ahead of its Contract, with no action', () => {
+    const { panel } = renderPanel({ ahead: true })
 
     panel.getByText('Ahead')
-    expect(onSignOff).toHaveBeenCalledOnce()
+    expect(panel.queryByRole('button')).toBeNull()
   })
 
-  it('signs off a Concept with no Contract Version', () => {
+  it('has no row for a Concept with no Contract Version', () => {
     const { panel } = renderPanel({ versions: [] })
 
     expect(panel.queryAllByRole('link')).toEqual([])
-    panel.getByRole('button', { name: 'Sign off' })
   })
 
-  it('shows the Parts that block above a sign-off that is not available', () => {
+  it('shows the Parts that block', () => {
     const { panel } = renderPanel({ ahead: true, blocking: BLOCKING })
 
     const blocking = within(panel.getByRole('list', { name: 'Blocking' }))
     const card = blocking.getByRole('link', { name: / F5 / })
-    const action = panel.getByRole<HTMLButtonElement>('button', {
-      name: 'Sign off',
-    })
 
     within(card).getByLabelText('Flagged')
-    expect(action.disabled).toBe(true)
-    expect(
-      card.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
   })
 
-  it('shows the empty required slots as dashed chips above a sign-off that is not available', () => {
+  it('shows the empty required slots as dashed chips', () => {
     const { panel } = renderPanel({
       ahead: true,
       emptySlots: [
@@ -146,20 +132,12 @@ describe('the Contract of a Concept', () => {
     const chips = within(
       panel.getByRole('list', { name: 'Empty slots' }),
     ).getAllByRole('listitem')
-    const action = panel.getByRole<HTMLButtonElement>('button', {
-      name: 'Sign off',
-    })
 
     expect(chips.map((chip) => chip.textContent)).toEqual([
       'Metric',
       'Guardrail',
     ])
     expect(border(chips[0])).toContain('dashed')
-    expect(action.disabled).toBe(true)
-    expect(
-      chips[1].compareDocumentPosition(action) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
   })
 
   it('names the count of Parts of a slot that needs more than one', () => {
@@ -179,17 +157,6 @@ describe('the Contract of a Concept', () => {
     const { panel } = renderPanel({ ahead: true })
 
     expect(panel.queryByRole('list', { name: 'Empty slots' })).toBeNull()
-  })
-
-  it('shows why a sign-off failed', () => {
-    const { panel } = renderPanel({
-      ahead: true,
-      failure: 'sign-off needs Trust solid: F5',
-    })
-
-    expect(panel.getByRole('alert').textContent).toContain(
-      'sign-off needs Trust solid: F5',
-    )
   })
 })
 

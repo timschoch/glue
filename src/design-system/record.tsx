@@ -9,22 +9,14 @@ import {
 } from '@carbon/icons-react'
 import {
   Button,
-  ComboButton,
   IconButton,
-  InlineLoading,
-  InlineNotification,
   Link,
-  MenuItem,
-  Modal,
   Popover,
   PopoverContent,
-  RadioButton,
-  RadioButtonGroup,
   Select,
   SelectItem,
-  TextArea,
 } from '@carbon/react'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { MouseEvent, ReactNode } from 'react'
@@ -33,10 +25,11 @@ import type { MarkdownNode } from '../mention.ts'
 
 import { replaceMentions } from '../mention.ts'
 import { Card, evidenceLevels, partTypes, signs, workStates } from './card.tsx'
+import { NextBox } from './next-box.tsx'
 import { PartSearch } from './part-search.tsx'
 import { StepBar } from './step-bar.tsx'
-import { useHydrated } from './use-hydrated.ts'
 import styles from './record.module.scss'
+import type { NextAction } from './next-box.tsx'
 import type {
   CardProps,
   EvidenceLevel,
@@ -491,36 +484,8 @@ function Group({
 const partEnds = (parts: ReadonlyArray<RecordPartSummary>) =>
   parts.map((part) => ({ part }))
 
-// An action that runs with a click. An action that cannot be undone names
-// the dialog that asks first: its title and the words of its button.
-type ClickAction = {
-  label: string
-  onClick: () => void
-  confirm?: { title: string; label: string }
-}
-
-// The search for the Part that an action needs: its label, and the run with
-// the record id of the pick.
-type PartPick = { label: string; onPick: (recordId: string) => void }
-
-// The choice that an action needs: its label, its options, and the run with
-// the value of the pick. A choice with `words` takes a text too: the label
-// of its field. The run gets the text, and waits for it.
-type OptionPick = {
-  label: string
-  options: ReadonlyArray<{ value: string; text: string }>
-  words?: string
-  onPick: (value: string, words: string) => void
-}
-
-// One action on the record. An action with a pick asks for a Part first,
-// and one with a choice for one of its options. An action with an address
-// is a link: it goes to a person, not to Glue.
-export type RecordAction =
-  | ClickAction
-  | { label: string; pick: PartPick }
-  | { label: string; choose: OptionPick }
-  | { label: string; href: string }
+// One action on the record: an action of its box Next.
+export type RecordAction = NextAction
 
 export type RecordProps = {
   part: RecordPart
@@ -541,6 +506,9 @@ export type RecordProps = {
   onOpen?: OpenHandler
   // The first action is the button. The others are in its menu.
   actions?: ReadonlyArray<RecordAction>
+  // false: no step is left. The box Next has no button, and each action is
+  // in the menu.
+  hasStep?: boolean
   // The words of the action that runs. They take the place of the button.
   pending?: string
   // Why the last action failed.
@@ -587,6 +555,7 @@ export function Record({
   watch,
   onOpen,
   actions = [],
+  hasStep,
   pending,
   error,
   words,
@@ -604,76 +573,10 @@ export function Record({
   const homeId = useId()
   const signalsId = useId()
   const searchId = useId()
-  const nextId = useId()
-  const wordsId = useId()
-  const choiceId = useId()
   const questionId = useId()
-  const pickId = useId()
-  const chooseId = useId()
-  const chooseWordsId = useId()
   const activityId = useId()
-  // Carbon renders the closed menu of the button on the server and not in
-  // the browser. So the menu comes after the page is hydrated.
-  const hydrated = useHydrated()
-  // The action that waits for the answer of its dialog.
-  const [confirming, setConfirming] = useState<ClickAction>()
-  // The pick that waits for its Part.
-  const [picking, setPicking] = useState<PartPick>()
   // The old Version that is open: the record id and the number.
   const [openVersion, setOpenVersion] = useState<string>()
-  // The choice that is open: the label of its action, and the option that
-  // is chosen. The button of the Next box sends it.
-  const [choosing, setChoosing] = useState<{
-    label: string
-    choose: OptionPick
-    chosen: string | undefined
-    words: string
-  }>()
-  // The focus goes back to the button of the Next box when the choice closes
-  // with Escape or with the button. The button is away while a write saves.
-  const nextRef = useRef<HTMLElement>(null)
-  const refocus = useRef(false)
-  useEffect(() => {
-    const button = nextRef.current?.querySelector('button')
-    if (!refocus.current || !button) return
-    refocus.current = false
-    button.focus()
-  })
-  const isChoosing = choosing !== undefined
-  useEffect(() => {
-    if (!isChoosing) return
-    const leave = ({ key }: KeyboardEvent) => {
-      if (key !== 'Escape') return
-      refocus.current = true
-      setChoosing(undefined)
-    }
-    document.addEventListener('keydown', leave)
-    return () => document.removeEventListener('keydown', leave)
-  }, [isChoosing])
-  const send = () => {
-    if (choosing?.chosen === undefined) return
-    const said = choosing.words.trim()
-    if (choosing.choose.words !== undefined && said === '') return
-    refocus.current = true
-    setChoosing(undefined)
-    choosing.choose.onPick(choosing.chosen, said)
-  }
-  const run = (action: RecordAction) => {
-    if ('pick' in action) setPicking(action.pick)
-    else if ('choose' in action) {
-      const { label, choose } = action
-      // A second pick of the action closes its choice.
-      setChoosing((open) =>
-        open?.label === label
-          ? undefined
-          : { label, choose, chosen: choose.options.at(0)?.value, words: '' },
-      )
-    } else if ('href' in action) window.location.assign(action.href)
-    else if (action.confirm) setConfirming(action)
-    else action.onClick()
-  }
-  const action = actions.at(0)
-  const otherActions = actions.slice(1)
   // A Part has one Joint to another Part at most, and none to itself. A
   // reference holds a Part of another Project, which can have the same id.
   const joined = new Set([
@@ -787,122 +690,19 @@ export function Record({
         </div>
       )}
       {flow && <StepBar {...flow} />}
-      {(action || pending !== undefined || error !== undefined) && (
-        <section
-          ref={nextRef}
-          aria-labelledby={nextId}
-          className={styles.action}
-        >
-          <h2 id={nextId} className={styles.groupTitle}>
-            Next
-          </h2>
-          {choice && question && (
-            <RadioButtonGroup
-              legendText="Options"
-              name={choiceId}
-              orientation="vertical"
-              valueSelected={choice.value ?? undefined}
-              onChange={(option) => choice.onChange(Number(option))}
-            >
-              {question.options.map((option, index) => (
-                <RadioButton
-                  key={option}
-                  id={`${choiceId}-${index + 1}`}
-                  labelText={option}
-                  value={index + 1}
-                />
-              ))}
-            </RadioButtonGroup>
-          )}
-          {words && (
-            <div className={styles.words}>
-              <TextArea
-                id={wordsId}
-                labelText="Answer"
-                rows={2}
-                value={words.value}
-                onChange={({ target }) => words.onChange(target.value)}
-              />
-            </div>
-          )}
-          {choosing && pending === undefined && (
-            <div className={styles.search}>
-              <Select
-                id={chooseId}
-                labelText={choosing.choose.label}
-                value={choosing.chosen}
-                onChange={({ target }) =>
-                  setChoosing({ ...choosing, chosen: target.value })
-                }
-              >
-                {choosing.choose.options.map(({ value, text }) => (
-                  <SelectItem key={value} value={value} text={text} />
-                ))}
-              </Select>
-            </div>
-          )}
-          {choosing?.choose.words !== undefined && pending === undefined && (
-            <div className={styles.words}>
-              <TextArea
-                id={chooseWordsId}
-                labelText={choosing.choose.words}
-                rows={2}
-                value={choosing.words}
-                onChange={({ target }) =>
-                  setChoosing({ ...choosing, words: target.value })
-                }
-              />
-            </div>
-          )}
-          {pending !== undefined ? (
-            <InlineLoading description={pending} />
-          ) : action && otherActions.length > 0 && hydrated ? (
-            <ComboButton
-              label={choosing ? 'Send' : action.label}
-              onClick={choosing ? send : () => run(action)}
-            >
-              {otherActions.map((other) => (
-                <MenuItem
-                  key={other.label}
-                  label={other.label}
-                  onClick={() => run(other)}
-                />
-              ))}
-            </ComboButton>
-          ) : (
-            action &&
-            (choosing ? (
-              <Button onClick={send}>Send</Button>
-            ) : 'href' in action ? (
-              <Button href={action.href}>{action.label}</Button>
-            ) : (
-              <Button onClick={() => run(action)}>{action.label}</Button>
-            ))
-          )}
-          {picking && pending === undefined && (
-            <div className={styles.search}>
-              <PartSearch
-                id={pickId}
-                label={picking.label}
-                parts={jointParts.filter(({ id }) => id !== part.id)}
-                onPick={(recordId) => {
-                  setPicking(undefined)
-                  picking.onPick(recordId)
-                }}
-              />
-            </div>
-          )}
-          {error !== undefined && (
-            <InlineNotification
-              kind="error"
-              role="alert"
-              lowContrast
-              hideCloseButton
-              title={error}
-            />
-          )}
-        </section>
-      )}
+      <NextBox
+        actions={actions}
+        hasStep={hasStep}
+        pending={pending}
+        error={error}
+        words={words}
+        choice={
+          choice && question
+            ? { ...choice, options: question.options }
+            : undefined
+        }
+        pickParts={jointParts.filter(({ id }) => id !== part.id)}
+      />
       {(emptySlots.length > 0 || part.flags.length > 0) && (
         <ul aria-label="Flags" className={styles.flags}>
           {emptySlots.map((slot) => (
@@ -965,21 +765,6 @@ export function Record({
         ends={partEnds(reviewNotes)}
         onOpen={onOpen}
       />
-      {confirming?.confirm && (
-        <Modal
-          open
-          danger
-          size="xs"
-          modalHeading={confirming.confirm.title}
-          primaryButtonText={confirming.confirm.label}
-          secondaryButtonText="Cancel"
-          onRequestSubmit={() => {
-            setConfirming(undefined)
-            confirming.onClick()
-          }}
-          onRequestClose={() => setConfirming(undefined)}
-        />
-      )}
       {question && !choice && (
         <section aria-labelledby={questionId} className={styles.group}>
           <h2 id={questionId} className={styles.groupTitle}>
