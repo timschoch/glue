@@ -19,6 +19,10 @@ export const projectSignalsSchema = z
           .string()
           .meta({ description: 'The address of the Signal in its tool' }),
         title: z.string(),
+        titleBy: z.literal('glue').optional().meta({
+          description:
+            'glue: Glue gave the title. Then the text says what the Signal is about',
+        }),
         text: z.string().meta({
           description: 'What the user said or did. Empty: the tool has none',
         }),
@@ -38,6 +42,10 @@ export const projectSignalsSchema = z
     groups: z
       .array(
         z.object({
+          title: z.string().meta({
+            description:
+              'What its newest Signal is about: the title, or the text when Glue gave the title',
+          }),
           signals: z.array(z.string()).meta({
             description:
               'The addresses of its Signals. addSignalInsight turns them into a Hunch',

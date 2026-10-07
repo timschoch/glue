@@ -9,7 +9,7 @@ import { findProduct } from './projects.ts'
 import { addInsightOfSignals } from './part-records.ts'
 import { InvalidRecordError, ProductNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
-import { groupSignals } from './signal-groups.ts'
+import { groupSignals, toTitle } from './signal-groups.ts'
 import type { SignalGroup } from './signal-groups.ts'
 
 // A Signal as its tool gives it.
@@ -17,6 +17,9 @@ export type SourceSignal = {
   // The address of the Signal in its tool.
   url: string
   title: string
+  // `glue`: the tool has no title, so the source gave it one. No value: a
+  // person wrote the title.
+  titleBy?: 'glue'
   // What the user said or did, in words. Empty: the tool has none.
   text: string
   // The day that the Signal came in: 2026-10-02.
@@ -145,9 +148,9 @@ export async function listSignals(
 }
 
 // Adds an Insight as a draft that grows from the Signals. Its level is
-// hunch when the input names none, and its title is the title of the newest
-// Signal. So the Signals of a group become a Hunch in one step. Gives back
-// its record id.
+// hunch when the input names none, and its title is what the newest Signal
+// is about. So the Signals of a group become a Hunch in one step, with the
+// title of the group. Gives back its record id.
 export async function addSignalInsight(
   db: ConceptDb,
   sources: ReadonlyArray<SignalSource>,
@@ -183,11 +186,7 @@ export async function addSignalInsight(
     projectSlug,
     {
       ...insight,
-      title:
-        insight.title ??
-        picked.reduce((newest, signal) =>
-          signal.date > newest.date ? signal : newest,
-        ).title,
+      title: insight.title ?? toTitle(picked),
       source: insight.source ?? urls.join(' '),
     },
     picked.map(({ url, title }) => ({ url, title })),

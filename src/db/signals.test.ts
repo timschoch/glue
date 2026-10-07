@@ -127,7 +127,11 @@ describe('listSignals', () => {
     const { groups } = await listSignals(db, [github, slowSupport], 'glue')
 
     expect(groups).toEqual([
-      { signals: [slow.url, slowTicket.url], sources: ['github', 'support'] },
+      {
+        title: slow.title,
+        signals: [slow.url, slowTicket.url],
+        sources: ['github', 'support'],
+      },
     ])
   })
 
@@ -192,6 +196,34 @@ describe('addSignalInsight', () => {
         { url: slowTicket.url, title: slowTicket.title },
         { url: slow.url, title: slow.title },
       ],
+    })
+  })
+
+  it('takes the words of the user as the title when Glue gave the newest Signal its title', async () => {
+    await addGlue()
+    const answers = ['Too many options to pick from', ''].map(
+      (text, index): SourceSignal => ({
+        url: `https://analytics.test/events/${index + 1}`,
+        title: 'Survey answer 2 of 7',
+        titleBy: 'glue',
+        text,
+        date: '2026-10-03',
+      }),
+    )
+    const analytics = createFakeSource('analytics', answers).source
+
+    const worded = await addSignalInsight(db, [analytics], 'glue', {
+      signals: [answers[0].url],
+    })
+    const bare = await addSignalInsight(db, [analytics], 'glue', {
+      signals: [answers[1].url],
+    })
+
+    expect(await findPart(db, 'glue', worded)).toMatchObject({
+      title: 'Too many options to pick from',
+    })
+    expect(await findPart(db, 'glue', bare)).toMatchObject({
+      title: 'Survey answer 2 of 7',
     })
   })
 

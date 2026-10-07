@@ -27,8 +27,9 @@
   flex-direction: column;
 }
 
-// One group of Signals that say the same thing: the count of its sources
-// and its button, then its Signals. The space after it ends the group.
+// One group of Signals that say the same thing: its title, the count of
+// its sources and its button, then its Signals. The space after it ends the
+// group.
 .repeat {
   display: flex;
   flex-direction: column;
@@ -38,9 +39,28 @@
 
 .repeatHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: $spacing-05;
+  gap: $spacing-03 $spacing-05;
+}
+
+// The title takes the space that the count and the button leave. On a
+// narrow screen it has the row, and they go under it.
+.repeatTitle {
+  @include type-style('heading-compact-01');
+
+  flex: 1;
+  color: $text-primary;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+
+  @include breakpoint-down('md') {
+    flex-basis: 100%;
+
+    + .label {
+      flex: 1;
+    }
+  }
 }
 
 // The Hunch of the group is on its way: the line stands in the place of the

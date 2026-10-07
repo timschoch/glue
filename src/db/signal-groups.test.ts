@@ -36,10 +36,73 @@ const refund: Signal = {
   insight: null,
 }
 
+// The words of the survey answers in the seed of mock analytics, by score.
+const remarks: Record<number, string> = {
+  1: 'I could not find where to start',
+  2: 'Too many options to pick from',
+  3: '',
+}
+
+// A survey answer as the analytics source gives it.
+function answer(id: number, score: number): Signal {
+  return {
+    url: `https://analytics.test/events/${id}`,
+    title: `Survey answer ${score} of 7`,
+    titleBy: 'glue',
+    text: remarks[score],
+    date: '2026-10-01',
+    source: 'analytics',
+    insight: null,
+  }
+}
+
+const pickOption: Signal = {
+  url: 'https://github.com/timschoch/glue/issues/146',
+  title:
+    'A proposed Decision can only be accepted: no way to pick another option or to answer with words',
+  text: '',
+  date: '2026-10-03',
+  source: 'github',
+  insight: null,
+}
+const wrongStatus: Signal = {
+  url: 'https://github.com/timschoch/glue/issues/178',
+  title:
+    'The CLI takes a wrong status for an Insight and cannot clear a status',
+  text: 'What I did: `pnpm concept add insights --status confirmed` in the Project `design-system`.\n\nExpected: the CLI refuses the status. An Insight has no status or `draft`.\n\nActual: the CLI saved it. The move to the Part model then failed in the rehearsal on these three rows. I had to clear the status with SQL, because `pnpm concept set` cannot set a field to empty.\n\nWanted: the CLI and the API refuse a status that the type does not have, and `pnpm concept set` can clear a field.\n\nEvidence: I58 of the Project `glue`. The first half is in the scope of #134.',
+  date: '2026-10-03',
+  source: 'github',
+  insight: null,
+}
+const noProduct: Signal = {
+  url: 'https://github.com/timschoch/glue/issues/114',
+  title: 'Glue cannot add a Product',
+  text: '**Who:** Orchestrator, with `pnpm concept`, 2026-10-03.\n\n**Wanted:** add the Product `design-system` for D33.\n\n**Got:** `pnpm concept product` has `set` only. The app and the HTTP API have no way to add a Product.\n\n**Workaround:** one SQL insert into `products`.',
+  date: '2026-10-03',
+  source: 'github',
+  insight: null,
+}
+
 describe('groupSignals', () => {
   it('puts the Signals that say the same thing into one group', () => {
     expect(groupSignals([slow, slowAgain, refund])).toEqual([
-      { signals: [slow.url, slowAgain.url], sources: ['github'] },
+      {
+        title: slow.title,
+        signals: [slow.url, slowAgain.url],
+        sources: ['github'],
+      },
+    ])
+  })
+
+  it('gives a group the title of its newest Signal', () => {
+    expect(groupSignals([slowAgain, slow])).toMatchObject([
+      { title: slow.title, signals: [slowAgain.url, slow.url] },
+    ])
+  })
+
+  it('gives a group of survey answers the words of the user as its title', () => {
+    expect(groupSignals([answer(1, 2), answer(2, 2)])).toMatchObject([
+      { title: 'Too many options to pick from' },
     ])
   })
 
@@ -50,6 +113,7 @@ describe('groupSignals', () => {
   it('names each source of a group one time', () => {
     expect(groupSignals([slow, slowAgain, slowTicket, refund])).toEqual([
       {
+        title: slow.title,
         signals: [slow.url, slowAgain.url, slowTicket.url],
         sources: ['github', 'support'],
       },
@@ -60,23 +124,80 @@ describe('groupSignals', () => {
     const grown = { ...slowAgain, insight: { id: 'I1', title: 'Slow lists' } }
 
     expect(groupSignals([slow, grown, slowTicket])).toEqual([
-      { signals: [slow.url, slowTicket.url], sources: ['github', 'support'] },
+      {
+        title: slow.title,
+        signals: [slow.url, slowTicket.url],
+        sources: ['github', 'support'],
+      },
     ])
     expect(groupSignals([slow, grown])).toEqual([])
   })
 
   it('makes no group of the survey answers that share only their title', () => {
-    const hard = {
-      url: 'https://analytics.test/events/1',
-      title: 'Survey answer 2 of 7',
-      text: 'Too hard',
-      date: '2026-10-01',
-      source: 'analytics',
-      insight: null,
-    }
-    const lost = { ...hard, url: 'https://analytics.test/events/2', text: '' }
+    const lost = { ...answer(1, 2), text: '' }
 
-    expect(groupSignals([hard, lost])).toEqual([])
+    expect(groupSignals([answer(2, 2), lost])).toEqual([])
+  })
+
+  it('makes no group by a title that Glue gave', () => {
+    const [drop, dropAgain] = [1, 2].map((id) => ({
+      ...answer(id, 2),
+      title: 'Checkout funnel drop',
+      text: '',
+    }))
+
+    expect(groupSignals([drop, dropAgain])).toEqual([])
+  })
+
+  it('puts the survey answers with the same words of the user into one group', () => {
+    const hard = { ...answer(1, 2), text: 'Too hard' }
+    const hardAgain = { ...answer(2, 3), text: 'too hard' }
+    const lost = { ...answer(3, 2), text: 'I got lost' }
+
+    expect(groupSignals([hard, hardAgain, lost])).toEqual([
+      {
+        title: 'Too hard',
+        signals: [hard.url, hardAgain.url],
+        sources: ['analytics'],
+      },
+    ])
+  })
+
+  it('makes no group of a short Signal and a long one that holds two of its words', () => {
+    expect(groupSignals([answer(1, 2), pickOption])).toEqual([])
+  })
+
+  it('makes no group of two Signals that share only words of their texts', () => {
+    expect(groupSignals([wrongStatus, noProduct])).toEqual([])
+  })
+
+  // The Signals of the Project `glue-build` on 2026-10-06.
+  it('puts only the survey answers with the same words into the groups of the live list', () => {
+    const many = [1, 2, 3, 4].map((id) => answer(id, 2))
+    const start = [5, 6, 7, 8].map((id) => answer(id, 1))
+
+    expect(
+      groupSignals([
+        many[0],
+        wrongStatus,
+        pickOption,
+        noProduct,
+        start[0],
+        ...many.slice(1),
+        ...start.slice(1),
+      ]),
+    ).toEqual([
+      {
+        title: 'Too many options to pick from',
+        signals: many.map(({ url }) => url),
+        sources: ['analytics'],
+      },
+      {
+        title: 'I could not find where to start',
+        signals: start.map(({ url }) => url),
+        sources: ['analytics'],
+      },
+    ])
   })
 
   it('takes a word that many Signals of the Project share as no key word', () => {
@@ -95,7 +216,11 @@ describe('groupSignals', () => {
     }))
 
     expect(groupSignals([...titled, slow, slowAgain])).toEqual([
-      { signals: [slow.url, slowAgain.url], sources: ['github'] },
+      {
+        title: slow.title,
+        signals: [slow.url, slowAgain.url],
+        sources: ['github'],
+      },
     ])
   })
 
@@ -114,7 +239,11 @@ describe('groupSignals', () => {
     }
 
     expect(groupSignals([hard, hardAgain, find])).toEqual([
-      { signals: [hard.url, hardAgain.url], sources: ['support', 'github'] },
+      {
+        title: 'Too hard',
+        signals: [hard.url, hardAgain.url],
+        sources: ['support', 'github'],
+      },
     ])
   })
 
@@ -131,7 +260,11 @@ describe('groupSignals', () => {
     }))
 
     expect(groupSignals([search, both, invoice])).toEqual([
-      { signals: [search.url, both.url], sources: ['support'] },
+      {
+        title: 'Slow search results',
+        signals: [search.url, both.url],
+        sources: ['support'],
+      },
     ])
   })
 
