@@ -69,7 +69,15 @@
   inline-size: auto;
 }
 
-// The filters by source, in one row at the start.
+// The filters by source, the saved filters and their buttons, in one row at
+// the start.
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03 $spacing-05;
+}
+
 .filters {
   display: flex;
   flex-wrap: wrap;

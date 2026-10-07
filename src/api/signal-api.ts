@@ -10,6 +10,7 @@ import { createSignalSources } from '../signals/signal-sources.server.ts'
 import { handleApiRequest, parseJson } from './api-request.ts'
 import type { ChangeRequest } from './api-request.ts'
 import { toChangedPartResponse } from './part-api.ts'
+import { parseFilterId } from './signal-filter-api.ts'
 
 export const projectSignalsSchema = z
   .object({
@@ -27,9 +28,10 @@ export const projectSignalsSchema = z
           description: 'What the user said or did. Empty: the tool has none',
         }),
         date: z.iso.date().meta({ description: 'The day it came in' }),
-        source: z
-          .string()
-          .meta({ description: 'The source: github, support or analytics' }),
+        source: z.string().meta({
+          description:
+            'The source: github, support, analytics, social or market',
+        }),
         insight: z
           .object({ id: z.string(), title: z.string() })
           .nullable()
@@ -68,14 +70,17 @@ export const signalInsightInputSchema = signalInsightSchema.meta({
 
 export function handleListSignals(input: ChangeRequest) {
   return handleApiRequest(input, async () => {
-    const source =
-      new URL(input.request.url).searchParams.get('source') ?? undefined
+    const query = new URL(input.request.url).searchParams
+    const source = query.get('source') ?? undefined
+    const filterId = query.get('filter') ?? undefined
+    const filter =
+      filterId === undefined ? undefined : parseFilterId({ filterId })
     return Response.json(
       await listSignals(
         input.db,
         createSignalSources(input.github),
         input.params.project,
-        { source },
+        { source, filter },
       ),
     )
   })

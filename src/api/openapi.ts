@@ -57,6 +57,10 @@ import {
   watchersQuerySchema,
 } from './people-api.ts'
 import { projectSignalsSchema, signalInsightInputSchema } from './signal-api.ts'
+import {
+  savedSignalFilterSchema,
+  signalFilterInputSchema,
+} from './signal-filter-api.ts'
 
 // The measure run: `/api/v1/projects/{project}`, and the deprecated
 // `/api/v1/products/{product}`.
@@ -121,6 +125,9 @@ function listMeasurePaths(parameter: PathParameter) {
 function listPartPaths() {
   const root = '/api/v1/projects/{project}'
   const path = z.object({ project: slug })
+  const filterPath = path.extend({
+    filterId: z.string().meta({ description: 'The id of the saved filter' }),
+  })
   const conceptSlug = z
     .string()
     .meta({ description: 'The slug of the Concept' })
@@ -469,13 +476,17 @@ function listPartPaths() {
       get: {
         operationId: 'listSignals',
         summary:
-          'List the Signals of the Project: the issues with the label user-feedback, the support tickets and the survey answers with a low score',
+          'List the Signals of the Project: the issues with the label user-feedback, the support tickets, the survey answers with a low score, the comments in the social channel and the findings of the market analysis',
         requestParams: {
           path,
           query: z.object({
             source: z.string().optional().meta({
               description:
-                'Only the Signals of this source: github, support or analytics',
+                'Only the Signals of this source: github, support, analytics, social or market',
+            }),
+            filter: z.string().optional().meta({
+              description:
+                'The id of a saved filter of the Project: only the Signals that pass it, and their groups',
             }),
           }),
         },
@@ -485,6 +496,61 @@ function listPartPaths() {
               'The Signals, the newest first, each with the Insight that grew from it',
             ...jsonContent(projectSignalsSchema),
           },
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/signal-filters`]: {
+      get: {
+        operationId: 'listSignalFilters',
+        summary: 'List the saved filters of the Signals of the Project',
+        requestParams: { path },
+        responses: {
+          200: {
+            description: 'The saved filters, by name',
+            ...jsonContent(z.array(savedSignalFilterSchema)),
+          },
+          ...readErrorResponses,
+        },
+      },
+      post: {
+        operationId: 'addSignalFilter',
+        summary:
+          'Save a filter of the Signals of the Project. Each member sees it beside the source filters',
+        requestParams: { path },
+        requestBody: jsonContent(signalFilterInputSchema),
+        responses: {
+          201: {
+            description: 'The saved filter',
+            ...jsonContent(savedSignalFilterSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/signal-filters/{filterId}`]: {
+      patch: {
+        operationId: 'updateSignalFilter',
+        summary:
+          'Change a saved filter. The body takes the place of all its values',
+        requestParams: { path: filterPath },
+        requestBody: jsonContent(signalFilterInputSchema),
+        responses: {
+          200: {
+            description: 'The changed filter',
+            ...jsonContent(savedSignalFilterSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+      delete: {
+        operationId: 'removeSignalFilter',
+        summary: 'Delete a saved filter',
+        requestParams: { path: filterPath },
+        responses: {
+          204: { description: 'The filter is gone' },
           ...readErrorResponses,
         },
       },

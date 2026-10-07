@@ -3,6 +3,8 @@ import type { GithubClient } from '../github/client.ts'
 import { findSetting } from '../settings.server.ts'
 import { createAnalyticsSource } from './analytics-source.ts'
 import { createGithubSource } from './github-source.ts'
+import { createMarketSource } from './market-source.ts'
+import { createSocialSource } from './social-source.ts'
 import { createSupportSource } from './support-source.ts'
 
 // The Signal sources of Glue. A new tool is one more adapter in this list.
@@ -16,5 +18,10 @@ export function createSignalSources(
       url: findSetting('MOCK_ANALYTICS_URL'),
       readKey: findSetting('MOCK_ANALYTICS_READ_KEY'),
     }),
+    createSocialSource({
+      url: findSetting('MOCK_SOCIAL_URL'),
+      readKey: findSetting('MOCK_SOCIAL_READ_KEY'),
+    }),
+    createMarketSource(),
   ]
 }

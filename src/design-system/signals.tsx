@@ -30,10 +30,12 @@ export type SignalRow = {
 
 // The Signal sources as a person reads them. A source with no label here
 // shows its name.
-const sourceLabels: Record<string, string> = {
+export const sourceLabels: Record<string, string> = {
   github: 'GitHub',
   support: 'Support',
   analytics: 'Analytics',
+  social: 'Social',
+  market: 'Market',
 }
 
 const toSourceLabel = (source: string) => sourceLabels[source] ?? source
@@ -49,6 +51,13 @@ export type SignalsProps = {
   // group is the address of its first Signal. While one is on its way, no
   // second one starts.
   hunch?: { group: string; pending?: string; failure?: string }
+  // The saved filters of the Project. The caller gives the Signals that
+  // pass the ones that are on, and their groups.
+  savedFilters?: ReadonlyArray<{ id: number; name: string; selected: boolean }>
+  onSavedFilterChange?: (id: number, selected: boolean) => void
+  // Opens the form of a new filter, or of the saved filter of the id.
+  onAddFilter?: () => void
+  onEditFilter?: (id: number) => void
   // The addresses of the picked Signals, in the order of the list.
   onMakeInsight: (urls: Array<string>) => void
   // The addresses of the Signals of a group, in the order of the list.
@@ -61,14 +70,20 @@ export type SignalsProps = {
 
 // The Signals of a Project. A Signal that has no Insight can be picked: the
 // one button makes an Insight from the picks. The filters show the Signals
-// of the picked sources. No filter picked: all Signals. The groups come
-// first, each under its title, with the button that turns it into a Hunch.
-// A group shows when the filters show two of its Signals or more.
+// of the picked sources. No filter picked: all Signals. The saved filters
+// stand beside them. A saved filter that is on has a button that opens its
+// form. The groups come first, each under its title, with the button that
+// turns it into a Hunch. A group shows when the filters show two of its
+// Signals or more.
 export function Signals({
   signals,
   failures = [],
   groups = [],
   hunch,
+  savedFilters = [],
+  onSavedFilterChange,
+  onAddFilter,
+  onEditFilter,
   onMakeInsight,
   onMakeHunch,
   onOpenInsight,
@@ -98,6 +113,9 @@ export function Signals({
       members: shown.filter(({ url }) => group.signals.includes(url)),
     }))
     .filter(({ members }) => members.length > 1)
+  const hasSaved = savedFilters.length > 0
+  // A list with no Signal and no saved filter has nothing to filter.
+  const canAdd = onAddFilter && (signals.length > 0 || hasSaved)
   const grouped = new Set(shownGroups.flatMap(({ members }) => members))
   const single = shown.filter((signal) => !grouped.has(signal))
 
@@ -203,10 +221,8 @@ export function Signals({
           />
         )
       })}
-      {signals.length === 0 ? (
-        failures.length === 0 && <p className={styles.label}>No Signals</p>
-      ) : (
-        <>
+      {(sources.length > 1 || hasSaved || canAdd) && (
+        <div className={styles.filterRow}>
           {sources.length > 1 && (
             <div role="group" aria-label="Source" className={styles.filters}>
               {sources.map((source) => (
@@ -221,6 +237,46 @@ export function Signals({
               ))}
             </div>
           )}
+          {hasSaved && (
+            <div
+              role="group"
+              aria-label="Saved filter"
+              className={styles.filters}
+            >
+              {savedFilters.map(({ id, name, selected }) => (
+                <SelectableTag
+                  key={id}
+                  text={name}
+                  selected={selected}
+                  onChange={(on: boolean) => onSavedFilterChange?.(id, on)}
+                />
+              ))}
+            </div>
+          )}
+          {onEditFilter &&
+            savedFilters
+              .filter(({ selected }) => selected)
+              .map(({ id, name }) => (
+                <Button
+                  key={id}
+                  size="sm"
+                  kind="ghost"
+                  onClick={() => onEditFilter(id)}
+                >
+                  Edit {name}
+                </Button>
+              ))}
+          {canAdd && (
+            <Button size="sm" kind="ghost" onClick={onAddFilter}>
+              Add filter
+            </Button>
+          )}
+        </div>
+      )}
+      {signals.length === 0 ? (
+        failures.length === 0 && <p className={styles.label}>No Signals</p>
+      ) : (
+        <>
           {shownGroups.map(({ title, members }) => {
             const [first] = members
             const count = new Set(members.map(({ source }) => source)).size

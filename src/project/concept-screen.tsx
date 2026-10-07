@@ -12,6 +12,8 @@ import type {
 } from '../db/parts.ts'
 import type { ContractQuestion } from '../db/contract-questions.ts'
 import type { ContractState } from '../db/contracts.ts'
+import { applySignalFilters } from '../db/signal-filter-rule.ts'
+import type { SignalFilter } from '../db/signal-filters.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { partTypes } from '../design-system/card.tsx'
 import { ConceptView } from '../design-system/concept-view.tsx'
@@ -33,6 +35,7 @@ import { PartFormScreen } from './part-form-screen.tsx'
 import { toReading } from './part-views.ts'
 import { PeopleScreen } from './people-screen.tsx'
 import { UNKNOWN_CONCEPT, isPartType, lensTypes } from './project-search.ts'
+import { SignalFilterFormScreen } from './signal-filter-form-screen.tsx'
 import { SignalInsightScreen } from './signal-insight-screen.tsx'
 import { useProjectLinks } from './use-project-links.ts'
 import { useWrite } from './use-write.ts'
@@ -56,11 +59,13 @@ function listSlugs(concepts: ReadonlyArray<ConceptNode>): Array<string> {
 // watches. The section People shows the
 // members of the Project. The form that the address names takes the place of
 // the screen: a new Part, a new Concept, a new Project, or a Kind. So does
-// the form of the Insight that grows from the picked Signals. The Map keeps the lens of the section.
+// the form of the Insight that grows from the picked Signals, and the form
+// of a saved filter of the Signals. The Map keeps the lens of the section.
 export function ConceptScreen({
   concept,
   contract,
   signals,
+  signalFilters = [],
   builds,
   mapJoints,
   panelPart,
@@ -72,6 +77,8 @@ export function ConceptScreen({
   // Concept has no Version, or a section is open.
   questions?: ReadonlyArray<ContractQuestion>
   signals?: ProjectSignals
+  // The saved filters of the Signals of the Project.
+  signalFilters?: ReadonlyArray<SignalFilter>
   // In the section Build: the builds of the Project. With no section: the
   // builds that name the Contract of the Concept.
   builds?: ProjectBuilds
@@ -115,6 +122,17 @@ export function ConceptScreen({
   const kindWrite = useWrite()
   const [hunchGroup, setHunchGroup] = useState<string>()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
+  // The saved filters that are on, and the filter that the form shows: a
+  // saved one with its id, a new one with none.
+  const [filtersOn, setFiltersOn] = useState<ReadonlySet<number>>(new Set())
+  const [filterForm, setFilterForm] = useState<{ id?: number }>()
+  const setFilterOn = (id: number, on: boolean) =>
+    setFiltersOn((current) => {
+      const next = new Set(current)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
   // Mine is open: the person saw the new flags, so the count beside Mine
   // goes away (glue/D61).
   const seesFlags = search.section === 'Mine' && newFlagCount > 0
@@ -139,9 +157,29 @@ export function ConceptScreen({
       />
     )
   }
+  if (filterForm) {
+    return (
+      <SignalFilterFormScreen
+        filter={signalFilters.find(({ id }) => id === filterForm.id)}
+        filters={signalFilters}
+        // The filter that the form saved is on.
+        onClose={(saved) => {
+          if (saved !== undefined) setFilterOn(saved, true)
+          setFilterForm(undefined)
+        }}
+      />
+    )
+  }
   if (search.section === 'People') return <PeopleScreen />
 
-  const listed = signals?.signals.map((signal) => ({
+  // The saved filters that are on apply before the groups are made, so the
+  // groups and their titles follow them. None is on: the list of the server.
+  const applied = signalFilters.filter(({ id }) => filtersOn.has(id))
+  const passed =
+    signals && applied.length > 0
+      ? applySignalFilters(signals.signals, applied)
+      : signals
+  const listed = passed?.signals.map((signal) => ({
     ...signal,
     insight: signal.insight && {
       ...signal.insight,
@@ -161,11 +199,19 @@ export function ConceptScreen({
       {builds && search.section === 'Build' && (
         <LinkedBuilds builds={builds.builds} reason={builds.reason} />
       )}
-      {signals && listed && (
+      {signals && passed && listed && (
         <Signals
           signals={listed}
           failures={signals.failures}
-          groups={signals.groups}
+          groups={passed.groups}
+          savedFilters={signalFilters.map(({ id, name }) => ({
+            id,
+            name,
+            selected: filtersOn.has(id),
+          }))}
+          onSavedFilterChange={setFilterOn}
+          onAddFilter={() => setFilterForm({})}
+          onEditFilter={(id) => setFilterForm({ id })}
           hunch={
             hunchGroup === undefined
               ? undefined

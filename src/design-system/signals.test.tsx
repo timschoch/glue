@@ -423,3 +423,59 @@ describe('Signals', () => {
     ).toBe(false)
   })
 })
+
+describe('the saved filters of the Signals', () => {
+  const savedFilters = [
+    { id: 1, name: 'Slow lists', selected: false },
+    { id: 2, name: 'Market', selected: true },
+  ]
+
+  it('shows each saved filter, and says which one is on', () => {
+    renderSignals({ savedFilters })
+
+    const saved = within(screen.getByRole('group', { name: 'Saved filter' }))
+    expect(
+      saved
+        .getAllByRole('button')
+        .map((tag) => [tag.textContent, tag.getAttribute('aria-pressed')]),
+    ).toEqual([
+      ['Slow lists', 'false'],
+      ['Market', 'true'],
+    ])
+  })
+
+  it('turns a saved filter on', async () => {
+    const onSavedFilterChange = vi.fn()
+    renderSignals({ savedFilters, onSavedFilterChange })
+
+    await userEvent.click(filter('Slow lists'))
+
+    expect(onSavedFilterChange).toHaveBeenCalledWith(1, true)
+  })
+
+  it('opens the form of a new filter', async () => {
+    const onAddFilter = vi.fn()
+    renderSignals({ onAddFilter })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add filter' }))
+
+    expect(onAddFilter).toHaveBeenCalledOnce()
+  })
+
+  it('opens the form of a saved filter that is on', async () => {
+    const onEditFilter = vi.fn()
+    renderSignals({ savedFilters, onEditFilter })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Market' }))
+
+    expect(onEditFilter).toHaveBeenCalledWith(2)
+    expect(screen.queryByRole('button', { name: 'Edit Slow lists' })).toBeNull()
+  })
+
+  it('keeps the saved filters when no Signal passes them', () => {
+    renderSignals({ signals: [], savedFilters })
+
+    expect(filter('Market').getAttribute('aria-pressed')).toBe('true')
+    screen.getByText('No Signals')
+  })
+})

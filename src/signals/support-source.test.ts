@@ -31,6 +31,8 @@ function createMockFetch() {
 const glue = {
   repository: null,
   analyticsProject: null,
+  socialHandle: null,
+  marketUrl: null,
   supportUrl: 'https://support.test/',
 }
 

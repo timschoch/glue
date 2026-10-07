@@ -19,6 +19,7 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/')({
       contract,
       builds,
       signals,
+      signalFilters,
       mapJoints,
       panelPart,
       questions,
@@ -39,6 +40,9 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/')({
       deps.section === 'Understand'
         ? context.fetchSignals(params.project)
         : undefined,
+      deps.section === 'Understand'
+        ? context.fetchSignalFilters(params.project)
+        : undefined,
       // Only the Map reads the Joints of the Project, and the record of its
       // panel.
       isMap ? context.fetchMapJoints(params.project) : undefined,
@@ -58,6 +62,7 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/')({
       concept,
       contract,
       signals,
+      signalFilters,
       builds,
       mapJoints,
       panelPart,

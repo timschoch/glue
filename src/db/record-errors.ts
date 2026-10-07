@@ -33,6 +33,14 @@ export class ConceptNotFoundError extends InvalidRecordError {
   }
 }
 
+// The saved filter of the request does not exist. The HTTP API answers it
+// with 404.
+export class SignalFilterNotFoundError extends InvalidRecordError {
+  constructor(filterId: number | string) {
+    super(`filter ${filterId} not found`)
+  }
+}
+
 // The Joint of the request does not exist. The HTTP API answers it with 404.
 export class JointNotFoundError extends InvalidRecordError {
   constructor(jointId: number) {

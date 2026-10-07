@@ -16,33 +16,49 @@ export const Route = createFileRoute('/_signed-in/$project/')({
     const root = { project, concept: project }
     const state = context.fetchContractState(root)
     const isMap = deps.view === 'map'
-    const [concept, contract, builds, signals, mapJoints, panelPart] =
-      await Promise.all([
-        context.fetchConcept(root),
-        state,
-        // The builds come live from GitHub. The section Build lists the ones
-        // of the Project. With no section, a Contract shows the ones that name
-        // it.
-        state.then((found) =>
-          deps.section === 'Build'
-            ? context.fetchBuilds(project)
-            : deps.section === undefined && found?.versions.length
-              ? context.fetchBuilds(project, { concept: project })
-              : undefined,
-        ),
-        // The Signals come live from their tool, so only their section reads them.
-        deps.section === 'Understand'
-          ? context.fetchSignals(project)
-          : undefined,
-        // Only the Map reads the Joints of the Project, and the record of its
-        // panel.
-        isMap ? context.fetchMapJoints(project) : undefined,
-        isMap && deps.panel !== undefined && isRecordId(deps.panel)
-          ? context.fetchPart({ project, recordId: deps.panel })
-          : undefined,
-      ])
+    const [
+      concept,
+      contract,
+      builds,
+      signals,
+      signalFilters,
+      mapJoints,
+      panelPart,
+    ] = await Promise.all([
+      context.fetchConcept(root),
+      state,
+      // The builds come live from GitHub. The section Build lists the ones
+      // of the Project. With no section, a Contract shows the ones that name
+      // it.
+      state.then((found) =>
+        deps.section === 'Build'
+          ? context.fetchBuilds(project)
+          : deps.section === undefined && found?.versions.length
+            ? context.fetchBuilds(project, { concept: project })
+            : undefined,
+      ),
+      // The Signals come live from their tool, so only their section reads them.
+      deps.section === 'Understand' ? context.fetchSignals(project) : undefined,
+      deps.section === 'Understand'
+        ? context.fetchSignalFilters(project)
+        : undefined,
+      // Only the Map reads the Joints of the Project, and the record of its
+      // panel.
+      isMap ? context.fetchMapJoints(project) : undefined,
+      isMap && deps.panel !== undefined && isRecordId(deps.panel)
+        ? context.fetchPart({ project, recordId: deps.panel })
+        : undefined,
+    ])
     if (!concept || !contract) throw notFound()
-    return { concept, contract, signals, builds, mapJoints, panelPart }
+    return {
+      concept,
+      contract,
+      signals,
+      signalFilters,
+      builds,
+      mapJoints,
+      panelPart,
+    }
   },
   head: ({ match }) => ({
     meta:

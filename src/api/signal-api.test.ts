@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { setProductRepository } from '../db/projects.ts'
 import { addProject } from '../db/part-records.ts'
 import * as schema from '../db/schema.ts'
+import { addSignalFilter } from '../db/signal-filters.ts'
 import { createToken } from '../db/tokens.ts'
 import type { GithubClient } from '../github/client.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
@@ -109,8 +110,30 @@ describe('GET /projects/{project}/signals', () => {
 
     expect(status).toBe(400)
     expect(body.error.message).toBe(
-      '"crm" is no Signal source: github, support, analytics',
+      '"crm" is no Signal source: github, support, analytics, social, market',
     )
+  })
+
+  it('lists the Signals that pass the saved filter in the query only', async () => {
+    await addSignalFilter(db, 'glue', { name: 'Fast', mustHold: ['fast'] })
+    await addSignalFilter(db, 'glue', { name: 'Slow', mustHold: ['slow'] })
+
+    const fast = await call(handleListSignals, 'GET', undefined, '?filter=1')
+    const slow = await call(handleListSignals, 'GET', undefined, '?filter=2')
+
+    expect(fast.body.signals).toEqual([])
+    expect(slow.body.signals).toHaveLength(1)
+  })
+
+  it.each(['3', 'first'])('answers 404 for the filter %s', async (filter) => {
+    const { status } = await call(
+      handleListSignals,
+      'GET',
+      undefined,
+      `?filter=${filter}`,
+    )
+
+    expect(status).toBe(404)
   })
 
   it('names the source that failed', async () => {

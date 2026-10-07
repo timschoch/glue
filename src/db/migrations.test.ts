@@ -1085,6 +1085,7 @@ describe('the migration that adds the Kinds', () => {
         (2, 3, 'bakes', 'Bakes', 'brief');
     `)
     await runMigration(kindsMigration)
+    await runMigrationsAfter(kindsMigration)
   })
 
   const brief = {
