@@ -185,6 +185,82 @@ describe('the Ask routes', () => {
     ])
   })
 
+  // Uma is a second member of `ux`. Each of the two has a token.
+  describe('with the token of a member', () => {
+    const memberTokens = { fred: '', uma: '' }
+
+    beforeEach(async () => {
+      await joinProject(db, 'ux', {
+        id: 'user-uma',
+        name: 'Uma',
+        email: 'uma@example.com',
+      })
+      memberTokens.fred = (
+        await createToken(db, 'ux', 'fred', 'fred@example.com')
+      ).token
+      memberTokens.uma = (
+        await createToken(db, 'ux', 'uma', 'uma@example.com')
+      ).token
+      await call(handleAddAsk, 'POST', { project: 'bakeday', body: ask })
+    })
+
+    const step = (token: string, body: unknown) =>
+      call(handleUpdateAsk, 'PATCH', {
+        project: 'ux',
+        askId: '1',
+        token,
+        body,
+      })
+
+    it('pick as the member of the token, not as the member that the body names', async () => {
+      const picked = await step(memberTokens.uma, {
+        pickedBy: 'fred@example.com',
+      })
+      const asks = await call(handleListAsks, 'GET', { project: 'ux' })
+
+      expect(picked.status).toBe(204)
+      expect(asks.body).toMatchObject([
+        { id: 1, pickedBy: { name: 'Uma', email: 'uma@example.com' } },
+      ])
+    })
+
+    it('refuse the study of a member who did not pick the Ask', async () => {
+      await step(memberTokens.fred, { pickedBy: 'fred@example.com' })
+
+      const started = await step(memberTokens.uma, {
+        studyBy: 'fred@example.com',
+      })
+
+      expect(started).toEqual({
+        status: 400,
+        body: {
+          error: {
+            code: 'invalid-request',
+            message: 'uma@example.com did not pick Ask 1',
+          },
+        },
+      })
+    })
+
+    it('refuse the hand back of a member who did not pick the Ask', async () => {
+      await step(memberTokens.fred, { pickedBy: 'fred@example.com' })
+
+      const refused = await step(memberTokens.uma, { insight: 'I1' })
+      const handedBack = await step(memberTokens.fred, { insight: 'I1' })
+
+      expect(refused).toEqual({
+        status: 400,
+        body: {
+          error: {
+            code: 'invalid-request',
+            message: 'uma@example.com did not pick Ask 1',
+          },
+        },
+      })
+      expect(handedBack.status).toBe(204)
+    })
+  })
+
   it('take an Ask for a Decision, with its question and the member who asks', async () => {
     const added = await call(handleAddAsk, 'POST', {
       project: 'bakeday',

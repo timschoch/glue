@@ -12,6 +12,7 @@ import {
 } from './asks.ts'
 import { joinProject } from './members.ts'
 import {
+  addConcept,
   addJoint,
   addPart,
   addProject,
@@ -225,6 +226,19 @@ describe('an Ask with an Insight that was handed back', () => {
     await expect(handBackAsk(db, 'ux', 2, 'I1')).rejects.toThrow(
       new InvalidRecordError('Ask 2 is not picked yet'),
     )
+  })
+
+  it('refuses the hand back of a member who did not pick the Ask', async () => {
+    await expect(handBackAsk(db, 'ux', 1, 'I1', uma)).rejects.toThrow(
+      new InvalidRecordError('uma@example.com did not pick Ask 1'),
+    )
+    expect(await listMineAsks(db, 'ux', fred)).toMatchObject([
+      { id: 1, step: 'hand-back', handedBack: null },
+    ])
+
+    await handBackAsk(db, 'ux', 1, 'I1', fred)
+
+    expect(await listMineAsks(db, 'bakeday', mara)).toEqual([handedBack])
   })
 
   it('is done and leaves Mine when the Hunch needs the Insight', async () => {
@@ -531,6 +545,20 @@ describe('a study for an Ask', () => {
     )
     expect(await findConcept(db, 'ux', 'study-1')).toBeUndefined()
   })
+
+  it('takes another slug when a Concept has the slug of the study', async () => {
+    await addConcept(db, 'ux', { slug: 'study-1', title: 'Fold study' })
+
+    const slug = await startStudy(db, 'ux', 1, fred)
+
+    expect(slug).toBe('study-1-2')
+    expect(await listMineAsks(db, 'ux', fred)).toEqual([
+      {
+        ...picked,
+        study: { slug: 'study-1-2', title: 'Novices skip the fold' },
+      },
+    ])
+  })
 })
 
 // Fred started the study of the Ask. The Insight I1 of `ux` is published
@@ -568,6 +596,19 @@ describe('an Ask with a study', () => {
     expect(await findOpenAsk(db, 'bakeday', 'I1')).toBeUndefined()
     expect(await listMineAsks(db, 'bakeday', mara)).toEqual([])
     expect(await listMineAsks(db, 'ux', fred)).toEqual([])
+  })
+
+  it('stays as it was when the Joint fails', async () => {
+    await db.delete(schema.projectReferences)
+
+    await expect(handBackAsk(db, 'ux', 1, 'I1', fred)).rejects.toThrow(
+      InvalidRecordError,
+    )
+
+    expect(await listMineAsks(db, 'ux', fred)).toMatchObject([
+      { id: 1, step: 'hand-back', handedBack: null },
+    ])
+    expect((await findPart(db, 'bakeday', 'I1'))?.needs).toEqual([])
   })
 
   it('refuses an Insight of the study that is not published', async () => {

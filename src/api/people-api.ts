@@ -104,9 +104,9 @@ export function handleListAssignments(input: ApiRequest) {
 }
 
 export function handleAssign(input: ApiRequest) {
-  return handleApiRequest(input, async () => {
+  return handleApiRequest(input, async (member) => {
     const { db, request, params } = input
-    await assign(db, params.project, await parseJson(request))
+    await assign(db, params.project, await parseJson(request), member?.email)
     return Response.json(await listAssignments(db, params.project), {
       status: 201,
     })
@@ -114,10 +114,15 @@ export function handleAssign(input: ApiRequest) {
 }
 
 export function handleUnassign(input: ApiRequest) {
-  return handleApiRequest(input, async () => {
+  return handleApiRequest(input, async (member) => {
     const { db, request, params } = input
     const query = Object.fromEntries(new URL(request.url).searchParams)
-    await unassign(db, params.project, assignmentTargetSchema.parse(query))
+    await unassign(
+      db,
+      params.project,
+      assignmentTargetSchema.parse(query),
+      member?.email,
+    )
     return new Response(null, { status: 204 })
   })
 }

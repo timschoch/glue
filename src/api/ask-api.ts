@@ -82,13 +82,13 @@ export const askStepInputSchema = z
     z.strictObject({
       pickedBy: z.string().trim().min(1).meta({
         description:
-          'Pick: the e-mail address of the member of the asked Project',
+          'Pick: the e-mail address of the member of the asked Project. A token with a member picks as that member',
       }),
     }),
     z.strictObject({
       studyBy: z.string().trim().min(1).meta({
         description:
-          'Start the study of the Ask, a Concept of the asked Project: the e-mail address of the member who picked the Ask',
+          'Start the study of the Ask, a Concept of the asked Project: the e-mail address of the member who picked the Ask. A token with a member starts it as that member',
       }),
     }),
     z.strictObject({
@@ -134,18 +134,20 @@ function parseAskId({ askId = '' }: ApiRequest['params']): number {
   return Number(askId)
 }
 
+// A token with a member takes each step as that member: the e-mail address
+// in the body does not count, and only the member who picked hands back.
 export function handleUpdateAsk(input: ApiRequest) {
-  return handleApiRequest(input, async () => {
+  return handleApiRequest(input, async (member) => {
     const { db, request, params } = input
     const askId = parseAskId(params)
     const step = askStepInputSchema.parse(await parseJson(request))
     if ('pickedBy' in step) {
-      await pickAsk(db, params.project, askId, step.pickedBy)
+      await pickAsk(db, params.project, askId, member?.email ?? step.pickedBy)
     } else if ('studyBy' in step) {
-      await startStudy(db, params.project, askId, step.studyBy)
+      await startStudy(db, params.project, askId, member?.email ?? step.studyBy)
     } else {
       const recordId = 'insight' in step ? step.insight : step.decision
-      await handBackAsk(db, params.project, askId, recordId)
+      await handBackAsk(db, params.project, askId, recordId, member?.email)
     }
     return new Response(null, { status: 204 })
   })

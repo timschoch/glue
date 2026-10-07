@@ -619,12 +619,13 @@ export function handleAnswerQuestion(input: ChangeRequest) {
   return handleApiRequest(input, async (member) => {
     const { project, recordId = '' } = input.params
     const answer = questionAnswerSchema.parse(await parseJson(input.request))
-    // The member of the token answers, when the request names nobody.
+    // The member of the token signs the answer. Only a token of no member
+    // takes the name in the request.
     return toChangedPartResponse(
       await createPartOperations(input).answerQuestion(
         project,
         recordId,
-        { ...answer, by: answer.by ?? member?.name },
+        { ...answer, by: member?.name ?? answer.by },
         member?.email,
       ),
     )

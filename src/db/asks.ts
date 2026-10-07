@@ -1,5 +1,5 @@
 import type { SQL } from 'drizzle-orm'
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, like, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 
@@ -23,7 +23,8 @@ import * as schema from './schema.ts'
 // it. A published Insight of the study goes back, and Glue adds the Joint.
 //
 // The Neon HTTP driver has no transaction of its own. Thus each function
-// writes with one statement, and the hand back of a Decision with two.
+// writes with one statement. The hand back that ends an Ask writes two: when
+// the Joint fails, it takes the first one back, so the Ask is as it was.
 
 const { asks, concepts, members, parts, projects } = schema
 
@@ -390,7 +391,8 @@ export async function pickAsk(
 
 // The member who picked the Ask starts its study: a Concept of the asked
 // Project that names the Ask. It takes the title of the Part that waits.
-// An Ask has one study. Gives back the slug of the study.
+// An Ask has one study. Gives back the slug of the study: `study-7`, or
+// `study-7-2` when a Concept of the Project has that slug.
 export async function startStudy(
   db: ConceptDb,
   projectSlug: string,
@@ -403,15 +405,24 @@ export async function startStudy(
   const email = memberEmail.trim()
   if (ask.pickedBy?.email.toLowerCase() !== email.toLowerCase())
     throw new InvalidRecordError(`${email} did not pick Ask ${askId}`)
-  const slug = `study-${askId}`
   const projectId = await getProjectId(db, projectSlug)
   const parentId = await findConceptId(db, projectId, undefined)
+  const base = `study-${askId}`
+  const found = await db
+    .select({ slug: concepts.slug })
+    .from(concepts)
+    .where(
+      and(eq(concepts.projectId, projectId), like(concepts.slug, `${base}%`)),
+    )
+  const taken = new Set(found.map((concept) => concept.slug))
+  let slug = base
+  for (let count = 2; taken.has(slug); count++) slug = `${base}-${count}`
   const started = ask.study
     ? []
     : await db
         .insert(concepts)
         .values({ projectId, parentId, slug, title: ask.part.title, askId })
-        .onConflictDoNothing()
+        .onConflictDoNothing({ target: concepts.askId })
         .returning({ slug: concepts.slug })
   if (started.length === 0)
     throw new InvalidRecordError(`Ask ${askId} has a study already`)
@@ -429,17 +440,26 @@ const handedBackTypes: Record<AskKind, string> = {
 // with an Insight shows in Mine of the Project that asked from now on. An
 // Ask with a Decision is done: Glue adds the Joint from the Part that waits
 // to the Decision. An Ask with a study takes an Insight with its home in
-// the study, and is done in the same way.
+// the study, and is done in the same way. `memberEmail` is the member who
+// hands back. Without it nobody is checked: the CLI, and a token of no
+// member.
 export async function handBackAsk(
   db: ConceptDb,
   projectSlug: string,
   askId: number,
   recordId: string,
+  memberEmail?: string,
   now = new Date(),
 ): Promise<void> {
   const ask = await getAsk(db, projectSlug, askId)
   if (ask.step === 'pick')
     throw new InvalidRecordError(`Ask ${askId} is not picked yet`)
+  const email = memberEmail?.trim()
+  if (
+    email !== undefined &&
+    ask.pickedBy?.email.toLowerCase() !== email.toLowerCase()
+  )
+    throw new InvalidRecordError(`${email} did not pick Ask ${askId}`)
   const part = await getPart(db, projectSlug, recordId)
   const kind = ask.study ? 'insight' : ask.kind
   if (part.type !== kind)
@@ -459,11 +479,19 @@ export async function handBackAsk(
     .returning({ id: asks.id })
   if (handedBack.length === 0)
     throw new InvalidRecordError(`Ask ${askId} is handed back already`)
-  if (ask.kind === 'decision' || ask.study)
+  if (ask.kind !== 'decision' && !ask.study) return
+  try {
     await addJoint(db, ask.part.project.slug, {
       part: ask.part.id,
       needs: `${projectSlug}/${recordId}`,
     })
+  } catch (error) {
+    await db
+      .update(asks)
+      .set({ handedBackPartId: null, handedBackAt: null })
+      .where(and(eq(asks.id, askId), eq(asks.handedBackPartId, part.id)))
+    throw error
+  }
 }
 
 // The member who asked takes the Ask back while no member picked it. The
