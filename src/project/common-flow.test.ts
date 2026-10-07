@@ -29,6 +29,8 @@ const published: Part = {
   enforcedBy: null,
   evidenceLevel: null,
   evidenceBase: null,
+  steps: [],
+  fields: [],
   issueUrl: null,
   measure: null,
   measured: [],

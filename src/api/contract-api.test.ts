@@ -220,6 +220,53 @@ describe('GET the Contract of a Concept', () => {
     expect(first.body.tier1[0].title).toBe('Watch a technique')
   })
 
+  it('gives the steps of a Flow and the fields of an Entity as data', async () => {
+    await addPart(db, 'flexibeck', {
+      type: 'entity',
+      concept: 'videos',
+      title: 'Technique',
+      fields: [{ name: 'video', meaning: 'The clip of the creator' }],
+      needs: ['D1'],
+    })
+    await answerPart(db, 'flexibeck', 'E1', { answer: 'supersede' })
+    await updatePart(db, 'flexibeck', 'F1', {
+      steps: [{ text: 'Start the video', entity: 'E1' }],
+    })
+    await publishFlow()
+    await sign()
+
+    const { body } = await call(handleGetContract, 'GET')
+
+    expect(
+      body.tier1.map(
+        ({
+          id,
+          steps,
+          fields,
+        }: {
+          id: string
+          steps: unknown
+          fields: unknown
+        }) => ({
+          id,
+          steps,
+          fields,
+        }),
+      ),
+    ).toEqual([
+      {
+        id: 'F1',
+        steps: [{ text: 'Start the video', entity: 'E1' }],
+        fields: [],
+      },
+      {
+        id: 'E1',
+        steps: [],
+        fields: [{ name: 'video', meaning: 'The clip of the creator' }],
+      },
+    ])
+  })
+
   it('answers 404 for a Version that the Concept does not have, and 400 for no number', async () => {
     await publishFlow()
     await sign()

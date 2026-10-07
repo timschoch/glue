@@ -252,7 +252,22 @@ const commonFields = {
   source: text.nullable().optional(),
 }
 
-const plainSchema = z.strictObject(commonFields)
+// One step of a Flow, as a request sends it and as an answer gives it.
+const flowStep = z.strictObject({
+  text,
+  entity: z.string().nullable().meta({
+    description:
+      'The record id of the Entity of the same Project that the step works on. null: the step names no Entity',
+  }),
+})
+
+// One field of an Entity, as a request sends it and as an answer gives it.
+const entityField = z.strictObject({
+  name: text,
+  meaning: z.string().trim().meta({
+    description: 'What the field means',
+  }),
+})
 
 // How Glue measures a Goal or a Metric. It goes in with the Part, as one
 // statement.
@@ -294,8 +309,19 @@ const fieldSchemas = {
     }),
   }),
   guardrail: z.strictObject({ ...commonFields, enforcedBy: text }),
-  entity: plainSchema,
-  flow: plainSchema,
+  entity: z.strictObject({
+    ...commonFields,
+    fields: z.array(entityField).optional().meta({
+      description: 'The fields of the Entity. A change sends the whole list',
+    }),
+  }),
+  flow: z.strictObject({
+    ...commonFields,
+    steps: z.array(flowStep).optional().meta({
+      description:
+        'The steps of the Flow, in order. A change sends the whole list',
+    }),
+  }),
   metric: z.strictObject({ ...commonFields, measure }),
 }
 
@@ -330,8 +356,8 @@ const changeSchemas = {
       ...homeChange,
     }),
   guardrail: fieldSchemas.guardrail.partial().extend(homeChange),
-  entity: plainSchema.partial().extend(homeChange),
-  flow: plainSchema.partial().extend(homeChange),
+  entity: fieldSchemas.entity.partial().extend(homeChange),
+  flow: fieldSchemas.flow.partial().extend(homeChange),
   metric: fieldSchemas.metric
     .partial()
     .extend({ ...measureChange, ...homeChange }),
@@ -349,6 +375,8 @@ type PartFields = {
   metric?: string
   enforcedBy?: string
   evidenceLevel?: schema.EvidenceLevel | null
+  steps?: schema.FlowStep[]
+  fields?: schema.EntityField[]
   measure?: GoalMeasure | null
 }
 
@@ -436,6 +464,7 @@ function selectParts(db: ConceptDb, projectId: number, recordIds: string[]) {
       status: parts.status,
       workState: parts.workState,
       body: parts.body,
+      steps: parts.steps,
       question: parts.question,
       // As text: a Date drops the microseconds.
       changedAt: sql<string>`${parts.changedAt}::text`,
@@ -587,6 +616,41 @@ async function findMentioned(
         .map(({ recordId }) => recordId),
     }))
   return { recordIds, references }
+}
+
+// The record ids of the Entities that the steps name, each one once.
+function listStepEntities(steps: schema.FlowStep[] = []) {
+  return [...new Set(steps.flatMap(({ entity }) => entity ?? []))]
+}
+
+// The same, for the steps of a write: each id must name an Entity of the
+// Project.
+async function findStepEntities(
+  db: ConceptDb,
+  projectId: number,
+  steps?: schema.FlowStep[],
+) {
+  const recordIds = listStepEntities(steps)
+  for (const part of await findParts(db, projectId, recordIds))
+    if (part.type !== 'entity')
+      throw new InvalidRecordError(`"${part.recordId}" is not an Entity`)
+  return recordIds
+}
+
+// What a Part names: the record ids in its body, and the Entities of its
+// steps. A step that names an Entity glues the Flow to it like a mention
+// (D37): the Joint goes when the step does.
+async function findNamed(
+  db: ConceptDb,
+  project: ProjectRow,
+  body: string | undefined,
+  stepEntities: string[],
+): Promise<Mentioned> {
+  const mentioned = await findMentioned(db, project, body)
+  return {
+    ...mentioned,
+    recordIds: [...mentioned.recordIds, ...stepEntities],
+  }
 }
 
 // The Parts that a body of a Part of the type glues it to: a query with
@@ -766,7 +830,7 @@ async function addPartRow(
         "project_id", "concept_id", "type", "record_id", "title", "body",
         "owner", "status", "date", "source", "metric", "enforced_by",
         "evidence_level", "superseded_by_id", "trust", "work_state",
-        "published_at", "question"
+        "published_at", "question", "steps", "fields"
       )
       select
         ${projectId}::integer,
@@ -786,7 +850,9 @@ async function addPartRow(
         ${trust}::text,
         ${workState}::text,
         ${workState === 'published' ? sql`now()` : sql`null::timestamptz`},
-        ${question}::jsonb
+        ${question}::jsonb,
+        ${JSON.stringify(fields.steps ?? [])}::jsonb,
+        ${JSON.stringify(fields.fields ?? [])}::jsonb
       from counter
       returning "record_id", ${historyFields}
     ),
@@ -984,7 +1050,12 @@ export async function addPart(
     fields,
     question: options && { options, pick: pick ?? null, answer: null },
     neededPartIds: neededParts.map((needed) => needed.id),
-    mentioned: await findMentioned(db, project, fields.body),
+    mentioned: await findNamed(
+      db,
+      project,
+      fields.body,
+      await findStepEntities(db, projectId, fields.steps),
+    ),
     supersedesId,
     supersededById: successor?.id,
     responsibleId:
@@ -1226,6 +1297,8 @@ export async function updatePart(
     metric: parts.metric,
     enforcedBy: parts.enforcedBy,
     evidenceLevel: parts.evidenceLevel,
+    steps: parts.steps,
+    fields: parts.fields,
   }
   const member = selectMemberId(projectId, changedBy)
   const changed = hasColumns
@@ -1277,7 +1350,19 @@ export async function updatePart(
       insert into "joints" ("part_id", "needed_part_id")
       select "id", ${nextGoal?.id}::integer from changed
     )`
-  const mentioned = await findMentioned(db, project, columns.body)
+  // New steps name other Entities, so they glue the Part again, with the
+  // body that it has.
+  const gluesAgain = columns.body !== undefined || columns.steps !== undefined
+  const mentioned = gluesAgain
+    ? await findNamed(
+        db,
+        project,
+        columns.body ?? part.body,
+        columns.steps === undefined
+          ? listStepEntities(part.steps)
+          : await findStepEntities(db, projectId, columns.steps),
+      )
+    : { recordIds: [], references: [] }
   const mentionedParts = selectMentionedParts(projectId, part.type, {
     ...mentioned,
     recordIds: mentioned.recordIds.filter(
@@ -1330,7 +1415,7 @@ export async function updatePart(
     ${hasColumns ? spreadTrust('changed', { sameMeaning, member, isEdit: true }) : sql``}
     ${nextMeasure === undefined ? sql`` : changedMeasure}
     ${nextGoal === undefined ? sql`` : changedGoal}
-    ${columns.body === undefined ? sql`` : changedJoints}
+    ${gluesAgain ? changedJoints : sql``}
     select "id" from changed
   `)
   return idRowsSchema.parse(result).rows.length > 0

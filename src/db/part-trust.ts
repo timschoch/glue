@@ -147,7 +147,8 @@ export function toPublishedAt(workState: WorkState): SQL {
 // write, with the columns of `historyFields`. "parts" still reads as before
 // the write.
 //
-// - A published Part with a new title or body, and a Part that turns
+// - A published Part with a new title or body, new steps or new fields
+//   ("new text" below), and a Part that turns
 //   not-ready or wrong, flags each Part that needs it over a Joint. A Part
 //   that goes to review flags nobody: the Parts that need it show a note,
 //   see selectReviewNotes. A two-way
@@ -203,11 +204,15 @@ export function spreadTrust(
   const isNewText = sql`(
     new_part."title" <> old_part."title"
     or new_part."body" <> old_part."body"
+    or new_part."steps" <> old_part."steps"
+    or new_part."fields" <> old_part."fields"
   )`
   const hasNewText = sameMeaning ? sql`false` : isNewText
   return sql`,
     old_parts as (
-      select "id", "title", "body", "trust", "work_state", "published_at"
+      select
+        "id", "title", "body", "steps", "fields", "trust", "work_state",
+        "published_at"
       from "parts"
       where "id" in (select "id" from ${newParts})
     ),
@@ -343,7 +348,7 @@ export function spreadTrust(
 // and what a Part Version freezes.
 export const historyFields = sql`
   "id", "title", "body", "trust", "work_state", "status", "owner", "date",
-  "source", "metric", "enforced_by", "evidence_level"`
+  "source", "metric", "enforced_by", "evidence_level", "steps", "fields"`
 
 // The number of the next Version of the Part: the numbers count up per Part.
 export function selectNextVersion(partId: SQL): SQL {
@@ -363,7 +368,9 @@ export function selectVersionFields(part: SQL): SQL {
     'source', ${part}."source",
     'metric', ${part}."metric",
     'enforcedBy', ${part}."enforced_by",
-    'evidenceLevel', ${part}."evidence_level"
+    'evidenceLevel', ${part}."evidence_level",
+    'steps', ${part}."steps",
+    'fields', ${part}."fields"
   )`
 }
 

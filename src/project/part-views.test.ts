@@ -48,6 +48,8 @@ const decision: Part = {
   enforcedBy: null,
   evidenceLevel: null,
   evidenceBase: null,
+  steps: [],
+  fields: [],
   issueUrl: 'https://github.com/timschoch/glue/issues/1',
   measure: null,
   measured: [],
@@ -305,6 +307,8 @@ describe('a Part in the record view', () => {
       metric: null,
       enforcedBy: null,
       evidenceLevel: null,
+      steps: [],
+      fields: [],
       signedAt: '2026-10-02T08:00:00.000Z',
       signedBy: 'Ada',
     }

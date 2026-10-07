@@ -94,6 +94,8 @@ const noFields = {
   activity: [{ kind: 'published', at: '2026-10-03T08:00:00.000Z' }],
   question: null,
   unchosen: false,
+  steps: [],
+  fields: [],
 } satisfies Partial<RecordPart>
 
 const question = {

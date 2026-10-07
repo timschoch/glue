@@ -23,7 +23,7 @@ import type { PartSummary } from './parts.ts'
 import { ConceptNotFoundError, InvalidRecordError } from './record-errors.ts'
 import { sortById } from './record-id.ts'
 import * as schema from './schema.ts'
-import type { FrozenPart, PartType } from './schema.ts'
+import type { EntityField, FlowStep, FrozenPart, PartType } from './schema.ts'
 
 // The Contract of a Concept (D28): a sign-off freezes the Parts of the
 // Concept, and of the Concepts in it, as one Contract Version with a
@@ -57,6 +57,10 @@ export type ContractState = {
 // that it needs.
 export type EmptySlot = { type: PartType; count: number; minCount: number }
 
+// A Part of a Contract Version as a builder reads it: each Part has both
+// lists, also when the Version holds none for it.
+export type ContractPart = Required<FrozenPart>
+
 export type Contract = ContractVersion & {
   // The slug of the Concept.
   concept: string
@@ -65,8 +69,8 @@ export type Contract = ContractVersion & {
   kind: string | null
   // A higher number than `version`: this Version is superseded.
   newestVersion: number
-  tier1: FrozenPart[]
-  tier2: FrozenPart[]
+  tier1: ContractPart[]
+  tier2: ContractPart[]
   // One slot per Part type of the Kind. Empty when the Concept has no Kind.
   // A slot is filled when the Version holds a Part of its type.
   slots: ConceptSlot[]
@@ -159,6 +163,15 @@ function selectLiveParts(conceptId: number) {
               where joint."part_id" = live."id"
             )
           )
+          -- Only a list with an item goes in: see FrozenPart.
+          || case
+            when live."steps" = '[]'::jsonb then '{}'::jsonb
+            else jsonb_build_object('steps', live."steps")
+          end
+          || case
+            when live."fields" = '[]'::jsonb then '{}'::jsonb
+            else jsonb_build_object('fields', live."fields")
+          end
           order by live."id"
         ),
         '[]'::jsonb
@@ -286,10 +299,13 @@ export async function findContractState(
   }
 }
 
-function listTier(parts: FrozenPart[], types: readonly PartType[]) {
-  return types.flatMap((type) =>
-    sortById(parts.filter((part) => part.type === type)),
-  )
+function listTier(
+  parts: FrozenPart[],
+  types: readonly PartType[],
+): ContractPart[] {
+  return types
+    .flatMap((type) => sortById(parts.filter((part) => part.type === type)))
+    .map((part) => ({ ...part, steps: [], fields: [], ...part }))
 }
 
 // The newest Contract Version of the Concept, or the one of the number.
@@ -350,6 +366,8 @@ export const frozenFields = [
   'enforcedBy',
   'evidenceLevel',
   'needs',
+  'steps',
+  'fields',
 ] as const satisfies Exclude<keyof FrozenPart, 'id'>[]
 
 // What a new Contract Version changed for a Joint (D46).
@@ -382,9 +400,16 @@ const versionChangesSchema = z.object({
   ),
 })
 
+// A step as a line of a change: its text, and the Entity that it names.
+function formatListItem(item: string | FlowStep | EntityField) {
+  if (typeof item === 'string') return item
+  if ('name' in item) return `${item.name}: ${item.meaning}`
+  return item.entity === null ? item.text : `${item.text} (${item.entity})`
+}
+
 function formatFrozenValue(value: FrozenPart[keyof FrozenPart] | undefined) {
   if (value == null) return null
-  return Array.isArray(value) ? value.join(', ') : value
+  return Array.isArray(value) ? value.map(formatListItem).join(', ') : value
 }
 
 function listChanges(before: FrozenPart | null, after: FrozenPart | null) {

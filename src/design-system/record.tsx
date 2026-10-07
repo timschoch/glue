@@ -104,6 +104,8 @@ const frozenFields = {
   enforcedBy: 'Enforced by',
   evidenceLevel: 'Evidence level',
   needs: 'Needs',
+  steps: 'Steps',
+  fields: 'Fields',
 } as const
 
 // An open flag: its reason and the Part that caused it.
@@ -137,6 +139,13 @@ const activityKinds = {
   'flag-closed': 'Flag closed',
 } as const
 
+// One step of a Flow. `entity` is the record id of the Entity that the step
+// works on.
+export type RecordStep = { text: string; entity: string | null }
+
+// One field of an Entity.
+export type RecordField = { name: string; meaning: string }
+
 // A Part as one sign-off froze it: `PartVersion` of the read model.
 export type RecordVersion = {
   version: number
@@ -148,6 +157,8 @@ export type RecordVersion = {
   metric: string | null
   enforcedBy: string | null
   evidenceLevel: EvidenceLevel | null
+  steps: ReadonlyArray<RecordStep>
+  fields: ReadonlyArray<RecordField>
 }
 
 // A note that is a link to the web and nothing else.
@@ -176,6 +187,10 @@ export type RecordPart = RecordPartSummary & {
   evidenceLevel: EvidenceLevel | null
   // The level of the strongest evidence of a Decision.
   evidenceBase?: EvidenceLevel | null
+  // The steps of a Flow, in their order.
+  steps: ReadonlyArray<RecordStep>
+  // The fields of an Entity.
+  fields: ReadonlyArray<RecordField>
   issueUrl: string | null
   measure: {
     baseline: number | null
@@ -385,8 +400,74 @@ function Body({
   )
 }
 
+// The steps of a Flow in their order, and the fields of an Entity: each a
+// name above its meaning. A step shows the id of its Entity as a link, as a
+// body does. `Title` is the heading of each list.
+function Lists({
+  steps,
+  fields,
+  parts,
+  Title,
+  onOpen,
+}: {
+  steps: ReadonlyArray<RecordStep>
+  fields: ReadonlyArray<RecordField>
+  parts: ReadonlyArray<RecordPartSummary>
+  Title: 'h2' | 'h4'
+  onOpen?: OpenHandler
+}) {
+  const stepsId = useId()
+  const fieldsId = useId()
+
+  return (
+    <>
+      {steps.length > 0 && (
+        <section aria-labelledby={stepsId} className={styles.group}>
+          <Title id={stepsId} className={styles.groupTitle}>
+            Steps
+          </Title>
+          <ol className={styles.steps}>
+            {steps.map(({ text, entity }, index) => {
+              const part = parts.find(({ id }) => id === entity)
+              return (
+                <li key={`${index} ${text}`}>
+                  {text}
+                  {entity && ' '}
+                  {part ? (
+                    <RecordLink part={part} onOpen={onOpen}>
+                      #{part.id}
+                    </RecordLink>
+                  ) : (
+                    entity
+                  )}
+                </li>
+              )
+            })}
+          </ol>
+        </section>
+      )}
+      {fields.length > 0 && (
+        <section aria-labelledby={fieldsId} className={styles.group}>
+          <Title id={fieldsId} className={styles.groupTitle}>
+            Fields
+          </Title>
+          <dl className={styles.entityFields}>
+            {fields.map(({ name, meaning }) => (
+              <div key={name} className={styles.field}>
+                <dt>{name}</dt>
+                <dd>{meaning}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+    </>
+  )
+}
+
 // An old Version of the Part, in the activity list: its number, the day of
-// its sign-off, and its frozen title, body and fields. It is read-only.
+// its sign-off, and its frozen title, body, steps and fields. It is
+// read-only.
 function FrozenVersion({
   version,
   at,
@@ -424,6 +505,13 @@ function FrozenVersion({
       {version.body.trim() !== '' && (
         <Body body={version.body} parts={parts} onOpen={onOpen} />
       )}
+      <Lists
+        steps={version.steps}
+        fields={version.fields}
+        parts={parts}
+        Title="h4"
+        onOpen={onOpen}
+      />
       {fields.length > 0 && (
         <dl className={styles.fields}>
           {fields.map(([label, value]) => (
@@ -828,6 +916,13 @@ export function Record({
       {part.body.trim() !== '' && (
         <Body body={part.body} parts={bodyParts} onOpen={onOpen} />
       )}
+      <Lists
+        steps={part.steps}
+        fields={part.fields}
+        parts={bodyParts}
+        Title="h2"
+        onOpen={onOpen}
+      />
       {shownFields.length > 0 && (
         <dl className={styles.fields}>
           {shownFields.map(([label, value]) => (

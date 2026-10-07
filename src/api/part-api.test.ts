@@ -610,6 +610,8 @@ describe('GET a Part', () => {
       enforcedBy: null,
       evidenceBase: null,
       evidenceLevel: 'pattern',
+      steps: [],
+      fields: [],
       issueUrl: null,
       question: null,
       unchosen: false,
@@ -636,6 +638,8 @@ describe('GET a Part', () => {
           metric: null,
           enforcedBy: null,
           evidenceLevel: 'pattern',
+          steps: [],
+          fields: [],
           signedAt: expect.any(String),
           signedBy: null,
         },
@@ -733,6 +737,48 @@ describe('POST a Part', () => {
     expect(
       response.body.needs.map((end: { part: { id: string } }) => end.part.id),
     ).toEqual(['R1'])
+  })
+
+  it('adds an Entity with its fields and a Flow with its steps, and gives them back', async () => {
+    const entity = await call(handleAddPart, 'POST', {
+      body: {
+        type: 'entity',
+        title: 'Cart',
+        fields: [{ name: 'total', meaning: 'The sum to pay' }],
+      },
+    })
+    const flow = await call(handleAddPart, 'POST', {
+      body: {
+        type: 'flow',
+        title: 'Pay the cart',
+        steps: [{ text: 'Open the cart', entity: 'E1' }],
+      },
+    })
+    const read = await call(handleGetPart, 'GET', {
+      params: { recordId: 'F1' },
+    })
+
+    expect(entity.status).toBe(201)
+    expect(entity.body.fields).toEqual([
+      { name: 'total', meaning: 'The sum to pay' },
+    ])
+    expect(entity.body.steps).toEqual([])
+    expect(flow.status).toBe(201)
+    expect(read.body.steps).toEqual([{ text: 'Open the cart', entity: 'E1' }])
+    expect(read.body.fields).toEqual([])
+  })
+
+  it('answers 400 for a step that names an Entity that the Project does not have', async () => {
+    const response = await call(handleAddPart, 'POST', {
+      body: {
+        type: 'flow',
+        title: 'Pay the cart',
+        steps: [{ text: 'Open the cart', entity: 'E7' }],
+      },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('entity "E7" not found')
   })
 
   it('adds an Insight with its Evidence level', async () => {

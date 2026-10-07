@@ -145,11 +145,17 @@ describe('the lens of a section', () => {
     expect(lensTypes(undefined)).toBeUndefined()
   })
 
-  it('shows the one or two Part types of the section', () => {
+  it('shows the Part types that the concept names for the loop step', () => {
     expect(lensTypes('Understand')).toEqual(['insight'])
-    expect(lensTypes('Decide')).toEqual(['goal', 'decision'])
-    expect(lensTypes('Design')).toEqual(['flow', 'entity'])
-    expect(lensTypes('Build')).toEqual(['guardrail'])
+    expect(lensTypes('Decide')).toEqual([
+      'goal',
+      'decision',
+      'guardrail',
+      'flow',
+      'metric',
+    ])
+    expect(lensTypes('Design')).toEqual(['guardrail', 'entity', 'flow'])
+    expect(lensTypes('Build')).toEqual(['guardrail', 'entity'])
     expect(lensTypes('Use')).toEqual(['metric'])
   })
 

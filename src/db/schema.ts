@@ -365,6 +365,16 @@ export type Question = {
   } | null
 }
 
+// One step of a Flow. The steps of a Flow keep their order.
+export type FlowStep = {
+  text: string
+  // The record id of the Entity of the same Project that the step works on.
+  entity: string | null
+}
+
+// One field of an Entity: its name, and what it means.
+export type EntityField = { name: string; meaning: string }
+
 // A Part is one record of one type. Its home is one Concept.
 export const parts = pgTable(
   'parts',
@@ -390,6 +400,10 @@ export const parts = pgTable(
     question: jsonb('question').$type<Question>(),
     // Insight
     evidenceLevel: text('evidence_level').$type<EvidenceLevel>(),
+    // Flow
+    steps: jsonb('steps').notNull().default([]).$type<FlowStep[]>(),
+    // Entity
+    fields: jsonb('fields').notNull().default([]).$type<EntityField[]>(),
     // Supersede replaces, it does not need. So it is not a Joint.
     supersededById: integer('superseded_by_id').references(
       (): AnyPgColumn => parts.id,
@@ -592,6 +606,10 @@ export type FrozenPart = {
   enforcedBy: string | null
   evidenceLevel: EvidenceLevel | null
   needs: string[]
+  // Only a Flow with steps has them, and only an Entity with fields. So a
+  // Version from before the lists keeps its checksum.
+  steps?: FlowStep[]
+  fields?: EntityField[]
 }
 
 // A Contract Version is the Parts of a Concept, and of the Concepts in it,
@@ -784,6 +802,9 @@ export type VersionFields = {
   metric: string | null
   enforcedBy: string | null
   evidenceLevel: EvidenceLevel | null
+  // A Version from before the lists has none.
+  steps?: FlowStep[]
+  fields?: EntityField[]
 }
 
 // A Part Version is a Part as it was at one sign-off (glue/D55). Its number

@@ -26,6 +26,18 @@ function pickFields<TSource extends Record<Field, unknown>>(
   return picked
 }
 
+// The values as a write takes them: the date without spaces around it, and
+// only the steps with a text and the fields with a name. A row that the
+// person added and left empty is no step and no field.
+function toFilled(values: PartFormValues) {
+  return {
+    ...values,
+    date: values.date.trim(),
+    steps: values.steps.filter(({ text }) => text.trim() !== ''),
+    fields: values.fields.filter(({ name }) => name.trim() !== ''),
+  }
+}
+
 // The reason of each field with a wrong value. The form keeps Save off
 // while a field has no value, so only the format is left to check.
 export function findProblems(
@@ -57,7 +69,7 @@ export function toNewPart(
     body: values.body,
     ...(needs && { needs }),
   }
-  const date = values.date.trim()
+  const { date, steps, fields } = toFilled(values)
   switch (type) {
     case 'insight':
       return {
@@ -84,6 +96,10 @@ export function toNewPart(
       }
     case 'guardrail':
       return { type, ...common, enforcedBy: values.enforcedBy }
+    case 'entity':
+      return { type, ...common, fields }
+    case 'flow':
+      return { type, ...common, steps }
     default:
       return { type, ...common }
   }
@@ -98,7 +114,7 @@ export function toPartChange(
   start: Pick<PartFormValues, 'goal'>,
 ): PartChange {
   return {
-    ...pickFields(type, { ...values, date: values.date.trim() }),
+    ...pickFields(type, toFilled(values)),
     ...(type === 'decision' &&
       values.goal &&
       values.goal !== start.goal && { goal: values.goal }),
@@ -107,9 +123,15 @@ export function toPartChange(
 }
 
 // The values that the person saw in the form. The write changes nothing
-// when a second person changed one of them.
+// when a second person changed one of them. The guard holds the texts of
+// the Part, and not its lists.
 export function toExpectedPart(part: Part): ExpectedPart {
-  return pickFields(part.type, part)
+  const {
+    steps: _steps,
+    fields: _fields,
+    ...texts
+  } = pickFields(part.type, part)
+  return texts
 }
 
 // The values that the form starts with: the fields of the Part, and for a
@@ -126,6 +148,8 @@ export function toFormValues(part: Part): PartFormValues {
     enforcedBy: part.enforcedBy ?? '',
     goal: needed.find(({ type }) => type === 'goal')?.id ?? null,
     evidence: needed.filter(({ type }) => isEvidence(type)).map(({ id }) => id),
+    steps: part.steps,
+    fields: part.fields,
     sameMeaning: false,
   }
 }

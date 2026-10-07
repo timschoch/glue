@@ -89,8 +89,20 @@ export const partFields = {
     owner,
     source,
   ],
-  entity: [title, body, owner, source],
-  flow: [title, body, owner, source],
+  entity: [
+    title,
+    body,
+    { name: 'fields', kind: 'json', required: false, label: 'Fields' },
+    owner,
+    source,
+  ],
+  flow: [
+    title,
+    body,
+    { name: 'steps', kind: 'json', required: false, label: 'Steps' },
+    owner,
+    source,
+  ],
   metric: [title, body, measure, owner, source],
 } as const satisfies Record<string, ReadonlyArray<PartField>>
 

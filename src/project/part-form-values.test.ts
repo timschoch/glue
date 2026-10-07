@@ -20,6 +20,14 @@ const values: PartFormValues = {
   enforcedBy: 'verify ci',
   goal: 'G1',
   evidence: ['I3', 'R1'],
+  steps: [
+    { text: 'Open the cart', entity: 'E1' },
+    { text: ' ', entity: null },
+  ],
+  fields: [
+    { name: 'total', meaning: 'The sum to pay' },
+    { name: '', meaning: 'No name yet' },
+  ],
   sameMeaning: false,
 }
 
@@ -62,13 +70,22 @@ describe('the Part that the form adds', () => {
     ['insight', ['source', 'date']],
     ['goal', ['metric', 'source']],
     ['guardrail', ['enforcedBy']],
-    ['entity', []],
-    ['flow', []],
+    ['entity', ['fields']],
+    ['flow', ['steps']],
     ['metric', []],
   ] as const)('has only the fields of the type %s', (type, fields) => {
     expect(Object.keys(toNewPart(type, values, place)).sort()).toEqual(
       ['type', 'concept', 'title', 'body', ...fields].sort(),
     )
+  })
+
+  it('has the steps of a Flow with a text, and the fields of an Entity with a name', () => {
+    expect(toNewPart('flow', values, place)).toMatchObject({
+      steps: [{ text: 'Open the cart', entity: 'E1' }],
+    })
+    expect(toNewPart('entity', values, place)).toMatchObject({
+      fields: [{ name: 'total', meaning: 'The sum to pay' }],
+    })
   })
 })
 
@@ -109,6 +126,8 @@ describe('the Part that the form edits', () => {
       enforcedBy: '',
       goal: 'G1',
       evidence: ['I3'],
+      steps: [],
+      fields: [],
       sameMeaning: false,
     })
   })
@@ -138,6 +157,7 @@ describe('the Part that the form edits', () => {
     ).toEqual({
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
+      steps: [{ text: 'Open the cart', entity: 'E1' }],
       sameMeaning: true,
     })
   })
@@ -146,6 +166,28 @@ describe('the Part that the form edits', () => {
     expect(toPartChange('flow', values, { goal: null })).toEqual({
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
+      steps: [{ text: 'Open the cart', entity: 'E1' }],
+    })
+  })
+
+  it('gives an Entity the fields that have a name', () => {
+    expect(toPartChange('entity', values, { goal: null })).toEqual({
+      title: 'Show the video of the creator',
+      body: 'It follows #I3.',
+      fields: [{ name: 'total', meaning: 'The sum to pay' }],
+    })
+  })
+
+  it('expects the texts that the person saw, and not the steps', () => {
+    const flow = {
+      ...part,
+      type: 'flow' as const,
+      steps: [{ text: 'Open the cart', entity: null }],
+    }
+
+    expect(toExpectedPart(flow)).toEqual({
+      title: 'The Concept lives in the database',
+      body: 'It follows #I3 and #D9.',
     })
   })
 

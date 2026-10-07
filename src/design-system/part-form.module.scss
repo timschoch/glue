@@ -74,6 +74,52 @@ $text-width: $spacing-13 * 4;
   color: $text-secondary;
 }
 
+// A list field: its rows, then the button that adds a row. The fieldset
+// of Carbon has a margin below it, and the form sets the gaps itself.
+.rows {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-block-end: 0;
+}
+
+.rowList {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  inline-size: 100%;
+  margin-block-end: $spacing-05;
+}
+
+// One row: its inputs side by side, the controls at its end. In a narrow
+// window each input takes a line of its own.
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: $spacing-03;
+}
+
+// The long text of a row takes two parts of the room that is left, the
+// short input one part.
+.rowText {
+  flex: 2 1 $spacing-13 + $spacing-10;
+}
+
+.rowChoice {
+  flex: 1 1 $spacing-13 + $spacing-10;
+}
+
+// The wrapper of a Carbon icon button is inline, with room below its line.
+.rowControls {
+  display: flex;
+  margin-inline-start: auto;
+
+  > * {
+    display: flex;
+  }
+}
+
 .buttons {
   display: flex;
   align-items: center;

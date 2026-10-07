@@ -252,6 +252,27 @@ $text-width: $card-width * 2;
   gap: $spacing-03;
 }
 
+// The steps of a Flow: the number of a step is its place in the order.
+.steps {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  list-style: decimal;
+  margin-inline-start: $spacing-06;
+  max-inline-size: $text-width;
+  overflow-wrap: anywhere;
+}
+
+// The fields of an Entity, one below the other.
+.entityFields {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  max-inline-size: $text-width;
+}
+
 // Each entry of the activity list is one line: the day, then what happened.
 // A line is as high as the button of a Version, so all lines are the same.
 .activity {

@@ -21,8 +21,10 @@ import { listConceptSlots, listKinds } from './kinds.ts'
 import type { ConceptSlot, Kind } from './kinds.ts'
 import type {
   ActivityKind,
+  EntityField,
   EvidenceLevel,
   FlagReason,
+  FlowStep,
   PartType,
   Question,
   Trust,
@@ -56,8 +58,10 @@ export {
 } from './schema.ts'
 export type {
   DecisionStatus,
+  EntityField,
   EvidenceLevel,
   FlagReason,
+  FlowStep,
   PartType,
   Question,
   Trust,
@@ -134,8 +138,9 @@ export type Activity =
     }
 
 // A Part as one sign-off froze it (glue/D55). The numbers count up per
-// Part. `signedBy` is the name of the member who signed it off.
-export type PartVersion = VersionFields & {
+// Part. `signedBy` is the name of the member who signed it off. A Version
+// from before the steps and the fields has none of them.
+export type PartVersion = Required<VersionFields> & {
   version: number
   title: string
   body: string
@@ -212,6 +217,10 @@ export type Part = PartSummary & {
   // The level of the strongest evidence of a Decision. A Decision on a
   // Hunch takes no sign-off. null: no Decision, or no evidence.
   evidenceBase: EvidenceLevel | null
+  // The steps of a Flow, in order. Each other type has none.
+  steps: FlowStep[]
+  // The fields of an Entity. Each other type has none.
+  fields: EntityField[]
   issueUrl: string | null
   // What a Decision asks, and the answer that it got.
   question: Question | null
@@ -758,6 +767,8 @@ async function listVersions(
     version: stored.version,
     title: stored.title,
     body: stored.body,
+    steps: [],
+    fields: [],
     ...stored.fields,
     signedAt: stored.signedAt.toISOString(),
     signedBy,
@@ -921,6 +932,8 @@ export async function findPart(
     enforcedBy: part.enforcedBy,
     evidenceLevel: part.evidenceLevel,
     evidenceBase,
+    steps: part.steps,
+    fields: part.fields,
     issueUrl: part.issueUrl,
     question: part.question,
     unchosen: part.status === 'superseded' && part.publishedAt === null,

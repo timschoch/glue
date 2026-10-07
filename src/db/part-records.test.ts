@@ -492,6 +492,8 @@ describe('addPart', () => {
       issueUrl: null,
       question: null,
       evidenceLevel: null,
+      steps: [],
+      fields: [],
       supersededById: null,
       trust: 'not-ready',
       workState: 'draft',

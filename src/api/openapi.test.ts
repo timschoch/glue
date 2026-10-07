@@ -162,6 +162,34 @@ describe('GET /api/v1/openapi.json', () => {
     )
   })
 
+  it('describes the steps of a Flow and the fields of an Entity, in each answer and each request', async () => {
+    const { schemas } = (await handleGetOpenApi().json()).components
+    const steps = {
+      type: 'array',
+      items: { $ref: '#/components/schemas/FlowStep' },
+    }
+    const fields = {
+      type: 'array',
+      items: { $ref: '#/components/schemas/EntityField' },
+    }
+
+    expect(Object.keys(schemas.FlowStep.properties)).toEqual(['text', 'entity'])
+    expect(Object.keys(schemas.EntityField.properties)).toEqual([
+      'name',
+      'meaning',
+    ])
+    expect(schemas.Part.properties.steps).toMatchObject(steps)
+    expect(schemas.Part.properties.fields).toMatchObject(fields)
+    expect(schemas.FrozenPart.properties.steps).toMatchObject(steps)
+    expect(schemas.FrozenPart.properties.fields).toMatchObject(fields)
+    expect(schemas.FrozenPart.required).toEqual(
+      expect.arrayContaining(['steps', 'fields']),
+    )
+    expect(JSON.stringify(schemas.PartInput)).toContain('"steps"')
+    expect(JSON.stringify(schemas.PartInput)).toContain('"meaning"')
+    expect(JSON.stringify(schemas.PartUpdate)).toContain('"steps"')
+  })
+
   it('describes Trust, the Work state, the flags and the answers', async () => {
     const document = await handleGetOpenApi().json()
     const { schemas } = document.components

@@ -61,6 +61,8 @@ const DECISION: RecordPart = {
   activity: [],
   question: null,
   unchosen: false,
+  steps: [],
+  fields: [],
 }
 
 const QUESTION = {
@@ -1379,6 +1381,8 @@ describe('the activity of a record', () => {
       metric: null,
       enforcedBy: 'lint',
       evidenceLevel: null,
+      steps: [],
+      fields: [],
     },
   } as const
 

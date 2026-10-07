@@ -225,6 +225,23 @@ const jointEndSchema = z
   })
   .meta({ id: 'JointEnd' })
 
+export const flowStepSchema = z
+  .object({
+    text: z.string(),
+    entity: z.string().nullable().meta({
+      description:
+        'The record id of the Entity that the step works on. The Flow needs that Entity',
+    }),
+  })
+  .meta({ id: 'FlowStep' })
+
+export const entityFieldSchema = z
+  .object({
+    name: z.string(),
+    meaning: z.string().meta({ description: 'What the field means' }),
+  })
+  .meta({ id: 'EntityField' })
+
 const flagCauseSchema = z
   .object({ id: z.string(), title: z.string() })
   .meta({ description: 'The Part that caused the flag' })
@@ -242,6 +259,12 @@ export const partSchema = z
     evidenceBase: z.enum(evidenceLevels).nullable().meta({
       description:
         'The level of the strongest evidence of a Decision. A Guardrail counts as confirmed. A Decision on a hunch takes no sign-off. null: no Decision, or no evidence',
+    }),
+    steps: z.array(flowStepSchema).meta({
+      description: 'The steps of a Flow, in order',
+    }),
+    fields: z.array(entityFieldSchema).meta({
+      description: 'The fields of an Entity',
     }),
     issueUrl: z.string().nullable(),
     question: z
@@ -371,6 +394,8 @@ export const partSchema = z
           metric: z.string().nullable(),
           enforcedBy: z.string().nullable(),
           evidenceLevel: z.enum(evidenceLevels).nullable(),
+          steps: z.array(flowStepSchema),
+          fields: z.array(entityFieldSchema),
           signedAt: z.iso.datetime(),
           signedBy: z.string().nullable().meta({
             description: 'The name of the member who signed it off',

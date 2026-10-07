@@ -275,6 +275,8 @@ function part(
     enforcedBy: null,
     evidenceLevel: null,
     evidenceBase: null,
+    steps: [],
+    fields: [],
     issueUrl: null,
     measure: null,
     measured: [],
@@ -344,6 +346,8 @@ const noVersionFields = {
   metric: null,
   enforcedBy: null,
   evidenceLevel: null,
+  steps: [],
+  fields: [],
   signedBy: 'Ada',
 }
 
