@@ -87,23 +87,23 @@ function createSource(readKey = READ_KEY) {
 }
 
 describe('createSocialSource', () => {
-  it('reads the Comments of the last 30 days under the social handle of the Project', async () => {
+  it('reads the Comments of the last 30 days under the social handle of the Project, newest first', async () => {
     const signals = await createSource().listSignals(flexibeck)
 
     expect(signals).toEqual([
-      {
-        url: `https://social.test/comments/${ADA_ID}`,
-        title: 'Comment of ada',
-        titleBy: 'glue',
-        text: 'Too many options to pick from',
-        date: '2026-10-02',
-      },
       {
         url: `https://social.test/comments/${BOB_ID}`,
         title: 'Comment of bob',
         titleBy: 'glue',
         text: 'The plan for the week helps me a lot',
         date: '2026-10-03',
+      },
+      {
+        url: `https://social.test/comments/${ADA_ID}`,
+        title: 'Comment of ada',
+        titleBy: 'glue',
+        text: 'Too many options to pick from',
+        date: '2026-10-02',
       },
     ])
   })
@@ -114,7 +114,7 @@ describe('createSocialSource', () => {
     await createSource().listSignals(flexibeck)
 
     expect(requests.map(({ method, url }) => `${method} ${url}`)).toEqual([
-      'GET https://social.test/api/comments?handle=flexibeck&since=2026-09-05T12%3A00%3A00.000Z&until=2026-10-05T12%3A00%3A00.000Z',
+      'GET https://social.test/api/comments?handle=flexibeck&since=2026-09-05T12%3A00%3A00.000Z&until=2026-10-05T12%3A00%3A00.000Z&order=newest',
     ])
     expect(requests[0].headers.get('authorization')).toBe(`Bearer ${READ_KEY}`)
   })

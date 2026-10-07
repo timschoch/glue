@@ -53,7 +53,7 @@ export type PartCardsAsk = {
         }
       }
   // The other way to answer the Ask. A card holds one button, so this one
-  // is below the card.
+  // is below it, on the same surface.
   otherAction?: { label: string; onClick: () => void }
 }
 

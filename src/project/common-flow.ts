@@ -133,9 +133,19 @@ function readInsight(part: Part): CommonFlow {
 // The flow of a Decision whose build shipped (glue/D64): the Use flow, with
 // the Metrics of its Goal that the Decision shows. With no Metric the step
 // adds one that needs the first Goal of the Decision, so each Decision of
-// that Goal has it. A Decision that needs no Goal has no step.
+// that Goal has it. A Decision that needs no Goal has no step. With no
+// reading of a Metric there is nothing to read: the step waits for the
+// first one.
 function findShippedFlow(part: Part): CommonFlow {
-  if (part.goalMetrics.length > 0) return readInsight(part)
+  if (part.goalMetrics.length > 0) {
+    const flow = readInsight(part)
+    const isRead = part.goalMetrics.some(
+      ({ measure }) => measure?.latestValue != null,
+    )
+    return isRead || flow.next !== addInsight
+      ? flow
+      : { ...flow, next: undefined }
+  }
   const goal = part.needs.find(({ part: needed }) => needed.type === 'goal')
   const next = goal && { ...addPart('metric'), needed: goal.part }
   return { ...flows.use, current: 0, next }
@@ -309,7 +319,8 @@ export function findConceptFlow(
 }
 
 // The common flow of the Signals list (glue/D68): it is at the step Group,
-// and the step makes a Hunch from the largest of the groups. `groups` are
+// and the step makes a Hunch from the largest of the groups. Its label is
+// the name of the button of that group in the list. `groups` are
 // the groups that the member sees, so a filter that is on counts. Of two
 // groups of one size the first one in the list wins. The Signals of a Hunch
 // are in no group. With no group the list is in no flow: no step that
@@ -323,7 +334,7 @@ export function findSignalsFlow(
   )
   const next: HunchStep = {
     kind: 'hunch',
-    label: `Make Hunch ${title}`,
+    label: `Make Hunch, ${title}`,
     signals,
   }
   return { ...flows.evidence, current: 0, next }

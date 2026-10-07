@@ -31,20 +31,25 @@ function pickFields<TSource extends Record<Field, unknown>>(
 }
 
 // The values as a write takes them: the date without spaces around it, and
-// only the steps with a text and the fields with a name. A row that the
-// person added and left empty is no step and no field.
+// only the fields with a name. A row that the person added and left empty
+// is no field.
 function toFilled(values: PartFormValues) {
   return {
     ...values,
     date: values.date.trim(),
-    steps: values.steps.filter(({ text }) => text.trim() !== ''),
     fields: values.fields.filter(({ name }) => name.trim() !== ''),
   }
 }
 
+// The place of the first step with no text. -1: each step has a text.
+export function findEmptyStep(steps: PartFormValues['steps']): number {
+  return steps.findIndex(({ text }) => text.trim() === '')
+}
+
 // The reason of each field with a wrong value. The form keeps Save off
-// while a field has no value, so only the format of the date and the
-// names of the fields of an Entity are left to check.
+// while a field has no value, so only the format of the date, the names of
+// the fields of an Entity and the texts of the steps of a Flow are left to
+// check.
 export function findProblems(
   type: PartType,
   values: PartFormValues,
@@ -58,6 +63,8 @@ export function findProblems(
       !ISO_DATE.test(values.date.trim()) && {
         date: `Enter a date, such as ${todayUtc()}.`,
       }),
+    ...(names.includes('steps') &&
+      findEmptyStep(values.steps) !== -1 && { steps: 'Enter a text.' }),
     ...(repeated !== -1 && {
       fields: `A field has one name. "${values.fields[repeated].name.trim()}" is there twice.`,
     }),
@@ -83,7 +90,7 @@ export function toNewPart(
     body: values.body,
     ...(needs && { needs }),
   }
-  const { date, steps, fields } = toFilled(values)
+  const { date, fields } = toFilled(values)
   switch (type) {
     case 'insight':
       return {
@@ -113,7 +120,7 @@ export function toNewPart(
     case 'entity':
       return { type, ...common, fields }
     case 'flow':
-      return { type, ...common, steps }
+      return { type, ...common, steps: [...values.steps] }
     default:
       return { type, ...common }
   }

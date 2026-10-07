@@ -84,12 +84,23 @@ describe('SignalFilterForm', () => {
     expect(save().disabled).toBe(true)
   })
 
-  it('shows at the name why the name is wrong', () => {
-    renderForm({ error: 'A filter has this name already.' })
+  it.each([
+    { label: 'Name', errors: { name: 'A filter has this name already.' } },
+    { label: 'Must hold', errors: { mustHold: 'A word is too long.' } },
+    { label: 'Must not hold', errors: { mustNotHold: 'Too many words.' } },
+  ])(
+    'shows at the field $label why its value is wrong',
+    ({ label, errors }) => {
+      renderForm({ errors })
 
-    expect(field('Name').getAttribute('aria-invalid')).toBe('true')
-    screen.getByText('A filter has this name already.')
-  })
+      expect(
+        screen
+          .getAllByRole('textbox')
+          .filter((input) => input.getAttribute('aria-invalid') === 'true'),
+      ).toEqual([field(label)])
+      screen.getByText(Object.values(errors)[0])
+    },
+  )
 
   it('deletes the filter that it changes', async () => {
     const onDelete = vi.fn()

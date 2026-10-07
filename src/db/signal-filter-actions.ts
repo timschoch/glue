@@ -2,11 +2,11 @@ import { z } from 'zod'
 
 import { createSessionGuard, toFailure } from './session-actions.ts'
 import type { ActionRequest } from './session-actions.ts'
+import { signalFilterSchema } from './signal-filter-rule.ts'
 import {
   addSignalFilter,
   listSignalFilters,
   removeSignalFilter,
-  signalFilterSchema,
   updateSignalFilter,
 } from './signal-filters.ts'
 

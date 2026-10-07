@@ -11,39 +11,23 @@ import {
   SignalFilterNotFoundError,
 } from './record-errors.ts'
 import * as schema from './schema.ts'
-import type { SignalFilterRule } from './signal-filter-rule.ts'
+import { signalFilterSchema } from './signal-filter-rule.ts'
+import type { NewSignalFilter, SignalFilterRule } from './signal-filter-rule.ts'
 
 const { signalFilters } = schema
 
 export type SignalFilter = SignalFilterRule & { id: number; name: string }
 
-const words = z.array(z.string().trim().min(1)).default([])
-
-export const signalFilterSchema = z
-  .strictObject({
-    name: z.string().trim().min(1),
-    mustHold: words.meta({
-      description: 'The Signal holds each word, in its title or its text',
-    }),
-    mustNotHold: words.meta({
-      description: 'The Signal holds none of the words',
-    }),
-    sources: words.meta({
-      description: 'The names of the sources. None: each source passes',
-    }),
-  })
-  .refine(
-    ({ mustHold, mustNotHold, sources }) =>
-      mustHold.length + mustNotHold.length + sources.length > 0,
-    { error: 'A filter needs a word or a source' },
-  )
-
-export type NewSignalFilter = z.input<typeof signalFilterSchema>
-
+// The filter of a write, or the refusal with the field of its first reason.
 function parseFilter(input: NewSignalFilter) {
   const parsed = signalFilterSchema.safeParse(input)
-  if (!parsed.success)
-    throw new InvalidRecordError(z.prettifyError(parsed.error))
+  if (!parsed.success) {
+    const [field] = parsed.error.issues[0].path
+    throw new InvalidRecordError(
+      z.prettifyError(parsed.error),
+      typeof field === 'string' ? { field } : undefined,
+    )
+  }
   return parsed.data
 }
 
@@ -69,7 +53,9 @@ async function validateName(
       and(eq(signalFilters.projectId, projectId), eq(signalFilters.name, name)),
     )
   if (named.some((filter) => filter.id !== id))
-    throw new InvalidRecordError(`"${name}" is a filter already`)
+    throw new InvalidRecordError(`"${name}" is a filter already`, {
+      field: 'name',
+    })
 }
 
 // The saved filters of the Project, by name.

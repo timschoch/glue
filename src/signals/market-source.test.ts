@@ -53,6 +53,34 @@ describe('createMarketSource', () => {
     ])
   })
 
+  it('drops a finding with a link that is not http or https', async () => {
+    const finding = {
+      title: 'Coding agents get rules as free text',
+      summary: 'No tool in the sample checks a build against its rules.',
+      published_at: '2026-09-22T08:00:00Z',
+    }
+    const source = createMarketSource({
+      fetch: () =>
+        Promise.resolve(
+          Response.json({
+            findings: [
+              { ...finding, url: 'javascript:alert(1)' },
+              { ...finding, url: 'https://market.test/findings/3' },
+              { ...finding, url: 'ftp://market.test/findings/4' },
+              { ...finding, url: 'http://market.test/findings/5' },
+            ],
+          }),
+        ),
+    })
+
+    const signals = await source.listSignals(glue)
+
+    expect(signals.map(({ url }) => url)).toEqual([
+      'https://market.test/findings/3',
+      'http://market.test/findings/5',
+    ])
+  })
+
   it('has the name market', () => {
     expect(createMarketSource().name).toBe('market')
   })

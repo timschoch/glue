@@ -3,11 +3,11 @@
 import { z } from 'zod'
 
 import { SignalFilterNotFoundError } from '../db/record-errors.ts'
+import { signalFilterSchema } from '../db/signal-filter-rule.ts'
 import {
   addSignalFilter,
   listSignalFilters,
   removeSignalFilter,
-  signalFilterSchema,
   updateSignalFilter,
 } from '../db/signal-filters.ts'
 import type { SignalFilter } from '../db/signal-filters.ts'

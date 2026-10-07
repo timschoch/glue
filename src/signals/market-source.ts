@@ -11,13 +11,21 @@ const TIMEOUT_MS = 10_000
 const findingsResponseSchema = z.object({
   findings: z.array(
     z.object({
-      url: z.url(),
+      url: z.string(),
       title: z.string(),
       summary: z.string(),
       published_at: z.iso.datetime(),
     }),
   ),
 })
+
+// A link that a person can open: http or https. Each other scheme, such as
+// `javascript:`, is no link of a finding.
+function isWebLink(url: string) {
+  return (
+    URL.canParse(url) && ['http:', 'https:'].includes(new URL(url).protocol)
+  )
+}
 
 export function createMarketSource(
   options: { fetch?: typeof fetch } = {},
@@ -32,12 +40,14 @@ export function createMarketSource(
       })
       if (!response.ok) throw await createResponseError('Market', response)
       const { findings } = findingsResponseSchema.parse(await response.json())
-      return findings.map((finding) => ({
-        url: finding.url,
-        title: finding.title,
-        text: finding.summary,
-        date: finding.published_at.slice(0, 'yyyy-mm-dd'.length),
-      }))
+      return findings
+        .filter(({ url }) => isWebLink(url))
+        .map((finding) => ({
+          url: finding.url,
+          title: finding.title,
+          text: finding.summary,
+          date: finding.published_at.slice(0, 'yyyy-mm-dd'.length),
+        }))
     },
   }
 }

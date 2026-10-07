@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Gate } from '../db/gate.ts'
-import type { Part, PartSummary } from '../db/parts.ts'
+import type {
+  MeasuredPart,
+  Part,
+  PartMeasure,
+  PartSummary,
+} from '../db/parts.ts'
 import type { ContractState } from '../db/contracts.ts'
 import { applySignalFilters } from '../db/signal-filter-rule.ts'
 import { groupSignals } from '../db/signal-groups.ts'
@@ -472,15 +477,64 @@ describe('the common flow of a Part', () => {
   })
 
   // The build of the Decision is merged and its gate holds. M1 is a Metric
-  // of the Goal that the Decision needs.
+  // of the Goal that the Decision needs. It has no reading yet.
   const shipped = [{ ...build, gate: holds }]
-  const goalMetric = {
+  const noReading: PartMeasure = {
+    measure: {
+      kind: 'funnel',
+      source: 'mock-analytics',
+      steps: ['signed-up', 'paid'],
+      target: 0.25,
+      window_days: 7,
+    },
+    baseline: null,
+    latestValue: null,
+    latestBreakdownValue: null,
+    measuredAt: null,
+    target: 0.25,
+    onTarget: null,
+  }
+  const unreadMetric: MeasuredPart = {
     ...summary,
     id: 'M1',
     type: 'metric',
     title: 'Signup to paid',
-    measure: null,
-  } as const
+    measure: noReading,
+  }
+  const goalMetric: MeasuredPart = {
+    ...unreadMetric,
+    measure: {
+      ...noReading,
+      latestValue: 0.1,
+      measuredAt: '2026-10-04T00:00:00.000Z',
+      onTarget: false,
+    },
+  }
+
+  it.each([
+    ['has no reading', unreadMetric],
+    ['is not measured', { ...unreadMetric, measure: null }],
+  ])(
+    'waits for the first reading when the Metric of a built Decision %s',
+    (_, metric) => {
+      const flow = findCommonFlow(
+        { ...withGoal, goalMetrics: [metric] },
+        shipped,
+      )
+
+      expect(flow).toMatchObject({ name: 'Use to Insight', current: 0 })
+      expect(flow?.next).toBeUndefined()
+    },
+  )
+
+  it('asks for the Insight when one of the Metrics has a reading', () => {
+    const flow = findCommonFlow(
+      { ...withGoal, goalMetrics: [unreadMetric, { ...goalMetric, id: 'M2' }] },
+      shipped,
+    )
+
+    expect(flow?.next).toMatchObject({ kind: 'add', type: 'insight' })
+  })
 
   it('asks a built Decision with a Metric for the Insight of the reading', () => {
     const next = { kind: 'add', type: 'insight', label: 'Add Insight' }
@@ -974,7 +1028,7 @@ describe('findSignalsFlow', () => {
       current: 0,
       next: {
         kind: 'hunch',
-        label: 'Make Hunch I lose my place in the list',
+        label: 'Make Hunch, I lose my place in the list',
         signals: [
           'https://github.com/timschoch/glue/issues/5',
           'https://github.com/timschoch/glue/issues/6',
@@ -992,7 +1046,7 @@ describe('findSignalsFlow', () => {
     const refund = { ...slow, title: 'Where is my refund?' }
 
     expect(findSignalsFlow([slow, refund])?.next.label).toBe(
-      'Make Hunch The list is slow',
+      'Make Hunch, The list is slow',
     )
   })
 
@@ -1033,7 +1087,7 @@ describe('findSignalsFlow', () => {
       findSignalsFlow(applySignalFilters(listed, [noSlow]).groups)?.next,
     ).toEqual({
       kind: 'hunch',
-      label: 'Make Hunch Where is my refund?',
+      label: 'Make Hunch, Where is my refund?',
       signals: [
         'https://github.com/timschoch/glue/issues/3',
         'https://github.com/timschoch/glue/issues/4',

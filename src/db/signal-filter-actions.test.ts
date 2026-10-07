@@ -64,7 +64,10 @@ describe('the actions of the saved filters', () => {
     const removed = await actions.removeSignalFilter({ project, filterId: 1 })
 
     expect(added).toEqual({ id: 1 })
-    expect(again).toEqual({ message: '"Slow lists" is a filter already' })
+    expect(again).toEqual({
+      message: '"Slow lists" is a filter already',
+      place: { field: 'name' },
+    })
     expect(changed).toEqual({ id: 1 })
     expect(listed).toEqual([
       { id: 1, name: 'Slow', mustHold: ['slow'], mustNotHold: [], sources: [] },

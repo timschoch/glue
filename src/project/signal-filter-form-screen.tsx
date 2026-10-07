@@ -1,8 +1,13 @@
 import { getRouteApi } from '@tanstack/react-router'
 import { useState } from 'react'
 
+import { findSignalFilterProblems } from '../db/signal-filter-rule.ts'
 import type { SignalFilter } from '../db/signal-filters.ts'
-import { SignalFilterForm } from '../design-system/signal-filter-form.tsx'
+import {
+  SignalFilterForm,
+  signalFilterFormFields,
+} from '../design-system/signal-filter-form.tsx'
+import type { SignalFilterFormProps } from '../design-system/signal-filter-form.tsx'
 import { useProjectLinks } from './use-project-links.ts'
 import { useWrite } from './use-write.ts'
 
@@ -26,15 +31,19 @@ export function SignalFilterFormScreen({
   const { addSignalFilter, updateSignalFilter, removeSignalFilter } =
     projectRoute.useRouteContext()
   const { project } = useProjectLinks()
-  const { pending, failure, write } = useWrite()
-  const [error, setError] = useState<string>()
+  const { pending, failure, failurePlace, write } = useWrite()
+  const [errors, setErrors] = useState<SignalFilterFormProps['errors']>({})
+  // The server names the field that it refused: the reason shows there.
+  const failedField = signalFilterFormFields.find(
+    (field) => field === failurePlace?.field,
+  )
   const close = (saved?: { id: number }) => Promise.resolve(onClose(saved?.id))
 
   return (
     <SignalFilterForm
       filter={filter}
-      error={error}
-      serverError={failure}
+      errors={failedField ? { [failedField]: failure } : errors}
+      serverError={failedField ? undefined : failure}
       pending={
         pending === undefined
           ? undefined
@@ -47,8 +56,12 @@ export function SignalFilterFormScreen({
         const isTaken = filters.some(
           ({ id, name }) => id !== filter?.id && name === values.name,
         )
-        setError(isTaken ? 'A filter has this name already.' : undefined)
-        if (isTaken) return
+        const problems = {
+          ...findSignalFilterProblems(values),
+          ...(isTaken && { name: 'A filter has this name already.' }),
+        }
+        setErrors(problems)
+        if (Object.keys(problems).length > 0) return
         void write(
           'Saving',
           () =>

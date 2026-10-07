@@ -654,16 +654,25 @@ function listStepEntities(steps: schema.FlowStep[] = []) {
 }
 
 // The same, for the steps of a write: each id must name an Entity of the
-// Project.
+// Project. A refusal names the first step with that id.
 async function findStepEntities(
   db: ConceptDb,
   projectId: number,
-  steps?: schema.FlowStep[],
+  steps: schema.FlowStep[] = [],
 ) {
   const recordIds = listStepEntities(steps)
-  for (const part of await findParts(db, projectId, recordIds))
-    if (part.type !== 'entity')
-      throw new InvalidRecordError(`"${part.recordId}" is not an Entity`)
+  const found = await selectParts(db, projectId, recordIds)
+  for (const recordId of recordIds) {
+    const part = found.find((row) => row.recordId === recordId)
+    if (part?.type === 'entity') continue
+    throw new InvalidRecordError(
+      part ? `"${recordId}" is not an Entity` : toNotFoundMessage(recordId),
+      {
+        field: 'steps',
+        row: steps.findIndex(({ entity }) => entity === recordId),
+      },
+    )
+  }
   return recordIds
 }
 

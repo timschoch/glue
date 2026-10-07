@@ -231,6 +231,27 @@ describe('a step that names an Entity', () => {
     await expect(refused).rejects.toThrow('entity "E7" not found')
   })
 
+  it('names the step of the Entity that it refuses', async () => {
+    const missing = operations.addPart(project, {
+      ...flow,
+      steps: [
+        { text: 'Open the recipe', entity: null },
+        { text: 'Pick it', entity: 'E7' },
+      ],
+    })
+    await expect(missing).rejects.toMatchObject({
+      place: { field: 'steps', row: 1 },
+    })
+
+    await operations.addPart(project, flow)
+    const wrong = operations.updatePart(project, 'F1', {
+      steps: [{ text: 'Pick it', entity: 'F1' }],
+    })
+    await expect(wrong).rejects.toMatchObject({
+      place: { field: 'steps', row: 0 },
+    })
+  })
+
   it('refuses a Part that is no Entity, also in a change', async () => {
     await operations.addPart(project, flow)
 
