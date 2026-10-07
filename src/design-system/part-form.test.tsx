@@ -55,11 +55,16 @@ const PARTS: Array<PartFormPart> = [
 // The values of a Decision that the form can save.
 const DECISION = {
   title: 'Show the video of the creator',
-  owner: 'Mara',
+  responsible: 'mara@example.com',
   date: '2026-10-03',
   goal: 'G2',
   evidence: ['I7', 'I9'],
 }
+
+const MEMBERS = [
+  { name: 'Mara', email: 'mara@example.com' },
+  { name: 'Fred', email: 'fred@example.com' },
+]
 
 // Carbon's text area watches its size, which jsdom can not do.
 vi.stubGlobal(
@@ -79,6 +84,7 @@ function renderForm(props: Partial<PartFormProps> = {}) {
     <PartForm
       type="decision"
       parts={PARTS}
+      members={MEMBERS}
       onSave={onSave}
       onCancel={onCancel}
       {...props}
@@ -97,6 +103,14 @@ function labels(): Array<string> {
 const field = (name: string) => screen.getByRole('textbox', { name })
 
 const picker = (name: string) => screen.getByRole('combobox', { name })
+
+// The Parts that the open picker offers. The members of the field
+// Responsible are options too.
+const offered = (options?: { hidden: boolean }) =>
+  screen
+    .getAllByRole('option', options)
+    .filter((option) => !(option instanceof HTMLOptionElement))
+    .map((option) => option.textContent)
 
 const saveButton = () =>
   screen.getByRole<HTMLButtonElement>('button', { name: 'Save' })
@@ -142,13 +156,13 @@ async function pick(name: string, search: string, option: string) {
 
 describe('PartForm', () => {
   it.each([
-    ['insight', ['Title', 'Body', 'Source', 'Date']],
-    ['goal', ['Title', 'Body', 'Metric', 'Source']],
-    ['decision', ['Title', 'Body', 'Owner', 'Date', 'Goal', 'Evidence']],
-    ['guardrail', ['Title', 'Body', 'Enforced by']],
-    ['entity', ['Title', 'Body']],
-    ['flow', ['Title', 'Body']],
-    ['metric', ['Title', 'Body']],
+    ['insight', ['Title', 'Body', 'Source', 'Date', 'Responsible']],
+    ['goal', ['Title', 'Body', 'Metric', 'Source', 'Responsible']],
+    ['decision', ['Title', 'Body', 'Date', 'Goal', 'Evidence', 'Responsible']],
+    ['guardrail', ['Title', 'Body', 'Enforced by', 'Responsible']],
+    ['entity', ['Title', 'Body', 'Responsible']],
+    ['flow', ['Title', 'Body', 'Responsible']],
+    ['metric', ['Title', 'Body', 'Responsible']],
   ] as const)('shows the fields of a %s, and no other', (type, names) => {
     renderForm({ type })
 
@@ -158,7 +172,13 @@ describe('PartForm', () => {
   it('has the Goal of a Decision that exists, and no field for its evidence', () => {
     renderForm({ recordId: 'D12', values: DECISION })
 
-    expect(labels()).toEqual(['Title', 'Body', 'Owner', 'Date', 'Same meaning'])
+    expect(labels()).toEqual([
+      'Title',
+      'Body',
+      'Date',
+      'Responsible',
+      'Same meaning',
+    ])
     expect(picks('Goal')).toEqual(['First bake feels easy'])
     expect(screen.queryByRole('list', { name: 'Evidence' })).toBeNull()
     expect(screen.queryByRole('combobox', { name: 'Evidence' })).toBeNull()
@@ -312,11 +332,10 @@ describe('PartForm', () => {
     )
   })
 
-  it('saves a Decision when the title, the owner and the date have a value, and the Goal and the evidence a pick', async () => {
+  it('saves a Decision when the title and the date have a value, and the Goal, the evidence and the Responsible a pick', async () => {
     const { onSave } = renderForm()
 
     await userEvent.type(field('Title'), 'Show the video of the creator')
-    await userEvent.type(field('Owner'), 'Mara')
     await userEvent.type(field('Date'), '2026-10-03')
 
     expect(saveButton().disabled).toBe(true)
@@ -326,6 +345,10 @@ describe('PartForm', () => {
     expect(saveButton().disabled).toBe(true)
 
     await pick('Evidence', 'I7', 'I7 Bakers want step videos')
+
+    expect(saveButton().disabled).toBe(true)
+
+    await userEvent.selectOptions(picker('Responsible'), 'Mara')
     await userEvent.click(saveButton())
 
     expect(onSave).toHaveBeenCalledExactlyOnceWith({
@@ -333,13 +356,13 @@ describe('PartForm', () => {
       body: '',
       metric: '',
       source: '',
-      owner: 'Mara',
       date: '2026-10-03',
       enforcedBy: '',
       goal: 'G2',
       evidence: ['I7'],
       steps: [],
       fields: [],
+      responsible: 'mara@example.com',
       sameMeaning: false,
     })
   })
@@ -384,15 +407,14 @@ describe('PartForm', () => {
 
     await userEvent.click(picker('Goal'))
 
-    expect(
-      screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['G2 First bake feels easy', 'G3 Bakers come back'])
+    expect(offered()).toEqual([
+      'G2 First bake feels easy',
+      'G3 Bakers come back',
+    ])
 
     await userEvent.click(picker('Evidence'))
 
-    expect(
-      screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual([
+    expect(offered()).toEqual([
       'I7 Bakers want step videos',
       'I9 Videos are too long',
       'R4 Only the videos of the creator',
@@ -406,11 +428,9 @@ describe('PartForm', () => {
     await userEvent.type(field('Body'), 'See #i9')
 
     // jsdom has no layout, so Carbon holds the list back as hidden.
-    expect(
-      screen
-        .getAllByRole('option', { hidden: true })
-        .map((option) => option.textContent),
-    ).toEqual(['Insight I9 Videos are too long'])
+    expect(offered({ hidden: true })).toEqual([
+      'Insight I9 Videos are too long',
+    ])
 
     await userEvent.keyboard('{Enter}')
     await userEvent.click(saveButton())
@@ -426,9 +446,7 @@ describe('PartForm', () => {
 
     await userEvent.type(picker('Evidence'), search)
 
-    expect(
-      screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['I9 Videos are too long'])
+    expect(offered()).toEqual(['I9 Videos are too long'])
   })
 
   it('shows each pick as a minimal card, and offers it no more', async () => {
@@ -447,9 +465,10 @@ describe('PartForm', () => {
 
     await userEvent.click(picker('Evidence'))
 
-    expect(
-      screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['I9 Videos are too long', 'R4 Only the videos of the creator'])
+    expect(offered()).toEqual([
+      'I9 Videos are too long',
+      'R4 Only the videos of the creator',
+    ])
   })
 
   it('removes a pick with the one icon button of its card, named with the record id', async () => {

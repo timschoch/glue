@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { createFakeGithub } from '../test/github.ts'
@@ -6,6 +7,7 @@ import {
   joinProject,
   listAssignments,
   listWatchers,
+  unassign,
   watch,
 } from './members.ts'
 import { createPartOperations } from './part-operations.ts'
@@ -71,6 +73,144 @@ describe('the owner of a new Part', () => {
   })
 })
 
+const decision = {
+  type: 'decision' as const,
+  title: 'Open at three',
+  date: '2026-10-02',
+  status: 'proposed' as const,
+  needs: ['G1', 'I1'],
+}
+
+describe('the owner that a new Part names', () => {
+  it('is the member with that name', async () => {
+    await operations.addPart(project, { ...goal, owner: 'ada' }, tim)
+
+    expect(await listAssignments(db, project)).toEqual([
+      { id: 1, memberId: 2, role: 'responsible', concept: null, part: 'G1' },
+    ])
+  })
+
+  it('is the member with that e-mail address', async () => {
+    await operations.addPart(project, { ...goal, owner: 'ADA@example.com' })
+
+    expect(await operations.getPart(project, 'G1')).toMatchObject({
+      owner: 'Ada',
+    })
+  })
+
+  it('must be a member, and the reason lists the members', async () => {
+    await expect(
+      operations.addPart(project, { ...goal, owner: 'Orchestrator' }, tim),
+    ).rejects.toThrow(
+      '"Orchestrator" names no member of glue. Its members: Ada <ada@example.com>, Tim <tim@example.com>',
+    )
+    await expect(operations.getPart(project, 'G1')).rejects.toThrow(
+      'goal "G1" not found',
+    )
+  })
+})
+
+// The Goal G1 and the Insight I1 have no owner.
+describe('the owner of a new Decision', () => {
+  beforeEach(async () => {
+    await operations.addPart(project, goal)
+    await operations.addPart(project, {
+      type: 'insight',
+      title: 'Bakers start at four',
+      source: 'interview',
+    })
+  })
+
+  it('is the member who adds it', async () => {
+    await operations.addPart(project, decision, tim)
+
+    expect(await operations.getPart(project, 'D1')).toMatchObject({
+      owner: 'Tim',
+    })
+  })
+
+  it('is needed', async () => {
+    await expect(operations.addPart(project, decision)).rejects.toThrow(
+      'a Decision needs an owner: a member of glue',
+    )
+  })
+})
+
+describe('the owner that a change names', () => {
+  beforeEach(async () => {
+    await operations.addPart(project, goal, tim)
+  })
+
+  it('becomes the Responsible in the place of the old one', async () => {
+    await operations.updatePart(project, 'G1', { owner: 'Ada' })
+
+    expect(await listAssignments(db, project)).toEqual([
+      { id: 2, memberId: 2, role: 'responsible', concept: null, part: 'G1' },
+    ])
+  })
+
+  it('is the expected owner of a guarded write', async () => {
+    await operations.updatePart(
+      project,
+      'G1',
+      { title: 'Ship sooner' },
+      { owner: 'Tim' },
+    )
+
+    expect(await operations.getPart(project, 'G1')).toMatchObject({
+      title: 'Ship sooner',
+    })
+  })
+
+  it('must be a member, and the reason lists the members', async () => {
+    await expect(
+      operations.updatePart(project, 'G1', { owner: 'Orchestrator' }),
+    ).rejects.toThrow(
+      '"Orchestrator" names no member of glue. Its members: Ada <ada@example.com>, Tim <tim@example.com>',
+    )
+    expect(await operations.getPart(project, 'G1')).toMatchObject({
+      owner: 'Tim',
+    })
+  })
+})
+
+// A Part from before the Responsible was the owner has a name as text.
+function setOldOwner(recordId: string, owner: string) {
+  return db
+    .update(schema.parts)
+    .set({ owner })
+    .where(eq(schema.parts.recordId, recordId))
+}
+
+describe('the owner that a Part shows', () => {
+  it('is the name of its Responsible', async () => {
+    await operations.addPart(project, goal, tim)
+
+    expect(await operations.getPart(project, 'G1')).toMatchObject({
+      owner: 'Tim',
+    })
+  })
+
+  it('is the old text while the Part has no Responsible', async () => {
+    await operations.addPart(project, goal)
+    await setOldOwner('G1', 'Orchestrator')
+
+    expect(await operations.getPart(project, 'G1')).toMatchObject({
+      owner: 'Orchestrator',
+    })
+  })
+
+  it('is the Responsible when a member takes a Part with an old text', async () => {
+    await operations.addPart(project, goal)
+    await setOldOwner('G1', 'Orchestrator')
+    await assign(db, project, { member: ada, part: 'G1', role: 'responsible' })
+
+    expect(await operations.getPart(project, 'G1')).toMatchObject({
+      owner: 'Ada',
+    })
+  })
+})
+
 // Tim owns the Insight I1 and the Entity E1. E1 is published and needs I1 and
 // the Decision D1, which has the Goal G1 and I1. Bo owns G1 and D1. I1
 // gets a new title, so E1 has a flag. Ada watches E1.
@@ -122,6 +262,42 @@ describe('a Part with a flag that a member watches', () => {
       workState: 'published',
       trust: 'solid',
       flags: [],
+    })
+  })
+
+  it('refuses a change that names a new owner, from a member who is not the owner', async () => {
+    await expect(
+      operations.updatePart(project, 'E1', { owner: 'Ada' }, undefined, ada),
+    ).rejects.toThrow('"E1" has a flag: only its owner Tim changes who has it')
+    expect(await operations.getPart(project, 'E1')).toMatchObject({
+      owner: 'Tim',
+    })
+  })
+
+  it('refuses a member who is not the owner and takes it', async () => {
+    await expect(
+      assign(
+        db,
+        project,
+        { member: ada, part: 'E1', role: 'responsible' },
+        ada,
+      ),
+    ).rejects.toThrow('"E1" has a flag: only its owner Tim changes who has it')
+  })
+
+  it('lets each member take it when it has no owner', async () => {
+    await unassign(db, project, { member: tim, part: 'E1' }, tim)
+
+    await assign(
+      db,
+      project,
+      { member: ada, part: 'E1', role: 'responsible' },
+      ada,
+    )
+
+    expect(await operations.getPart(project, 'E1')).toMatchObject({
+      owner: 'Ada',
+      trust: 'flagged',
     })
   })
 

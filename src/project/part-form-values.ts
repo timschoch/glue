@@ -11,7 +11,10 @@ import { todayUtc } from '../today-utc.ts'
 // What goes between the Part form and the writes of the Part model.
 
 // The fields of a Part that the form changes: the columns of the Part.
-type Field = Exclude<keyof PartFormValues, 'goal' | 'evidence' | 'sameMeaning'>
+type Field = Exclude<
+  keyof PartFormValues,
+  'goal' | 'evidence' | 'responsible' | 'sameMeaning'
+>
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -88,6 +91,7 @@ export function toNewPart(
     concept,
     title: values.title,
     body: values.body,
+    ...(values.responsible && { responsible: values.responsible }),
     ...(needs && { needs }),
   }
   const { date, fields } = toFilled(values)
@@ -105,7 +109,6 @@ export function toNewPart(
       return {
         type,
         ...common,
-        owner: values.owner,
         date,
         status: supersedes ? 'accepted' : 'proposed',
         needs: [
@@ -127,15 +130,20 @@ export function toNewPart(
 }
 
 // The change of the form. `start` are the values that the form started
-// with: a Decision gets a Goal only when the person picked another one.
+// with: a Decision gets a Goal only when the person picked another one,
+// and a Part gets an owner only when the person picked another member.
 // The change is a wording fix when the person said so.
 export function toPartChange(
   type: PartType,
   values: PartFormValues,
-  start: Pick<PartFormValues, 'goal'>,
+  start: Pick<PartFormValues, 'goal' | 'responsible'>,
 ): PartChange {
   return {
     ...pickFields(type, toFilled(values)),
+    ...(values.responsible &&
+      values.responsible !== start.responsible && {
+        owner: values.responsible,
+      }),
     ...(type === 'decision' &&
       values.goal &&
       values.goal !== start.goal && { goal: values.goal }),
@@ -151,21 +159,22 @@ export function toExpectedPart(part: Part): ExpectedPart {
 }
 
 // The values that the form starts with: the fields of the Part, and for a
-// Decision its Goal and its evidence.
-export function toFormValues(part: Part): PartFormValues {
+// Decision its Goal and its evidence. `responsible` is the e-mail address
+// of the member who owns the Part.
+export function toFormValues(part: Part, responsible = ''): PartFormValues {
   const needed = part.needs.map((end) => end.part)
   return {
     title: part.title,
     body: part.body,
     metric: part.metric ?? '',
     source: part.source ?? '',
-    owner: part.owner ?? '',
     date: part.date ?? '',
     enforcedBy: part.enforcedBy ?? '',
     goal: needed.find(({ type }) => type === 'goal')?.id ?? null,
     evidence: needed.filter(({ type }) => isEvidence(type)).map(({ id }) => id),
     steps: part.steps,
     fields: part.fields,
+    responsible,
     sameMeaning: false,
   }
 }

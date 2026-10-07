@@ -39,7 +39,8 @@ export function PartFormScreen({
   parts: ReadonlyArray<PartSummary>
 }) {
   const router = useRouter()
-  const { session, addPart, updatePart } = projectRoute.useRouteContext()
+  const { addPart, updatePart } = projectRoute.useRouteContext()
+  const { people } = projectRoute.useLoaderData()
   const { project, concept, search, recordHref, open, changeSearch } =
     useProjectLinks()
   const { pending, failure, failurePlace, write } = useWrite()
@@ -62,9 +63,18 @@ export function PartFormScreen({
         : isEvidence(needed.type)
           ? { evidence: [needed.id] }
           : undefined
+  // The form starts with the Responsible of the Part. A new Part starts
+  // with the person who adds it.
+  const startMember = edited
+    ? people.assignments.find(
+        ({ part, role }) => part === edited.id && role === 'responsible',
+      )?.memberId
+    : people.me
+  const responsible =
+    people.members.find(({ id }) => id === startMember)?.email ?? ''
   const [startValues] = useState<Partial<PartFormValues>>(() => {
-    if (edited) return toFormValues(edited)
-    const added = { owner: session.user.name, date: todayUtc(), ...picked }
+    if (edited) return toFormValues(edited, responsible)
+    const added = { responsible, date: todayUtc(), ...picked }
     if (!superseded) return added
     const { goal, evidence } = toFormValues(superseded)
     return { ...added, goal, evidence }
@@ -84,7 +94,11 @@ export function PartFormScreen({
           updatePart({
             project,
             recordId: edited.id,
-            change: toPartChange(type, values, toFormValues(edited)),
+            change: toPartChange(
+              type,
+              values,
+              toFormValues(edited, responsible),
+            ),
             expected: toExpectedPart(edited),
           }),
         () => changeSearch(closed),
@@ -121,6 +135,7 @@ export function PartFormScreen({
       recordId={edited?.id}
       values={startValues}
       parts={formParts}
+      members={people.members}
       errors={refusedStep === undefined ? errors : { steps: failure }}
       invalidStep={refusedStep ?? emptyStep}
       serverError={refusedStep === undefined ? failure : undefined}

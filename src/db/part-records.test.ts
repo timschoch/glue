@@ -15,6 +15,7 @@ import {
 import { signContract } from './contracts.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import { addKind } from './kinds.ts'
+import { joinProject } from './members.ts'
 import {
   addConcept,
   addJoint,
@@ -116,6 +117,8 @@ const decision = {
   status: 'accepted' as const,
   needs: ['G1', 'I1'],
 }
+// The owner of `decision`: a member of the Project that adds it.
+const tim = { id: 'user-tim', name: 'tim', email: 'tim@example.com' }
 const funnel: GoalMeasure = {
   kind: 'funnel',
   source: 'mock-analytics',
@@ -462,6 +465,7 @@ describe('addPart', () => {
   // The Concept 1 is the root of glue, the Concept 2 is `part-model` in it.
   beforeEach(async () => {
     await addProject(db, 'glue')
+    await joinProject(db, 'glue', tim)
     await addConcept(db, 'glue', { slug: 'part-model', title: 'Part model' })
   })
 
@@ -522,7 +526,7 @@ describe('addPart', () => {
     expect(await showPart('I1')).toMatchObject({
       conceptId: 2,
       body: 'Five of six said so.',
-      owner: 'tim',
+      owner: null,
       evidenceLevel: 'pattern',
     })
   })
@@ -886,24 +890,23 @@ describe('addPart', () => {
 describe('updatePart', () => {
   beforeEach(async () => {
     await addProject(db, 'glue')
+    await joinProject(db, 'glue', tim)
     await addPart(db, 'glue', goal)
     await addPart(db, 'glue', { ...insight, status: 'draft' })
     await addPart(db, 'glue', guardrail)
     await addPart(db, 'glue', { ...decision, status: 'proposed' })
   })
 
-  it('changes the title, the body, the owner and the rule check of a Guardrail', async () => {
+  it('changes the title, the body and the rule check of a Guardrail', async () => {
     await updatePart(db, 'glue', 'R1', {
       title: 'UI is Carbon',
       body: 'D32 moved the UI kit.',
-      owner: 'tim',
       enforcedBy: 'interface-review',
     })
 
     expect(await showPart('R1')).toMatchObject({
       title: 'UI is Carbon',
       body: 'D32 moved the UI kit.',
-      owner: 'tim',
       enforcedBy: 'interface-review',
     })
   })
@@ -1075,6 +1078,7 @@ describe('updatePart', () => {
 describe('removePart', () => {
   beforeEach(async () => {
     await addProject(db, 'glue')
+    await joinProject(db, 'glue', tim)
     await addPart(db, 'glue', goal)
     await addPart(db, 'glue', { ...insight, status: 'draft' })
     await addPart(db, 'glue', guardrail)
@@ -1116,6 +1120,7 @@ describe('removePart', () => {
 // the others in the root. The Joints 1 and 2: D1 needs G1, D1 needs I1.
 async function addGluedParts() {
   await addProject(db, 'glue')
+  await joinProject(db, 'glue', tim)
   await addConcept(db, 'glue', { slug: 'part-model', title: 'Part model' })
   await addPart(db, 'glue', goal)
   await addPart(db, 'glue', { ...insight, concept: 'part-model' })

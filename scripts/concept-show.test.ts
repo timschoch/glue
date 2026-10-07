@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { joinProject } from '../src/db/members.ts'
 import {
   addPart,
   addProject,
@@ -24,12 +25,17 @@ describe('pnpm concept list and show', () => {
     return vi.mocked(console.log).mock.calls.map(([line]) => line)
   }
 
-  // The Project glue has I1, G1, R1, E1 and D1. D1 needs R1, G1, E1 and I1,
-  // in this order.
+  // The Project glue has the member tim, and I1, G1, R1, E1 and D1. D1 needs
+  // R1, G1, E1 and I1, in this order.
   beforeEach(async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-03T12:00Z') })
     vi.spyOn(console, 'log').mockImplementation(() => {})
     await addProject(db, 'glue')
+    await joinProject(db, 'glue', {
+      id: 'user-tim',
+      name: 'tim',
+      email: 'tim@example.com',
+    })
     await addPart(db, 'glue', {
       type: 'insight',
       title: 'Users churn on slow loads',

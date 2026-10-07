@@ -408,12 +408,19 @@ export function createPartActions(request: ActionRequest) {
         ),
     ),
 
-    assign: withMember((db, { project, assignment }: AssignInput) =>
-      assign(db, project, assignment).then(() => undefined, toFailure),
+    // Only the owner changes who has a Part with a flag.
+    assign: withMember((db, { project, assignment }: AssignInput, member) =>
+      assign(db, project, assignment, member.email).then(
+        () => undefined,
+        toFailure,
+      ),
     ),
 
-    unassign: withMember((db, { project, assignment }: UnassignInput) =>
-      unassign(db, project, assignment).then(() => undefined, toFailure),
+    unassign: withMember((db, { project, assignment }: UnassignInput, member) =>
+      unassign(db, project, assignment, member.email).then(
+        () => undefined,
+        toFailure,
+      ),
     ),
 
     // The member of the session watches the Part, and stops.

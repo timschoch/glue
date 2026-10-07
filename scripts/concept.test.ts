@@ -53,6 +53,15 @@ describe('runConcept', () => {
     return runConcept(db, () => fake.github, args)
   }
 
+  // Ada is a member of flexibeck: the owner of `decisionFlags`.
+  function joinAda() {
+    return joinProject(db, 'flexibeck', {
+      id: 'user-ada',
+      name: 'Ada',
+      email: 'ada@example.com',
+    })
+  }
+
   beforeEach(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -122,6 +131,7 @@ describe('runConcept', () => {
   })
 
   it('names the issue that a set of a Decision to accepted opened', async () => {
+    await joinAda()
     await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
 
     await run('set', 'D1', '--project', 'flexibeck', '--status', 'accepted')
@@ -132,6 +142,7 @@ describe('runConcept', () => {
   })
 
   it('opens the downstream issue of a Decision that supersedes another one', async () => {
+    await joinAda()
     await run('add', 'decisions', ...decisionFlags, '--status', 'accepted')
 
     await run(
@@ -307,6 +318,7 @@ describe('runConcept', () => {
   })
 
   it('adds a Decision that needs another Decision, and shows it', async () => {
+    await joinAda()
     await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
 
     await run(
@@ -324,11 +336,36 @@ describe('runConcept', () => {
     expect(logged()).toContain('evidence: R1 CI takes ten minutes at most')
   })
 
+  it('takes the e-mail address of a member as --owner, and refuses a value that names no member', async () => {
+    await joinAda()
+    await run(
+      'add',
+      'entities',
+      '--project',
+      'flexibeck',
+      '--title',
+      'Cart',
+      '--owner',
+      'ada@example.com',
+      '--needs',
+      'R1',
+    )
+    await run('show', 'E1', '--project', 'flexibeck')
+
+    expect(logged()).toContain('owner: Ada')
+    await expect(
+      run('set', 'E1', '--project', 'flexibeck', '--owner', 'Mara'),
+    ).rejects.toThrow(
+      '"Mara" names no member of flexibeck. Its members: Ada <ada@example.com>',
+    )
+  })
+
   it.each([
     ['entities', 'E1', ['empty_slot: needs a Decision']],
     ['flows', 'F1', ['empty_slot: needs a Decision']],
     ['metrics', 'M1', []],
   ])('adds to the %s, lists and shows %s', async (folder, recordId, slots) => {
+    await joinAda()
     await run(
       'add',
       folder,
@@ -874,6 +911,7 @@ describe('runConcept', () => {
       (await findPart(db, 'flexibeck', id))?.flags
 
     beforeEach(async () => {
+      await joinAda()
       await run('answer', 'R1', 'supersede', ...project)
       await run('answer', 'G1', 'supersede', ...project)
       await run('add', 'decisions', ...decisionFlags, '--status', 'accepted')
@@ -943,6 +981,7 @@ describe('runConcept', () => {
     })
 
     it('moves a Decision with set --concept, and keeps its status', async () => {
+      await joinAda()
       await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
 
       await run('set', 'D1', '--concept', 'checkout', ...project)
@@ -997,6 +1036,7 @@ describe('runConcept', () => {
   })
 
   it('names the issue that the answer to a Decision opened', async () => {
+    await joinAda()
     await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
 
     await run('answer', 'D1', 'supersede', '--project', 'flexibeck')
@@ -1013,6 +1053,7 @@ describe('runConcept', () => {
   })
 
   it('puts an answer in words at the end of the body, with the name', async () => {
+    await joinAda()
     await run('add', 'decisions', ...decisionFlags, '--status', 'proposed')
 
     await run(
@@ -1045,6 +1086,8 @@ describe('runConcept', () => {
       '--pick',
       '2',
     ]
+
+    beforeEach(joinAda)
 
     function listPrinted() {
       return vi.mocked(console.log).mock.calls.map(([line]) => String(line))
@@ -1279,7 +1322,7 @@ describe('main', () => {
 
     expect(help).toContain('--project <slug>')
     expect(help).toContain(
-      'decisions: --title --date --owner --status --goal --evidence',
+      'decisions: --title --date --status --goal --evidence',
     )
     expect(help).toContain('goals: --title --metric --source')
     expect(help).toContain('insights: --title --date --source')

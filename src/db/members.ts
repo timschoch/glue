@@ -293,10 +293,10 @@ function validateFound(
 // with an open flag (glue-build/D53). Else a member takes the Part, or
 // leaves it with no owner, and answers the flag. `changedBy` is the e-mail
 // address of the member who changes the assignments.
-async function refuseFlaggedPart(
+export async function refuseFlaggedPart(
   db: ConceptDb,
   projectSlug: string,
-  { part: recordId }: AssignmentTarget,
+  { part: recordId }: Pick<AssignmentTarget, 'part'>,
   changedBy: string | undefined,
 ) {
   if (changedBy === undefined || recordId === undefined) return
@@ -381,6 +381,20 @@ export async function findFlagOwner(
     )
   return found.at(0)
 }
+
+// The owner that a Part of the table `parts` shows: the name of its
+// Responsible (glue-build/D56). A Part from before that has a name as text:
+// it shows until a member takes the Part.
+export const selectOwner = sql<string | null>`coalesce(
+  (
+    select "members"."name" from "assignments"
+    inner join "members" on "members"."id" = "assignments"."member_id"
+    where "assignments"."part_id" = "parts"."id"
+      and "assignments"."role" = 'responsible'
+    limit 1
+  ),
+  "parts"."owner"
+)`
 
 // A member who watches a Part (D47). Watching is not owning: the owner of a
 // Part is its Responsible.

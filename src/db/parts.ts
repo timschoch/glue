@@ -31,7 +31,7 @@ import type {
   VersionFields,
   WorkState,
 } from './schema.ts'
-import { findFlagOwner } from './members.ts'
+import { findFlagOwner, selectOwner } from './members.ts'
 import {
   listAnswers,
   selectEmptySlots,
@@ -880,6 +880,7 @@ export async function findPart(
       emptySlots: selectEmptySlots(parts),
       reviewNotes: selectReviewNotes(parts),
       evidenceBase: selectEvidenceBase(parts),
+      owner: selectOwner,
     })
     .from(parts)
     .innerJoin(concepts, eq(parts.conceptId, concepts.id))
@@ -995,7 +996,7 @@ export async function findPart(
     emptySlots,
     reviewNotes,
     body: part.body,
-    owner: part.owner,
+    owner: row.owner,
     date: part.date,
     source: part.source,
     metric: part.metric,

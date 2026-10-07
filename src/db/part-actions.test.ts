@@ -989,6 +989,44 @@ describe('the people of a Project', () => {
       message: '"E1" has a flag: only its owner Bo answers it',
     })
   })
+
+  it('answers with a failure for a member who takes a Part with a flag from its owner', async () => {
+    await requests.addMember()
+    await addPart(db, project, {
+      type: 'entity',
+      title: 'Build',
+      needs: ['I1'],
+      responsible: 'bo@example.com',
+    })
+    await actions.answerPart({
+      project,
+      recordId: 'E1',
+      answer: { answer: 'supersede' },
+    })
+    await actions.updatePart({
+      project,
+      recordId: 'I1',
+      change: { title: 'The build failed on a lint error' },
+    })
+    const assignment = { member: ada.email, part: 'E1' }
+
+    expect(
+      await actions.assign({
+        project,
+        assignment: { ...assignment, role: 'responsible' },
+      }),
+    ).toEqual({
+      message: '"E1" has a flag: only its owner Bo changes who has it',
+    })
+    expect(
+      await actions.unassign({
+        project,
+        assignment: { member: 'bo@example.com', part: 'E1' },
+      }),
+    ).toEqual({
+      message: '"E1" has a flag: only its owner Bo changes who has it',
+    })
+  })
 })
 
 describe('the input of a server function of the Part model', () => {

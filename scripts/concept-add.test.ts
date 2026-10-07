@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { joinProject } from '../src/db/members.ts'
 import { addPart, addProject } from '../src/db/part-records.ts'
 import { findPart, listParts } from '../src/db/parts.ts'
 import * as schema from '../src/db/schema.ts'
@@ -32,12 +33,23 @@ describe('pnpm concept add and set', () => {
     return parts.map(({ id }) => id)
   }
 
-  // The Project glue has G1, I1, R1, and D1 that is accepted.
+  // The Project glue has the members tim and Ada, and G1, I1, R1, and D1
+  // that is accepted.
   beforeEach(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
     fake = createFakeGithub()
     await addProject(db, 'glue')
+    await joinProject(db, 'glue', {
+      id: 'user-tim',
+      name: 'tim',
+      email: 'tim@example.com',
+    })
+    await joinProject(db, 'glue', {
+      id: 'user-ada',
+      name: 'Ada',
+      email: 'ada@example.com',
+    })
     await addPart(db, 'glue', {
       type: 'goal',
       title: 'Ship faster',

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { createFakeGithub } from '../test/github.ts'
 import { findContract, findContractState, signContract } from './contracts.ts'
+import { joinProject } from './members.ts'
 import { createPartOperations } from './part-operations.ts'
 import { addProject } from './part-records.ts'
 import { findPart } from './parts.ts'
@@ -18,6 +19,11 @@ let operations: ReturnType<typeof createPartOperations>
 beforeEach(async () => {
   operations = createPartOperations({ db, github: createFakeGithub().github })
   await addProject(db, project)
+  await joinProject(db, project, {
+    id: 'user-tim',
+    name: 'Tim',
+    email: 'tim@example.com',
+  })
 })
 
 describe('the steps of a Flow', () => {

@@ -12,6 +12,7 @@ import {
   vi,
 } from 'vitest'
 
+import { joinProject } from './members.ts'
 import {
   addJoint,
   addPart,
@@ -38,6 +39,11 @@ beforeAll(async () => {
 beforeEach(async () => {
   await client.exec('truncate projects restart identity cascade')
   await addProject(db, 'glue')
+  await joinProject(db, 'glue', {
+    id: 'user-tim',
+    name: 'Tim',
+    email: 'tim@example.com',
+  })
 })
 
 afterAll(async () => {

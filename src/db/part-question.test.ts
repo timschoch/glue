@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import { addAgent, joinProject } from './members.ts'
 import {
   addPart,
   addProject,
@@ -26,6 +27,12 @@ beforeAll(async () => {
 beforeEach(async () => {
   await client.exec('truncate projects restart identity cascade')
   await addProject(db, 'glue')
+  await addAgent(db, 'glue', 'Orchestrator')
+  await joinProject(db, 'glue', {
+    id: 'user-tim',
+    name: 'Tim',
+    email: 'tim@example.com',
+  })
   await addPart(db, 'glue', {
     type: 'goal',
     title: 'Ship faster',

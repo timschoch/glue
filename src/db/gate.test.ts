@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { listBuilds } from './builds.ts'
 import { signContract } from './contracts.ts'
 import { validateBuild } from './gate.ts'
+import { joinProject } from './members.ts'
 import {
   addConcept,
   addPart,
@@ -52,6 +53,11 @@ beforeAll(async () => {
 beforeEach(async () => {
   await client.exec('truncate projects restart identity cascade')
   await addProject(db, 'glue')
+  await joinProject(db, 'glue', {
+    id: 'user-tim',
+    name: 'Tim',
+    email: 'tim@example.com',
+  })
   await setProductRepository(db, 'glue', 'timschoch/glue')
   await addConcept(db, 'glue', { slug: 'videos', title: 'Technique videos' })
   await addPart(db, 'glue', {

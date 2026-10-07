@@ -16,7 +16,6 @@ const values: PartFormValues = {
   body: 'It follows #I3.',
   metric: 'Tickets',
   source: 'interviews',
-  owner: 'Ada',
   date: '2026-10-04',
   enforcedBy: 'verify ci',
   goal: 'G1',
@@ -29,6 +28,7 @@ const values: PartFormValues = {
     { name: 'total', meaning: 'The sum to pay' },
     { name: '', meaning: 'No name yet' },
   ],
+  responsible: 'ada@example.com',
   sameMeaning: false,
 }
 
@@ -41,7 +41,7 @@ describe('the Part that the form adds', () => {
       concept: 'part-model',
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
-      owner: 'Ada',
+      responsible: 'ada@example.com',
       date: '2026-10-04',
       status: 'proposed',
       needs: ['G1', 'I3', 'R1'],
@@ -76,7 +76,7 @@ describe('the Part that the form adds', () => {
     ['metric', []],
   ] as const)('has only the fields of the type %s', (type, fields) => {
     expect(Object.keys(toNewPart(type, values, place)).sort()).toEqual(
-      ['type', 'concept', 'title', 'body', ...fields].sort(),
+      ['type', 'concept', 'title', 'body', 'responsible', ...fields].sort(),
     )
   })
 
@@ -141,38 +141,52 @@ describe('the Part that the form edits', () => {
   const part = findPart({ project: 'glue', recordId: 'D4' })
   if (!part) throw new Error('the test Project has no D4')
   const decision = { ...part, owner: 'Ada', date: '2026-01-15' }
+  // The form started with the Goal and the Responsible of the values.
+  const start = { goal: 'G1', responsible: 'ada@example.com' }
 
   it('gives the form its values, with no text for a missing value', () => {
-    expect(toFormValues(decision)).toEqual({
+    expect(toFormValues(decision, 'ada@example.com')).toEqual({
       title: 'The Concept lives in the database',
       body: 'It follows #I3 and #D9.',
       metric: '',
       source: '',
-      owner: 'Ada',
       date: '2026-01-15',
       enforcedBy: '',
       goal: 'G1',
       evidence: ['I3'],
       steps: [],
       fields: [],
+      responsible: 'ada@example.com',
       sameMeaning: false,
     })
   })
 
   it('changes the fields of its type only', () => {
-    expect(toPartChange('decision', values, { goal: 'G1' })).toEqual({
+    expect(toPartChange('decision', values, start)).toEqual({
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
-      owner: 'Ada',
       date: '2026-10-04',
     })
   })
 
-  it('gives a Decision the Goal that the person picked in the place of its Goal', () => {
-    expect(toPartChange('decision', values, { goal: 'G2' })).toEqual({
+  it('gives a Part the member that the person picked as its owner', () => {
+    expect(
+      toPartChange('decision', values, {
+        ...start,
+        responsible: 'bo@example.com',
+      }),
+    ).toEqual({
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
-      owner: 'Ada',
+      date: '2026-10-04',
+      owner: 'ada@example.com',
+    })
+  })
+
+  it('gives a Decision the Goal that the person picked in the place of its Goal', () => {
+    expect(toPartChange('decision', values, { ...start, goal: 'G2' })).toEqual({
+      title: 'Show the video of the creator',
+      body: 'It follows #I3.',
       date: '2026-10-04',
       goal: 'G1',
     })
@@ -180,7 +194,7 @@ describe('the Part that the form edits', () => {
 
   it('is a wording fix when the person says that the meaning is the same', () => {
     expect(
-      toPartChange('flow', { ...values, sameMeaning: true }, { goal: null }),
+      toPartChange('flow', { ...values, sameMeaning: true }, start),
     ).toEqual({
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
@@ -190,7 +204,7 @@ describe('the Part that the form edits', () => {
   })
 
   it('gives no other type a Goal', () => {
-    expect(toPartChange('flow', values, { goal: null })).toEqual({
+    expect(toPartChange('flow', values, start)).toEqual({
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
       steps: values.steps,
@@ -198,7 +212,7 @@ describe('the Part that the form edits', () => {
   })
 
   it('gives an Entity the fields that have a name', () => {
-    expect(toPartChange('entity', values, { goal: null })).toEqual({
+    expect(toPartChange('entity', values, start)).toEqual({
       title: 'Show the video of the creator',
       body: 'It follows #I3.',
       fields: [{ name: 'total', meaning: 'The sum to pay' }],
@@ -225,7 +239,6 @@ describe('the Part that the form edits', () => {
     expect(toExpectedPart(decision)).toEqual({
       title: 'The Concept lives in the database',
       body: 'It follows #I3 and #D9.',
-      owner: 'Ada',
       date: '2026-01-15',
     })
   })

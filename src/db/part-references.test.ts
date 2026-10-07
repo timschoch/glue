@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { joinProject } from './members.ts'
 import {
   addJoint,
   addPart,
@@ -21,6 +22,9 @@ const { db } = createTestDatabase(schema)
 beforeEach(async () => {
   await addProject(db, 'glue', 'Glue')
   await addProject(db, 'glue-build', 'Build of Glue')
+  const tim = { id: 'user-tim', name: 'Tim', email: 'tim@example.com' }
+  await joinProject(db, 'glue', tim)
+  await joinProject(db, 'glue-build', tim)
   await addProjectReference(db, 'glue-build', 'glue')
   await addPart(db, 'glue', {
     type: 'goal',

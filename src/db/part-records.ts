@@ -17,7 +17,14 @@ import {
 import { goalMeasureSchema, isOnTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import { addKindSql, briefKind, findKindId } from './kinds.ts'
-import { findFlagOwner } from './members.ts'
+import {
+  assign,
+  findFlagOwner,
+  listMembers,
+  refuseFlaggedPart,
+  selectOwner,
+} from './members.ts'
+import type { Member } from './members.ts'
 import {
   listAnswers,
   answerRules,
@@ -249,7 +256,10 @@ const date = z.iso.date()
 const commonFields = {
   title: text,
   body: z.string().optional(),
-  owner: text.nullable().optional(),
+  owner: text.nullable().optional().meta({
+    description:
+      'The name or the e-mail address of a member of the Project. The member becomes its Responsible: its owner',
+  }),
   source: text.nullable().optional(),
 }
 
@@ -310,7 +320,7 @@ const fieldSchemas = {
   }),
   decision: z.strictObject({
     ...commonFields,
-    owner: text,
+    owner: text.optional(),
     date: date.optional(),
     status: z.enum(schema.decisionStatuses),
     options: z.array(text).min(1).optional().meta({
@@ -1007,32 +1017,47 @@ async function addPartRow(
   return addedPartSchema.parse(result).rows.at(0)?.record_id ?? null
 }
 
-// The row id of the member of the Project with the e-mail address.
-async function getMemberId(
+// The member of the Project with the e-mail address.
+async function getMember(
   db: ConceptDb,
   project: ProjectRow,
   email: string,
-): Promise<number> {
-  const { members } = schema
-  const found = await db
-    .select({ id: members.id })
-    .from(members)
-    .where(
-      and(
-        eq(members.projectId, project.id),
-        sql`lower(${members.email}) = lower(${email}::text)`,
-      ),
-    )
-  const member = found.at(0)
+): Promise<Member> {
+  const members = await listMembers(db, project.slug)
+  const member = members.find(
+    (one) => one.email.toLowerCase() === email.toLowerCase(),
+  )
   if (!member)
     throw new InvalidRecordError(`${email} is no member of ${project.slug}.`)
-  return member.id
+  return member
+}
+
+// The member of the Project that `owner` names: by the name or by the
+// e-mail address, with no case.
+async function getOwner(
+  db: ConceptDb,
+  project: ProjectRow,
+  owner: string,
+): Promise<Member> {
+  const members = await listMembers(db, project.slug)
+  const named = owner.toLowerCase()
+  const member = members.find(
+    ({ name, email }) =>
+      name.toLowerCase() === named || email.toLowerCase() === named,
+  )
+  if (!member)
+    throw new InvalidRecordError(
+      `"${owner}" names no member of ${project.slug}. Its members: ${members.map(({ name, email }) => `${name} <${email}>`).join(', ') || 'none'}`,
+    )
+  return member
 }
 
 // Adds a Part to its home Concept, and gives back its record id. A Part has
-// one owner, its Responsible (D47): the member that the Part names, or else
-// the member who adds it. `addedBy` is the e-mail address of that member.
-// The owner goes in with the Part as one write.
+// one owner, its Responsible (D47): the member of `responsible`, or else the
+// member that `owner` names, or else the member who adds it. `addedBy` is
+// the e-mail address of that member. The owner goes in with the Part as one
+// write. The column `owner` takes no new text (glue-build/D56). Only a
+// Decision keeps the name of its first owner there: its check wants one.
 export async function addPart(
   db: ConceptDb,
   projectSlug: string,
@@ -1045,7 +1070,7 @@ export async function addPart(
     needs = [],
     supersedes,
     supersededBy,
-    responsible = addedBy,
+    responsible,
   } = parseInput(placeSchema, part)
   const {
     type: _type,
@@ -1056,10 +1081,12 @@ export async function addPart(
     responsible: _responsible,
     ...inputFields
   } = part
-  const { options, pick, ...fields } = parseInput(
-    partSchemas[type],
-    inputFields,
-  )
+  const {
+    options,
+    pick,
+    owner: ownerName,
+    ...fields
+  } = parseInput(partSchemas[type], inputFields)
   if (pick !== undefined && pick > (options?.length ?? 0))
     throw new InvalidRecordError(`"pick" ${pick} is not an option`)
   if ((supersedes ?? supersededBy) !== undefined && type !== 'decision')
@@ -1074,6 +1101,17 @@ export async function addPart(
   const projectId = await getProjectId(db, projectSlug)
   const conceptId = await findConceptId(db, projectId, concept)
   const project = { id: projectId, slug: projectSlug }
+  const email = responsible ?? (ownerName == null ? addedBy : undefined)
+  const owner =
+    email !== undefined
+      ? await getMember(db, project, email)
+      : ownerName == null
+        ? undefined
+        : await getOwner(db, project, ownerName)
+  if (type === 'decision' && !owner)
+    throw new InvalidRecordError(
+      `a Decision needs an owner: a member of ${projectSlug}`,
+    )
   const neededParts = await findNeededParts(db, project, [...new Set(needs)])
   if (type === 'decision') {
     const goals = neededParts.filter((needed) => needed.type === 'goal')
@@ -1111,16 +1149,13 @@ export async function addPart(
     projectId,
     conceptId,
     type,
-    fields,
+    fields: { ...fields, owner: type === 'decision' ? owner?.name : null },
     question: options && { options, pick: pick ?? null, answer: null },
     neededPartIds: neededParts.map((needed) => needed.id),
     mentioned,
     supersedesId,
     supersededById: successor?.id,
-    responsibleId:
-      responsible === undefined
-        ? undefined
-        : await getMemberId(db, project, responsible),
+    responsibleId: owner?.id,
     addedBy,
   })
   if (recordId === null)
@@ -1207,7 +1242,7 @@ export async function addInsightOfSignals(
 const expectedColumns = {
   title: schema.parts.title,
   body: schema.parts.body,
-  owner: schema.parts.owner,
+  owner: selectOwner,
   status: schema.parts.status,
   date: schema.parts.date,
   source: schema.parts.source,
@@ -1304,7 +1339,9 @@ async function findNextGoal(
 // Joint goes and the new one comes in the same statement, so the Decision
 // never has no Goal. The Goal that it has already writes nothing. false: the
 // Part was not in the expected state, and nothing changed. `changedBy` is
-// the e-mail address of the member who changes it.
+// the e-mail address of the member who changes it. `owner` names a member of
+// the Project, who becomes the Responsible: see getOwner and
+// refuseFlaggedPart.
 export async function updatePart(
   db: ConceptDb,
   projectSlug: string,
@@ -1320,9 +1357,21 @@ export async function updatePart(
     concept,
     goal,
     sameMeaning = false,
-    ...columns
+    owner: ownerName,
+    ...fields
   } = parseInput(partChangeSchemas[part.type], change)
   const project = { id: projectId, slug: projectSlug }
+  const owner =
+    ownerName == null ? undefined : await getOwner(db, project, ownerName)
+  const owned = { member: owner?.email, part: recordId, role: 'responsible' }
+  if (owner) await refuseFlaggedPart(db, projectSlug, owned, changedBy)
+  // The column `owner`: see addPart.
+  const columns = {
+    ...fields,
+    ...(part.type === 'decision'
+      ? owner && { owner: owner.name }
+      : ownerName !== undefined && { owner: null }),
+  }
   const conceptId =
     concept === undefined
       ? undefined
@@ -1508,7 +1557,9 @@ export async function updatePart(
     ${gluesAgain ? changedJoints : sql``}
     select "id" from changed
   `)
-  return idRowsSchema.parse(result).rows.length > 0
+  const isChanged = idRowsSchema.parse(result).rows.length > 0
+  if (isChanged && owner) await assign(db, projectSlug, owned)
+  return isChanged
 }
 
 // Keeps the issue that Glue opened for the Decision. Only Glue calls it: a

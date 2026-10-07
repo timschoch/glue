@@ -260,6 +260,13 @@
       "when": 1791365676111,
       "tag": "0036_ask_study",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791371380110,
+      "tag": "0037_responsible_from_owner",
+      "breakpoints": true
     }
   ]
 }

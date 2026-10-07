@@ -63,7 +63,7 @@ describe('the fields of each Part type', () => {
   it.each([
     ['insight', ['title', 'body', 'source', 'date']],
     ['goal', ['title', 'body', 'metric', 'source']],
-    ['decision', ['title', 'body', 'owner', 'date', 'goal', 'evidence']],
+    ['decision', ['title', 'body', 'date', 'goal', 'evidence']],
     ['guardrail', ['title', 'body', 'enforcedBy']],
     ['entity', ['title', 'body', 'fields']],
     ['flow', ['title', 'body', 'steps']],

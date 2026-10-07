@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createFakeGithub, failingGithub } from '../test/github.ts'
 import { addProjectReference, setProductRepository } from './projects.ts'
+import { joinProject } from './members.ts'
 import { createPartOperations } from './part-operations.ts'
 import {
   addConcept,
@@ -34,6 +35,11 @@ beforeEach(async () => {
   fake = createFakeGithub([signal])
   operations = createPartOperations({ db, github: fake.github })
   await addProject(db, project)
+  await joinProject(db, project, {
+    id: 'user-ada',
+    name: 'Ada',
+    email: 'ada@example.com',
+  })
   await setProductRepository(db, project, 'timschoch/flexibeck-next')
   await addPart(db, project, {
     type: 'goal',

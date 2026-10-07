@@ -62,6 +62,10 @@ const meta = {
   ],
   args: {
     parts,
+    members: [
+      { name: 'Mara', email: 'mara@example.com' },
+      { name: 'Fred', email: 'fred@example.com' },
+    ],
     onSave: () => {},
     onCancel: () => {},
   },
@@ -95,7 +99,7 @@ export const AddDecisionWithPicks: Story = {
         'Each technique of a recipe shows the video of its creator.',
         'It builds on #I7 and serves #G2.',
       ].join('\n\n'),
-      owner: 'Mara',
+      responsible: 'mara@example.com',
       date: '2026-10-03',
       goal: 'G2',
       evidence: ['I7', 'I9', 'R4'],

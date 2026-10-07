@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MockInstance } from 'vitest'
 
+import { joinProject } from '../src/db/members.ts'
 import * as schema from '../src/db/schema.ts'
 import { createTestDatabase } from '../src/db/test-database.ts'
 import { createFakeGithub } from '../src/test/github.ts'
@@ -25,6 +26,11 @@ describe('pnpm concept contract', () => {
     printed = vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
     await run('project', 'add', 'glue')
+    await joinProject(db, 'glue', {
+      id: 'user-tim',
+      name: 'Tim',
+      email: 'tim@example.com',
+    })
     await run(
       'kind',
       'set',
