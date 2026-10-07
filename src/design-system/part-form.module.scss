@@ -91,19 +91,27 @@ $text-width: $spacing-13 * 4;
   margin-block-end: $spacing-05;
 }
 
-// One row: its inputs side by side, the controls at its end. In a narrow
-// window each input takes a line of its own.
+// One row: its inputs side by side from their labels down, the controls at
+// its end. In a narrow window each input takes a line of its own.
 .row {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: $spacing-03;
 }
 
 // The long text of a row takes two parts of the room that is left, the
-// short input one part.
+// short input one part. A text of more than one line starts as high as an
+// input and grows with what the person writes.
 .rowText {
   flex: 2 1 $spacing-13 + $spacing-10;
+
+  textarea {
+    field-sizing: content;
+    min-block-size: $spacing-08;
+    padding-block: $spacing-03 + $spacing-01;
+    resize: none;
+  }
 }
 
 .rowChoice {
@@ -113,6 +121,7 @@ $text-width: $spacing-13 * 4;
 // The wrapper of a Carbon icon button is inline, with room below its line.
 .rowControls {
   display: flex;
+  align-self: flex-end;
   margin-inline-start: auto;
 
   > * {

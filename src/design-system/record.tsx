@@ -401,8 +401,9 @@ function Body({
 }
 
 // The steps of a Flow in their order, and the fields of an Entity: each a
-// name above its meaning. A step shows the id of its Entity as a link, as a
-// body does. `Title` is the heading of each list.
+// name above its meaning. A step shows the id and the title of its Entity
+// as a link. An Entity that is gone leaves its id as text. `Title` is the
+// heading of each list.
 function Lists({
   steps,
   fields,
@@ -435,7 +436,7 @@ function Lists({
                   {entity && ' '}
                   {part ? (
                     <RecordLink part={part} onOpen={onOpen}>
-                      #{part.id}
+                      {part.id} {part.title}
                     </RecordLink>
                   ) : (
                     entity
@@ -452,8 +453,9 @@ function Lists({
             Fields
           </Title>
           <dl className={styles.entityFields}>
-            {fields.map(({ name, meaning }) => (
-              <div key={name} className={styles.field}>
+            {fields.map(({ name, meaning }, index) => (
+              // A field has no id of its own: the place is the key.
+              <div key={`${index} ${name}`} className={styles.field}>
                 <dt>{name}</dt>
                 <dd>{meaning}</dd>
               </div>

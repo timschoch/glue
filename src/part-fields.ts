@@ -121,6 +121,18 @@ export function isEvidence(type: PartType): boolean {
   return types.includes(type)
 }
 
+// The place of the first field of an Entity that has the name of a field
+// before it, or -1. An Entity has one field of each name. A field without
+// a name is none. The form, its values and the server read it.
+export function findRepeatedField(
+  fields: ReadonlyArray<{ name: string }>,
+): number {
+  const names = fields.map(({ name }) => name.trim())
+  return names.findIndex(
+    (name, index) => name !== '' && names.indexOf(name) < index,
+  )
+}
+
 // The fields of the Part type that the Part form shows, in its order.
 export function listFormFields(type: PartType): ReadonlyArray<FormField> {
   const fields: ReadonlyArray<Field> = partFields[type]

@@ -105,6 +105,20 @@ describe('the values of the Part form', () => {
     },
   )
 
+  it('names the field of an Entity that is there twice', () => {
+    const fields = [
+      { name: 'total', meaning: 'The sum to pay' },
+      { name: ' total ', meaning: 'The sum with tax' },
+      { name: '', meaning: '' },
+      { name: '', meaning: '' },
+    ]
+
+    expect(findProblems('entity', { ...values, fields })).toEqual({
+      fields: 'A field has one name. "total" is there twice.',
+    })
+    expect(findProblems('entity', values)).toEqual({})
+  })
+
   it('asks no date of a type without one', () => {
     expect(findProblems('goal', { ...values, date: '' })).toEqual({})
   })
@@ -178,16 +192,19 @@ describe('the Part that the form edits', () => {
     })
   })
 
-  it('expects the texts that the person saw, and not the steps', () => {
-    const flow = {
-      ...part,
-      type: 'flow' as const,
-      steps: [{ text: 'Open the cart', entity: null }],
-    }
+  it('expects the steps of a Flow and the fields of an Entity that the person saw', () => {
+    const steps = [{ text: 'Open the cart', entity: null }]
+    const fields = [{ name: 'total', meaning: 'The sum to pay' }]
 
-    expect(toExpectedPart(flow)).toEqual({
+    expect(toExpectedPart({ ...part, type: 'flow', steps })).toEqual({
       title: 'The Concept lives in the database',
       body: 'It follows #I3 and #D9.',
+      steps,
+    })
+    expect(toExpectedPart({ ...part, type: 'entity', fields })).toEqual({
+      title: 'The Concept lives in the database',
+      body: 'It follows #I3 and #D9.',
+      fields,
     })
   })
 

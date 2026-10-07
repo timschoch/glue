@@ -4,6 +4,7 @@ import { createFakeGithub } from '../test/github.ts'
 import { findContract, findContractState, signContract } from './contracts.ts'
 import { createPartOperations } from './part-operations.ts'
 import { addProject } from './part-records.ts'
+import { findPart } from './parts.ts'
 import { InvalidRecordError } from './record-errors.ts'
 import * as schema from './schema.ts'
 import { createTestDatabase } from './test-database.ts'
@@ -113,6 +114,87 @@ describe('the fields of an Entity', () => {
         steps: [{ text: 'Open the recipe', entity: null }],
       }),
     ).rejects.toThrow('Unrecognized key: "steps"')
+  })
+
+  it('refuses two fields with the same name, also in a change', async () => {
+    const fields = [
+      { name: 'video', meaning: 'The clip of the creator' },
+      { name: 'video', meaning: 'The file of the clip' },
+    ]
+
+    await expect(
+      operations.addPart(project, {
+        type: 'entity',
+        title: 'Technique',
+        fields,
+      }),
+    ).rejects.toThrow('field "video" is there twice')
+
+    await operations.addPart(project, { type: 'entity', title: 'Technique' })
+
+    await expect(
+      operations.updatePart(project, 'E1', { fields }),
+    ).rejects.toThrow('field "video" is there twice')
+  })
+})
+
+describe('a change of the lists that a second person changed', () => {
+  it('keeps the steps of the second person', async () => {
+    const seen = [{ text: 'Open the recipe', entity: null }]
+    await operations.addPart(project, {
+      type: 'flow',
+      title: 'Watch a technique while baking',
+      steps: seen,
+    })
+    await operations.updatePart(
+      project,
+      'F1',
+      { steps: [{ text: 'Start the video', entity: null }] },
+      { steps: seen },
+    )
+
+    const refused = operations.updatePart(
+      project,
+      'F1',
+      { steps: [{ text: 'Close the recipe', entity: null }] },
+      { steps: seen },
+    )
+
+    await expect(refused).rejects.toThrow(
+      new InvalidRecordError('"F1" changed since you opened it'),
+    )
+    expect((await findPart(db, project, 'F1'))?.steps).toEqual([
+      { text: 'Start the video', entity: null },
+    ])
+  })
+
+  it('keeps the fields of the second person', async () => {
+    const seen = [{ name: 'name', meaning: 'What bakers call it' }]
+    await operations.addPart(project, {
+      type: 'entity',
+      title: 'Technique',
+      fields: seen,
+    })
+    await operations.updatePart(
+      project,
+      'E1',
+      { fields: [{ name: 'title', meaning: 'What the creator calls it' }] },
+      { fields: seen },
+    )
+
+    const refused = operations.updatePart(
+      project,
+      'E1',
+      { fields: [{ name: 'video', meaning: 'The clip' }] },
+      { fields: seen },
+    )
+
+    await expect(refused).rejects.toThrow(
+      new InvalidRecordError('"E1" changed since you opened it'),
+    )
+    expect((await findPart(db, project, 'E1'))?.fields).toEqual([
+      { name: 'title', meaning: 'What the creator calls it' },
+    ])
   })
 })
 

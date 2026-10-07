@@ -965,6 +965,8 @@ describe('the steps of a Flow and the fields of an Entity', () => {
           steps: [
             { text: 'Open the Concept', entity: 'E1' },
             { text: 'Read its Parts', entity: null },
+            // An Entity that was removed after the step named it.
+            { text: 'Sign it', entity: 'E9' },
           ],
         }),
       ),
@@ -974,30 +976,38 @@ describe('the steps of a Flow and the fields of an Entity', () => {
 
     expect(
       steps.getAllByRole('listitem').map((step) => step.textContent),
-    ).toEqual(['Open the Concept #E1', 'Read its Parts'])
+    ).toEqual([
+      'Open the Concept E1 Concept row',
+      'Read its Parts',
+      'Sign it E9',
+    ])
+    expect(steps.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'E1 Concept row',
+    ])
     expect(
-      steps.getByRole('link', { name: '#E1' }).getAttribute('href'),
+      steps.getByRole('link', { name: 'E1 Concept row' }).getAttribute('href'),
     ).toContain('/glue/read-model/E1')
 
     await userEvent.click(button('Edit'))
     await expectAddress('/glue/read-model/R1', { edit: true })
     expect(field('Step 1')).toHaveProperty('value', 'Open the Concept')
     await userEvent.click(button('Add step'))
-    await userEvent.type(field('Step 3'), 'Close it')
+    await userEvent.type(field('Step 4'), 'Close it')
     await userEvent.click(button('Save'))
 
     await expectAddress('/glue/read-model/R1')
+    const seen = [
+      { text: 'Open the Concept', entity: 'E1' },
+      { text: 'Read its Parts', entity: null },
+      { text: 'Sign it', entity: 'E9' },
+    ]
     expect(server.updatePart).toHaveBeenCalledWith({
       project: 'glue',
       recordId: 'R1',
       change: expect.objectContaining({
-        steps: [
-          { text: 'Open the Concept', entity: 'E1' },
-          { text: 'Read its Parts', entity: null },
-          { text: 'Close it', entity: null },
-        ],
+        steps: [...seen, { text: 'Close it', entity: null }],
       }),
-      expected: expect.objectContaining({ title: R1 }),
+      expected: expect.objectContaining({ title: R1, steps: seen }),
     })
   })
 
@@ -1037,7 +1047,13 @@ describe('the steps of a Flow and the fields of an Entity', () => {
           { name: 'title', meaning: 'The name on the card' },
         ],
       }),
-      expected: expect.objectContaining({ title: R1 }),
+      expected: expect.objectContaining({
+        title: R1,
+        fields: [
+          { name: 'slug', meaning: 'The name in the address' },
+          { name: 'title', meaning: '' },
+        ],
+      }),
     })
   })
 })

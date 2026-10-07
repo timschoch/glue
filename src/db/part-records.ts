@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { canRaiseToPattern } from '../evidence-level.ts'
 import type { LevelSignal } from '../evidence-level.ts'
 import { findMentions } from '../mention.ts'
-import { evidenceTypes, isEvidence } from '../part-fields.ts'
+import { evidenceTypes, findRepeatedField, isEvidence } from '../part-fields.ts'
 import { todayUtc } from '../today-utc.ts'
 import type { ConceptDb } from './client.ts'
 import {
@@ -269,6 +269,17 @@ const entityField = z.strictObject({
   }),
 })
 
+// The fields of an Entity. An Entity has one field of each name.
+const entityFields = z.array(entityField).check((context) => {
+  const repeated = findRepeatedField(context.value)
+  if (repeated !== -1)
+    context.issues.push({
+      code: 'custom',
+      message: `field "${context.value[repeated].name}" is there twice`,
+      input: context.value,
+    })
+})
+
 // How Glue measures a Goal or a Metric. It goes in with the Part, as one
 // statement.
 const measure = goalMeasureSchema.optional()
@@ -311,8 +322,9 @@ const fieldSchemas = {
   guardrail: z.strictObject({ ...commonFields, enforcedBy: text }),
   entity: z.strictObject({
     ...commonFields,
-    fields: z.array(entityField).optional().meta({
-      description: 'The fields of the Entity. A change sends the whole list',
+    fields: entityFields.optional().meta({
+      description:
+        'The fields of the Entity, each with a name of its own. A change sends the whole list',
     }),
   }),
   flow: z.strictObject({
@@ -1155,6 +1167,8 @@ const expectedColumns = {
   metric: schema.parts.metric,
   enforcedBy: schema.parts.enforcedBy,
   evidenceLevel: schema.parts.evidenceLevel,
+  steps: schema.parts.steps,
+  fields: schema.parts.fields,
 }
 
 export const expectedPartSchema = z
@@ -1168,20 +1182,25 @@ export const expectedPartSchema = z
     metric: z.string().nullable(),
     enforcedBy: z.string().nullable(),
     evidenceLevel: z.string().nullable(),
+    steps: z.array(flowStep),
+    fields: z.array(entityField),
   })
   .partial()
 
 export type ExpectedPart = z.infer<typeof expectedPartSchema>
 
+// A list is equal as JSON: the order of the keys of a row says nothing.
 function isExpected(partId: number, expected: ExpectedPart) {
   const fields = Object.keys(expectedColumns) as (keyof ExpectedPart)[]
   return and(
     eq(schema.parts.id, partId),
-    ...fields.map((field) =>
-      expected[field] === undefined
-        ? undefined
-        : sql`${expectedColumns[field]}::text is not distinct from ${expected[field]}::text`,
-    ),
+    ...fields.map((field) => {
+      const value = expected[field]
+      if (value === undefined) return undefined
+      return Array.isArray(value)
+        ? sql`${expectedColumns[field]} = ${JSON.stringify(value)}::jsonb`
+        : sql`${expectedColumns[field]}::text is not distinct from ${value}::text`
+    }),
   )
 }
 

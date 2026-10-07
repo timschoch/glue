@@ -713,4 +713,50 @@ describe('the fields of an Entity in the Part form', () => {
       { name: 'total', meaning: 'The sum to pay' },
     ])
   })
+
+  it('has a meaning that takes more than one line', () => {
+    renderForm({
+      type: 'entity',
+      values: { title: 'Cart', fields: [{ name: 'owner', meaning: '' }] },
+    })
+
+    expect(field('Meaning of field 1').tagName).toBe('TEXTAREA')
+    expect(field('Field 1').tagName).toBe('INPUT')
+  })
+
+  it('shows the reason at the field that has the name of a field before it', () => {
+    const reason = 'A field has one name. "total" is there twice.'
+    renderForm({
+      type: 'entity',
+      values: {
+        title: 'Cart',
+        fields: [
+          { name: 'total', meaning: 'The sum to pay' },
+          { name: 'owner', meaning: 'Who pays' },
+          { name: ' total', meaning: 'The sum with tax' },
+        ],
+      },
+      errors: { fields: reason },
+    })
+
+    const invalid = ['Field 1', 'Field 2', 'Field 3'].map(
+      (name) => field(name).getAttribute('aria-invalid') === 'true',
+    )
+
+    expect(invalid).toEqual([false, false, true])
+    expect(screen.getAllByText(reason)).toHaveLength(1)
+    expect(
+      field('Field 3').closest('li')?.contains(screen.getByText(reason)),
+    ).toBe(true)
+  })
+
+  it('shows another reason of wrong fields at the fields', () => {
+    renderForm({ type: 'entity', errors: { fields: 'Too many fields' } })
+
+    expect(
+      within(screen.getByRole('group', { name: 'Fields' })).getByText(
+        'Too many fields',
+      ),
+    ).toBeTruthy()
+  })
 })

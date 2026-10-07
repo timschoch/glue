@@ -1,7 +1,11 @@
 import type { ExpectedPart, NewPart, PartChange } from '../db/part-records.ts'
 import type { Part, PartType } from '../db/parts.ts'
 import type { PartFormValues } from '../design-system/part-form.tsx'
-import { isEvidence, listFormFields } from '../part-fields.ts'
+import {
+  findRepeatedField,
+  isEvidence,
+  listFormFields,
+} from '../part-fields.ts'
 import { todayUtc } from '../today-utc.ts'
 
 // What goes between the Part form and the writes of the Part model.
@@ -39,15 +43,25 @@ function toFilled(values: PartFormValues) {
 }
 
 // The reason of each field with a wrong value. The form keeps Save off
-// while a field has no value, so only the format is left to check.
+// while a field has no value, so only the format of the date and the
+// names of the fields of an Entity are left to check.
 export function findProblems(
   type: PartType,
   values: PartFormValues,
 ): Partial<Record<keyof PartFormValues, string>> {
-  const dated = listFormFields(type).some(({ kind }) => kind === 'date')
-  return dated && !ISO_DATE.test(values.date.trim())
-    ? { date: `Enter a date, such as ${todayUtc()}.` }
-    : {}
+  const names = listFormFields(type).map(({ name }) => name)
+  const repeated = names.includes('fields')
+    ? findRepeatedField(values.fields)
+    : -1
+  return {
+    ...(names.includes('date') &&
+      !ISO_DATE.test(values.date.trim()) && {
+        date: `Enter a date, such as ${todayUtc()}.`,
+      }),
+    ...(repeated !== -1 && {
+      fields: `A field has one name. "${values.fields[repeated].name.trim()}" is there twice.`,
+    }),
+  }
 }
 
 // The new Part of the form. A new Decision is proposed. One that supersedes
@@ -123,15 +137,10 @@ export function toPartChange(
 }
 
 // The values that the person saw in the form. The write changes nothing
-// when a second person changed one of them. The guard holds the texts of
-// the Part, and not its lists.
+// when a second person changed one of them: a text, a step of a Flow or a
+// field of an Entity.
 export function toExpectedPart(part: Part): ExpectedPart {
-  const {
-    steps: _steps,
-    fields: _fields,
-    ...texts
-  } = pickFields(part.type, part)
-  return texts
+  return pickFields(part.type, part)
 }
 
 // The values that the form starts with: the fields of the Part, and for a

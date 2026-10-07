@@ -5,9 +5,12 @@ import {
   IconButton,
   Select,
   SelectItem,
+  TextArea,
   TextInput,
 } from '@carbon/react'
 import type { ReactNode } from 'react'
+
+import { findRepeatedField } from '../part-fields.ts'
 
 import styles from './part-form.module.scss'
 import type { PartFormPart } from './part-search.tsx'
@@ -169,7 +172,8 @@ export function StepRows({
 }
 
 // The fields of an Entity: each a name and its meaning, with the control
-// that removes it.
+// that removes it. The reason of a name that is there twice shows at the
+// second field of that name, each other reason at the list.
 export function FieldRows({
   id,
   label,
@@ -177,11 +181,13 @@ export function FieldRows({
   invalidText,
   onChange,
 }: RowsProps<FieldValue>) {
+  const repeated = invalidText === undefined ? -1 : findRepeatedField(rows)
+
   return (
     <Rows
       label={label}
       addLabel="Add field"
-      invalidText={invalidText}
+      invalidText={repeated === -1 ? invalidText : undefined}
       onAdd={() => onChange([...rows, { name: '', meaning: '' }])}
     >
       {rows.length > 0 && (
@@ -195,15 +201,18 @@ export function FieldRows({
                   id={`${id}-${place}-name`}
                   labelText={`Field ${place}`}
                   value={name}
+                  invalid={index === repeated}
+                  invalidText={invalidText}
                   className={styles.rowChoice}
                   onChange={({ target }) =>
                     onChange(replaceRow(rows, index, { name: target.value }))
                   }
                 />
-                <TextInput
+                <TextArea
                   id={`${id}-${place}-meaning`}
                   labelText={`Meaning of field ${place}`}
                   value={meaning}
+                  rows={1}
                   className={styles.rowText}
                   onChange={({ target }) =>
                     onChange(replaceRow(rows, index, { meaning: target.value }))
