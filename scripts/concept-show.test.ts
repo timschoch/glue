@@ -145,7 +145,8 @@ describe('pnpm concept list and show', () => {
         'superseded_by: D2',
         'trust: wrong',
         'work_state: sunk',
-        'activity: 2026-10-03T12:00:00.000Z published',
+        'activity: 2026-10-03T12:00:00.000Z sunk',
+        'activity: 2026-10-03T12:00:00.000Z published version 1',
         '\nCache reads at the edge.',
       ])
     })
@@ -167,7 +168,7 @@ describe('pnpm concept list and show', () => {
         'supersedes: D1',
         'trust: solid',
         'work_state: published',
-        'activity: 2026-10-03T12:00:00.000Z published',
+        'activity: 2026-10-03T12:00:00.000Z published version 1',
         '\nOne rule for all pages.',
       ])
     })
@@ -182,7 +183,7 @@ describe('pnpm concept list and show', () => {
         'trust: not-ready',
         'empty_slot: needs a Decision',
         'work_state: draft',
-        'activity: 2026-10-03T12:00:00.000Z changed',
+        'activity: 2026-10-03T12:00:00.000Z draft',
       ])
     })
 
@@ -211,7 +212,7 @@ describe('pnpm concept list and show', () => {
         'trust: not-ready',
         'under_review: decision D2 Cache every page',
         'work_state: draft',
-        'activity: 2026-10-03T12:00:00.000Z changed',
+        'activity: 2026-10-03T12:00:00.000Z draft',
       ])
     })
 
@@ -252,7 +253,7 @@ describe('pnpm concept list and show', () => {
         'value: 5.25',
         'on_target: false',
         'measured_at: 2026-03-01T08:00:00.000Z',
-        'activity: 2026-10-03T12:00:00.000Z changed',
+        'activity: 2026-10-03T12:00:00.000Z draft',
         '\nWhy the goal exists.',
       ])
     })
@@ -273,7 +274,7 @@ describe('pnpm concept list and show', () => {
         'measuredAt: null',
         'trust: not-ready',
         'work_state: draft',
-        'activity: 2026-10-03T12:00:00.000Z changed',
+        'activity: 2026-10-03T12:00:00.000Z draft',
         '\nWhy the goal exists.',
       ])
     })
@@ -290,7 +291,7 @@ describe('pnpm concept list and show', () => {
         'evidenceLevel: pattern',
         'trust: not-ready',
         'work_state: draft',
-        'activity: 2026-10-03T12:00:00.000Z changed',
+        'activity: 2026-10-03T12:00:00.000Z draft',
         '\nSeen in **three** interviews.',
       ])
     })
@@ -305,8 +306,31 @@ describe('pnpm concept list and show', () => {
         'source: null',
         'trust: not-ready',
         'work_state: draft',
-        'activity: 2026-10-03T12:00:00.000Z changed',
+        'activity: 2026-10-03T12:00:00.000Z draft',
       ])
+    })
+
+    it('shows a Version of a Part as it was at its sign-off', async () => {
+      await updatePart(db, 'glue', 'D1', { title: 'Cache the start page' })
+
+      await run('show', 'D1', '--version', '1')
+
+      expect(logged()).toEqual([
+        'D1',
+        'version: 1',
+        'title: Cache the homepage',
+        'status: accepted',
+        'owner: tim',
+        'date: 2026-01-02',
+        'signed_at: 2026-10-03T12:00:00.000Z',
+        '\nCache reads at the edge.',
+      ])
+    })
+
+    it('says that the Part has no such Version', async () => {
+      await expect(run('show', 'I1', '--version', '1')).rejects.toThrow(
+        '"I1" has no Version 1',
+      )
     })
 
     // F3 is the id of a Flow that the Project does not have.

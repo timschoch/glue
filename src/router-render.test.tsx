@@ -26,7 +26,7 @@ import type {
 import { createRouterContext } from './router-context.ts'
 import type { Server } from './router-server.ts'
 import { routeTree } from './routeTree.gen'
-import { findPart, parts, people } from './test/project.ts'
+import { findPart, OLD_TITLE, parts, people } from './test/project.ts'
 import './test/render.tsx'
 import { createMemoryServer } from './test/server.ts'
 
@@ -1699,6 +1699,33 @@ describe('the common flow of a record', () => {
 
     await expectAddress('/glue/part-model/I3', { trail: ['D4'] })
   })
+
+  it('lists the steps of the record with the member of each one', async () => {
+    await renderPage('/glue/part-model/D4')
+
+    const activity = within(screen.getByRole('region', { name: 'Activity' }))
+
+    expect(
+      activity.getAllByRole('listitem').map((item) => item.textContent),
+    ).toEqual([
+      '2026-10-05PublishedAdaVersion 2',
+      '2026-10-04ReviewTim',
+      '2026-10-04EditedTim',
+      '2026-10-03DraftTim',
+      '2026-10-02PublishedAdaVersion 1',
+      '2026-10-01DraftTim',
+    ])
+  })
+
+  it('opens an old Version of the record in the activity list', async () => {
+    await renderPage('/glue/part-model/D4')
+
+    await userEvent.click(button('Version 1'))
+
+    const version = within(screen.getByRole('region', { name: 'Version 1' }))
+    expect(version.getByRole('heading', { name: OLD_TITLE })).toBeTruthy()
+    expect(pageTitle()).toBe(D4)
+  })
 })
 
 describe('the answers of an Insight in draft', () => {
@@ -1708,10 +1735,22 @@ describe('the answers of an Insight in draft', () => {
         status: 'draft',
         trust: 'not-ready',
         workState: 'draft',
-        answers: ['supersede', 'not-ready', 'sink'],
+        answers: ['supersede', 'ready', 'not-ready', 'sink'],
       }),
     ),
   }
+
+  it('says that the Insight is ready for review', async () => {
+    const { server } = await renderPage('/glue/part-model/I3', draft)
+
+    await act('Ready for review')
+
+    await waitFor(() =>
+      expect(server.answerPart).toHaveBeenCalledWith(
+        answered('I3', { answer: 'ready' }),
+      ),
+    )
+  })
 
   it('signs off the Insight', async () => {
     const { server } = await renderPage('/glue/part-model/I3', draft)

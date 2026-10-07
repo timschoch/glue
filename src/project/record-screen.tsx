@@ -23,6 +23,7 @@ const projectRoute = getRouteApi('/_signed-in/$project')
 const answerLabels: { [answer in Answer]: string } = {
   fine: 'It is fine',
   supersede: 'Sign off',
+  ready: 'Ready for review',
   wait: 'Wait',
   'need-time': 'I need time',
   'not-ready': 'Not ready',

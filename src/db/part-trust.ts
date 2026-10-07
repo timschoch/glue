@@ -43,10 +43,12 @@ export function stateOfStatus(
 }
 
 // The usual answer of a Work state comes first: `fine` on a flag, and the
-// sign-off `supersede` on a draft and on a Part in review.
+// sign-off `supersede` on a draft and on a Part in review. `ready` comes
+// after it: the owner of a draft can still sign off at once (glue/D55).
 export const answers = [
   'fine',
   'supersede',
+  'ready',
   'wait',
   'need-time',
   'not-ready',
@@ -74,6 +76,8 @@ const notSunk = workStates.filter((workState) => workState !== 'sunk')
 // Part that is not sunk takes `not-ready` and `sink`. `supersede` is the
 // sign-off: it publishes a draft and a Part in review. `not-ready` keeps the
 // status of a Decision: "proposed" is review, and the answer makes a draft.
+// `ready` takes a draft of each type to review and keeps its Trust: the
+// Parts that need it show a note. A Decision in review is "proposed".
 export const answerRules: Record<Answer, AnswerRule> = {
   fine: {
     from: ['to-check'],
@@ -96,6 +100,12 @@ export const answerRules: Record<Answer, AnswerRule> = {
     closesFlags: true,
     decisionStatus: 'accepted',
     insightStatus: null,
+  },
+  ready: {
+    from: ['draft'],
+    workState: 'review',
+    closesFlags: false,
+    decisionStatus: 'proposed',
   },
   sink: {
     from: notSunk,
@@ -124,8 +134,8 @@ export function toPublishedAt(workState: WorkState): SQL {
 
 // What follows a write to a Part, as common table expressions of the same
 // statement. `changed` names the expression that gives the Part after the
-// write: "id", "title", "body", "trust" and "work_state". "parts" still
-// reads as before the write.
+// write, with the columns of `historyFields`. "parts" still reads as before
+// the write.
 //
 // - A published Part with a new title or body, and a Part that turns
 //   not-ready or wrong, flags each Part that needs it over a Joint. A Part
@@ -148,21 +158,38 @@ export function toPublishedAt(workState: WorkState): SQL {
 // - `sameMeaning`: the write is a wording fix (D53). A new title or body
 //   flags nobody, and wakes no Part that waits. A new Trust or Work state in
 //   the same write still does.
+// - `member`: the row id of the member who writes, as SQL. The Version and
+//   the activity line of the Part keep it.
+// - `isEdit`: the write is an edit of the Part. It gets an activity line
+//   also when the text and the Work state stay.
+//
+// The same statement keeps the history of the Part (glue/D55):
+// - A sign-off, from draft or review to published, adds a Part Version: the
+//   frozen title, body and fields.
+// - Each step of the Work state and each edit adds an activity line. A Part
+//   that the write turns to-check gets a line with no member.
 export function spreadTrust(
   changed: string,
   {
     closesFlags = sql`new_part."work_state" in ('published', 'sunk')`,
     isOffTarget = false,
     sameMeaning = false,
-  }: { closesFlags?: SQL; isOffTarget?: boolean; sameMeaning?: boolean } = {},
+    member = sql`null::integer`,
+    isEdit = false,
+  }: {
+    closesFlags?: SQL
+    isOffTarget?: boolean
+    sameMeaning?: boolean
+    member?: SQL
+    isEdit?: boolean
+  } = {},
 ): SQL {
   const newParts = sql.identifier(changed)
-  const hasNewText = sameMeaning
-    ? sql`false`
-    : sql`(
-        new_part."title" <> old_part."title"
-        or new_part."body" <> old_part."body"
-      )`
+  const isNewText = sql`(
+    new_part."title" <> old_part."title"
+    or new_part."body" <> old_part."body"
+  )`
+  const hasNewText = sameMeaning ? sql`false` : isNewText
   return sql`,
     old_parts as (
       select "id", "title", "body", "trust", "work_state", "published_at"
@@ -241,7 +268,82 @@ export function spreadTrust(
     flagged as (
       ${flagParts(sql`select "part_id" from added_flags union select "id" from woken`)}
         and "id" not in (select "id" from ${newParts})
+    ),
+    signed_versions as (
+      insert into "part_versions" (
+        "part_id", "version", "title", "body", "fields", "member_id"
+      )
+      select
+        new_part."id",
+        ${selectNextVersion(sql`new_part."id"`)},
+        new_part."title",
+        new_part."body",
+        ${selectVersionFields(sql`new_part`)},
+        ${member}
+      from ${newParts} as new_part
+      join old_parts as old_part on old_part."id" = new_part."id"
+      where new_part."work_state" = 'published'
+        and old_part."work_state" in ('draft', 'review')
+      returning "part_id", "version"
+    ),
+    logged_activity as (
+      insert into "part_activity" ("part_id", "kind", "version", "member_id")
+      select
+        new_part."id",
+        step."kind",
+        (
+          select "version" from signed_versions
+          where "part_id" = new_part."id"
+        ),
+        ${member}
+      from ${newParts} as new_part
+      join old_parts as old_part on old_part."id" = new_part."id"
+      cross join lateral (
+        select case
+          when new_part."work_state" <> old_part."work_state"
+            then new_part."work_state"
+          when ${isNewText} and ${sameMeaning}::boolean then 'wording'
+          when ${isNewText} or ${isEdit}::boolean then 'changed'
+        end as "kind"
+      ) as step
+      where step."kind" is not null
+      union all
+      select "id", 'to-check', null, null
+      from "parts"
+      where "id" in (
+          select "part_id" from added_flags union select "id" from woken
+        )
+        and "id" not in (select "id" from ${newParts})
+        and "work_state" not in ('to-check', 'review')
     )`
+}
+
+// The fields of a Part that a write gives to spreadTrust: what it compares,
+// and what a Part Version freezes.
+export const historyFields = sql`
+  "id", "title", "body", "trust", "work_state", "status", "owner", "date",
+  "source", "metric", "enforced_by", "evidence_level"`
+
+// The number of the next Version of the Part: the numbers count up per Part.
+export function selectNextVersion(partId: SQL): SQL {
+  return sql`(
+    select coalesce(max("version"), 0) + 1
+    from "part_versions" where "part_id" = ${partId}
+  )`
+}
+
+// The fields that a Part Version freezes next to the title and the body.
+// `part` names a row with the history fields.
+export function selectVersionFields(part: SQL): SQL {
+  return sql`jsonb_build_object(
+    'status', ${part}."status",
+    'owner', ${part}."owner",
+    'date', ${part}."date",
+    'source', ${part}."source",
+    'metric', ${part}."metric",
+    'enforcedBy', ${part}."enforced_by",
+    'evidenceLevel', ${part}."evidence_level"
+  )`
 }
 
 // What a Part type needs and can miss (D52): a Goal, evidence or a Decision.

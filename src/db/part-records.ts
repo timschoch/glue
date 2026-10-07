@@ -21,7 +21,9 @@ import {
   listAnswers,
   answerRules,
   answers,
+  historyFields,
   NEW_PART_STATE,
+  selectVersionFields,
   spreadTrust,
   stateOfStatus,
   toPublishedAt,
@@ -626,8 +628,17 @@ const supersededFields = sql`
   "awaited_part_id" = null,
   "changed_at" = now()`
 
-// The fields of a Part that spreadTrust reads after a write.
-const trustFields = sql`"id", "title", "body", "trust", "work_state"`
+// The row id of the member of the Project who writes, for the history of a
+// Part. `email` is the e-mail address of that member. null: the write names
+// no member, or the address is of no member.
+function selectMemberId(projectId: number, email?: string): SQL {
+  if (email === undefined) return sql`null::integer`
+  return sql`(
+    select "id" from "members"
+    where "project_id" = ${projectId}::integer
+      and lower("email") = lower(${email}::text)
+  )`
+}
 
 // The Contract Version that a new Joint takes (D46): the newest one of the
 // home Concept of the needed Part. `conceptId` is the home Concept of the
@@ -675,6 +686,8 @@ type PartRow = {
   signals?: { url: string; title: string }[]
   // The row id of the member who owns it: its Responsible.
   responsibleId?: number
+  // The e-mail address of the member who adds it.
+  addedBy?: string
 }
 
 // Adds the Part, and gives back its record id. `gate` is a common table
@@ -688,6 +701,7 @@ async function addPartRow(
   const { projectId, conceptId, type, fields, neededPartIds = [] } = row
   const { mentioned, supersedesId, supersededById } = row
   const { signals = [], responsibleId } = row
+  const member = selectMemberId(projectId, row.addedBy)
   const question = row.question ? JSON.stringify(row.question) : null
   const status = fields.status ?? (type === 'goal' ? 'open' : null)
   const { trust, workState } = stateOfStatus(type, status) ?? NEW_PART_STATE
@@ -773,7 +787,25 @@ async function addPartRow(
         ${workState === 'published' ? sql`now()` : sql`null::timestamptz`},
         ${question}::jsonb
       from counter
-      returning "id", "record_id"
+      returning "record_id", ${historyFields}
+    ),
+    added_version as (
+      insert into "part_versions" (
+        "part_id", "version", "title", "body", "fields", "member_id"
+      )
+      select
+        "id", 1, "title", "body",
+        ${selectVersionFields(sql`added_part`)},
+        ${member}
+      from added_part
+      where "work_state" = 'published'
+      returning "version"
+    ),
+    added_activity as (
+      insert into "part_activity" ("part_id", "kind", "version", "member_id")
+      select
+        "id", "work_state", (select "version" from added_version), ${member}
+      from added_part
     )
     ${
       jointRows.length === 0
@@ -836,8 +868,8 @@ async function addPartRow(
             set ${supersededFields},
               "superseded_by_id" = (select "id" from added_part)
             where "id" in (select "id" from gate)
-            returning ${trustFields}
-          )${spreadTrust('superseded')}`
+            returning ${historyFields}
+          )${spreadTrust('superseded', { member })}`
     }
     select "record_id" from added_part
   `
@@ -958,6 +990,7 @@ export async function addPart(
       responsible === undefined
         ? undefined
         : await getMemberId(db, project, responsible),
+    addedBy,
   })
   if (recordId === null)
     throw new InvalidRecordError(`"${supersedes}" is superseded already`)
@@ -1132,13 +1165,15 @@ async function findNextGoal(
 // of its Project (D44). `goal` gives a Decision another Goal: the old Goal
 // Joint goes and the new one comes in the same statement, so the Decision
 // never has no Goal. The Goal that it has already writes nothing. false: the
-// Part was not in the expected state, and nothing changed.
+// Part was not in the expected state, and nothing changed. `changedBy` is
+// the e-mail address of the member who changes it.
 export async function updatePart(
   db: ConceptDb,
   projectSlug: string,
   recordId: string,
   change: PartChange,
   expected: ExpectedPart = {},
+  changedBy?: string,
 ): Promise<boolean> {
   const projectId = await getProjectId(db, projectSlug)
   const part = await getPart(db, projectId, recordId)
@@ -1183,7 +1218,15 @@ export async function updatePart(
     body: parts.body,
     trust: parts.trust,
     workState: parts.workState,
+    status: parts.status,
+    owner: parts.owner,
+    date: parts.date,
+    source: parts.source,
+    metric: parts.metric,
+    enforcedBy: parts.enforcedBy,
+    evidenceLevel: parts.evidenceLevel,
   }
+  const member = selectMemberId(projectId, changedBy)
   const changed = hasColumns
     ? db
         .update(parts)
@@ -1283,7 +1326,7 @@ export async function updatePart(
     )`
   const result = await db.execute(sql`
     with changed as ${changed}
-    ${hasColumns ? spreadTrust('changed', { sameMeaning }) : sql``}
+    ${hasColumns ? spreadTrust('changed', { sameMeaning, member, isEdit: true }) : sql``}
     ${nextMeasure === undefined ? sql`` : changedMeasure}
     ${nextGoal === undefined ? sql`` : changedGoal}
     ${columns.body === undefined ? sql`` : changedJoints}
@@ -1543,7 +1586,7 @@ export async function supersedeDecision(
         and (
           select "status" from locked where "id" = ${successor.id}::integer
         ) = 'accepted'
-      returning ${trustFields}
+      returning ${historyFields}
     )${spreadTrust('superseded')}
     select "id" from superseded
   `)
@@ -1628,8 +1671,8 @@ export async function answerPart(
       )
   }
   if (given.answer === 'move-to-version')
-    await moveToVersion(db, projectId, part, given)
-  else await writeAnswer(db, projectId, part, given)
+    await moveToVersion(db, projectId, part, given, answeredBy)
+  else await writeAnswer(db, projectId, part, given, undefined, answeredBy)
 }
 
 // Moves the Joint from the Part to the needed Part to the Contract Version,
@@ -1642,6 +1685,7 @@ async function moveToVersion(
   projectId: number,
   part: FoundPart,
   given: { needs: string; version: number },
+  answeredBy?: string,
 ): Promise<void> {
   const [needed] = await findParts(db, projectId, [given.needs])
   const isFlag = sql`"part_id" = ${part.id}::integer
@@ -1685,8 +1729,8 @@ async function moveToVersion(
         end,
         "changed_at" = now()
       where "id" = ${part.id}::integer and exists (select 1 from moved)
-      returning ${trustFields}
-    )${spreadTrust('answered', { closesFlags: sql`false` })}
+      returning ${historyFields}
+    )${spreadTrust('answered', { closesFlags: sql`false`, member: selectMemberId(projectId, answeredBy) })}
     select "id" from answered
   `)
   if (idRowsSchema.parse(result).rows.length === 0)
@@ -1696,7 +1740,8 @@ async function moveToVersion(
 }
 
 // The write of answerPart and of answerQuestion. With a question, the same
-// statement keeps it on the Part.
+// statement keeps it on the Part. `answeredBy` is the e-mail address of the
+// member who answers.
 async function writeAnswer(
   db: ConceptDb,
   projectId: number,
@@ -1706,6 +1751,7 @@ async function writeAnswer(
     { answer: 'move-to-version' }
   >,
   question?: schema.Question,
+  answeredBy?: string,
 ): Promise<void> {
   const { recordId } = part
   const allowed = listAnswers(part.workState)
@@ -1760,8 +1806,8 @@ async function writeAnswer(
       where "id" = ${part.id}::integer
         and "changed_at" = ${part.changedAt}::timestamptz
         ${awaited === undefined ? sql`` : sql`and exists (select 1 from awaited)`}
-      returning ${trustFields}
-    )${spreadTrust('answered', { closesFlags: sql`${rule.closesFlags}::boolean` })}
+      returning ${historyFields}
+    )${spreadTrust('answered', { closesFlags: sql`${rule.closesFlags}::boolean`, member: selectMemberId(projectId, answeredBy) })}
     select "id" from answered
   `)
   if (idRowsSchema.parse(result).rows.length > 0) return
@@ -1794,12 +1840,14 @@ export type QuestionAnswer = z.input<typeof questionAnswerSchema>
 // Answers the question of a proposed Decision (D27): one write that keeps
 // the chosen option or the answer in words on the Decision, with the person
 // and the time, and signs the Decision off as accepted. A proposed Decision
-// without options takes an answer in words.
+// without options takes an answer in words. `signedBy` is the e-mail
+// address of the member who answers.
 export async function answerQuestion(
   db: ConceptDb,
   projectSlug: string,
   recordId: string,
   input: QuestionAnswer,
+  signedBy?: string,
 ): Promise<void> {
   const given = parseInput(questionAnswerSchema, input)
   if (given.by === undefined)
@@ -1830,6 +1878,7 @@ export async function answerQuestion(
         at: new Date().toISOString(),
       },
     },
+    signedBy,
   )
 }
 
@@ -1877,7 +1926,7 @@ export async function setReading(
   await db.execute(sql`
     with measured as ${measured},
     read_part as (
-      select ${trustFields} from "parts"
+      select ${historyFields} from "parts"
       where "id" in (select "part_id" from measured)
     )${spreadTrust('read_part', { closesFlags: sql`false`, isOffTarget: isOffTarget && !wasOffTarget })}
     select "part_id" from measured

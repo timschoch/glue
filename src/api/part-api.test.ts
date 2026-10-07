@@ -481,7 +481,23 @@ describe('GET a Part', () => {
       waitsOn: null,
       signals: [],
       answers: ['not-ready', 'sink'],
-      activity: [{ kind: 'published', at: expect.any(String) }],
+      activity: [{ kind: 'published', at: expect.any(String), version: 1 }],
+      versions: [
+        {
+          version: 1,
+          title: 'Users churn on slow loads',
+          body: '',
+          status: null,
+          owner: null,
+          date: '2026-09-30',
+          source: 'interviews',
+          metric: null,
+          enforcedBy: null,
+          evidenceLevel: 'pattern',
+          signedAt: expect.any(String),
+          signedBy: null,
+        },
+      ],
     })
   })
 

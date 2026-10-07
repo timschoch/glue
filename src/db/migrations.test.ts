@@ -26,6 +26,7 @@ const partTablesMigration = '0010_part_tables.sql'
 const cutoverMigration = '0011_part_model_cutover.sql'
 const trustMigration = '0013_trust_and_work_state.sql'
 const peopleMigration = '0016_people.sql'
+const versionsMigration = '0026_part_versions.sql'
 
 let client: PGlite
 
@@ -988,5 +989,85 @@ describe('the migration that adds the members of a Project', () => {
     await runMigration(peopleMigration)
 
     expect((await listMembers()).rows).toEqual([])
+  })
+})
+
+describe('the migration that adds the Part Versions and the activity', () => {
+  setStartState(async () => {
+    await runMigrationsBefore(versionsMigration)
+    await client.exec(`
+      insert into projects (slug, name) values ('glue', 'Glue');
+      insert into concepts (project_id, slug, title) values (1, 'glue', 'Glue');
+      insert into parts (project_id, concept_id, type, record_id, title, trust, work_state, published_at, wording_at, changed_at) values
+        (1, 1, 'entity', 'E1', 'Technique', 'solid', 'published', '2026-10-01T08:00Z', '2026-10-02T10:00Z', '2026-10-03T09:00Z'),
+        (1, 1, 'entity', 'E2', 'Demo', 'not-ready', 'draft', null, null, '2026-10-04T09:00Z'),
+        (1, 1, 'entity', 'E3', 'Step', 'solid', 'published', '2026-10-05T09:00Z', null, '2026-10-05T09:00Z'),
+        (1, 1, 'entity', 'E4', 'Video', 'flagged', 'to-check', '2026-10-01T08:00Z', null, '2026-10-06T09:00Z');
+      insert into flags (part_id, cause_part_id, reason, created_at) values
+        (4, 1, 'changed', '2026-10-06T09:00Z');
+    `)
+  })
+
+  it('writes the lines that the dates of each Part give, with no member', async () => {
+    await runMigration(versionsMigration)
+
+    const lines = await client.query<{
+      record_id: string
+      kind: string
+      at: Date
+      member_id: number | null
+    }>(`
+      select part.record_id, line.kind, line.at, line.member_id
+      from part_activity as line
+      join parts as part on part.id = line.part_id
+      order by part.id, line.at
+    `)
+    expect(
+      lines.rows.map((line) => ({ ...line, at: line.at.toISOString() })),
+    ).toEqual([
+      {
+        record_id: 'E1',
+        kind: 'published',
+        at: '2026-10-01T08:00:00.000Z',
+        member_id: null,
+      },
+      {
+        record_id: 'E1',
+        kind: 'wording',
+        at: '2026-10-02T10:00:00.000Z',
+        member_id: null,
+      },
+      {
+        record_id: 'E1',
+        kind: 'changed',
+        at: '2026-10-03T09:00:00.000Z',
+        member_id: null,
+      },
+      {
+        record_id: 'E2',
+        kind: 'changed',
+        at: '2026-10-04T09:00:00.000Z',
+        member_id: null,
+      },
+      {
+        record_id: 'E3',
+        kind: 'published',
+        at: '2026-10-05T09:00:00.000Z',
+        member_id: null,
+      },
+      {
+        record_id: 'E4',
+        kind: 'published',
+        at: '2026-10-01T08:00:00.000Z',
+        member_id: null,
+      },
+    ])
+  })
+
+  it('writes no Part Version for a Part from before', async () => {
+    await runMigration(versionsMigration)
+
+    const versions = await client.query('select id from part_versions')
+    expect(versions.rows).toEqual([])
   })
 })

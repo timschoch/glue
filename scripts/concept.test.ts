@@ -356,7 +356,7 @@ describe('runConcept', () => {
       'trust: not-ready',
       ...slots,
       'work_state: draft',
-      expect.stringMatching(/^activity: \S+ changed$/),
+      expect.stringMatching(/^activity: \S+ draft$/),
       '\nFrom the push to the green check.',
     ])
   })
@@ -505,7 +505,7 @@ describe('runConcept', () => {
       'trust: not-ready',
       'empty_slot: needs a Decision',
       'work_state: draft',
-      expect.stringMatching(/^activity: \S+ changed$/),
+      expect.stringMatching(/^activity: \S+ draft$/),
     ])
   })
 
@@ -757,9 +757,11 @@ describe('runConcept', () => {
         /^flag: R1 changed \d{4}-\d{2}-\d{2} CI takes five minutes$/,
       ),
       'waits_on: R1 CI takes five minutes',
-      expect.stringMatching(/^activity: \S+ changed$/),
+      expect.stringMatching(/^activity: \S+ waiting$/),
+      expect.stringMatching(/^activity: \S+ to-check$/),
       expect.stringMatching(/^activity: \S+ flag-opened R1 changed$/),
-      expect.stringMatching(/^activity: \S+ published$/),
+      expect.stringMatching(/^activity: \S+ published version 1$/),
+      expect.stringMatching(/^activity: \S+ draft$/),
     ])
   })
 
@@ -788,7 +790,11 @@ describe('runConcept', () => {
 
       expect(await findPart(db, 'flexibeck', 'R1')).toMatchObject({
         title: 'CI is fast',
-        activity: [{ kind: 'wording' }, { kind: 'published' }],
+        activity: [
+          { kind: 'wording' },
+          { kind: 'published', version: 1 },
+          { kind: 'draft' },
+        ],
       })
       expect(await showFlags('D1')).toEqual([])
     })

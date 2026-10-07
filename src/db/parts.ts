@@ -19,11 +19,13 @@ import { isOnTarget, toTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import type { Kind } from './kinds.ts'
 import type {
+  ActivityKind,
   EvidenceLevel,
   FlagReason,
   PartType,
   Question,
   Trust,
+  VersionFields,
   WorkState,
 } from './schema.ts'
 import { kinds } from './kinds.ts'
@@ -43,6 +45,7 @@ import * as schema from './schema.ts'
 
 // The words of the Part model, for the code outside src/db.
 export {
+  activityKinds,
   decisionStatuses,
   evidenceLevels,
   flagReasons,
@@ -108,17 +111,28 @@ export type Flag = {
   contract?: VersionChange
 }
 
-// One thing that happened to a Part: an edit, its last wording fix, its
-// first sign-off, or a flag that opened or closed. An answer closes the flags
-// of a Part.
+// One thing that happened to a Part: a step of its Work state, an edit, a
+// wording fix, or a flag that opened or closed. An answer closes the flags
+// of a Part. `by` is the name of the member who did it. A sign-off has the
+// number of the Part Version that it stored.
 export type Activity =
-  | { kind: 'changed' | 'published' | 'wording'; at: string }
+  | { kind: ActivityKind; at: string; by?: string; version?: number }
   | {
       kind: 'flag-opened' | 'flag-closed'
       at: string
       cause: Flag['cause']
       reason: FlagReason
     }
+
+// A Part as one sign-off froze it (glue/D55). The numbers count up per
+// Part. `signedBy` is the name of the member who signed it off.
+export type PartVersion = VersionFields & {
+  version: number
+  title: string
+  body: string
+  signedAt: string
+  signedBy: string | null
+}
 
 export type ConceptNode = {
   slug: string
@@ -208,9 +222,12 @@ export type Part = PartSummary & {
   answeredBy?: { name: string; email: string }
   // What happened to the Part, newest first.
   activity: Activity[]
+  // The Versions of the Part, newest first.
+  versions: PartVersion[]
 }
 
 const { projects, concepts, parts, joints, measures, flags, signals } = schema
+const { members, partActivity, partVersions } = schema
 const { partTypes } = schema
 
 // The Part that a Joint needs, and the home Concept of that Part.
@@ -689,16 +706,64 @@ function listFlags(db: ConceptDb, partId: number) {
     .orderBy(flags.id)
 }
 
-// What the database keeps of the past of a Part, newest first. A write
-// that publishes the Part, flags it or fixes its wording also sets the time
-// of its last change, so a change at the time of another entry is that entry.
+// The stored activity lines of the Part, newest first: the steps of its
+// Work state and its edits, with the name of the member.
+function listSteps(db: ConceptDb, partId: number) {
+  return db
+    .select({
+      kind: partActivity.kind,
+      at: partActivity.at,
+      version: partActivity.version,
+      by: members.name,
+    })
+    .from(partActivity)
+    .leftJoin(members, eq(partActivity.memberId, members.id))
+    .where(eq(partActivity.partId, partId))
+    .orderBy(desc(partActivity.id))
+}
+
+// The Versions of the Part, newest first.
+async function listVersions(
+  db: ConceptDb,
+  partId: number,
+): Promise<PartVersion[]> {
+  const found = await db
+    .select({ stored: partVersions, signedBy: members.name })
+    .from(partVersions)
+    .leftJoin(members, eq(partVersions.memberId, members.id))
+    .where(eq(partVersions.partId, partId))
+    .orderBy(desc(partVersions.version))
+  return found.map(({ stored, signedBy }) => ({
+    version: stored.version,
+    title: stored.title,
+    body: stored.body,
+    ...stored.fields,
+    signedAt: stored.signedAt.toISOString(),
+    signedBy,
+  }))
+}
+
+// The past of a Part, newest first: its stored lines, and its flags. The
+// flags keep their own times, so they are no stored lines. Of a line and a
+// flag at the same time, the line is first.
 function listActivity(
-  part: { changedAt: Date; publishedAt: Date | null; wordingAt: Date | null },
+  steps: Awaited<ReturnType<typeof listSteps>>,
   partFlags: Awaited<ReturnType<typeof listFlags>>,
 ): Activity[] {
-  const entries: Activity[] = partFlags.flatMap(
-    ({ cause, reason, createdAt, closedAt }) => [
-      { kind: 'flag-opened', at: createdAt.toISOString(), cause, reason },
+  const entries: Activity[] = [
+    ...steps.map(({ kind, at, version, by }) => ({
+      kind,
+      at: at.toISOString(),
+      ...(by !== null && { by }),
+      ...(version !== null && { version }),
+    })),
+    ...partFlags.flatMap(({ cause, reason, createdAt, closedAt }) => [
+      {
+        kind: 'flag-opened' as const,
+        at: createdAt.toISOString(),
+        cause,
+        reason,
+      },
       ...(closedAt === null
         ? []
         : [
@@ -709,18 +774,8 @@ function listActivity(
               reason,
             },
           ]),
-    ],
-  )
-  if (part.publishedAt !== null) {
-    entries.push({ kind: 'published', at: part.publishedAt.toISOString() })
-  }
-  if (part.wordingAt !== null) {
-    entries.push({ kind: 'wording', at: part.wordingAt.toISOString() })
-  }
-  const changedAt = part.changedAt.toISOString()
-  if (entries.every(({ at }) => at !== changedAt)) {
-    entries.push({ kind: 'changed', at: changedAt })
-  }
+    ]),
+  ]
   // An ISO time in UTC sorts as text.
   return entries.sort((one, other) => other.at.localeCompare(one.at))
 }
@@ -761,6 +816,8 @@ export async function findPart(
     grownFrom,
     measured,
     answeredBy,
+    steps,
+    versions,
   ] = await Promise.all([
     part.supersededById === null
       ? []
@@ -791,6 +848,8 @@ export async function findPart(
       ),
     ),
     readBy === undefined ? undefined : findFlagOwner(db, part.id, readBy),
+    listSteps(db, part.id),
+    listVersions(db, part.id),
   ])
 
   const openFlags = partFlags.filter(({ closedAt }) => closedAt === null)
@@ -860,6 +919,7 @@ export async function findPart(
     signals: grownFrom,
     answers: answeredBy ? [] : listAnswers(part.workState),
     ...(answeredBy && { answeredBy }),
-    activity: listActivity(part, partFlags),
+    activity: listActivity(steps, partFlags),
+    versions,
   }
 }

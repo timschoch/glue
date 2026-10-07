@@ -267,22 +267,47 @@ $text-width: $card-width * 2;
 }
 
 // Each entry of the activity list is one line: the day, then what happened.
+// A line is as high as the button of a Version, so all lines are the same.
 .activity {
   @include type-style('body-compact-01');
 
   display: flex;
   flex-direction: column;
-  gap: $spacing-03;
 
   li {
     display: flex;
     flex-wrap: wrap;
-    gap: $spacing-03 $spacing-05;
+    align-items: center;
+    column-gap: $spacing-05;
+  }
+
+  li > :is(time, span, a) {
+    display: flex;
+    align-items: center;
+    min-block-size: $spacing-07;
   }
 
   time {
     color: $text-secondary;
   }
+}
+
+// An old Version takes the line below its entry. The border sets the frozen
+// text apart from the list.
+.version {
+  display: flex;
+  flex-basis: 100%;
+  flex-direction: column;
+  border-inline-start: 1px solid $border-subtle;
+  gap: $spacing-05;
+  margin-block: $spacing-03 $spacing-05;
+  padding-inline-start: $spacing-05;
+}
+
+.versionTitle {
+  @include type-style('heading-compact-01');
+
+  overflow-wrap: anywhere;
 }
 
 // The search of a group is as wide as one card.

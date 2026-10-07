@@ -52,7 +52,13 @@ import {
   listMine,
   listParts,
 } from '../src/db/parts.ts'
-import type { JointEnd, Part, PartSummary, PartType } from '../src/db/parts.ts'
+import type {
+  JointEnd,
+  Part,
+  PartSummary,
+  PartType,
+  PartVersion,
+} from '../src/db/parts.ts'
 import { answers, slotReasons } from '../src/db/part-trust.ts'
 import {
   BUILD_PROJECT,
@@ -388,9 +394,39 @@ function printTrust(part: Part) {
     console.log(`waits_on: ${part.waitsOn.id} ${part.waitsOn.title}`)
   }
   for (const entry of part.activity) {
-    const flag = 'cause' in entry ? ` ${entry.cause.id} ${entry.reason}` : ''
-    console.log(`activity: ${entry.at} ${entry.kind}${flag}`)
+    if ('cause' in entry) {
+      const { at, kind, cause, reason } = entry
+      console.log(`activity: ${at} ${kind} ${cause.id} ${reason}`)
+      continue
+    }
+    const version = entry.version ? ` version ${entry.version}` : ''
+    const by = entry.by ? ` by ${entry.by}` : ''
+    console.log(`activity: ${entry.at} ${entry.kind}${version}${by}`)
   }
+}
+
+// A Part as it was at one sign-off: the frozen title, fields and body.
+function printVersion(id: string, frozen: PartVersion) {
+  const { status, owner, date, source, metric, enforcedBy, evidenceLevel } =
+    frozen
+  const fields = {
+    status,
+    owner,
+    date,
+    source,
+    metric,
+    enforcedBy,
+    evidenceLevel,
+  }
+  console.log(id)
+  console.log(`version: ${frozen.version}`)
+  console.log(`title: ${frozen.title}`)
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== null) console.log(`${key}: ${value}`)
+  }
+  console.log(`signed_at: ${frozen.signedAt}`)
+  if (frozen.signedBy) console.log(`signed_by: ${frozen.signedBy}`)
+  if (frozen.body) console.log(`\n${frozen.body}`)
 }
 
 // The options of a Decision with the pick of its author, and the answer
@@ -514,7 +550,7 @@ function formatHelp() {
   )
   return [
     'pnpm concept list [<type>] [--member <e-mail>]',
-    'pnpm concept show <id>',
+    'pnpm concept show <id> [--version <number>]',
     'pnpm concept add <type> <flags of the type> [--body <text>, or - for stdin]',
     'pnpm concept set <id> <flags of the type> [--body <text>, or - for stdin] [--same-meaning]',
     'pnpm concept move <id> [<id> ...] --concept <slug>',
@@ -734,6 +770,13 @@ export async function runConcept(
       if (!type) throw new Error(`"${id}" is not a Concept id`)
       const operations = createPartOperations({ db, github: getGithub() })
       const part = await operations.getPart(product, id)
+      if (flags.version !== undefined) {
+        const sent = Number(flags.version)
+        const frozen = part.versions.find(({ version }) => version === sent)
+        if (!frozen) throw new Error(`"${id}" has no Version ${flags.version}`)
+        printVersion(id, frozen)
+        return
+      }
       if (isPlain) printPart(part)
       else printRecord(part)
       return

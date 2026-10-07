@@ -674,6 +674,73 @@ export const watchers = pgTable(
   ],
 )
 
+// The fields of a Part that a Part Version holds next to its title and its
+// body.
+export type VersionFields = {
+  status: string | null
+  owner: string | null
+  date: string | null
+  source: string | null
+  metric: string | null
+  enforcedBy: string | null
+  evidenceLevel: EvidenceLevel | null
+}
+
+// A Part Version is a Part as it was at one sign-off (glue/D55). Its number
+// counts up per Part. A row never changes. No member: a token signed it off.
+export const partVersions = pgTable(
+  'part_versions',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    partId: integer('part_id')
+      .notNull()
+      .references(() => parts.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    fields: jsonb('fields').notNull().$type<VersionFields>(),
+    memberId: integer('member_id').references(() => members.id, {
+      onDelete: 'set null',
+    }),
+    signedAt: timestamp('signed_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.partId, table.version)],
+)
+
+// What a line of the activity of a Part says: the Work state that the Part
+// stepped to, an edit, or a wording fix.
+export const activityKinds = [...workStates, 'changed', 'wording'] as const
+export type ActivityKind = (typeof activityKinds)[number]
+
+// One line of the activity of a Part (glue/D55): a step of its Work state
+// or a change, with the member and the time. `version` is the Part Version
+// that the step signed off. No member: a token wrote it, or Glue did. The
+// flags of a Part keep their own times: see `flags`.
+export const partActivity = pgTable(
+  'part_activity',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    partId: integer('part_id')
+      .notNull()
+      .references(() => parts.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull().$type<ActivityKind>(),
+    version: integer('version'),
+    memberId: integer('member_id').references(() => members.id, {
+      onDelete: 'set null',
+    }),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'part_activity_kind_check',
+      sql`${table.kind} in ('to-check', 'waiting', 'draft', 'review', 'published', 'sunk', 'changed', 'wording')`,
+    ),
+    index('part_activity_part_id_index').on(table.partId),
+  ],
+)
+
 // An Ask (glue/D51): the Hunch `partId` asks the Project `projectId` to
 // check it. A member of that Project picks the Ask and hands back a
 // published Insight of the own Project. The Ask is done when the Hunch needs

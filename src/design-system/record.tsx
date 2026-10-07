@@ -129,21 +129,37 @@ export type RecordFlag = {
   }
 }
 
-// What happened to a Part: an edit, a wording fix, its first sign-off, or a
-// flag that opened or closed.
+// What happened to a Part: a step of its Work state, an edit, a wording
+// fix, or a flag that opened or closed.
 const activityKinds = {
+  ...workStates,
   changed: 'Edited',
   wording: 'Wording',
-  published: 'Published',
   'flag-opened': 'Flag opened',
   'flag-closed': 'Flag closed',
 } as const
 
-// One entry of the activity list, with its time as ISO.
+// A Part as one sign-off froze it: `PartVersion` of the read model.
+export type RecordVersion = {
+  version: number
+  title: string
+  body: string
+  owner: string | null
+  date: string | null
+  source: string | null
+  metric: string | null
+  enforcedBy: string | null
+  evidenceLevel: EvidenceLevel | null
+}
+
+// One entry of the activity list, with its time as ISO. `by` is the name of
+// the member who did it. A sign-off has the Version that it stored.
 export type RecordActivity = {
   kind: keyof typeof activityKinds
   at: string
+  by?: string
   flag?: RecordFlag
+  version?: RecordVersion
 }
 
 // One Part with all the record view shows: `Part` of the read model.
@@ -364,6 +380,56 @@ function Body({
   )
 }
 
+// An old Version of the Part, in the activity list: its frozen title, body
+// and type fields. It is read-only.
+function FrozenVersion({
+  version,
+  parts,
+  onOpen,
+}: {
+  version: RecordVersion
+  parts: ReadonlyArray<RecordPartSummary>
+  onOpen?: OpenHandler
+}) {
+  const fields = [
+    ['Metric', version.metric],
+    ['Enforced by', version.enforcedBy],
+    [
+      'Evidence level',
+      version.evidenceLevel && evidenceLevels[version.evidenceLevel],
+    ],
+    ['Source', version.source],
+  ].filter(([, value]) => value != null)
+
+  return (
+    <section
+      aria-label={`Version ${version.version}`}
+      className={styles.version}
+    >
+      <h3 className={styles.versionTitle}>{version.title}</h3>
+      {(version.owner || version.date) && (
+        <div className={styles.state}>
+          {version.owner && <span>{version.owner}</span>}
+          {version.date && <time dateTime={version.date}>{version.date}</time>}
+        </div>
+      )}
+      {version.body.trim() !== '' && (
+        <Body body={version.body} parts={parts} onOpen={onOpen} />
+      )}
+      {fields.length > 0 && (
+        <dl className={styles.fields}>
+          {fields.map(([label, value]) => (
+            <div key={label} className={styles.field}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </section>
+  )
+}
+
 // One group of cards with its title, and the search that adds to it. A group
 // with no item and no search is left out. Only a Joint can be removed.
 function Group({
@@ -550,6 +616,8 @@ export function Record({
   const [confirming, setConfirming] = useState<ClickAction>()
   // The pick that waits for its Part.
   const [picking, setPicking] = useState<PartPick>()
+  // The old Version that is open: the record id and the number.
+  const [openVersion, setOpenVersion] = useState<string>()
   // The choice that is open: the label of its action, and the option that
   // is chosen. The button of the Next box sends it.
   const [choosing, setChoosing] = useState<{
@@ -999,25 +1067,49 @@ export function Record({
             Activity
           </h2>
           <ol className={styles.activity}>
-            {part.activity.map(({ kind, at, flag }) => (
-              <li key={`${at} ${kind} ${flag?.part.id}`}>
-                <time dateTime={at}>{at.slice(0, DAY_LENGTH)}</time>
-                <span>{activityKinds[kind]}</span>
-                {flag && (
-                  <>
-                    <span>{flagReasons[flag.reason]}</span>
-                    <Link
-                      href={flag.part.href}
-                      onClick={
-                        onOpen && ((event) => onOpen(flag.part.id, event))
+            {part.activity.map(({ kind, at, by, flag, version }) => {
+              const versionKey = `${part.id} ${version?.version}`
+              const isOpen = openVersion === versionKey
+              return (
+                <li key={`${at} ${kind} ${flag?.part.id}`}>
+                  <time dateTime={at}>{at.slice(0, DAY_LENGTH)}</time>
+                  <span>{activityKinds[kind]}</span>
+                  {by && <span>{by}</span>}
+                  {flag && (
+                    <>
+                      <span>{flagReasons[flag.reason]}</span>
+                      <Link
+                        href={flag.part.href}
+                        onClick={
+                          onOpen && ((event) => onOpen(flag.part.id, event))
+                        }
+                      >
+                        {flag.part.id}
+                      </Link>
+                    </>
+                  )}
+                  {version && (
+                    <Button
+                      kind="ghost"
+                      size="sm"
+                      aria-expanded={isOpen}
+                      onClick={() =>
+                        setOpenVersion(isOpen ? undefined : versionKey)
                       }
                     >
-                      {flag.part.id}
-                    </Link>
-                  </>
-                )}
-              </li>
-            ))}
+                      Version {version.version}
+                    </Button>
+                  )}
+                  {version && isOpen && (
+                    <FrozenVersion
+                      version={version}
+                      parts={bodyParts}
+                      onOpen={onOpen}
+                    />
+                  )}
+                </li>
+              )
+            })}
           </ol>
         </section>
       )}

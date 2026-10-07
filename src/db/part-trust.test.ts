@@ -624,6 +624,53 @@ describe('the answer of the owner', () => {
     })
   })
 
+  it('takes a draft to review with "ready", and keeps its Trust', async () => {
+    const id = await addPart(db, 'glue', { type: 'entity', title: 'Cart' })
+
+    await answerPart(db, 'glue', id, { answer: 'ready' })
+
+    expect(await readState(id)).toEqual({
+      trust: 'not-ready',
+      workState: 'review',
+    })
+  })
+
+  it('publishes a Part in review with "supersede"', async () => {
+    const id = await addDraftInsight('Loads are slow')
+    await answerPart(db, 'glue', id, { answer: 'ready' })
+
+    await answerPart(db, 'glue', id, { answer: 'supersede' })
+
+    expect(await readState(id)).toEqual(solid)
+  })
+
+  it('makes a draft Decision proposed with "ready"', async () => {
+    await addGoal()
+    await addInsight('Loads are slow')
+    const id = await addDecision('accepted', ['G1', 'I1'])
+    await answerPart(db, 'glue', id, { answer: 'not-ready' })
+
+    await answerPart(db, 'glue', id, { answer: 'ready' })
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      trust: 'not-ready',
+      workState: 'review',
+      status: 'proposed',
+    })
+  })
+
+  it('keeps a draft Insight a draft with "ready"', async () => {
+    const id = await addDraftInsight('Loads are slow')
+
+    await answerPart(db, 'glue', id, { answer: 'ready' })
+
+    expect(await findPart(db, 'glue', id)).toMatchObject({
+      trust: 'not-ready',
+      workState: 'review',
+      status: 'draft',
+    })
+  })
+
   it('sinks the Part with "sink", and flags the Parts that need it', async () => {
     await addGoal()
     await addInsight('Loads are slow')
@@ -894,6 +941,25 @@ describe('the answers that a Part takes', () => {
       'sink',
     ])
     expect((await findPart(db, 'glue', 'I1'))?.answers).toEqual([
+      'not-ready',
+      'sink',
+    ])
+  })
+
+  it('has the sign-off first and "ready" for a draft, and no "ready" in review', async () => {
+    const id = await addPart(db, 'glue', { type: 'entity', title: 'Cart' })
+
+    expect((await findPart(db, 'glue', id))?.answers).toEqual([
+      'supersede',
+      'ready',
+      'not-ready',
+      'sink',
+    ])
+
+    await answerPart(db, 'glue', id, { answer: 'ready' })
+
+    expect((await findPart(db, 'glue', id))?.answers).toEqual([
+      'supersede',
       'not-ready',
       'sink',
     ])
