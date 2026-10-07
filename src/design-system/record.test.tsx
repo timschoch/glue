@@ -956,7 +956,7 @@ describe('the box Next', () => {
 
     await userEvent.click(next().getByRole('button', { name: 'Send' }))
 
-    expect(onPick).toHaveBeenCalledExactlyOnceWith('data')
+    expect(onPick).toHaveBeenCalledExactlyOnceWith('data', '')
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(document.activeElement).toBe(
       next().getByRole('button', { name: 'Ask another team' }),

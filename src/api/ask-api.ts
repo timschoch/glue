@@ -15,8 +15,7 @@ import {
   takeBackAsk,
 } from '../db/asks.ts'
 import type { Ask } from '../db/asks.ts'
-import { trusts } from '../db/parts.ts'
-import { partTypes } from '../db/schema.ts'
+import { partTypes, trusts } from '../db/parts.ts'
 import { ApiError, handleApiRequest, parseJson } from './api-request.ts'
 import type { ApiRequest } from './api-request.ts'
 
