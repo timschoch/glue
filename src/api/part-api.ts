@@ -24,6 +24,7 @@ import {
 import type { PartChange } from '../db/part-records.ts'
 import {
   answers,
+  activityKinds,
   evidenceLevels,
   findConcept,
   findProject,
@@ -277,8 +278,18 @@ export const partSchema = z
       .array(
         z.union([
           z.object({
-            kind: z.enum(['changed', 'published', 'wording']),
+            kind: z.enum(activityKinds).meta({
+              description:
+                'A step of the Work state, an edit (changed) or a wording fix',
+            }),
             at: z.iso.datetime(),
+            by: z.string().optional().meta({
+              description: 'The name of the member who did it',
+            }),
+            version: z.number().optional().meta({
+              description:
+                'Only a sign-off has it: the number of the Part Version that it stored',
+            }),
           }),
           z.object({
             kind: z.enum(['flag-opened', 'flag-closed']),
@@ -289,6 +300,31 @@ export const partSchema = z
         ]),
       )
       .meta({ description: 'What happened to the Part, newest first' }),
+    versions: z
+      .array(
+        z.object({
+          version: z.number().meta({
+            description: 'The number of the Version. It counts up per Part',
+          }),
+          title: z.string(),
+          body: z.string(),
+          status: z.string().nullable(),
+          owner: z.string().nullable(),
+          date: z.string().nullable(),
+          source: z.string().nullable(),
+          metric: z.string().nullable(),
+          enforcedBy: z.string().nullable(),
+          evidenceLevel: z.enum(evidenceLevels).nullable(),
+          signedAt: z.iso.datetime(),
+          signedBy: z.string().nullable().meta({
+            description: 'The name of the member who signed it off',
+          }),
+        }),
+      )
+      .meta({
+        description:
+          'The Versions of the Part, newest first: the Part as each sign-off froze it',
+      }),
   })
   .meta({ id: 'Part' }) satisfies z.ZodType<Part>
 

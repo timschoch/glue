@@ -74,6 +74,7 @@ const decision: Part = {
   signals: [],
   answers: ['not-ready', 'sink'],
   activity: [],
+  versions: [],
   question: null,
   unchosen: false,
 }
@@ -291,7 +292,21 @@ describe('a Part in the record view', () => {
     ])
   })
 
-  it('shows what happened, with the card of the cause of each flag', () => {
+  it('shows what happened, with the card of the cause of each flag and the Version of each sign-off', () => {
+    const version = {
+      version: 1,
+      title: 'Show a video for each step',
+      body: 'One video per step.',
+      status: 'accepted',
+      owner: 'Tim',
+      date: '2026-10-02',
+      source: null,
+      metric: null,
+      enforcedBy: null,
+      evidenceLevel: null,
+      signedAt: '2026-10-02T08:00:00.000Z',
+      signedBy: 'Ada',
+    }
     const record = toRecordPart(
       {
         ...decision,
@@ -302,8 +317,14 @@ describe('a Part in the record view', () => {
             cause: { id: 'I1', title: 'Bakers want step videos' },
             reason: 'changed',
           },
-          { kind: 'published', at: '2026-10-02T08:00:00.000Z' },
+          {
+            kind: 'published',
+            at: '2026-10-02T08:00:00.000Z',
+            by: 'Ada',
+            version: 1,
+          },
         ],
+        versions: [version],
       },
       href,
       [goal, insight],
@@ -313,12 +334,20 @@ describe('a Part in the record view', () => {
       {
         kind: 'flag-opened',
         at: '2026-10-03T08:00:00.000Z',
+        by: undefined,
         flag: {
           reason: 'changed',
           part: expect.objectContaining({ id: 'I1', href: '/glue/I1' }),
         },
+        version: undefined,
       },
-      { kind: 'published', at: '2026-10-02T08:00:00.000Z', flag: undefined },
+      {
+        kind: 'published',
+        at: '2026-10-02T08:00:00.000Z',
+        by: 'Ada',
+        flag: undefined,
+        version,
+      },
     ])
   })
 

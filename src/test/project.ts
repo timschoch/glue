@@ -250,10 +250,65 @@ function part(
     waitsOn: null,
     signals: [],
     answers: ['not-ready', 'sink'],
-    activity: [{ kind: 'published', at: '2026-10-02T08:00:00.000Z' }],
+    activity: [
+      ...(found === accepted
+        ? ([
+            {
+              kind: 'published',
+              at: '2026-10-05T08:00:00.000Z',
+              by: 'Ada',
+              version: 2,
+            },
+            { kind: 'review', at: '2026-10-04T08:00:00.000Z', by: 'Tim' },
+            { kind: 'changed', at: '2026-10-04T07:00:00.000Z', by: 'Tim' },
+            { kind: 'draft', at: '2026-10-03T08:00:00.000Z', by: 'Tim' },
+          ] as const)
+        : []),
+      {
+        kind: 'published',
+        at: '2026-10-02T08:00:00.000Z',
+        by: 'Ada',
+        version: 1,
+      },
+      { kind: 'draft', at: '2026-10-01T08:00:00.000Z', by: 'Tim' },
+    ],
+    versions: [
+      ...(found === accepted
+        ? [
+            {
+              ...noVersionFields,
+              version: 2,
+              title: found.title,
+              body: 'It follows #I3 and #D9.',
+              signedAt: '2026-10-05T08:00:00.000Z',
+            },
+          ]
+        : []),
+      {
+        ...noVersionFields,
+        version: 1,
+        title: found === accepted ? OLD_TITLE : found.title,
+        body: found === accepted ? 'It follows #I3.' : '',
+        signedAt: '2026-10-02T08:00:00.000Z',
+      },
+    ],
     question: null,
     unchosen: false,
   }
+}
+
+// The title of the Decision in its Version 1.
+export const OLD_TITLE = 'Keep each Part in one table'
+
+const noVersionFields = {
+  status: null,
+  owner: null,
+  date: null,
+  source: null,
+  metric: null,
+  enforcedBy: null,
+  evidenceLevel: null,
+  signedBy: 'Ada',
 }
 
 // The Decision needs the Goal and the Insight. The Guardrail needs the

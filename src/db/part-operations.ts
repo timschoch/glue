@@ -102,15 +102,24 @@ export function createPartOperations({
     },
 
     // `expected` holds the values that the person saw. The Part with other
-    // values now is an InvalidRecordError, and nothing changes.
+    // values now is an InvalidRecordError, and nothing changes. `changedBy`
+    // is the e-mail address of the member who changes the Part.
     async updatePart(
       project: string,
       recordId: string,
       change: PartChange,
       expected?: ExpectedPart,
+      changedBy?: string,
     ) {
       const wasAccepted = await isAccepted(project, recordId)
-      const changed = await updatePart(db, project, recordId, change, expected)
+      const changed = await updatePart(
+        db,
+        project,
+        recordId,
+        change,
+        expected,
+        changedBy,
+      )
       if (!changed)
         throw new InvalidRecordError(
           `"${recordId}" changed since you opened it`,
@@ -183,9 +192,10 @@ export function createPartOperations({
       project: string,
       recordId: string,
       answer: QuestionAnswer,
+      answeredBy?: string,
     ) {
       const wasAccepted = await isAccepted(project, recordId)
-      await answerQuestion(db, project, recordId, answer)
+      await answerQuestion(db, project, recordId, answer, answeredBy)
       return toChangedPart(project, recordId, wasAccepted)
     },
 

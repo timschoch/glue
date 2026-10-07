@@ -396,8 +396,9 @@ describe('findPart', () => {
       flags: [],
       waitsOn: null,
       signals: [],
-      answers: ['supersede', 'not-ready', 'sink'],
-      activity: [{ kind: 'changed', at: expect.any(String) }],
+      answers: ['supersede', 'ready', 'not-ready', 'sink'],
+      activity: [],
+      versions: [],
       question: null,
       // Superseded, and never accepted.
       unchosen: true,
@@ -406,7 +407,12 @@ describe('findPart', () => {
 
   it('lists what happened to the Part, newest first', async () => {
     await client.exec(`
-      update parts set published_at = '2026-10-02T08:00:00Z', changed_at = '2026-10-04T08:00:00Z' where id = 6;
+      insert into members (project_id, user_id, name, email)
+        select id, 'user-ada', 'Ada', 'ada@example.com' from projects where slug = 'glue';
+      insert into part_activity (part_id, kind, version, member_id, at) values
+        (6, 'draft', null, null, '2026-10-01T08:00:00Z'),
+        (6, 'published', 1, (select id from members), '2026-10-02T08:00:00Z'),
+        (6, 'changed', null, (select id from members), '2026-10-04T08:00:00Z');
       insert into flags (part_id, cause_part_id, reason, created_at, closed_at) values
         (6, 3, 'changed', '2026-10-03T08:00:00Z', '2026-10-03T09:00:00Z'),
         (6, 5, 'not-ready', '2026-10-03T10:00:00Z', null);
@@ -419,7 +425,7 @@ describe('findPart', () => {
     const part = await findPart(db, 'glue', 'F1')
 
     expect(part?.activity).toEqual([
-      { kind: 'changed', at: '2026-10-04T08:00:00.000Z' },
+      { kind: 'changed', at: '2026-10-04T08:00:00.000Z', by: 'Ada' },
       {
         kind: 'flag-opened',
         at: '2026-10-03T10:00:00.000Z',
@@ -428,7 +434,13 @@ describe('findPart', () => {
       },
       { kind: 'flag-closed', at: '2026-10-03T09:00:00.000Z', ...changed },
       { kind: 'flag-opened', at: '2026-10-03T08:00:00.000Z', ...changed },
-      { kind: 'published', at: '2026-10-02T08:00:00.000Z' },
+      {
+        kind: 'published',
+        at: '2026-10-02T08:00:00.000Z',
+        by: 'Ada',
+        version: 1,
+      },
+      { kind: 'draft', at: '2026-10-01T08:00:00.000Z' },
     ])
     expect(part?.flags).toEqual([
       {
@@ -439,13 +451,41 @@ describe('findPart', () => {
     ])
   })
 
-  it('leaves out the change that is the sign-off itself', async () => {
+  it('gives the Versions of the Part, newest first', async () => {
+    const fields = {
+      status: null,
+      owner: 'Tim',
+      date: null,
+      source: null,
+      metric: null,
+      enforcedBy: null,
+      evidenceLevel: null,
+    }
     await client.exec(`
-      update parts set published_at = '2026-10-02T08:00:00Z', changed_at = '2026-10-02T08:00:00Z' where id = 6;
+      insert into members (project_id, user_id, name, email)
+        select id, 'user-ada', 'Ada', 'ada@example.com' from projects where slug = 'glue';
+      insert into part_versions (part_id, version, title, body, fields, member_id, signed_at) values
+        (6, 1, 'Record a video', 'One take.', '${JSON.stringify(fields)}', null, '2026-10-02T08:00:00Z'),
+        (6, 2, 'Record the video', 'Two takes.', '${JSON.stringify(fields)}', (select id from members), '2026-10-05T08:00:00Z');
     `)
 
-    expect((await findPart(db, 'glue', 'F1'))?.activity).toEqual([
-      { kind: 'published', at: '2026-10-02T08:00:00.000Z' },
+    expect((await findPart(db, 'glue', 'F1'))?.versions).toEqual([
+      {
+        version: 2,
+        title: 'Record the video',
+        body: 'Two takes.',
+        ...fields,
+        signedAt: '2026-10-05T08:00:00.000Z',
+        signedBy: 'Ada',
+      },
+      {
+        version: 1,
+        title: 'Record a video',
+        body: 'One take.',
+        ...fields,
+        signedAt: '2026-10-02T08:00:00.000Z',
+        signedBy: null,
+      },
     ])
   })
 

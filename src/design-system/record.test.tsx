@@ -1199,7 +1199,7 @@ describe('the step bar of a record', () => {
 
 describe('the activity of a record', () => {
   const activity = [
-    { kind: 'changed', at: '2026-10-04T08:00:00.000Z' },
+    { kind: 'changed', at: '2026-10-04T08:00:00.000Z', by: 'Ada' },
     {
       kind: 'flag-closed',
       at: '2026-10-03T09:00:00.000Z',
@@ -1212,9 +1212,27 @@ describe('the activity of a record', () => {
     },
     { kind: 'wording', at: '2026-10-02T09:00:00.000Z' },
     { kind: 'published', at: '2026-10-02T08:00:00.000Z' },
+    { kind: 'review', at: '2026-10-01T09:00:00.000Z', by: 'Mara' },
+    { kind: 'draft', at: '2026-10-01T08:00:00.000Z' },
   ] as const
+  const signed = {
+    kind: 'published',
+    at: '2026-10-02T08:00:00.000Z',
+    by: 'Ada',
+    version: {
+      version: 1,
+      title: 'Show a video for each step',
+      body: 'One video per step.',
+      owner: 'Mara',
+      date: '2026-10-01',
+      source: null,
+      metric: null,
+      enforcedBy: 'lint',
+      evidenceLevel: null,
+    },
+  } as const
 
-  it('lists what happened and when, in the order given, as the last group', () => {
+  it('lists what happened, when and who did it, in the order given, as the last group', () => {
     renderRecord({ ...JOINTS, activity })
 
     const group = screen.getByRole('region', { name: 'Activity' })
@@ -1224,13 +1242,52 @@ describe('the activity of a record', () => {
         .getAllByRole('listitem')
         .map((item) => item.textContent),
     ).toEqual([
-      '2026-10-04Edited',
+      '2026-10-04EditedAda',
       '2026-10-03Flag closedChangedI7',
       '2026-10-03Flag openedChangedI7',
       '2026-10-02Wording',
       '2026-10-02Published',
+      '2026-10-01ReviewMara',
+      '2026-10-01Draft',
     ])
     expect(screen.getByRole('article').lastElementChild).toBe(group)
+  })
+
+  it('keeps an old Version closed', () => {
+    renderRecord({ activity: [signed] })
+
+    const open = screen.getByRole('button', { name: 'Version 1' })
+
+    expect(open.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('region', { name: 'Version 1' })).toBeNull()
+  })
+
+  it('opens an old Version with its frozen title, body and fields', async () => {
+    renderRecord({ activity: [signed] })
+
+    const open = screen.getByRole('button', { name: 'Version 1' })
+    await userEvent.click(open)
+
+    const version = within(screen.getByRole('region', { name: 'Version 1' }))
+    expect(open.getAttribute('aria-expanded')).toBe('true')
+    expect(
+      version.getByRole('heading', { name: 'Show a video for each step' }),
+    ).toBeTruthy()
+    expect(version.getByText('One video per step.')).toBeTruthy()
+    expect(version.getByText('Mara')).toBeTruthy()
+    expect(version.getByText('2026-10-01')).toBeTruthy()
+    expect(version.getByText('Enforced by')).toBeTruthy()
+    expect(version.getByText('lint')).toBeTruthy()
+  })
+
+  it('closes the Version again', async () => {
+    renderRecord({ activity: [signed] })
+
+    const open = screen.getByRole('button', { name: 'Version 1' })
+    await userEvent.click(open)
+    await userEvent.click(open)
+
+    expect(screen.queryByRole('region', { name: 'Version 1' })).toBeNull()
   })
 
   it('opens the cause of a flag', async () => {

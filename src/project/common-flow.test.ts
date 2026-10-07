@@ -38,6 +38,7 @@ const published: Part = {
   signals: [],
   answers: ['not-ready', 'sink'],
   activity: [],
+  versions: [],
   question: null,
   unchosen: false,
 }

@@ -242,9 +242,9 @@ export function createPartActions(request: ActionRequest) {
     ),
 
     updatePart: withMember(
-      (db, { project, recordId, change, expected }: PartUpdateInput) =>
+      (db, { project, recordId, change, expected }: PartUpdateInput, member) =>
         toOperations(db)
-          .updatePart(project, recordId, change, expected)
+          .updatePart(project, recordId, change, expected, member.email)
           .then(toSavedPart, toFailure),
     ),
 
@@ -266,7 +266,12 @@ export function createPartActions(request: ActionRequest) {
     answerQuestion: withMember(
       (db, { project, recordId, answer }: QuestionAnswerInput, member) =>
         toOperations(db)
-          .answerQuestion(project, recordId, { ...answer, by: member.name })
+          .answerQuestion(
+            project,
+            recordId,
+            { ...answer, by: member.name },
+            member.email,
+          )
           .then(toSavedPart, toFailure),
     ),
 

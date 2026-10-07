@@ -114,13 +114,16 @@ export function toRecordPart(
     reviewNotes: part.reviewNotes.flatMap(({ id }) => findCause(id) ?? []),
     activity: part.activity.map((entry) => {
       const cause = 'cause' in entry ? findCause(entry.cause.id) : undefined
+      const number = 'version' in entry ? entry.version : undefined
       return {
         kind: entry.kind,
         at: entry.at,
+        by: 'by' in entry ? entry.by : undefined,
         flag:
           cause && 'reason' in entry
             ? { reason: entry.reason, part: cause }
             : undefined,
+        version: part.versions.find(({ version }) => version === number),
       }
     }),
   }
