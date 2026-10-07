@@ -19,6 +19,13 @@ $card-width: $spacing-13 * 2;
   overflow-wrap: anywhere;
 }
 
+// The words in place of the lists when there is no Part.
+.label {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}
+
 // The watched Parts: their title and their cards.
 .group {
   display: flex;

@@ -312,15 +312,21 @@ export function ConceptMapFlow({
     [tree, parts, joints, focus, expanded],
   )
   const [placed, setPlaced] = useState<{ view: MapView; layout: MapLayout }>()
+  const [room, setRoom] = useState({ width: 0, height: 0 })
   useEffect(() => {
     let isStale = false
-    void layoutMapView(view).then((layout) => {
+    // The Map that the frame shows whole at the floor.
+    const most = {
+      width: (room.width - 2 * PADDING) / FLOOR,
+      height: (room.height - 2 * PADDING) / FLOOR,
+    }
+    void layoutMapView(view, most).then((layout) => {
       if (!isStale) setPlaced({ view, layout })
     })
     return () => {
       isStale = true
     }
-  }, [view])
+  }, [view, room])
 
   // The node or the line under the pointer or with the focus.
   const [lit, setLit] = useState<string>()
@@ -352,7 +358,6 @@ export function ConceptMapFlow({
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
   }, [])
-  const [room, setRoom] = useState({ width: 0, height: 0 })
   useEffect(() => {
     const element = frame.current
     if (!element) return
@@ -369,14 +374,25 @@ export function ConceptMapFlow({
   const toggled = useRef<{ slug: string; open: boolean }>(undefined)
   // React Flow fits the Map at first sight, with each new layout and with
   // each new size of the frame.
-  const fit = useCallback(async () => {
-    const instance = flow.current
-    if (!instance) return
-    await instance.fitView(FIT)
-    // A Map too big for its frame at the floor starts at its left top corner.
-    const { x, y, zoom } = instance.getViewport()
-    if (x < 0 || y < 0)
-      await instance.setViewport({ x: Math.max(x, 0), y: Math.max(y, 0), zoom })
+  // One fit at a time: React Flow does a fit that starts in the middle of
+  // another one late, after the Map went to its corner.
+  const fitting = useRef(Promise.resolve())
+  const fit = useCallback(() => {
+    fitting.current = fitting.current.then(async () => {
+      const instance = flow.current
+      if (!instance) return
+      await instance.fitView(FIT)
+      // A Map too big for its frame at the floor starts at its left top
+      // corner.
+      const { x, y, zoom } = instance.getViewport()
+      if (x < 0 || y < 0)
+        await instance.setViewport({
+          x: Math.max(x, 0),
+          y: Math.max(y, 0),
+          zoom,
+        })
+    })
+    return fitting.current
   }, [])
   useEffect(() => void fit(), [fit, placed, room])
 
