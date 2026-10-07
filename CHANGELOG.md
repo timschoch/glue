@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.22.0](https://github.com/timschoch/glue/compare/v1.21.0...v1.22.0) (2026-10-07)
+
+
+### Features
+
+* **mine:** show the count of new flags beside Mine ([#348](https://github.com/timschoch/glue/issues/348)) ([45389b2](https://github.com/timschoch/glue/commit/45389b2ba230222d2cc1f5f6beaba88ec6bb81ad)), closes [#345](https://github.com/timschoch/glue/issues/345)
+
+
+### Bug Fixes
+
+* **record:** fit the step bar of a Part on a phone ([#344](https://github.com/timschoch/glue/issues/344)) ([3d76a63](https://github.com/timschoch/glue/commit/3d76a6343af61adbcbfe9dd0c52a36a6a68b61d2)), closes [#341](https://github.com/timschoch/glue/issues/341)
+
 ## [1.21.0](https://github.com/timschoch/glue/compare/v1.20.0...v1.21.0) (2026-10-07)
 
 
