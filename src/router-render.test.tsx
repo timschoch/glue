@@ -204,6 +204,17 @@ describe('the start of a Project', () => {
     await expectAddress('/glue')
   })
 
+  it('shows the removal in place of the button until the server answers', async () => {
+    await renderPage('/glue/flows', {
+      removeConcept: vi.fn(() => new Promise<undefined>(() => {})),
+    })
+
+    await userEvent.click(button('Remove Concept'))
+
+    await waitFor(() => within(screen.getByRole('main')).getByText('Removing'))
+    expect(screen.queryByRole('button', { name: 'Remove Concept' })).toBeNull()
+  })
+
   it('has no button that removes a Concept with a Part', async () => {
     await renderPage('/glue/read-model')
 
@@ -2779,6 +2790,32 @@ describe('the people of a Project', () => {
     )
   })
 
+  it('shows the save of a Responsible at the field until the server answers', async () => {
+    let answer = () => {}
+    await renderPage('/glue/part-model/D4', {
+      assign: vi.fn(
+        () =>
+          new Promise<undefined>((resolve) => {
+            answer = () => resolve(undefined)
+          }),
+      ),
+    })
+    const responsible = () =>
+      screen.getByRole<HTMLSelectElement>('combobox', { name: 'Responsible' })
+    const assignees = () =>
+      within(screen.getByRole('group', { name: 'Assignees' }))
+
+    await userEvent.selectOptions(responsible(), 'Bo')
+
+    await waitFor(() => assignees().getByText('Saving'))
+    expect(responsible().getAttribute('aria-readonly')).toBe('true')
+
+    answer()
+
+    await waitFor(() => expect(assignees().queryByText('Saving')).toBeNull())
+    expect(responsible().getAttribute('aria-readonly')).toBeNull()
+  })
+
   it('takes a Co-Author away from a Concept', async () => {
     const { server } = await renderPage('/glue/part-model')
     const bo = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Bo' })
@@ -2930,6 +2967,51 @@ describe('the session', () => {
     await expectAddress('/sign-in')
     expect(server.signOut).toHaveBeenCalledOnce()
     expect(pageTitle()).toBe('Sign in to Glue')
+  })
+
+  it('shows that the sign-out runs in place of its button', async () => {
+    await renderPage('/glue', {
+      signOut: vi.fn(() => new Promise<void>(() => {})),
+    })
+    const panel = within(screen.getByRole('navigation', { name: 'Main' }))
+
+    await userEvent.click(panel.getByRole('button', { name: 'Sign out' }))
+
+    await waitFor(() => panel.getByText('Signing out'))
+    expect(panel.queryByRole('button', { name: 'Sign out' })).toBeNull()
+  })
+
+  it('shows why the sign-out failed below its button', async () => {
+    await renderPage('/glue', {
+      signOut: vi.fn(() => Promise.reject(new Error('offline'))),
+    })
+    const panel = within(screen.getByRole('navigation', { name: 'Main' }))
+
+    await userEvent.click(panel.getByRole('button', { name: 'Sign out' }))
+
+    await waitFor(() =>
+      expect(
+        panel.getByRole('alert').textContent.replace(/^error icon/, ''),
+      ).toBe('This did not work. Check your connection, then try again.'),
+    )
+    panel.getByRole('button', { name: 'Sign out' })
+  })
+
+  it('shows why the sign-in got no answer as one notification', async () => {
+    await renderPage('/sign-in', {
+      ...signedOut(),
+      signIn: vi.fn(() => Promise.reject(new Error('offline'))),
+    })
+    await userEvent.type(field('Email'), 'ada@example.com')
+    await userEvent.type(screen.getByLabelText('Password'), 'correct horse')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() =>
+      expect(alerts()).toEqual([
+        'Sign-in does not work at the moment. Check your connection, then try again.',
+      ]),
+    )
   })
 
   it('signs a person in with the email and the password', async () => {

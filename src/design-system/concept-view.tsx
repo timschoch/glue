@@ -218,6 +218,8 @@ export type ConceptViewProps = {
   onAddConcept?: () => void
   // With the callback the head holds the button that removes the Concept.
   onRemove?: () => void
+  // The removal that runs: it shows in place of the button.
+  removePending?: string
   // Why the Concept was not removed.
   removeFailure?: string
   // One more group, after the Parts.
@@ -266,6 +268,7 @@ export function ConceptView({
   onAddPart,
   onAddConcept,
   onRemove,
+  removePending,
   removeFailure,
   children,
   contract,
@@ -332,7 +335,7 @@ export function ConceptView({
               ) : (
                 <InlineLoading
                   description={kindPending}
-                  className={styles.kindPending}
+                  className={styles.pending}
                 />
               )}
               {concept.kind && onEditKind && (
@@ -345,11 +348,17 @@ export function ConceptView({
           )}
         </div>
         <div className={styles.buttons}>
-          {onRemove && (
-            <Button kind="danger" size="sm" onClick={onRemove}>
-              Remove Concept
-            </Button>
-          )}
+          {onRemove &&
+            (removePending === undefined ? (
+              <Button kind="danger" size="sm" onClick={onRemove}>
+                Remove Concept
+              </Button>
+            ) : (
+              <InlineLoading
+                description={removePending}
+                className={styles.pending}
+              />
+            ))}
           {onViewChange && (
             <ContentSwitcher
               size="sm"

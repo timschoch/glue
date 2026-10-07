@@ -116,12 +116,24 @@ export function ConceptScreen({
   const versionHref = useVersionHref()
   // The next step of the Concept or of the Signals has its own write: its
   // box shows that it saves, or why it failed.
-  const stepWrite = useWrite()
+  const {
+    pending: stepPending,
+    failure: stepFailure,
+    write: writeStep,
+  } = useWrite()
   // The Hunch of a group of Signals has its own write: the list shows at
   // the group that it saves, or why it was not made.
-  const hunchWrite = useWrite()
+  const {
+    pending: hunchPending,
+    failure: hunchFailure,
+    write: writeHunch,
+  } = useWrite()
   // The pick of a Kind has its own write too: it shows at the Kind field.
-  const kindWrite = useWrite()
+  const {
+    pending: kindPending,
+    failure: kindFailure,
+    write: writeKind,
+  } = useWrite()
   const [hunchGroup, setHunchGroup] = useState<string>()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
   // The saved filters that are on, and the filter that the form shows: a
@@ -196,13 +208,10 @@ export function ConceptScreen({
 
   // The Hunch of a group is a draft in the open Concept. The server gives
   // it the title of the group. Then the member is on the Hunch, where the
-  // flow goes on. `saved` is the write that shows it: the one of the group,
+  // flow goes on. `save` is the write that shows it: the one of the group,
   // or the one of the next step.
-  const makeHunch = (
-    urls: ReadonlyArray<string>,
-    saved: ReturnType<typeof useWrite>,
-  ) =>
-    void saved.write(
+  const makeHunch = (urls: ReadonlyArray<string>, save: typeof write) =>
+    void save(
       'Saving',
       () =>
         addSignalInsight({
@@ -242,8 +251,8 @@ export function ConceptScreen({
               ? undefined
               : {
                   group: hunchGroup,
-                  pending: hunchWrite.pending,
-                  failure: hunchWrite.failure,
+                  pending: hunchPending,
+                  failure: hunchFailure,
                 }
           }
           onMakeInsight={(urls) =>
@@ -251,7 +260,7 @@ export function ConceptScreen({
           }
           onMakeHunch={(urls) => {
             setHunchGroup(urls[0])
-            makeHunch(urls, hunchWrite)
+            makeHunch(urls, writeHunch)
           }}
           // The flow from evidence to an Insight starts at the Signals
           // (glue/D68): the next step makes the Hunch of the largest group.
@@ -265,11 +274,11 @@ export function ConceptScreen({
                 actions: [
                   {
                     label: next.label,
-                    onClick: () => makeHunch(next.signals, stepWrite),
+                    onClick: () => makeHunch(next.signals, writeStep),
                   },
                 ],
-                pending: stepWrite.pending,
-                error: stepWrite.failure,
+                pending: stepPending,
+                error: stepFailure,
               },
             }
           }}
@@ -487,7 +496,7 @@ export function ConceptScreen({
       case 'add':
         return changeSearch({ ...search, add: step.type })
       case 'sign':
-        return stepWrite.write('Signing off', () =>
+        return writeStep('Signing off', () =>
           signContract({ project, concept: concept.slug }),
         )
       case 'open':
@@ -513,7 +522,7 @@ export function ConceptScreen({
   )
   const handBack = (recordId: string) =>
     studyAsk &&
-    void stepWrite.write('Saving', () =>
+    void writeStep('Saving', () =>
       handBackAsk({ project, askId: studyAsk.id, part: recordId }),
     )
   const handBackActions: Array<NextAction> =
@@ -534,12 +543,12 @@ export function ConceptScreen({
       concept={concept}
       kinds={kinds}
       onKindChange={(kind) =>
-        void kindWrite.write('Saving', () =>
+        void writeKind('Saving', () =>
           updateConcept({ project, concept: concept.slug, change: { kind } }),
         )
       }
-      kindPending={kindWrite.pending}
-      kindFailure={kindWrite.failure}
+      kindPending={kindPending}
+      kindFailure={kindFailure}
       onEditKind={() =>
         void changeSearch({ ...search, kind: concept.kind ?? undefined })
       }
@@ -569,6 +578,7 @@ export function ConceptScreen({
               )
           : undefined
       }
+      removePending={pending}
       removeFailure={failure}
       contract={
         // The sign-off is in the box Next, so a Contract with no Version,
@@ -597,8 +607,8 @@ export function ConceptScreen({
         flow || handBackActions.length > 0
           ? {
               actions: [...handBackActions, ...flowActions],
-              pending: stepWrite.pending,
-              error: stepWrite.failure,
+              pending: stepPending,
+              error: stepFailure,
               pickParts: findings.map((part) => ({
                 ...part,
                 href: recordHref(part),

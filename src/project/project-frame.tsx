@@ -5,6 +5,7 @@ import type { ConceptNode, PartSummary, Project } from '../db/parts.ts'
 import { Frame } from '../design-system/frame.tsx'
 import { changePin } from './project-search.ts'
 import { useProjectLinks } from './use-project-links.ts'
+import { useWrite } from './use-write.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
 
@@ -44,6 +45,7 @@ export function ProjectFrame({
 }) {
   const navigate = useNavigate()
   const { signOut } = projectRoute.useRouteContext()
+  const { pending, failure, write } = useWrite()
   const {
     concept,
     recordId,
@@ -114,7 +116,15 @@ export function ProjectFrame({
           search: { add: 'concept' },
         })
       }
-      onSignOut={() => void signOut().then(() => navigate({ to: '/sign-in' }))}
+      onSignOut={() =>
+        void write(
+          'Signing out',
+          () => signOut(),
+          () => navigate({ to: '/sign-in' }),
+        )
+      }
+      signOutPending={pending}
+      signOutFailure={failure}
     >
       {children}
     </Frame>

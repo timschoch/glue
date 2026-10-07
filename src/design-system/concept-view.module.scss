@@ -47,8 +47,8 @@ $card-width: $spacing-13 * 2;
   gap: $spacing-03;
 }
 
-// The save of a Kind takes no more room than its text.
-.kindPending {
+// A write that runs takes no more room than its text.
+.pending {
   inline-size: auto;
 }
 
