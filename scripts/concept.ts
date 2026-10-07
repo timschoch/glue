@@ -26,6 +26,7 @@ import { goalMeasureSchema } from '../src/db/goal-measure.ts'
 import type { GoalMeasure } from '../src/db/goal-measure.ts'
 import { addKind, listKinds, updateKind } from '../src/db/kinds.ts'
 import {
+  addAgent,
   addMember,
   assign,
   assignmentRoles,
@@ -614,6 +615,7 @@ function formatHelp() {
     'pnpm concept ask hand-back <ask> --decision <id>',
     'pnpm concept ask take-back <ask> --member <e-mail>',
     'pnpm concept member add <e-mail>',
+    'pnpm concept member add-agent <name>',
     'pnpm concept member list',
     'pnpm concept assign <id or Concept slug> --responsible <e-mail>',
     'pnpm concept assign <id or Concept slug> --co-author <e-mail>',
@@ -636,7 +638,7 @@ function formatHelp() {
     'pnpm concept joint remove <id> <needed id>',
     'pnpm concept project add <slug>',
     'pnpm concept project set <slug> [--analytics-project <key>] [--repository <owner/name>] [--social-handle <handle>] [--support <url>] [--market <url>] [--references <slug>]',
-    'pnpm concept token create --project <slug> --name <name>',
+    'pnpm concept token create --project <slug> --name <name> [--member <e-mail>]',
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
@@ -695,6 +697,8 @@ function formatHelp() {
     'mine lists the open Asks too: pick and hand-back in the Project that is asked, check in the Project that asked. joint add <id> <project>/<id> glues the Insight to the Hunch: the Ask is done.',
     'list with --member: each record with its flight level for the member. operational: the record is of a loop step of the member, or the member is Responsible or Co-Author of the record or of its Concept. strategic: each other record.',
     'member add takes the e-mail address of an account. A record or a Concept has one Responsible.',
+    'member add-agent makes an agent a member and prints its e-mail address. An agent has no account: it writes with a token.',
+    'token create with --member gives the token to that member. Each write with the token is a write of the member: the member owns the records that it adds, the activity names the member, and only the owner answers a flag. A token with no member writes as nobody.',
     'The Responsible of a record is its owner: assign <id> --responsible sets the owner.',
     'watch makes a member a watcher of a record. A watcher is not the owner. watchers lists who watches, of one record or of the Project.',
   ].join('\n')
@@ -1336,7 +1340,8 @@ async function handleContractCommand(
 }
 
 // `member add <e-mail>` makes the account of the e-mail address a member of
-// the Project. `member list` prints each member with the loop steps and with
+// the Project. `member add-agent <name>` makes an agent a member: it has no
+// account, and it writes with a token. `member list` prints each member with the loop steps and with
 // the Concepts and Parts of each role.
 async function handleMemberCommand(
   db: ConceptDb,
@@ -1350,6 +1355,16 @@ async function handleMemberCommand(
       if (!email) throw new Error('member add needs <e-mail>')
       const member = await addMember(db, project, email)
       console.log(`${member.name}  ${member.email}`)
+      return
+    }
+    case 'add-agent': {
+      const [name, ...flagArgs] = rest
+      const flags = parseFlags(flagArgs)
+      const project = await readProject(db, flags)
+      if (!name || name.startsWith('--'))
+        throw new Error('member add-agent needs <name>')
+      const agent = await addAgent(db, project, name)
+      console.log(`${agent.name}  ${agent.email}`)
       return
     }
     case 'list': {
@@ -1522,7 +1537,9 @@ async function handleProjectCommand(
   }
 }
 
-// Tokens for the Concept HTTP API, one Product each.
+// Tokens for the Concept HTTP API, one Product each. `create --member` gives
+// the token to a member of the Product: a write with it is a write of that
+// member (glue/D67). `list` prints the member of each token, or `-`.
 async function handleTokenCommand(db: ConceptDb, [command, ...rest]: string[]) {
   switch (command) {
     case 'create': {
@@ -1532,7 +1549,8 @@ async function handleTokenCommand(db: ConceptDb, [command, ...rest]: string[]) {
       if (!product || !name) {
         throw new Error('token create needs --project and --name')
       }
-      const { token } = await createToken(db, product, name)
+      const member = flags.member as string | undefined
+      const { token } = await createToken(db, product, name, member)
       console.log(token)
       console.error('Copy the token now. Glue stores only its hash.')
       return
@@ -1540,7 +1558,15 @@ async function handleTokenCommand(db: ConceptDb, [command, ...rest]: string[]) {
     case 'list':
       for (const token of await listTokens(db)) {
         const created = token.createdAt.toISOString().slice(0, 10)
-        console.log([token.id, token.product, token.name, created].join('  '))
+        console.log(
+          [
+            token.id,
+            token.product,
+            token.name,
+            token.member ?? '-',
+            created,
+          ].join('  '),
+        )
       }
       return
     case 'revoke': {

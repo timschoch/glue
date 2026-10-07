@@ -427,7 +427,11 @@ function listPartPaths() {
             description: 'The Part after the answer',
             ...jsonContent(changedPartSchema),
           },
-          400: errorResponses[400],
+          400: {
+            ...errorResponses[400],
+            description:
+              'The request breaks a rule, or the Part has a flag and the member of the token is not its owner',
+          },
           ...readErrorResponses,
         },
       },
@@ -843,7 +847,14 @@ const openApiDocument = createDocument({
   servers: [{ url: '/' }],
   security: [{ token: [] }],
   components: {
-    securitySchemes: { token: { type: 'http', scheme: 'bearer' } },
+    securitySchemes: {
+      token: {
+        type: 'http',
+        scheme: 'bearer',
+        description:
+          'A token belongs to one member of its Project: a person or an agent. Each write of a Part with the token is a write of that member. The member owns the Parts that it adds, the activity names the member, and only the owner of a Part answers its flag. A token with no member writes as nobody',
+      },
+    },
   },
   paths: {
     ...listPartPaths(),

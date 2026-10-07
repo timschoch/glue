@@ -572,46 +572,60 @@ export function handleGetPart(input: ChangeRequest) {
 }
 
 export function handleAddPart(input: ChangeRequest) {
-  return handleApiRequest(input, async () => {
+  return handleApiRequest(input, async (member) => {
     const part = newPartSchema.parse(await parseJson(input.request))
     const added = await createPartOperations(input).addPart(
       input.params.project,
       part,
+      member?.email,
     )
     return toChangedPartResponse(added, 201)
   })
 }
 
 export function handleUpdatePart(input: ChangeRequest) {
-  return handleApiRequest(input, async () => {
+  return handleApiRequest(input, async (member) => {
     const { project, recordId = '' } = input.params
     // The operation reads the change with the schema of the type of the Part.
     const change = (await parseJson(input.request)) as PartChange
     return toChangedPartResponse(
-      await createPartOperations(input).updatePart(project, recordId, change),
+      await createPartOperations(input).updatePart(
+        project,
+        recordId,
+        change,
+        undefined,
+        member?.email,
+      ),
     )
   })
 }
 
 export function handleAnswerPart(input: ChangeRequest) {
-  return handleApiRequest(input, async () => {
+  return handleApiRequest(input, async (member) => {
     const { project, recordId = '' } = input.params
     const answer = partAnswerSchema.parse(await parseJson(input.request))
     return toChangedPartResponse(
-      await createPartOperations(input).answerPart(project, recordId, answer),
+      await createPartOperations(input).answerPart(
+        project,
+        recordId,
+        answer,
+        member?.email,
+      ),
     )
   })
 }
 
 export function handleAnswerQuestion(input: ChangeRequest) {
-  return handleApiRequest(input, async () => {
+  return handleApiRequest(input, async (member) => {
     const { project, recordId = '' } = input.params
     const answer = questionAnswerSchema.parse(await parseJson(input.request))
+    // The member of the token answers, when the request names nobody.
     return toChangedPartResponse(
       await createPartOperations(input).answerQuestion(
         project,
         recordId,
-        answer,
+        { ...answer, by: answer.by ?? member?.name },
+        member?.email,
       ),
     )
   })
