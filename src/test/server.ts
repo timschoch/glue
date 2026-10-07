@@ -34,6 +34,8 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
       Promise.resolve(project === 'glue' ? parts : []),
     ),
     fetchMine: vi.fn(() => Promise.resolve([])),
+    fetchNewFlagCount: vi.fn(() => Promise.resolve(0)),
+    setFlagsSeen: vi.fn(() => Promise.resolve(undefined)),
     fetchWatched: vi.fn(() => Promise.resolve([])),
     fetchMeasured: vi.fn(() => Promise.resolve([])),
     fetchMapJoints: vi.fn(() => Promise.resolve([])),

@@ -796,8 +796,8 @@ describe('Frame', () => {
     ).toEqual(['Step videos'])
   })
 
-  it('shows the count of the Parts of Mine as a plain number beside it', () => {
-    renderFrame([], undefined, undefined, { mineCount: 3 })
+  it('shows the count of the new flags as a plain number beside Mine', () => {
+    renderFrame([], undefined, undefined, { newFlagCount: 3 })
 
     const panel = within(screen.getByRole('navigation', { name: 'Main' }))
 
@@ -806,7 +806,7 @@ describe('Frame', () => {
   })
 
   it('shows no count beside Mine at zero', () => {
-    renderFrame([], undefined, undefined, { mineCount: 0 })
+    renderFrame([], undefined, undefined, { newFlagCount: 0 })
 
     within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', {
       name: 'Mine',

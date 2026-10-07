@@ -29,6 +29,7 @@ import {
   watch,
 } from './members.ts'
 import type { People } from './members.ts'
+import { getNewFlagCount, setFlagsSeen } from './new-flags.ts'
 import { createSignalSources } from '../signals/signal-sources.server.ts'
 import { listSignals, signalInsightSchema } from './signals.ts'
 import type { ConceptDb } from './client.ts'
@@ -319,6 +320,16 @@ export function createPartActions(request: ActionRequest) {
 
     listMine: withReader((db, { project }: ProjectInput, member) =>
       listMine(db, project, member?.email),
+    ),
+
+    // The count beside Mine. A person who is no member has no flag.
+    getNewFlagCount: withReader((db, { project }: ProjectInput, member) =>
+      member ? getNewFlagCount(db, project, member.email) : Promise.resolve(0),
+    ),
+
+    // The member of the session saw the new flags.
+    setFlagsSeen: withMember((db, { project }: ProjectInput, member) =>
+      setFlagsSeen(db, project, member.email).then(() => undefined, toFailure),
     ),
 
     // The watched group of Mine. A person who is no member watches nothing.

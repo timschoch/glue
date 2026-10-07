@@ -70,6 +70,14 @@ export const fetchMine = createServerFn({ method: 'GET' })
   .validator(projectInputSchema)
   .handler(({ data }) => actions.listMine(data))
 
+export const fetchNewFlagCount = createServerFn({ method: 'GET' })
+  .validator(projectInputSchema)
+  .handler(({ data }) => actions.getNewFlagCount(data))
+
+export const submitSetFlagsSeen = createServerFn({ method: 'POST' })
+  .validator(projectInputSchema)
+  .handler(({ data }) => actions.setFlagsSeen(data))
+
 export const fetchWatched = createServerFn({ method: 'GET' })
   .validator(projectInputSchema)
   .handler(({ data }) => actions.listWatched(data))
