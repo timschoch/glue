@@ -104,6 +104,10 @@ export function toRecordPart(
     },
     supersededBy: part.supersededBy && toRecordSummary(part.supersededBy, href),
     supersedes: part.supersedes.map((other) => toRecordSummary(other, href)),
+    goalMetrics: part.goalMetrics.map((metric) => ({
+      ...toRecordSummary(metric, href),
+      reading: toReading(metric.measure),
+    })),
     needs: toEnds(part.needs),
     neededBy: toEnds(part.neededBy),
     signals: part.signals,

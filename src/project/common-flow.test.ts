@@ -34,6 +34,7 @@ const published: Part = {
   issueUrl: null,
   measure: null,
   measured: [],
+  goalMetrics: [],
   supersededBy: null,
   supersedes: [],
   needs: [],
@@ -363,8 +364,8 @@ describe('the common flow of a Part', () => {
   it('asks for an Insight from a published Metric', () => {
     expect(findCommonFlow({ ...published, type: 'metric' })).toEqual({
       name: 'Use to Insight',
-      steps: ['Measure', 'Read'],
-      current: 1,
+      steps: ['Read'],
+      current: 0,
       next: { kind: 'add', type: 'insight', label: 'Add Insight' },
     })
   })
@@ -421,20 +422,75 @@ describe('the common flow of a Part', () => {
     })
   })
 
-  it('ends the flow of a build when the gate of the newest build holds', () => {
-    const done = findCommonFlow(published, [
-      { ...build, number: 11, gate: breaks },
-      { ...build, gate: holds },
-    ])
-
-    expect(done?.current).toBe(3)
-    expect(done?.next).toBeUndefined()
+  it('asks a Decision for a Metric when the gate of its newest build holds', () => {
+    expect(
+      findCommonFlow(published, [
+        { ...build, number: 11, gate: breaks },
+        { ...build, gate: holds },
+      ]),
+    ).toEqual({
+      name: 'Use to Insight',
+      steps: ['Read'],
+      current: 0,
+      next: { kind: 'add', type: 'metric', label: 'Add Metric' },
+    })
     expect(
       findCommonFlow(published, [
         { ...build, gate: breaks },
         { ...build, number: 11, gate: holds },
       ])?.current,
     ).toBe(2)
+  })
+
+  // The build of the Decision is merged and its gate holds. M1 is a Metric
+  // of the Goal that the Decision needs.
+  const shipped = [{ ...build, gate: holds }]
+  const goalMetric = {
+    ...summary,
+    id: 'M1',
+    type: 'metric',
+    title: 'Signup to paid',
+    measure: null,
+  } as const
+
+  it('asks a built Decision with a Metric for the Insight of the reading', () => {
+    const next = { kind: 'add', type: 'insight', label: 'Add Insight' }
+
+    expect(
+      findCommonFlow({ ...published, goalMetrics: [goalMetric] }, shipped),
+    ).toEqual({
+      name: 'Use to Insight',
+      steps: ['Read'],
+      current: 0,
+      next,
+    })
+    // A Metric at the other end of a Joint of the Decision counts too.
+    expect(
+      findCommonFlow({ ...published, measured: [goalMetric] }, shipped)?.next,
+    ).toEqual(next)
+    expect(
+      findCommonFlow(
+        {
+          ...published,
+          goalMetrics: [{ ...goalMetric, workState: 'sunk' }],
+        },
+        shipped,
+      )?.next,
+    ).toEqual({ kind: 'add', type: 'metric', label: 'Add Metric' })
+  })
+
+  it('has no step left for a built Decision when an Insight needs it', () => {
+    const flow = findCommonFlow(
+      {
+        ...published,
+        goalMetrics: [goalMetric],
+        neededBy: neededBy('flow', 'insight'),
+      },
+      shipped,
+    )
+
+    expect(flow).toMatchObject({ name: 'Use to Insight', current: 1 })
+    expect(flow?.next).toBeUndefined()
   })
 
   it('counts a Part as built when the gate of its newest build holds', () => {
@@ -625,13 +681,13 @@ describe('the next step of a Part in every state', () => {
 
     expect(findCommonFlow(goal)).toEqual({
       name: 'Use to Insight',
-      steps: ['Measure', 'Read'],
-      current: 1,
+      steps: ['Read'],
+      current: 0,
       next: { kind: 'add', type: 'insight', label: 'Add Insight' },
     })
     const [decision, insight] = neededBy('decision', 'insight')
     const read = findCommonFlow({ ...goal, neededBy: [decision, insight] })
-    expect(read?.current).toBe(2)
+    expect(read?.current).toBe(1)
     expect(read?.next).toBeUndefined()
     expect(
       findCommonFlow({
@@ -642,7 +698,7 @@ describe('the next step of a Part in every state', () => {
         ],
       }),
     ).toMatchObject({
-      current: 2,
+      current: 1,
       next: {
         kind: 'open',
         part: { id: 'X1', concept: 'glue' },
@@ -691,7 +747,7 @@ describe('the next step of a Part in every state', () => {
     expect(
       findCommonFlow(partOf('metric', { neededBy: neededBy('insight') }))
         ?.current,
-    ).toBe(2)
+    ).toBe(1)
   })
 
   it('has no step for a waiting Part that names no Part', () => {
@@ -716,7 +772,7 @@ describe('the common flow of a Concept', () => {
     emptySlots: [],
   }
   const signed: ContractState = { ...unsigned, versions: [version] }
-  const named = { ...build, contract }
+  const named = { ...build, contract, decisions: [] }
 
   it('asks for the Part of the first empty slot that the Kind requires', () => {
     const brief: ContractState = {
@@ -770,7 +826,7 @@ describe('the common flow of a Concept', () => {
 
     expect(findConceptFlow(signed)).toMatchObject({ current: 2, next })
     expect(
-      findConceptFlow(signed, [{ ...build, contract: old, gate: holds }]),
+      findConceptFlow(signed, [{ ...named, contract: old, gate: holds }]),
     ).toMatchObject({ current: 2, next })
   })
 
@@ -798,5 +854,57 @@ describe('the common flow of a Concept', () => {
 
     expect(flow.current).toBe(4)
     expect(flow.next).toBeUndefined()
+  })
+
+  // The build that shipped names D1 and D2 of the Concept. The Insight I7
+  // needs D1.
+  const decisions = [
+    { ...summary, id: 'D1' },
+    { ...summary, id: 'D2', title: 'Rank the bakers' },
+  ]
+  const insight = { ...summary, id: 'I7', type: 'insight' } as const
+  const shipped = [{ ...named, gate: holds, decisions }]
+  const joint = { id: 1, part: 'I7', needs: 'D1', twoWay: false, link: false }
+  const concept = {
+    parts: [...decisions, insight],
+    linkedParts: [],
+    joints: [joint],
+  }
+
+  it('opens the first Decision of the shipped build that no Insight needs', () => {
+    expect(findConceptFlow(signed, shipped, concept)).toEqual({
+      name: 'Use to Insight',
+      steps: ['Read'],
+      current: 0,
+      next: {
+        kind: 'open',
+        part: { id: 'D2', concept: 'glue' },
+        label: 'Open D2 Rank the bakers',
+      },
+    })
+  })
+
+  it('has no step left when an Insight needs each Decision of the shipped build', () => {
+    const flow = findConceptFlow(signed, shipped, {
+      ...concept,
+      joints: [joint, { ...joint, id: 2, needs: 'D2' }],
+    })
+
+    expect(flow.current).toBe(4)
+    expect(flow.next).toBeUndefined()
+  })
+
+  it('counts no sunk Insight, and no Decision with its home in another Concept', () => {
+    const sunk = { ...insight, workState: 'sunk' } as const
+
+    expect(
+      findConceptFlow(signed, shipped, {
+        ...concept,
+        parts: [...decisions, sunk],
+      }).next,
+    ).toMatchObject({ kind: 'open', part: { id: 'D1' } })
+    expect(
+      findConceptFlow(signed, shipped, { ...concept, parts: [insight] }).next,
+    ).toBeUndefined()
   })
 })

@@ -229,6 +229,9 @@ export type Part = PartSummary & {
   measure: PartMeasure | null
   // The Metrics and the measured Goals at the other end of its Joints.
   measured: MeasuredPart[]
+  // Only a Decision has them: the Metrics at the other end of a Joint of a
+  // Goal that it needs.
+  goalMetrics: MeasuredPart[]
   supersededBy: PartSummary | null
   supersedes: PartSummary[]
   // A two-way Joint shows in `needs` on both sides.
@@ -850,6 +853,7 @@ export async function findPart(
     jointRows,
     grownFrom,
     measured,
+    goalMetrics,
     answeredBy,
     steps,
     versions,
@@ -882,6 +886,25 @@ export async function findPart(
         )`,
       ),
     ),
+    part.type !== 'decision'
+      ? []
+      : listMeasuredParts(
+          db,
+          and(
+            eq(parts.projectId, part.projectId),
+            eq(parts.type, 'metric'),
+            sql`${parts.id} in (
+              with "goals" as (
+                select "needed"."id" from "joints"
+                inner join "parts" "needed" on "needed"."id" = "joints"."needed_part_id"
+                where "joints"."part_id" = ${part.id} and "needed"."type" = 'goal'
+              )
+              select "needed_part_id" from "joints" where "part_id" in (select "id" from "goals")
+              union
+              select "part_id" from "joints" where "needed_part_id" in (select "id" from "goals")
+            )`,
+          ),
+        ),
     readBy === undefined ? undefined : findFlagOwner(db, part.id, readBy),
     listSteps(db, part.id),
     listVersions(db, part.id),
@@ -939,6 +962,7 @@ export async function findPart(
     unchosen: part.status === 'superseded' && part.publishedAt === null,
     measure: measure && toPartMeasure(measure),
     measured,
+    goalMetrics,
     supersededBy: supersededBy.at(0) ?? null,
     supersedes,
     needs,

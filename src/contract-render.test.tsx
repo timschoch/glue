@@ -188,6 +188,32 @@ describe('the common flow of a Concept', () => {
     expect(screen.queryByRole('region', { name: 'Next' })).toBeNull()
   })
 
+  it('opens the Decision of the shipped build that no Insight needs', async () => {
+    const { router } = await renderPage('/glue/part-model', {
+      ...signed,
+      fetchBuilds: vi.fn(() =>
+        Promise.resolve({
+          builds: [
+            { ...builds[1], gate: builds[0].gate, decisions: [parts[2]] },
+          ],
+          reason: null,
+        }),
+      ),
+    })
+
+    screen.getByRole('list', { name: 'Use to Insight' })
+
+    await userEvent.click(
+      next().getByRole('button', {
+        name: 'Open D4 The Concept lives in the database',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/glue/part-model/D4')
+    })
+  })
+
   it('has no flow for a Concept with nothing to sign', async () => {
     await renderPage('/glue/flows')
 

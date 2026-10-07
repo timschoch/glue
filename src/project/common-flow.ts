@@ -1,7 +1,13 @@
 import type { AskStep } from '../db/asks.ts'
 import type { Build } from '../db/builds.ts'
 import type { ContractState } from '../db/contracts.ts'
-import type { Answer, Part, PartSummary, PartType } from '../db/parts.ts'
+import type {
+  Answer,
+  Concept,
+  Part,
+  PartSummary,
+  PartType,
+} from '../db/parts.ts'
 import { canRaiseToPattern } from '../evidence-level.ts'
 import type { LevelSignal } from '../evidence-level.ts'
 
@@ -48,7 +54,7 @@ const flows = {
   },
   brief: { name: 'Decision to Brief', steps: ['Fill slots', 'Sign'] },
   build: { name: 'Brief to build', steps: ['Version', 'Build', 'Gate'] },
-  use: { name: 'Use to Insight', steps: ['Measure', 'Read'] },
+  use: { name: 'Use to Insight', steps: ['Read'] },
   change: { name: 'React to a change', steps: ['Check', 'Answer'] },
   ask: { name: 'Ask another Project', steps: ['Ask', 'Pick', 'Hand back'] },
   concept: {
@@ -93,6 +99,39 @@ const openConcept: NextStep = { kind: 'concept', label: 'Open Concept' }
 // The step after each Evidence level. An Insight with no level is a hunch.
 const evidenceSteps = { hunch: 1, pattern: 2, confirmed: 3 }
 
+// The Parts of one of the types that need the Part and are not sunk.
+function listNeeding(part: Part, ...types: Array<PartType>) {
+  return part.neededBy
+    .map(({ part: needing }) => needing)
+    .filter(
+      ({ type, workState }) => types.includes(type) && workState !== 'sunk',
+    )
+}
+
+// The Use flow: a member reads the Metric against its target, and the
+// reading becomes an Insight that needs the Part. With such an Insight the
+// flow goes on at it until it is published. Then there is no step left.
+function readInsight(part: Part): CommonFlow {
+  const insights = listNeeding(part, 'insight')
+  if (insights.length === 0) {
+    return { ...flows.use, current: 0, next: addInsight }
+  }
+  const draft = insights.find(({ workState }) => workState !== 'published')
+  return { ...flows.use, current: 1, next: draft && openPart(draft) }
+}
+
+// The flow of a Decision whose build shipped (glue/D64): the Use flow, with
+// a Metric of its own or of a Goal that it needs. With no Metric the step
+// adds one.
+function findShippedFlow(part: Part): CommonFlow {
+  const hasMetric = [...part.measured, ...part.goalMetrics].some(
+    ({ workState }) => workState !== 'sunk',
+  )
+  return hasMetric
+    ? readInsight(part)
+    : { ...flows.use, current: 0, next: addPart('metric') }
+}
+
 // The flow of a published Part, by its type. A flow that ended because a
 // Part needs this one goes on at the first such Part that needs work: one
 // that is not published, or a Decision that is not built. `built` are the
@@ -101,13 +140,6 @@ function findPublishedFlow(
   part: Part,
   built: ReadonlyArray<string>,
 ): CommonFlow {
-  // The Parts of one of the types that need this Part and are not sunk.
-  const listNeeding = (...types: Array<PartType>) =>
-    part.neededBy
-      .map(({ part: needing }) => needing)
-      .filter(
-        ({ type, workState }) => types.includes(type) && workState !== 'sunk',
-      )
   const openNeeding = (needing: ReadonlyArray<PartSummary>) => {
     const open = needing.find(
       ({ id, type, workState }) =>
@@ -115,13 +147,6 @@ function findPublishedFlow(
         (type === 'decision' && !built.includes(id)),
     )
     return open && openPart(open)
-  }
-  // A reading becomes an Insight.
-  const readInsight = () => {
-    const insights = listNeeding('insight')
-    return insights.length > 0
-      ? { ...flows.use, current: 2, next: openNeeding(insights) }
-      : { ...flows.use, current: 1, next: addInsight }
   }
 
   switch (part.type) {
@@ -135,26 +160,26 @@ function findPublishedFlow(
       if (level === 'pattern') {
         return { ...flows.evidence, current, next: verify }
       }
-      const decisions = listNeeding('decision')
+      const decisions = listNeeding(part, 'decision')
       const next = decisions.length > 0 ? openNeeding(decisions) : addDecision
       return { ...flows.evidence, current, next }
     }
     case 'goal': {
-      const decisions = listNeeding('decision')
+      const decisions = listNeeding(part, 'decision')
       if (decisions.length === 0) {
         return { ...flows.decision, current: 1, next: addDecision }
       }
       // A reading against the target of the Goal becomes an Insight.
       return part.measure?.latestValue == null
         ? { ...flows.decision, current: 3, next: openNeeding(decisions) }
-        : readInsight()
+        : readInsight(part)
     }
     case 'decision':
-      return listNeeding('flow', 'entity').length > 0
+      return listNeeding(part, 'flow', 'entity').length > 0
         ? { ...flows.brief, current: 1, next: openConcept }
         : { ...flows.brief, current: 0, next: addPart('flow') }
     case 'metric':
-      return readInsight()
+      return readInsight(part)
     default:
       return { ...flows.brief, current: 1, next: openConcept }
   }
@@ -175,7 +200,9 @@ const draftFlows: Record<PartType, Omit<CommonFlow, 'next'>> = {
 // that it names and the newest result of its gate.
 export type GatedBuild = Pick<Build, 'number' | 'url' | 'contract' | 'gate'>
 
-function findNewest(builds: ReadonlyArray<GatedBuild>): GatedBuild {
+function findNewest<TBuild extends GatedBuild>(
+  builds: ReadonlyArray<TBuild>,
+): TBuild {
   return builds.reduce((found, build) =>
     build.number > found.number ? build : found,
   )
@@ -192,13 +219,41 @@ function openBuild({ number, url }: GatedBuild): NextStep {
 }
 
 // The flow of a published Part that builds name, by its newest build. The
-// build names a Contract Version, then a gate checks it. The flow ends when
-// the gate holds.
-function findBuildFlow(builds: ReadonlyArray<GatedBuild>): CommonFlow {
-  if (isBuilt(builds)) return { ...flows.build, current: 3, next: undefined }
+// build names a Contract Version, then a gate checks it. When the gate
+// holds, the build shipped: the Use flow starts.
+function findBuildFlow(
+  part: Part,
+  builds: ReadonlyArray<GatedBuild>,
+): CommonFlow {
+  if (isBuilt(builds)) return findShippedFlow(part)
   const newest = findNewest(builds)
   const current = newest.gate ? 2 : newest.contract ? 1 : 0
   return { ...flows.build, current, next: openBuild(newest) }
+}
+
+// A build that names a Contract Version of a Concept, with the Decisions
+// that it names.
+export type ConceptBuild = GatedBuild & Pick<Build, 'decisions'>
+
+// The Parts of a Concept and their Joints.
+type ConceptParts = Pick<Concept, 'parts' | 'linkedParts' | 'joints'>
+
+// The first of the Decisions with its home in the Concept that no Insight
+// needs. A sunk Insight does not count.
+function findUnread(
+  concept: ConceptParts,
+  decisions: ReadonlyArray<PartSummary>,
+): PartSummary | undefined {
+  const insights = [...concept.parts, ...concept.linkedParts]
+    .filter(({ type, workState }) => type === 'insight' && workState !== 'sunk')
+    .map(({ id }) => id)
+  const read = concept.joints
+    .filter(({ part }) => insights.includes(part))
+    .map(({ needs }) => needs)
+  return decisions.find(
+    ({ id }) =>
+      !read.includes(id) && concept.parts.some((part) => part.id === id),
+  )
 }
 
 // The common flow of a Concept (glue/D58): it fills the slots that its Kind
@@ -206,10 +261,13 @@ function findBuildFlow(builds: ReadonlyArray<GatedBuild>): CommonFlow {
 // Version, and the gate of the build holds. `builds` are the builds that name a
 // Contract Version of the Concept. A Concept that is ahead of its Contract
 // is at the sign-off again. A Part without Trust solid blocks the sign-off:
-// the step opens the first one.
+// the step opens the first one. A build that shipped hands over to the Use
+// flow (glue/D64): the step opens the first Decision of `concept` that the
+// build names and that no Insight needs.
 export function findConceptFlow(
   contract: ContractState,
-  builds: ReadonlyArray<GatedBuild> = [],
+  builds: ReadonlyArray<ConceptBuild> = [],
+  concept?: ConceptParts,
 ): CommonFlow {
   const empty = contract.emptySlots.at(0)
   if (empty) return { ...flows.concept, current: 0, next: addPart(empty.type) }
@@ -231,9 +289,13 @@ export function findConceptFlow(
     return { ...flows.concept, current: 2, next }
   }
   const build = findNewest(named)
-  return build.gate?.result === 'holds'
-    ? { ...flows.concept, current: 4, next: undefined }
-    : { ...flows.concept, current: 3, next: openBuild(build) }
+  if (build.gate?.result !== 'holds') {
+    return { ...flows.concept, current: 3, next: openBuild(build) }
+  }
+  const unread = concept && findUnread(concept, build.decisions)
+  return unread
+    ? { ...flows.use, current: 0, next: openPart(unread) }
+    : { ...flows.concept, current: 4, next: undefined }
 }
 
 // The common flow that fits the type and the state of the Part. A flag
@@ -301,7 +363,7 @@ function findOwnFlow(
     case 'published': {
       const flow =
         builds.length > 0
-          ? findBuildFlow(builds)
+          ? findBuildFlow(part, builds)
           : findPublishedFlow(part, built)
       return hunch ? { ...flow, next: openPart(hunch.part) } : flow
     }
