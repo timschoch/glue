@@ -16,6 +16,15 @@
   color: $text-primary;
 }
 
+// The step bar of the flow and the box Next belong together. The space
+// after them ends the flow: the filters and the list come next.
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  margin-block: $spacing-03 $spacing-06;
+}
+
 .label {
   @include type-style('label-01');
 

@@ -286,6 +286,74 @@ describe('Signals', () => {
     expect(titles()).toEqual([SLOW.title, LOST.title])
   })
 
+  it('shows the flow of the groups that the source filters show', async () => {
+    const more = { ...LOST, url: 'https://github.com/timschoch/glue/issues/6' }
+    const onStep = vi.fn()
+    renderSignals({
+      signals: [SLOW, LOST, more, TICKET],
+      groups: [
+        { title: SLOW.title, signals: [SLOW.url, TICKET.url] },
+        { title: LOST.title, signals: [LOST.url, more.url] },
+      ],
+      // The flow of the first group that the list shows.
+      findFlow: (shown) =>
+        shown.length === 0
+          ? undefined
+          : {
+              bar: {
+                name: 'Evidence to Insight',
+                steps: ['Group'],
+                current: 0,
+              },
+              next: {
+                actions: [
+                  {
+                    label: `Make Hunch ${shown[0].title}`,
+                    onClick: () => onStep(shown[0].signals),
+                  },
+                ],
+              },
+            },
+    })
+    const next = () => within(screen.getByRole('region', { name: 'Next' }))
+
+    next().getByRole('button', { name: 'Make Hunch The list is slow' })
+    expect(
+      screen.getByRole('region', { name: 'Next' }).previousElementSibling,
+    ).toBe(screen.getByRole('list', { name: 'Evidence to Insight' }))
+
+    await userEvent.click(filter('GitHub'))
+    await userEvent.click(
+      next().getByRole('button', {
+        name: 'Make Hunch I lose my place in the list',
+      }),
+    )
+
+    expect(onStep).toHaveBeenCalledWith([LOST.url, more.url])
+
+    await userEvent.click(filter('GitHub'))
+    await userEvent.click(filter('Support'))
+
+    expect(screen.queryByRole('region', { name: 'Next' })).toBeNull()
+    expect(
+      screen.queryByRole('list', { name: 'Evidence to Insight' }),
+    ).toBeNull()
+  })
+
+  it('starts no Hunch of a group while the next step saves', () => {
+    renderSignals({
+      signals: [SLOW, LOST],
+      groups: [{ title: SLOW.title, signals: [SLOW.url, LOST.url] }],
+      findFlow: () => ({
+        bar: { name: 'Evidence to Insight', steps: ['Group'], current: 0 },
+        next: { pending: 'Saving' },
+      }),
+    })
+
+    screen.getByText('Saving')
+    expect(hunchButton(SLOW)).toHaveProperty('disabled', true)
+  })
+
   it('says that there are no Signals, with no button', () => {
     renderSignals({ signals: [] })
 

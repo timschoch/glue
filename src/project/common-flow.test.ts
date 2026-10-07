@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest'
 import type { Gate } from '../db/gate.ts'
 import type { Part, PartSummary } from '../db/parts.ts'
 import type { ContractState } from '../db/contracts.ts'
-import { findCommonFlow, findConceptFlow, isBuilt } from './common-flow.ts'
+import { applySignalFilters } from '../db/signal-filter-rule.ts'
+import { groupSignals } from '../db/signal-groups.ts'
+import {
+  findCommonFlow,
+  findConceptFlow,
+  findSignalsFlow,
+  isBuilt,
+} from './common-flow.ts'
 import type { GatedBuild } from './common-flow.ts'
 
 const summary: PartSummary = {
@@ -940,5 +947,97 @@ describe('the common flow of a Concept', () => {
 
     expect(flow.current).toBe(4)
     expect(flow.next).toBeUndefined()
+  })
+})
+
+describe('findSignalsFlow', () => {
+  const slow = {
+    title: 'The list is slow',
+    signals: [
+      'https://github.com/timschoch/glue/issues/7',
+      'https://support.test/agent/tickets/4',
+    ],
+  }
+  const lost = {
+    title: 'I lose my place in the list',
+    signals: [
+      'https://github.com/timschoch/glue/issues/5',
+      'https://github.com/timschoch/glue/issues/6',
+      'https://support.test/agent/tickets/8',
+    ],
+  }
+
+  it('is at the step Group, and makes a Hunch from the largest group', () => {
+    expect(findSignalsFlow([slow, lost])).toEqual({
+      name: 'Evidence to Insight',
+      steps: ['Group', 'Check', 'Verify'],
+      current: 0,
+      next: {
+        kind: 'hunch',
+        label: 'Make Hunch I lose my place in the list',
+        signals: [
+          'https://github.com/timschoch/glue/issues/5',
+          'https://github.com/timschoch/glue/issues/6',
+          'https://support.test/agent/tickets/8',
+        ],
+      },
+    })
+  })
+
+  it('is no flow when the list has no group', () => {
+    expect(findSignalsFlow([])).toBeUndefined()
+  })
+
+  it('takes the first of two groups of one size', () => {
+    const refund = { ...slow, title: 'Where is my refund?' }
+
+    expect(findSignalsFlow([slow, refund])?.next.label).toBe(
+      'Make Hunch The list is slow',
+    )
+  })
+
+  // Three Signals say that the list is slow, one of them on a phone. Two
+  // ask for a refund.
+  const toSignal = (id: number, title: string, source = 'github') => ({
+    url: `https://github.com/timschoch/glue/issues/${id}`,
+    title,
+    text: '',
+    date: '2026-10-02',
+    source,
+    insight: null,
+  })
+  const listed = [
+    toSignal(7, 'The list is slow'),
+    toSignal(8, 'The list is slow', 'support'),
+    toSignal(9, 'The list is slow on my phone'),
+    toSignal(3, 'Where is my refund?'),
+    toSignal(4, 'Where is my refund?'),
+  ]
+
+  it('is no flow when each group has its Hunch', () => {
+    const hunch = { id: 'I3', title: 'The list is slow' }
+    const used = listed.map((signal) => ({ ...signal, insight: hunch }))
+
+    expect(findSignalsFlow(groupSignals(used))).toBeUndefined()
+  })
+
+  it('reads the groups of the Signals that pass the filter that is on', () => {
+    const noSlow = { mustHold: [], mustNotHold: ['slow'], sources: [] }
+
+    expect(findSignalsFlow(groupSignals(listed))?.next.signals).toEqual([
+      'https://github.com/timschoch/glue/issues/7',
+      'https://github.com/timschoch/glue/issues/8',
+      'https://github.com/timschoch/glue/issues/9',
+    ])
+    expect(
+      findSignalsFlow(applySignalFilters(listed, [noSlow]).groups)?.next,
+    ).toEqual({
+      kind: 'hunch',
+      label: 'Make Hunch Where is my refund?',
+      signals: [
+        'https://github.com/timschoch/glue/issues/3',
+        'https://github.com/timschoch/glue/issues/4',
+      ],
+    })
   })
 })
