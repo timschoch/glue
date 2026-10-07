@@ -177,6 +177,34 @@ describe('ConceptView', () => {
     expect(onKindChange.mock.calls).toEqual([['prd'], [null]])
   })
 
+  it('shows the save of the Kind in place of its select', () => {
+    renderView({
+      concept: BRIEF,
+      kinds: KINDS,
+      onKindChange: vi.fn(),
+      kindPending: 'Saving',
+    })
+
+    expect(screen.queryByRole('combobox', { name: 'Kind' })).toBeNull()
+    screen.getByText('Saving')
+  })
+
+  it('shows why the Kind was not saved at its select', () => {
+    renderView({
+      concept: BRIEF,
+      kinds: KINDS,
+      onKindChange: vi.fn(),
+      kindFailure: 'kind "prd" not found',
+    })
+    const select = screen.getByRole('combobox', { name: 'Kind' })
+
+    expect(select.getAttribute('aria-invalid')).toBe('true')
+    expect(
+      document.getElementById(select.getAttribute('aria-describedby') ?? '')
+        ?.textContent,
+    ).toBe('kind "prd" not found')
+  })
+
   it('has one button that changes the Kind of the Concept, and one that adds a Kind', async () => {
     const onEditKind = vi.fn()
     const onAddKind = vi.fn()

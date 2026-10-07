@@ -3,6 +3,7 @@ import {
   Button,
   ClickableTile,
   ContentSwitcher,
+  InlineLoading,
   InlineNotification,
   Switch,
 } from '@carbon/react'
@@ -180,6 +181,11 @@ export type ConceptViewProps = {
   // With the callback the head holds the field that picks the Kind of the
   // Concept, in place of the name of the Kind.
   onKindChange?: (kind: string | null) => void
+  // The pick of a Kind that is not saved yet: it shows in place of the
+  // field.
+  kindPending?: string
+  // Why the last pick of a Kind was not saved.
+  kindFailure?: string
   // With the callbacks the head holds the button that opens the Kind of the
   // Concept, and the one that adds a Kind.
   onEditKind?: () => void
@@ -228,6 +234,8 @@ export function ConceptView({
   concept,
   kinds = [],
   onKindChange,
+  kindPending,
+  kindFailure,
   onEditKind,
   onAddKind,
   view = 'list',
@@ -292,12 +300,20 @@ export function ConceptView({
           <h1 className={styles.title}>{concept.title}</h1>
           {onKindChange && (
             <div className={styles.kind}>
-              <KindSelect
-                kinds={kinds}
-                value={concept.kind}
-                size="sm"
-                onChange={onKindChange}
-              />
+              {kindPending === undefined ? (
+                <KindSelect
+                  kinds={kinds}
+                  value={concept.kind}
+                  size="sm"
+                  failure={kindFailure}
+                  onChange={onKindChange}
+                />
+              ) : (
+                <InlineLoading
+                  description={kindPending}
+                  className={styles.kindPending}
+                />
+              )}
               {concept.kind && onEditKind && (
                 <Button kind="ghost" size="sm" onClick={onEditKind}>
                   Edit Kind

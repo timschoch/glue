@@ -74,7 +74,13 @@ export const Blocked: Story = { args: { ahead: true, blocking } }
 
 // A required slot of the Kind is empty: its chip is the cause.
 export const EmptySlots: Story = {
-  args: { ahead: true, emptySlots: ['metric', 'guardrail'] },
+  args: {
+    ahead: true,
+    emptySlots: [
+      { type: 'metric', count: 0, minCount: 1 },
+      { type: 'flow', count: 1, minCount: 2 },
+    ],
+  },
 }
 
 export const Failed: Story = {

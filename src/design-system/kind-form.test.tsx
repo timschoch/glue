@@ -36,7 +36,8 @@ function slot(type: string) {
   const group = within(screen.getByRole('group', { name: type }))
   return {
     select: () => group.getByRole<HTMLSelectElement>('combobox'),
-    count: () => group.queryByRole<HTMLInputElement>('spinbutton'),
+    count: () =>
+      group.queryByRole<HTMLInputElement>('spinbutton', { name: 'At least' }),
   }
 }
 

@@ -47,8 +47,12 @@ export type ContractState = {
   // The Parts without Trust solid. A sign-off needs none.
   blocking: PartSummary[]
   // The required slots of the Kind that are empty. A sign-off needs none.
-  emptySlots: PartType[]
+  emptySlots: EmptySlot[]
 }
+
+// A required slot that is not filled: the count of its Parts, and the count
+// that it needs.
+export type EmptySlot = { type: PartType; count: number; minCount: number }
 
 export type Contract = ContractVersion & {
   // The slug of the Concept.
@@ -176,7 +180,13 @@ const liveStateSchema = z.object({
         newest_version: z.number().nullable(),
         newest_checksum: z.string().nullable(),
         blocking: z.array(z.custom<PartSummary>()),
-        empty_slots: z.array(z.enum(schema.partTypes)),
+        empty_slots: z.array(
+          z.object({
+            type: z.enum(schema.partTypes),
+            count: z.number(),
+            minCount: z.number(),
+          }),
+        ),
       }),
     )
     .length(1),
@@ -185,7 +195,7 @@ const liveStateSchema = z.object({
 // The required slots of the Kind of the Concept that are empty, as a select.
 function emptySlots(conceptId: number) {
   return sql`
-    select slot."type"
+    select slot."type", slot."count", slot."minCount"
     from (${selectConceptSlots(sql`${conceptId}::integer`)}) as slot
     where slot."required" and not slot."filled"`
 }
@@ -221,18 +231,13 @@ async function readLiveState(db: ConceptDb, conceptId: number) {
         where ${liveTrust} <> 'solid'
       ) as "blocking",
       (
-        select coalesce(jsonb_agg(slot."type"), '[]'::jsonb)
+        select coalesce(jsonb_agg(to_jsonb(slot)), '[]'::jsonb)
         from (${emptySlots(conceptId)}) as slot
       ) as "empty_slots"
     from frozen
   `)
   const live = liveStateSchema.parse(result).rows[0]
-  return {
-    ...live,
-    empty_slots: sortSlots(live.empty_slots.map((type) => ({ type }))).map(
-      ({ type }) => type,
-    ),
-  }
+  return { ...live, empty_slots: sortSlots(live.empty_slots) }
 }
 
 function listVersions(db: ConceptDb, conceptId: number) {
@@ -511,7 +516,7 @@ export async function signContract(
     )
   if (live.empty_slots.length > 0)
     throw new InvalidRecordError(
-      `sign-off needs each required slot filled: ${live.empty_slots.join(', ')}`,
+      `sign-off needs each required slot filled: ${live.empty_slots.map(({ type }) => type).join(', ')}`,
     )
   throw new InvalidRecordError(
     live.part_count === 0

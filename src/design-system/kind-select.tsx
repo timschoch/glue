@@ -9,12 +9,15 @@ export function KindSelect({
   kinds,
   value,
   size,
+  failure,
   onChange,
 }: {
   kinds: ReadonlyArray<KindOption>
   // The slug of the Kind.
   value: string | null
   size?: 'sm' | 'md'
+  // Why the last pick was not saved.
+  failure?: string
   onChange: (kind: string | null) => void
 }) {
   const id = useId()
@@ -25,6 +28,8 @@ export function KindSelect({
       labelText="Kind"
       size={size}
       value={value ?? ''}
+      invalid={failure !== undefined}
+      invalidText={failure}
       onChange={({ target }) => onChange(target.value || null)}
     >
       <SelectItem value="" text="None" />

@@ -147,7 +147,7 @@ export function KindForm({
             {slot && (
               <NumberInput
                 id={`${formId}-count-${type}`}
-                label="Least count"
+                label="At least"
                 min={1}
                 invalidText="Enter a count of 1 or more."
                 value={slot.minCount}

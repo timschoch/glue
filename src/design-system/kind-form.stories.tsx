@@ -40,6 +40,14 @@ export const ChangeKind: Story = {
   },
 }
 
+export const Saving: Story = {
+  args: { ...ChangeKind.args, pending: true },
+}
+
+export const ServerFailure: Story = {
+  args: { ...ChangeKind.args, serverError: 'kind "prd" exists already' },
+}
+
 export const NarrowWindow: Story = {
   args: ChangeKind.args,
   decorators: [

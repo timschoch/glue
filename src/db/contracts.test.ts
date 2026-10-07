@@ -217,7 +217,10 @@ describe('signContract', () => {
 
     const state = await findContractState(db, 'glue', 'videos')
     expect(state?.versions).toEqual([])
-    expect(state?.emptySlots).toEqual(['metric', 'guardrail'])
+    expect(state?.emptySlots).toEqual([
+      { type: 'metric', count: 0, minCount: 1 },
+      { type: 'guardrail', count: 0, minCount: 1 },
+    ])
   })
 
   it('has no empty slot when only slots that are not required are empty', async () => {
@@ -234,6 +237,9 @@ describe('signContract', () => {
 
     await expect(signContract(db, 'glue', 'videos', 'Tim')).rejects.toThrow(
       'sign-off needs each required slot filled: flow',
+    )
+    expect((await findContractState(db, 'glue', 'videos'))?.emptySlots).toEqual(
+      [{ type: 'flow', count: 1, minCount: 2 }],
     )
   })
 

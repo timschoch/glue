@@ -94,6 +94,8 @@ export function ConceptScreen({
   // The Hunch of a group of Signals has its own write: the list shows at
   // the group that it saves, or why it was not made.
   const hunchWrite = useWrite()
+  // The pick of a Kind has its own write too: it shows at the Kind field.
+  const kindWrite = useWrite()
   const [hunchGroup, setHunchGroup] = useState<string>()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
 
@@ -346,10 +348,12 @@ export function ConceptScreen({
       concept={concept}
       kinds={kinds}
       onKindChange={(kind) =>
-        void write('Saving', () =>
+        void kindWrite.write('Saving', () =>
           updateConcept({ project, concept: concept.slug, change: { kind } }),
         )
       }
+      kindPending={kindWrite.pending}
+      kindFailure={kindWrite.failure}
       onEditKind={() =>
         void changeSearch({ ...search, kind: concept.kind ?? undefined })
       }

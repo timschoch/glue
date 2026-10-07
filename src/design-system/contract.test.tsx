@@ -137,7 +137,10 @@ describe('the Contract of a Concept', () => {
   it('shows the empty required slots as dashed chips above a sign-off that is not available', () => {
     const { panel } = renderPanel({
       ahead: true,
-      emptySlots: ['metric', 'guardrail'],
+      emptySlots: [
+        { type: 'metric', count: 0, minCount: 1 },
+        { type: 'guardrail', count: 0, minCount: 1 },
+      ],
     })
 
     const chips = within(
@@ -157,6 +160,19 @@ describe('the Contract of a Concept', () => {
       chips[1].compareDocumentPosition(action) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  })
+
+  it('names the count of Parts of a slot that needs more than one', () => {
+    const { panel } = renderPanel({
+      ahead: true,
+      emptySlots: [{ type: 'flow', count: 1, minCount: 2 }],
+    })
+
+    expect(
+      within(panel.getByRole('list', { name: 'Empty slots' })).getByRole(
+        'listitem',
+      ).textContent,
+    ).toBe('Flow 1 of 2')
   })
 
   it('has no list of empty slots when each required slot is filled', () => {

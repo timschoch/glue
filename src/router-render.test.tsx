@@ -2778,6 +2778,46 @@ describe('the Kinds of a Project', () => {
     await waitFor(() => expect(server.fetchConcept).toHaveBeenCalledTimes(2))
   })
 
+  it('shows the save in place of the Kind select until the server answers', async () => {
+    let answer = () => {}
+    await renderPage('/glue/part-model', {
+      updateConcept: vi.fn(
+        () =>
+          new Promise<undefined>((resolve) => {
+            answer = () => resolve(undefined)
+          }),
+      ),
+    })
+
+    await userEvent.selectOptions(kindSelect(), 'PRD')
+
+    expect(main().queryByRole('combobox', { name: 'Kind' })).toBeNull()
+    main().getByText('Saving')
+
+    answer()
+
+    await waitFor(() => kindSelect())
+  })
+
+  it('shows why the Kind of a Concept was not saved at the Kind select', async () => {
+    await renderPage('/glue/part-model', {
+      updateConcept: vi.fn(() =>
+        Promise.resolve({ message: 'kind "prd" not found' }),
+      ),
+    })
+
+    await userEvent.selectOptions(kindSelect(), 'PRD')
+
+    await waitFor(() =>
+      expect(kindSelect().getAttribute('aria-invalid')).toBe('true'),
+    )
+    expect(
+      document.getElementById(
+        kindSelect().getAttribute('aria-describedby') ?? '',
+      )?.textContent,
+    ).toBe('kind "prd" not found')
+  })
+
   it('adds a Kind with its slots, then shows the Concept again', async () => {
     const { expectAddress, server } = await renderPage('/glue/part-model')
 
@@ -2850,7 +2890,7 @@ describe('the Kinds of a Project', () => {
           versions: [],
           ahead: false,
           blocking: [],
-          emptySlots: ['metric' as const],
+          emptySlots: [{ type: 'metric' as const, count: 0, minCount: 1 }],
         }),
       ),
     })

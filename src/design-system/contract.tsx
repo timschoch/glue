@@ -38,7 +38,7 @@ export type ContractPanelProps = {
   blocking: ReadonlyArray<ContractBlockingPart>
   // The required slots of the Kind that are not filled: they block the
   // sign-off too.
-  emptySlots: ReadonlyArray<PartType>
+  emptySlots: ReadonlyArray<EmptySlot>
   versionHref: (version: number) => string
   onOpenVersion?: (
     version: number,
@@ -66,15 +66,22 @@ function SignedBy({ signedBy, signedAt }: ContractVersionRow) {
   )
 }
 
-// The empty slots as dashed chips, each with its Part type.
-function EmptySlots({ types }: { types: ReadonlyArray<PartType> }) {
-  if (types.length === 0) return null
+// A required slot that is not filled: the count of its Parts, and the count
+// that it needs.
+export type EmptySlot = { type: PartType; count: number; minCount: number }
+
+// The empty slots as dashed chips, each with its Part type. A slot that
+// needs more than one Part has its counts too.
+function EmptySlots({ slots }: { slots: ReadonlyArray<EmptySlot> }) {
+  if (slots.length === 0) return null
 
   return (
     <ul aria-label="Empty slots" className={styles.emptySlots}>
-      {types.map((type) => (
+      {slots.map(({ type, count, minCount }) => (
         <li key={type} className={styles.emptySlot}>
-          {partTypes[type]}
+          {minCount > 1
+            ? `${partTypes[type]} ${count} of ${minCount}`
+            : partTypes[type]}
         </li>
       ))}
     </ul>
@@ -152,7 +159,7 @@ export function ContractPanel({
           </ul>
         </div>
       )}
-      <EmptySlots types={emptySlots} />
+      <EmptySlots slots={emptySlots} />
       {failure && (
         <InlineNotification
           lowContrast
@@ -248,7 +255,7 @@ export function ContractVersionView({
 }: ContractVersionViewProps) {
   const emptySlots = contract.slots
     .filter(({ required, filled }) => required && !filled)
-    .map(({ type }) => type)
+    .map(({ type }) => ({ type, count: 0, minCount: 1 }))
 
   return (
     <div className={styles.view}>
@@ -269,7 +276,7 @@ export function ContractVersionView({
             </Link>
           </div>
         )}
-        <EmptySlots types={emptySlots} />
+        <EmptySlots slots={emptySlots} />
       </header>
       <Tier title="Tier 1" parts={contract.tier1} />
       <Tier title="Tier 2" parts={contract.tier2} />

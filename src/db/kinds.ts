@@ -255,14 +255,22 @@ export async function updateKind(
 // Kind.
 export function selectConceptSlots(conceptId: SQL) {
   return sql`
-    select slot."type", slot."required", (
+    select
+      slot."type",
+      slot."required",
+      slot."min_count" as "minCount",
+      fill."count",
+      fill."count" >= slot."min_count" as "filled"
+    from "concepts" as concept
+    join "kind_slots" as slot on slot."kind_id" = concept."kind_id"
+    cross join lateral (
       with recursive held as (
         select concept."id"
         union all
         select child."id" from "concepts" as child
         join held on child."parent_id" = held."id"
       )
-      select count(*) from "parts" as filler
+      select count(*)::integer as "count" from "parts" as filler
       where filler."type" = slot."type"
         and filler."project_id" = concept."project_id"
         and filler."work_state" <> 'sunk'
@@ -277,9 +285,7 @@ export function selectConceptSlots(conceptId: SQL) {
               and other."concept_id" in (select "id" from held)
           )
         )
-    ) >= slot."min_count" as "filled"
-    from "concepts" as concept
-    join "kind_slots" as slot on slot."kind_id" = concept."kind_id"
+    ) as fill
     where concept."id" = ${conceptId}`
 }
 

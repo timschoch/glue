@@ -47,6 +47,11 @@ $card-width: $spacing-13 * 2;
   gap: $spacing-03;
 }
 
+// The save of a Kind takes no more room than its text.
+.kindPending {
+  inline-size: auto;
+}
+
 .switch {
   inline-size: $spacing-13;
 }
