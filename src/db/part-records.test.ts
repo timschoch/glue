@@ -1157,6 +1157,39 @@ describe('addJoint', () => {
     expect(await db.select().from(schema.parts)).toHaveLength(4)
   })
 
+  it('refuses a Joint across the edge of a Concept to a Part that is not published', async () => {
+    await addPart(db, 'glue', {
+      ...insight,
+      status: 'draft',
+      concept: 'part-model',
+    })
+
+    await expect(
+      addJoint(db, 'glue', { part: 'R1', needs: 'I2' }),
+    ).rejects.toThrow(
+      new InvalidRecordError(
+        '"I2" is not published: a Part of another Concept must be published',
+      ),
+    )
+    expect(await listJoints()).toHaveLength(2)
+  })
+
+  it('refuses a two-way Joint across the edge of a Concept from a Part that is not published', async () => {
+    await expect(
+      addJoint(db, 'glue', { part: 'R1', needs: 'I1', twoWay: true }),
+    ).rejects.toThrow(
+      new InvalidRecordError(
+        '"R1" is not published: a Part of another Concept must be published',
+      ),
+    )
+  })
+
+  it('glues a Part to a Part of its Concept that is not published', async () => {
+    await addPart(db, 'glue', { ...insight, status: 'draft' })
+
+    expect(await addJoint(db, 'glue', { part: 'R1', needs: 'I2' })).toBe(3)
+  })
+
   it('refuses a Part that the Project does not have', async () => {
     await addProject(db, 'flexibeck')
     await addPart(db, 'flexibeck', { type: 'entity', title: 'Technique' })

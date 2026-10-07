@@ -2404,6 +2404,57 @@ describe('the Joints of a record', () => {
     )
   })
 
+  const addJointSearch = () =>
+    within(screen.getByRole('region', { name: 'Needs' })).getByRole(
+      'combobox',
+      { name: 'Add Joint' },
+    )
+
+  async function pickJoint() {
+    await userEvent.type(addJointSearch(), 'g1')
+    await userEvent.click(await screen.findByRole('option', { name: /G1/ }))
+  }
+
+  it('shows why the server refused a Joint at the Joint field, and not in the box Next', async () => {
+    const refusal =
+      '"G1" is not published: a Part of another Concept must be published'
+    await renderPage('/glue/read-model/R1', {
+      addJoint: vi.fn(() => Promise.resolve({ message: refusal })),
+    })
+
+    await pickJoint()
+
+    // Carbon gives the search field no aria-invalid: the reason stands in
+    // the group of the field.
+    await within(screen.getByRole('region', { name: 'Needs' })).findByText(
+      refusal,
+    )
+    expect(screen.getAllByText(refusal)).toHaveLength(1)
+    addJointSearch()
+  })
+
+  it('shows the save in place of the Joint field until the server answers', async () => {
+    let answer = () => {}
+    await renderPage('/glue/read-model/R1', {
+      addJoint: vi.fn(
+        () =>
+          new Promise<{ id: number }>((resolve) => {
+            answer = () => resolve({ id: 20 })
+          }),
+      ),
+    })
+
+    await pickJoint()
+
+    const needs = within(screen.getByRole('region', { name: 'Needs' }))
+    expect(needs.queryByRole('combobox', { name: 'Add Joint' })).toBeNull()
+    needs.getByText('Saving')
+
+    answer()
+
+    await waitFor(() => addJointSearch())
+  })
+
   it('removes a Joint', async () => {
     const { server } = await renderPage('/glue/part-model/D4')
 

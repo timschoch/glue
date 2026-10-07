@@ -24,6 +24,7 @@ import {
   answers,
   historyFields,
   NEW_PART_STATE,
+  releaseWaiting,
   selectEvidenceBase,
   selectVersionFields,
   spreadTrust,
@@ -471,6 +472,7 @@ function selectParts(db: ConceptDb, projectId: number, recordIds: string[]) {
   return db
     .select({
       id: parts.id,
+      conceptId: parts.conceptId,
       recordId: parts.recordId,
       type: parts.type,
       status: parts.status,
@@ -1513,6 +1515,7 @@ export type NewJoint = z.input<typeof newJointSchema>
 
 // Glues two Parts of the Project, and gives back the id of the Joint. Parts
 // with different home Concepts make a link: the same Joint, never a copy.
+// The needed Part of a link must be published.
 // A needed Part of another Project makes a reference: see findNeededParts.
 // A reference goes one way.
 // A Decision has one Goal, so the statement adds no second one. A two-way
@@ -1539,6 +1542,16 @@ export async function addJoint(
     [needingPart, neededPart],
     ...(twoWay ? [[neededPart, needingPart]] : []),
   ]
+  // Trust crosses the edge of a Concept only from a published Part
+  // (glue/D65). A reference is published already: see findNeededParts.
+  const unpublished = ends.find(
+    ([from, to]) =>
+      from.conceptId !== to.conceptId && to.workState !== 'published',
+  )?.[1]
+  if (unpublished)
+    throw new InvalidRecordError(
+      `"${unpublished.recordId}" is not published: a Part of another Concept must be published`,
+    )
   // The Decision that gets a Goal from the Joint.
   const decision = ends.find(
     ([from, to]) => from.type === 'decision' && to.type === 'goal',
@@ -1596,7 +1609,9 @@ export async function addJoint(
 const decisionNeedTypes = ['goal', ...evidenceTypes]
 
 // Removes the Joint, but not the last Goal and not the last evidence that a
-// Decision needs: addPart refuses a Decision without them. The statement
+// Decision needs: addPart refuses a Decision without them. A Part that
+// waits on the Part at the other end is published again: see
+// releaseWaiting. The statement
 // locks all Joints of the Part that needs, in the order of their ids. So of
 // two requests that remove the last two at the same time, the second one
 // sees that the first Joint is gone.
@@ -1621,7 +1636,8 @@ export async function removeJoint(
         )
       order by joint."id"
       for update of joint
-    )
+    ),
+    removed as (
     delete from "joints"
     where "id" = (
       select target."id" from locked as target
@@ -1638,7 +1654,14 @@ export async function removeJoint(
           )
         )
     )
-    returning "id"
+    returning "id", "part_id", "needed_part_id", "two_way"
+    ),
+    ${releaseWaiting(sql`
+      select "part_id", "needed_part_id" as "cause_part_id" from removed
+      union all
+      select "needed_part_id", "part_id" from removed where "two_way"
+    `)}
+    select "id" from removed
   `)
   if (idRowsSchema.parse(result).rows.length > 0) return
 
