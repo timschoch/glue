@@ -93,7 +93,20 @@ const requests = {
       project,
       concept: { slug: 'checkout', title: 'Checkout' },
     }),
+  updateConcept: () =>
+    actions.updateConcept({
+      project,
+      concept: 'checkout',
+      change: { title: 'Pay' },
+    }),
   removeConcept: () => actions.removeConcept({ project, concept: 'checkout' }),
+  addKind: () =>
+    actions.addKind({
+      project,
+      kind: { slug: 'prd', name: 'PRD', slots: [] },
+    }),
+  updateKind: () =>
+    actions.updateKind({ project, kind: 'brief', change: { name: 'Note' } }),
   addPart: () =>
     actions.addPart({ project, part: { type: 'flow', title: 'Push' } }),
   updatePart: () =>

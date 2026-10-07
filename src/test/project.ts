@@ -1,6 +1,7 @@
 import type { Build } from '../db/builds.ts'
 import type { Contract, ContractState } from '../db/contracts.ts'
 import type { LeveledPart } from '../db/flight-level.ts'
+import type { Kind } from '../db/kinds.ts'
 import type { People } from '../db/members.ts'
 import type {
   Concept,
@@ -16,6 +17,29 @@ import type {
 export const projects = [
   { slug: 'flexibeck', name: 'flexibeck' },
   { slug: 'glue', name: 'Glue' },
+]
+
+// The Kinds of each Project. A Brief needs no Metric. A PRD needs a Goal and
+// two Flows.
+export const kinds: Kind[] = [
+  {
+    slug: 'brief',
+    name: 'Brief',
+    slots: [
+      { type: 'insight', required: true, tier: 2, minCount: 1 },
+      { type: 'goal', required: true, tier: 2, minCount: 1 },
+      { type: 'decision', required: true, tier: 2, minCount: 1 },
+      { type: 'metric', required: false, tier: 2, minCount: 1 },
+    ],
+  },
+  {
+    slug: 'prd',
+    name: 'PRD',
+    slots: [
+      { type: 'goal', required: true, tier: 2, minCount: 1 },
+      { type: 'flow', required: true, tier: 1, minCount: 2 },
+    ],
+  },
 ]
 
 const readModel: ConceptNode = {
@@ -170,7 +194,7 @@ export const people: People = {
 
 export function findProject(slug: string): Project | undefined {
   const project = projects.find((known) => known.slug === slug)
-  return project && { ...project, concept: rootOf(project) }
+  return project && { ...project, concept: rootOf(project), kinds }
 }
 
 function findNode(node: ConceptNode, slug: string): ConceptNode | undefined {
@@ -207,10 +231,10 @@ export function findConcept({
     slots:
       node.kind === 'brief'
         ? [
-            { type: 'insight', filled: true },
-            { type: 'goal', filled: true },
-            { type: 'decision', filled: true },
-            { type: 'metric', filled: false },
+            { type: 'insight', required: true, filled: true },
+            { type: 'goal', required: true, filled: true },
+            { type: 'decision', required: true, filled: true },
+            { type: 'metric', required: false, filled: false },
           ]
         : [],
   }
@@ -348,8 +372,8 @@ export function findContractState(
 ): ContractState | undefined {
   if (!findConcept(input)) return undefined
   return input.concept === partModel.slug
-    ? { versions: [signed], ahead: true, blocking: [] }
-    : { versions: [], ahead: false, blocking: [] }
+    ? { versions: [signed], ahead: true, blocking: [], emptySlots: [] }
+    : { versions: [], ahead: false, blocking: [], emptySlots: [] }
 }
 
 export function findContract({
@@ -369,6 +393,9 @@ export function findContract({
     newestVersion: signed.version,
     tier1: [],
     tier2: frozen,
-    slots: findConcept({ project: 'glue', concept })?.slots ?? [],
+    // The Version is from the time when a Brief needed a Metric.
+    slots: (findConcept({ project: 'glue', concept })?.slots ?? []).map(
+      (slot) => ({ ...slot, required: true }),
+    ),
   }
 }

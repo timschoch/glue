@@ -35,9 +35,18 @@ const measure = {
 beforeEach(async () => {
   await client.exec(`
     insert into projects (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
-    insert into concepts (project_id, parent_id, slug, title, kind) values
+    insert into kinds (project_id, slug, name) values (1, 'brief', 'Brief');
+    insert into kind_slots (kind_id, type, tier, required) values
+      (1, 'insight', 2, true),
+      (1, 'goal', 2, true),
+      (1, 'decision', 2, true),
+      (1, 'metric', 2, false),
+      (1, 'flow', 1, true),
+      (1, 'entity', 1, true),
+      (1, 'guardrail', 1, true);
+    insert into concepts (project_id, parent_id, slug, title, kind_id) values
       (1, null, 'glue', 'Glue', null),
-      (1, 1, 'part-model', 'Part model', 'brief'),
+      (1, 1, 'part-model', 'Part model', 1),
       (1, 2, 'read-model', 'Read model', null),
       (2, null, 'flexibeck', 'flexibeck', null);
     insert into parts (project_id, concept_id, type, record_id, title, body, status, metric, source) values
@@ -185,6 +194,21 @@ describe('findProject', () => {
         partCount: 7,
         concepts: [partModel],
       },
+      kinds: [
+        {
+          slug: 'brief',
+          name: 'Brief',
+          slots: [
+            { type: 'insight', required: true, tier: 2, minCount: 1 },
+            { type: 'goal', required: true, tier: 2, minCount: 1 },
+            { type: 'decision', required: true, tier: 2, minCount: 1 },
+            { type: 'metric', required: false, tier: 2, minCount: 1 },
+            { type: 'flow', required: true, tier: 1, minCount: 1 },
+            { type: 'entity', required: true, tier: 1, minCount: 1 },
+            { type: 'guardrail', required: true, tier: 1, minCount: 1 },
+          ],
+        },
+      ],
     })
   })
 
@@ -270,17 +294,36 @@ describe('findConcept', () => {
     expect(concept?.linkedParts).toEqual([goal, flow])
   })
 
-  it('fills a slot with a home Part or a linked Part of its type', async () => {
+  // The Insight and the Decisions have their home in part-model. A Joint
+  // glues the Goal of the root to D1. The Flow and the Entity have their
+  // home in read-model, which part-model holds.
+  it('fills a slot with a Part of its type: a home Part, a linked Part, or a Part of a Concept in it', async () => {
     const concept = await findConcept(db, 'glue', 'part-model')
 
     expect(concept?.slots).toEqual([
-      { type: 'insight', filled: true },
-      { type: 'goal', filled: true },
-      { type: 'decision', filled: true },
-      { type: 'metric', filled: false },
-      { type: 'flow', filled: true },
-      { type: 'entity', filled: false },
-      { type: 'guardrail', filled: false },
+      { type: 'insight', required: true, filled: true },
+      { type: 'goal', required: true, filled: true },
+      { type: 'decision', required: true, filled: true },
+      { type: 'metric', required: false, filled: false },
+      { type: 'flow', required: true, filled: true },
+      { type: 'entity', required: true, filled: true },
+      { type: 'guardrail', required: true, filled: false },
+    ])
+  })
+
+  it('leaves a slot empty below its least count, and for a sunk Part', async () => {
+    await client.exec(`
+      update kind_slots set min_count = 3 where type = 'decision';
+      update parts set work_state = 'sunk' where record_id = 'I1';
+    `)
+
+    const concept = await findConcept(db, 'glue', 'part-model')
+
+    expect(concept?.slots.filter(({ filled }) => !filled)).toEqual([
+      { type: 'insight', required: true, filled: false },
+      { type: 'decision', required: true, filled: false },
+      { type: 'metric', required: false, filled: false },
+      { type: 'guardrail', required: true, filled: false },
     ])
   })
 

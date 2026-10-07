@@ -17,8 +17,10 @@ export type ProjectSearch = {
   // The records opened on the way to the open record, oldest first.
   trail?: Array<string>
   // The form in the main window in place of the Concept or the record: a
-  // new Part of the type, a new Concept or a new Project.
+  // new Part of the type, a new Concept, a new Project or a new Kind.
   add?: Added
+  // The form with the values of the Kind of the slug.
+  kind?: string
   // The form with the values of the open record.
   edit?: true
   // The map of the Concept in place of its list.
@@ -30,7 +32,7 @@ export type ProjectSearch = {
   panel?: string
 }
 
-const nameForms = ['concept', 'project'] as const
+const nameForms = ['concept', 'project', 'kind'] as const
 
 export type Added = PartType | (typeof nameForms)[number]
 
@@ -116,6 +118,7 @@ export function parseProjectSearch(
     pins: parseRecordIds(search.pins),
     trail: parseRecordIds(search.trail),
     add: isAdded(search.add) ? search.add : undefined,
+    kind: isSlug(search.kind) ? search.kind : undefined,
     edit: search.edit === true ? true : undefined,
     view: search.view === 'map' ? 'map' : undefined,
     expanded: parseSlugs(search.expanded),

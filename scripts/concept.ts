@@ -19,7 +19,7 @@ import { listLeveledParts } from '../src/db/flight-level.ts'
 import type { LeveledPart } from '../src/db/flight-level.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
 import type { GoalMeasure } from '../src/db/goal-measure.ts'
-import type { Kind } from '../src/db/kinds.ts'
+import { addKind, listKinds, updateKind } from '../src/db/kinds.ts'
 import {
   addMember,
   assign,
@@ -162,6 +162,8 @@ const KNOWN_FIELDS = new Set([
   'insight',
   'decision',
   'question',
+  'required',
+  'optional',
 ])
 
 type Flags = Record<string, string | string[] | GoalMeasure | undefined>
@@ -182,6 +184,7 @@ function parseMeasure(value: string): GoalMeasure {
 
 function parseFlagValue(key: string, value: string) {
   if (key === 'evidence' || key === 'needs') return value.split(',')
+  if (key === 'required' || key === 'optional') return value.split(',')
   if (key === 'measure') return parseMeasure(value)
   return value
 }
@@ -582,8 +585,11 @@ function formatHelp() {
     'pnpm concept unwatch <id> --member <e-mail>',
     'pnpm concept watchers [<id>]',
     'pnpm concept concept add <slug> --title <title> [--kind <kind>] [--parent <slug>]',
-    'pnpm concept concept set <slug> [--title <title>] [--parent <slug>]',
+    'pnpm concept concept set <slug> [--title <title>] [--parent <slug>] [--kind <kind>]',
     'pnpm concept concept remove <slug>',
+    'pnpm concept kind list',
+    'pnpm concept kind add <slug> --name <name> [--required <slots>] [--optional <slots>]',
+    'pnpm concept kind set <slug> [--name <name>] [--required <slots>] [--optional <slots>]',
     'pnpm concept contract show <concept> [--version <number>]',
     'pnpm concept contract sign <concept> --owner <name>',
     'pnpm concept joint add <id> <needed id> [--two-way]',
@@ -595,7 +601,7 @@ function formatHelp() {
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
     '',
-    'list, show, add, set, move, downstream, answer, mine, ask, signals, builds, member, assign, watch, unwatch, watchers, concept, contract and joint take --project <slug>. The default is GLUE_PROJECT, then glue-build when that Project exists, then glue.',
+    'list, show, add, set, move, downstream, answer, mine, ask, signals, builds, member, assign, watch, unwatch, watchers, concept, kind, contract and joint take --project <slug>. The default is GLUE_PROJECT, then glue-build when that Project exists, then glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -632,7 +638,9 @@ function formatHelp() {
     'builds lists the pull requests of the repository of the Project, each with the Decisions or the Contract Version that it names. stale: the Contract Version is old, or a Decision is sunk.',
     'gate asks Glue over its HTTP API if the pull request of GITHUB_REPOSITORY names the newest Contract Version of its Concept, or Decisions that stand. Glue keeps the answer with the build. breaks exits 1. It needs GLUE_API_TOKEN and no database. The default Project is GLUE_PROJECT, then glue-build.',
     'concept remove removes a Concept that holds nothing: no record, no Concept and no Contract Version. The root Concept stays.',
-    'contract sign freezes the records of a Concept as its next Contract Version. Each record needs Trust solid.',
+    'A Kind lists the slots that a Concept of it fills. <slots> takes record types with commas between them, and a least count after a colon: goal,flow:2 is a Goal and two Flows.',
+    'kind set with --required or --optional gives the Kind these slots in place of its old ones. concept set --kind "" takes the Kind away.',
+    'contract sign freezes the records of a Concept as its next Contract Version. Each record needs Trust solid, and each required slot of the Kind needs its records.',
     'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
     'mine with --member: the records of the member, and the records that nobody has.',
     'ask asks another Project to check an Insight of the level hunch. The Project must be one that this Project may reference. It prints the number of the Ask.',
@@ -918,6 +926,9 @@ export async function runConcept(
     case 'concept':
       await handleConceptCommand(db, rest)
       return
+    case 'kind':
+      await handleKindCommand(db, rest)
+      return
     case 'contract':
       await handleContractCommand(db, rest)
       return
@@ -1053,8 +1064,8 @@ async function handleBuildsCommand(
 
 // `concept add <slug> --title <title>`: nests a Concept in the Concept of
 // `--parent`, or in the root. `concept set <slug>` gives a Concept that
-// exists a new title, a new parent, or both. `concept remove <slug>` removes
-// a Concept that holds nothing.
+// exists a new title, a new parent, another Kind, or more than one of them.
+// `concept remove <slug>` removes a Concept that holds nothing.
 async function handleConceptCommand(
   db: ConceptDb,
   [command, slug, ...rest]: string[],
@@ -1072,6 +1083,7 @@ async function handleConceptCommand(
     await updateConcept(db, project, slug, {
       title: flags.title as string | undefined,
       parent: flags.parent as string | undefined,
+      kind: flags.kind === '' ? null : (flags.kind as string | undefined),
     })
     return
   }
@@ -1079,10 +1091,65 @@ async function handleConceptCommand(
     await addConcept(db, project, {
       slug,
       title: flags.title as string,
-      kind: flags.kind as Kind | undefined,
+      kind: flags.kind as string | undefined,
       parent: flags.parent as string | undefined,
     }),
   )
+}
+
+// The slots of a Kind as `--required` and `--optional` name them: a Part
+// type, and a least count after a colon. undefined: the command names none.
+function toSlots(flags: Flags) {
+  if (flags.required === undefined && flags.optional === undefined) {
+    return undefined
+  }
+  const readSlots = (names: Flags[string], required: boolean) =>
+    (Array.isArray(names) ? names : []).map((name) => {
+      const [type, count = '1'] = name.split(':')
+      return { type: type as PartType, required, minCount: Number(count) }
+    })
+  return [
+    ...readSlots(flags.required, true),
+    ...readSlots(flags.optional, false),
+  ]
+}
+
+// `kind list` prints each Kind of the Project with its slots. `kind add
+// <slug> --name <name>` adds a Kind and prints its slug. `kind set <slug>`
+// gives a Kind a new name, new slots, or both.
+async function handleKindCommand(db: ConceptDb, [command, ...rest]: string[]) {
+  const flags = parseFlags(rest)
+  const project = await readProject(db, flags)
+  const [slug] = rest
+  switch (command) {
+    case 'list':
+      for (const kind of await listKinds(db, project)) {
+        console.log(`${kind.slug}  ${kind.name}`)
+        for (const { type, required, minCount } of kind.slots) {
+          console.log(
+            `  ${type}  ${required ? 'required' : 'optional'}  ${minCount}`,
+          )
+        }
+      }
+      return
+    case 'add':
+      console.log(
+        await addKind(db, project, {
+          slug,
+          name: flags.name as string,
+          slots: toSlots(flags) ?? [],
+        }),
+      )
+      return
+    case 'set':
+      await updateKind(db, project, slug, {
+        name: flags.name as string | undefined,
+        slots: toSlots(flags),
+      })
+      return
+    default:
+      throw new Error(`unknown kind command "${command}"`)
+  }
 }
 
 function formatFrozenPart({ id, type, title }: FrozenPart) {

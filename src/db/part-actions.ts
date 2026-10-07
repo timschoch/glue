@@ -32,12 +32,19 @@ import type { People } from './members.ts'
 import { createSignalSources } from '../signals/signal-sources.server.ts'
 import { listSignals, signalInsightSchema } from './signals.ts'
 import type { ConceptDb } from './client.ts'
+import {
+  addKind,
+  kindChangeSchema,
+  newKindSchema,
+  updateKind,
+} from './kinds.ts'
 import { createPartOperations } from './part-operations.ts'
 import type { ChangedPart } from './part-operations.ts'
 import {
   addConcept,
   addJoint,
   addProject,
+  conceptChangeSchema,
   expectedPartSchema,
   newConceptSchema,
   newJointSchema,
@@ -47,6 +54,7 @@ import {
   questionAnswerSchema,
   removeConcept,
   removeJoint,
+  updateConcept,
 } from './part-records.ts'
 import {
   findConcept,
@@ -90,6 +98,20 @@ export const buildsInputSchema = projectInputSchema.extend({
 
 export const conceptAddInputSchema = projectInputSchema.extend({
   concept: newConceptSchema,
+})
+
+export const conceptUpdateInputSchema = conceptReadInputSchema.extend({
+  change: conceptChangeSchema,
+})
+
+export const kindAddInputSchema = projectInputSchema.extend({
+  kind: newKindSchema,
+})
+
+// `kind` is the slug of the Kind.
+export const kindUpdateInputSchema = projectInputSchema.extend({
+  kind: z.string(),
+  change: kindChangeSchema,
 })
 
 export const partAddInputSchema = projectInputSchema.extend({
@@ -179,6 +201,9 @@ type PartListInput = z.infer<typeof partListInputSchema>
 export type PartReadInput = z.infer<typeof partReadInputSchema>
 type BuildsInput = z.infer<typeof buildsInputSchema>
 export type ConceptAddInput = z.infer<typeof conceptAddInputSchema>
+export type ConceptUpdateInput = z.infer<typeof conceptUpdateInputSchema>
+export type KindAddInput = z.infer<typeof kindAddInputSchema>
+export type KindUpdateInput = z.infer<typeof kindUpdateInputSchema>
 export type PartAddInput = z.infer<typeof partAddInputSchema>
 export type PartUpdateInput = z.infer<typeof partUpdateInputSchema>
 export type ProjectAddInput = z.infer<typeof projectAddInputSchema>
@@ -231,8 +256,24 @@ export function createPartActions(request: ActionRequest) {
       addConcept(db, project, concept).then((slug) => ({ slug }), toFailure),
     ),
 
+    updateConcept: withMember(
+      (db, { project, concept, change }: ConceptUpdateInput) =>
+        updateConcept(db, project, concept, change).then(
+          () => undefined,
+          toFailure,
+        ),
+    ),
+
     removeConcept: withMember((db, { project, concept }: ConceptReadInput) =>
       removeConcept(db, project, concept).then(() => undefined, toFailure),
+    ),
+
+    addKind: withMember((db, { project, kind }: KindAddInput) =>
+      addKind(db, project, kind).then((slug) => ({ slug }), toFailure),
+    ),
+
+    updateKind: withMember((db, { project, kind, change }: KindUpdateInput) =>
+      updateKind(db, project, kind, change).then(() => undefined, toFailure),
     ),
 
     // The member who adds a Part is its owner, when the Part names no other.

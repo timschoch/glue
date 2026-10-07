@@ -1,6 +1,6 @@
 import { Form, InlineNotification, TextInput } from '@carbon/react'
 import { useId, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 
 import { SaveButtons } from './part-form.tsx'
 import styles from './part-form.module.scss'
@@ -18,10 +18,12 @@ export type NameFormProps = {
   // Gets the value without the spaces around it.
   onSave: (value: string) => void
   onCancel: () => void
+  // One more field, after the first one.
+  children?: ReactNode
 }
 
-// The form that adds a thing with one field: a Concept by its title, a
-// Project by its name. It looks like the Part form.
+// The form that adds a thing by its name: a Concept by its title, a Project
+// by its name. It looks like the Part form.
 export function NameForm({
   heading,
   label,
@@ -30,6 +32,7 @@ export function NameForm({
   pending = false,
   onSave,
   onCancel,
+  children,
 }: NameFormProps) {
   const formId = useId()
   const fieldId = `${formId}-field`
@@ -60,6 +63,7 @@ export function NameForm({
         value={value}
         onChange={({ target }) => setValue(target.value)}
       />
+      {children}
       {serverError && (
         <InlineNotification
           kind="error"

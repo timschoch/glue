@@ -7,11 +7,20 @@ import { z } from 'zod'
 import { frozenFields } from '../db/contracts.ts'
 import { flightLevels, listLeveledParts } from '../db/flight-level.ts'
 import { goalMeasureSchema } from '../db/goal-measure.ts'
+import {
+  addKind,
+  kindChangeSchema,
+  listKinds,
+  newKindSchema,
+  updateKind,
+} from '../db/kinds.ts'
+import type { Kind } from '../db/kinds.ts'
 import { createPartOperations } from '../db/part-operations.ts'
 import type { ChangedPart } from '../db/part-operations.ts'
 import {
   addConcept,
   addJoint,
+  conceptChangeSchema,
   newConceptSchema,
   newJointSchema,
   newPartSchema,
@@ -20,6 +29,7 @@ import {
   questionAnswerSchema,
   removeConcept,
   removeJoint,
+  updateConcept,
 } from '../db/part-records.ts'
 import type { PartChange } from '../db/part-records.ts'
 import {
@@ -41,7 +51,34 @@ import { ApiError, handleApiRequest, parseJson } from './api-request.ts'
 import type { ApiRequest, ChangeRequest } from './api-request.ts'
 
 const partType = z.enum(partTypes)
-const kind = newConceptSchema.shape.kind.unwrap().nullable()
+const kind = z
+  .string()
+  .nullable()
+  .meta({ description: 'The slug of its Kind. null: it has no Kind' })
+
+export const kindSchema = z
+  .object({
+    slug: z.string(),
+    name: z.string(),
+    slots: z
+      .array(
+        z.object({
+          type: partType,
+          required: z.boolean().meta({
+            description: 'A sign-off of a Concept of the Kind needs it filled',
+          }),
+          tier: z.union([z.literal(1), z.literal(2)]).meta({
+            description:
+              '1: what a coding agent reads (Flow, Entity, Guardrail). 2: the why',
+          }),
+          minCount: z.number().meta({
+            description: 'The least count of Parts that fill the slot',
+          }),
+        }),
+      )
+      .meta({ description: 'One slot per Part type that the Kind has' }),
+  })
+  .meta({ id: 'Kind' }) satisfies z.ZodType<Kind>
 
 export const partSummarySchema = z
   .object({
@@ -100,6 +137,9 @@ export const projectSchema = z
     slug: z.string(),
     name: z.string(),
     concept: conceptNodeSchema.meta({ description: 'The root Concept' }),
+    kinds: z.array(kindSchema).meta({
+      description: 'The Kinds that a Concept of the Project can have',
+    }),
   })
   .meta({ id: 'Project' }) satisfies z.ZodType<Project>
 
@@ -130,10 +170,18 @@ export const projectConceptSchema = z
         link: z.boolean(),
       }),
     ),
-    slots: z.array(z.object({ type: partType, filled: z.boolean() })).meta({
-      description:
-        'One slot per Part type of the Kind. Empty when the Concept has no Kind',
-    }),
+    slots: z
+      .array(
+        z.object({
+          type: partType,
+          required: z.boolean(),
+          filled: z.boolean(),
+        }),
+      )
+      .meta({
+        description:
+          'One slot per Part type of the Kind. Empty when the Concept has no Kind. A slot is filled when the Concept, with the Concepts in it and the Parts that a Joint glues to them, has the least count of Parts of the type. A sign-off needs each required slot filled',
+      }),
   })
   .meta({ id: 'ProjectConcept' }) satisfies z.ZodType<Concept>
 
@@ -343,6 +391,15 @@ export const changedPartSchema = partSchema
 export const addedJointSchema = z.object({ id: z.number() })
 
 export const conceptInputSchema = newConceptSchema.meta({ id: 'ConceptInput' })
+export const conceptUpdateSchema = conceptChangeSchema.meta({
+  id: 'ConceptUpdate',
+  description: 'One field or more',
+})
+export const kindInputSchema = newKindSchema.meta({ id: 'KindInput' })
+export const kindUpdateSchema = kindChangeSchema.meta({
+  id: 'KindUpdate',
+  description: 'One field or more',
+})
 export const partInputSchema = newPartSchema.meta({ id: 'PartInput' })
 export const partUpdateSchema = partChangeSchema.meta({
   id: 'PartUpdate',
@@ -402,6 +459,49 @@ export function handleAddConcept(input: ApiRequest) {
     return Response.json(await findConcept(db, params.project, slug), {
       status: 201,
     })
+  })
+}
+
+export function handleUpdateConcept(input: ApiRequest) {
+  return handleApiRequest(input, async () => {
+    const { db, request, params } = input
+    const { project, concept: slug = '' } = params
+    if (!(await findConcept(db, project, slug)))
+      throw toNotFound('concept', slug)
+    const change = conceptChangeSchema.parse(await parseJson(request))
+    await updateConcept(db, project, slug, change)
+    return Response.json(await findConcept(db, project, slug))
+  })
+}
+
+async function findKind(input: ApiRequest, slug: string) {
+  const kinds = await listKinds(input.db, input.params.project)
+  return kinds.find((found) => found.slug === slug)
+}
+
+export function handleListKinds(input: ApiRequest) {
+  return handleApiRequest(input, async () =>
+    Response.json(await listKinds(input.db, input.params.project)),
+  )
+}
+
+export function handleAddKind(input: ApiRequest) {
+  return handleApiRequest(input, async () => {
+    const { db, request, params } = input
+    const added = newKindSchema.parse(await parseJson(request))
+    const slug = await addKind(db, params.project, added)
+    return Response.json(await findKind(input, slug), { status: 201 })
+  })
+}
+
+export function handleUpdateKind(input: ApiRequest) {
+  return handleApiRequest(input, async () => {
+    const { db, request, params } = input
+    const { project, kind: slug = '' } = params
+    if (!(await findKind(input, slug))) throw toNotFound('kind', slug)
+    const change = kindChangeSchema.parse(await parseJson(request))
+    await updateKind(db, project, slug, change)
+    return Response.json(await findKind(input, slug))
   })
 }
 

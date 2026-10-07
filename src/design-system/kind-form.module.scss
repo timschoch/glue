@@ -1,0 +1,17 @@
+@use '@carbon/react/scss/spacing' as *;
+
+// The fields of one slot are one group, side by side while the row has room.
+.slot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: $spacing-05;
+
+  > * {
+    flex: 1 1 $spacing-13;
+  }
+
+  > legend {
+    flex-basis: 100%;
+  }
+}

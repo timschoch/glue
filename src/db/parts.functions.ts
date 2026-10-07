@@ -19,9 +19,12 @@ import {
   questionAnswerInputSchema,
   conceptAddInputSchema,
   conceptReadInputSchema,
+  conceptUpdateInputSchema,
   createPartActions,
   jointAddInputSchema,
   jointRemoveInputSchema,
+  kindAddInputSchema,
+  kindUpdateInputSchema,
   loopStepsInputSchema,
   memberAddInputSchema,
   partAddInputSchema,
@@ -82,6 +85,18 @@ export const fetchMapJoints = createServerFn({ method: 'GET' })
 export const submitAddConcept = createServerFn({ method: 'POST' })
   .validator(conceptAddInputSchema)
   .handler(({ data }) => actions.addConcept(data))
+
+export const submitUpdateConcept = createServerFn({ method: 'POST' })
+  .validator(conceptUpdateInputSchema)
+  .handler(({ data }) => actions.updateConcept(data))
+
+export const submitAddKind = createServerFn({ method: 'POST' })
+  .validator(kindAddInputSchema)
+  .handler(({ data }) => actions.addKind(data))
+
+export const submitUpdateKind = createServerFn({ method: 'POST' })
+  .validator(kindUpdateInputSchema)
+  .handler(({ data }) => actions.updateKind(data))
 
 export const submitRemoveConcept = createServerFn({ method: 'POST' })
   .validator(conceptReadInputSchema)

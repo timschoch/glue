@@ -197,6 +197,13 @@
       "when": 1791334947910,
       "tag": "0027_ask_for_a_decision",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791338114025,
+      "tag": "0028_kinds",
+      "breakpoints": true
     }
   ]
 }

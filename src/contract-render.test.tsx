@@ -79,6 +79,7 @@ describe('the Contract on the Concept screen', () => {
           versions: [],
           ahead: false,
           blocking: [{ ...parts[1], trust: 'flagged' as const }],
+          emptySlots: [],
         }),
       ),
     })

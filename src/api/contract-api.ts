@@ -5,7 +5,6 @@ import { z } from 'zod'
 
 import { findContract, signContract } from '../db/contracts.ts'
 import type { Contract, FrozenPart } from '../db/contracts.ts'
-import { newConceptSchema } from '../db/part-records.ts'
 import { evidenceLevels, partTypes } from '../db/parts.ts'
 import { ApiError, handleApiRequest, parseJson } from './api-request.ts'
 import type { ApiRequest } from './api-request.ts'
@@ -37,7 +36,10 @@ export const contractSchema = z
   .object({
     concept: z.string().meta({ description: 'The slug of the Concept' }),
     title: z.string(),
-    kind: newConceptSchema.shape.kind.unwrap().nullable(),
+    kind: z
+      .string()
+      .nullable()
+      .meta({ description: 'The slug of the Kind of the Concept' }),
     version: z.number(),
     newestVersion: z.number().meta({
       description: 'A higher number than `version`: this Version is superseded',
@@ -55,10 +57,16 @@ export const contractSchema = z
         'The why: the Insights, the Goals, the Decisions and the Metrics',
     }),
     slots: z
-      .array(z.object({ type: z.enum(partTypes), filled: z.boolean() }))
+      .array(
+        z.object({
+          type: z.enum(partTypes),
+          required: z.boolean(),
+          filled: z.boolean(),
+        }),
+      )
       .meta({
         description:
-          'One slot per Part type of the Kind. A slot that is not filled is empty',
+          'One slot per Part type of the Kind. A slot is filled when the Version holds a Part of its type',
       }),
   })
   .meta({ id: 'Contract' }) satisfies z.ZodType<Contract>

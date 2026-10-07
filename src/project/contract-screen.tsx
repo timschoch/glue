@@ -57,6 +57,7 @@ export function ContractSection({
         ...part,
         href: recordHref(part),
       }))}
+      emptySlots={contract.emptySlots}
       versionHref={versionHref}
       onOpenVersion={(version, event) => open(versionHref(version), event)}
       onOpenPart={(part, event) => open(part.href, event)}

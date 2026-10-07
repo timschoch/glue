@@ -4,6 +4,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { findContract, findContractState, signContract } from './contracts.ts'
+import { briefKind, updateKind } from './kinds.ts'
 import { addProjectReference } from './projects.ts'
 import {
   addConcept,
@@ -26,10 +27,22 @@ beforeAll(async () => {
 
 // The Project glue holds the Brief `videos`, which holds the Concept `player`.
 // `videos` has the Insight I1, the Decision D1 and the Flow F1. `player` has
-// the Entity E1. F1 and E1 start as drafts.
+// the Entity E1. F1 and E1 start as drafts. The Brief of this Project does
+// not require a Metric or a Guardrail.
 beforeEach(async () => {
   await client.exec('truncate projects restart identity cascade')
   await addProject(db, 'glue')
+  await updateKind(db, 'glue', 'brief', {
+    slots: [
+      { type: 'insight' },
+      { type: 'goal' },
+      { type: 'decision' },
+      { type: 'metric', required: false },
+      { type: 'flow' },
+      { type: 'entity' },
+      { type: 'guardrail', required: false },
+    ],
+  })
   await addConcept(db, 'glue', {
     slug: 'videos',
     title: 'Technique videos',
@@ -184,14 +197,61 @@ describe('signContract', () => {
     const contract = await findContract(db, 'glue', 'videos')
 
     expect(contract?.slots).toEqual([
-      { type: 'insight', filled: true },
-      { type: 'goal', filled: false },
-      { type: 'decision', filled: true },
-      { type: 'metric', filled: false },
-      { type: 'flow', filled: true },
-      { type: 'entity', filled: true },
-      { type: 'guardrail', filled: false },
+      { type: 'insight', required: true, filled: true },
+      { type: 'goal', required: true, filled: false },
+      { type: 'decision', required: true, filled: true },
+      { type: 'metric', required: false, filled: false },
+      { type: 'flow', required: true, filled: true },
+      { type: 'entity', required: true, filled: true },
+      { type: 'guardrail', required: false, filled: false },
     ])
+  })
+
+  it('names the required slots that are empty and freezes nothing', async () => {
+    await updateKind(db, 'glue', 'brief', { slots: briefKind.slots })
+    await publish('F1', 'E1')
+
+    await expect(signContract(db, 'glue', 'videos', 'Tim')).rejects.toThrow(
+      'sign-off needs each required slot filled: metric, guardrail',
+    )
+
+    const state = await findContractState(db, 'glue', 'videos')
+    expect(state?.versions).toEqual([])
+    expect(state?.emptySlots).toEqual(['metric', 'guardrail'])
+  })
+
+  it('has no empty slot when only slots that are not required are empty', async () => {
+    const state = await findContractState(db, 'glue', 'videos')
+
+    expect(state?.emptySlots).toEqual([])
+  })
+
+  it('refuses a slot with fewer Parts than its least count', async () => {
+    await updateKind(db, 'glue', 'brief', {
+      slots: [{ type: 'flow', minCount: 2 }],
+    })
+    await publish('F1', 'E1')
+
+    await expect(signContract(db, 'glue', 'videos', 'Tim')).rejects.toThrow(
+      'sign-off needs each required slot filled: flow',
+    )
+  })
+
+  it('names the Parts that are not solid before the empty slots', async () => {
+    await updateKind(db, 'glue', 'brief', { slots: briefKind.slots })
+
+    await expect(signContract(db, 'glue', 'videos', 'Tim')).rejects.toThrow(
+      'sign-off needs Trust solid: F1, E1',
+    )
+  })
+
+  it('signs a Concept without a Kind', async () => {
+    await publish('E1')
+
+    expect(await signContract(db, 'glue', 'player', 'Tim')).toBe(1)
+    expect((await findContractState(db, 'glue', 'player'))?.emptySlots).toEqual(
+      [],
+    )
   })
 
   it('refuses a second sign-off of a Concept that did not change', async () => {
@@ -204,13 +264,19 @@ describe('signContract', () => {
   })
 
   it('leaves a sunk Part out: it blocks nothing and is not frozen', async () => {
-    await publish('E1')
+    await addPart(db, 'glue', {
+      type: 'flow',
+      concept: 'videos',
+      title: 'Save a technique',
+      needs: ['D1'],
+    })
+    await publish('F2', 'E1')
     await answerPart(db, 'glue', 'F1', { answer: 'sink' })
 
     await signContract(db, 'glue', 'videos', 'Tim')
 
     const contract = await findContract(db, 'glue', 'videos')
-    expect(contract?.tier1.map(({ id }) => id)).toEqual(['E1'])
+    expect(contract?.tier1.map(({ id }) => id)).toEqual(['F2', 'E1'])
   })
 
   it('refuses a Concept that the Project does not have', async () => {

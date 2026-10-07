@@ -14,6 +14,7 @@ import {
 
 import { signContract } from './contracts.ts'
 import type { GoalMeasure } from './goal-measure.ts'
+import { addKind } from './kinds.ts'
 import {
   addConcept,
   addJoint,
@@ -62,9 +63,10 @@ function listConcepts() {
       parentId: schema.concepts.parentId,
       slug: schema.concepts.slug,
       title: schema.concepts.title,
-      kind: schema.concepts.kind,
+      kind: schema.kinds.slug,
     })
     .from(schema.concepts)
+    .leftJoin(schema.kinds, eq(schema.concepts.kindId, schema.kinds.id))
     .orderBy(schema.concepts.id)
 }
 
@@ -270,15 +272,29 @@ describe('addConcept', () => {
     ).rejects.toThrow(InvalidRecordError)
   })
 
-  it('refuses a Kind that Glue does not have', async () => {
+  it('takes a Kind that a member added', async () => {
+    await addKind(db, 'glue', { slug: 'prd', name: 'PRD', slots: [] })
+
+    await addConcept(db, 'glue', {
+      slug: 'part-model',
+      title: 'Part model',
+      kind: 'prd',
+    })
+
+    expect((await listConcepts())[1].kind).toBe('prd')
+  })
+
+  it('refuses a Kind that the Project does not have', async () => {
+    await addProject(db, 'flexibeck')
+    await addKind(db, 'flexibeck', { slug: 'prd', name: 'PRD', slots: [] })
+
     await expect(
       addConcept(db, 'glue', {
         slug: 'part-model',
         title: 'Part model',
-        // @ts-expect-error a Kind that the code does not have
         kind: 'prd',
       }),
-    ).rejects.toThrow(InvalidRecordError)
+    ).rejects.toThrow(new InvalidRecordError('kind "prd" not found'))
   })
 })
 
@@ -307,6 +323,30 @@ describe('updateConcept', () => {
       title: 'Glue',
       kind: null,
     })
+  })
+
+  it('gives a Concept another Kind, and takes its Kind away', async () => {
+    await addKind(db, 'glue', { slug: 'prd', name: 'PRD', slots: [] })
+
+    await updateConcept(db, 'glue', 'loop', { kind: 'brief' })
+    await updateConcept(db, 'glue', 'joints', { kind: 'prd' })
+    await updateConcept(db, 'glue', 'joints', { kind: null })
+    await updateConcept(db, 'glue', 'loop', { kind: 'prd' })
+
+    expect(
+      (await listConcepts()).map(({ slug, kind }) => [slug, kind]),
+    ).toEqual([
+      ['glue', null],
+      ['part-model', null],
+      ['joints', null],
+      ['loop', 'prd'],
+    ])
+  })
+
+  it('refuses a Kind that the Project does not have', async () => {
+    await expect(
+      updateConcept(db, 'glue', 'loop', { kind: 'prd' }),
+    ).rejects.toThrow(new InvalidRecordError('kind "prd" not found'))
   })
 
   it('refuses a Concept as its own ancestor, and keeps the tree', async () => {

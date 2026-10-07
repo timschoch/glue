@@ -49,6 +49,7 @@ function renderPanel(props: Partial<ContractPanelProps> = {}) {
       versions={VERSIONS}
       ahead={false}
       blocking={[]}
+      emptySlots={[]}
       versionHref={(version) => `#version-${version}`}
       onSignOff={onSignOff}
       {...props}
@@ -133,6 +134,37 @@ describe('the Contract of a Concept', () => {
     ).toBeTruthy()
   })
 
+  it('shows the empty required slots as dashed chips above a sign-off that is not available', () => {
+    const { panel } = renderPanel({
+      ahead: true,
+      emptySlots: ['metric', 'guardrail'],
+    })
+
+    const chips = within(
+      panel.getByRole('list', { name: 'Empty slots' }),
+    ).getAllByRole('listitem')
+    const action = panel.getByRole<HTMLButtonElement>('button', {
+      name: 'Sign off',
+    })
+
+    expect(chips.map((chip) => chip.textContent)).toEqual([
+      'Metric',
+      'Guardrail',
+    ])
+    expect(border(chips[0])).toContain('dashed')
+    expect(action.disabled).toBe(true)
+    expect(
+      chips[1].compareDocumentPosition(action) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('has no list of empty slots when each required slot is filled', () => {
+    const { panel } = renderPanel({ ahead: true })
+
+    expect(panel.queryByRole('list', { name: 'Empty slots' })).toBeNull()
+  })
+
   it('shows why a sign-off failed', () => {
     const { panel } = renderPanel({
       ahead: true,
@@ -164,10 +196,11 @@ const CONTRACT: ContractVersionViewProps['contract'] = {
   ],
   tier2: [{ id: 'G2', type: 'goal', title: 'First bake feels easy', body: '' }],
   slots: [
-    { type: 'insight', filled: false },
-    { type: 'goal', filled: true },
-    { type: 'metric', filled: false },
-    { type: 'flow', filled: true },
+    { type: 'insight', required: true, filled: false },
+    { type: 'goal', required: true, filled: true },
+    { type: 'decision', required: false, filled: false },
+    { type: 'metric', required: true, filled: false },
+    { type: 'flow', required: true, filled: true },
   ],
 }
 
@@ -222,7 +255,7 @@ describe('a Contract Version', () => {
     expect(screen.queryByRole('link')).toBeNull()
   })
 
-  it('shows the empty slots of a Brief as dashed chips', () => {
+  it('shows the empty required slots of a Brief as dashed chips', () => {
     renderVersion()
 
     const slots = within(screen.getByRole('list', { name: 'Empty slots' }))

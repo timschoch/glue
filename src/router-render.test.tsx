@@ -2735,3 +2735,135 @@ describe('an Ask to another Project', () => {
     await waitFor(() => expect(steps()).toEqual([true, true]))
   })
 })
+
+describe('the Kinds of a Project', () => {
+  const main = () => within(screen.getByRole('main'))
+  const kindSelect = () => main().getByRole('combobox', { name: 'Kind' })
+  const slotSelect = (type: string) =>
+    within(main().getByRole('group', { name: type })).getByRole('combobox')
+
+  it('adds a Concept of the Kind that the form picks', async () => {
+    const { expectAddress, server } = await renderPage(
+      '/glue/part-model?add=concept',
+    )
+
+    await userEvent.type(field('Title'), 'Write model')
+    await userEvent.selectOptions(kindSelect(), 'PRD')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/write-model')
+    expect(server.addConcept).toHaveBeenCalledWith({
+      project: 'glue',
+      concept: {
+        slug: 'write-model',
+        title: 'Write model',
+        parent: 'part-model',
+        kind: 'prd',
+      },
+    })
+  })
+
+  it('gives a Concept another Kind, then reads the Concept again', async () => {
+    const { server } = await renderPage('/glue/part-model')
+
+    expect(kindSelect()).toHaveProperty('value', 'brief')
+
+    await userEvent.selectOptions(kindSelect(), 'PRD')
+
+    expect(server.updateConcept).toHaveBeenCalledWith({
+      project: 'glue',
+      concept: 'part-model',
+      change: { kind: 'prd' },
+    })
+    await waitFor(() => expect(server.fetchConcept).toHaveBeenCalledTimes(2))
+  })
+
+  it('adds a Kind with its slots, then shows the Concept again', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model')
+
+    await userEvent.click(button('Add Kind'))
+    await expectAddress('/glue/part-model', { add: 'kind' })
+    await userEvent.type(field('Name'), 'Tech spec')
+    await userEvent.selectOptions(slotSelect('Entity'), 'Required')
+    await userEvent.selectOptions(slotSelect('Goal'), 'Optional')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/part-model')
+    expect(server.addKind).toHaveBeenCalledWith({
+      project: 'glue',
+      kind: {
+        slug: 'tech-spec',
+        name: 'Tech spec',
+        slots: [
+          { type: 'goal', required: false, minCount: 1 },
+          { type: 'entity', required: true, minCount: 1 },
+        ],
+      },
+    })
+  })
+
+  it('changes the slots of the Kind of the Concept', async () => {
+    const { expectAddress, server } = await renderPage('/glue/part-model')
+
+    await userEvent.click(button('Edit Kind'))
+    await expectAddress('/glue/part-model', { kind: 'brief' })
+
+    expect(field('Name')).toHaveProperty('value', 'Brief')
+
+    await userEvent.selectOptions(slotSelect('Metric'), 'Required')
+    await userEvent.selectOptions(slotSelect('Insight'), 'No slot')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/part-model')
+    expect(server.updateKind).toHaveBeenCalledWith({
+      project: 'glue',
+      kind: 'brief',
+      change: {
+        name: 'Brief',
+        slots: [
+          { type: 'goal', required: true, minCount: 1 },
+          { type: 'decision', required: true, minCount: 1 },
+          { type: 'metric', required: true, minCount: 1 },
+        ],
+      },
+    })
+  })
+
+  it('shows why a Kind was not saved, and keeps the form', async () => {
+    const { expectAddress } = await renderPage('/glue/part-model?add=kind', {
+      addKind: vi.fn(() =>
+        Promise.resolve({ message: 'kind "prd" exists already' }),
+      ),
+    })
+
+    await userEvent.type(field('Name'), 'PRD')
+    await userEvent.click(button('Save'))
+
+    await main().findByText('kind "prd" exists already')
+    await expectAddress('/glue/part-model', { add: 'kind' })
+  })
+
+  it('names the empty required slots of the Concept at a sign-off that is not available', async () => {
+    await renderPage('/glue/part-model', {
+      fetchContractState: vi.fn(() =>
+        Promise.resolve({
+          versions: [],
+          ahead: false,
+          blocking: [],
+          emptySlots: ['metric' as const],
+        }),
+      ),
+    })
+    const contract = within(screen.getByRole('region', { name: 'Contract' }))
+
+    expect(
+      within(contract.getByRole('list', { name: 'Empty slots' }))
+        .getAllByRole('listitem')
+        .map((chip) => chip.textContent),
+    ).toEqual(['Metric'])
+    expect(contract.getByRole('button', { name: 'Sign off' })).toHaveProperty(
+      'disabled',
+      true,
+    )
+  })
+})

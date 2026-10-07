@@ -1,6 +1,7 @@
 import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
+import { KindSelect } from '../design-system/kind-select.tsx'
 import { NameForm } from '../design-system/name-form.tsx'
 import { useProjectLinks } from './use-project-links.ts'
 import { useWrite } from './use-write.ts'
@@ -17,14 +18,16 @@ export function toSlug(name: string): string {
 
 // The form in the main window that adds a Concept below the open Concept,
 // or a Project. A Concept gets its slug from its title, a Project from its
-// name.
+// name. A Concept picks its Kind from the Kinds of the Project.
 export function NameFormScreen({ added }: { added: 'concept' | 'project' }) {
   const router = useRouter()
+  const { kinds } = projectRoute.useLoaderData().project
   const { addConcept, addProject } = projectRoute.useRouteContext()
   const { project, concept, search, conceptHref, changeSearch } =
     useProjectLinks()
   const { pending, failure, write } = useWrite()
   const [error, setError] = useState<string>()
+  const [kind, setKind] = useState<string | null>(null)
   const shared = {
     error,
     serverError: failure,
@@ -68,7 +71,15 @@ export function NameFormScreen({ added }: { added: 'concept' | 'project' }) {
         void write(
           'Saving',
           () =>
-            addConcept({ project, concept: { slug, title, parent: concept } }),
+            addConcept({
+              project,
+              concept: {
+                slug,
+                title,
+                parent: concept,
+                kind: kind ?? undefined,
+              },
+            }),
           (saved) =>
             router.navigate({
               href: conceptHref(saved.slug, {
@@ -78,6 +89,8 @@ export function NameFormScreen({ added }: { added: 'concept' | 'project' }) {
             }),
         )
       }}
-    />
+    >
+      <KindSelect kinds={kinds} value={kind} onChange={setKind} />
+    </NameForm>
   )
 }

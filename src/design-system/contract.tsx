@@ -36,6 +36,9 @@ export type ContractPanelProps = {
   ahead: boolean
   // The Parts without Trust solid: they block the sign-off.
   blocking: ReadonlyArray<ContractBlockingPart>
+  // The required slots of the Kind that are not filled: they block the
+  // sign-off too.
+  emptySlots: ReadonlyArray<PartType>
   versionHref: (version: number) => string
   onOpenVersion?: (
     version: number,
@@ -63,13 +66,29 @@ function SignedBy({ signedBy, signedAt }: ContractVersionRow) {
   )
 }
 
+// The empty slots as dashed chips, each with its Part type.
+function EmptySlots({ types }: { types: ReadonlyArray<PartType> }) {
+  if (types.length === 0) return null
+
+  return (
+    <ul aria-label="Empty slots" className={styles.emptySlots}>
+      {types.map((type) => (
+        <li key={type} className={styles.emptySlot}>
+          {partTypes[type]}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 // The Contract of a Concept: its Contract Versions as a list, the mark of a
-// Concept that is ahead, the Parts that block, and the one action. The
-// action is there when the Concept has something to sign.
+// Concept that is ahead, the Parts and the empty slots that block, and the
+// one action. The action is there when the Concept has something to sign.
 export function ContractPanel({
   versions,
   ahead,
   blocking,
+  emptySlots,
   versionHref,
   onOpenVersion,
   onOpenPart,
@@ -133,6 +152,7 @@ export function ContractPanel({
           </ul>
         </div>
       )}
+      <EmptySlots types={emptySlots} />
       {failure && (
         <InlineNotification
           lowContrast
@@ -146,7 +166,7 @@ export function ContractPanel({
         <Button
           size="md"
           className={styles.action}
-          disabled={blocking.length > 0}
+          disabled={blocking.length > 0 || emptySlots.length > 0}
           onClick={onSignOff}
         >
           Sign off
@@ -167,7 +187,8 @@ export type ContractVersionViewProps = {
   contract: ContractVersionRow & {
     // The title of the Concept.
     title: string
-    kind: 'brief' | null
+    // The slug of its Kind.
+    kind: string | null
     // A higher number than `version`: this Version is superseded.
     newestVersion: number
     // What a coding agent reads.
@@ -175,7 +196,11 @@ export type ContractVersionViewProps = {
     // The why.
     tier2: ReadonlyArray<ContractFrozenPart>
     // One slot per Part type of the Kind.
-    slots: ReadonlyArray<{ type: PartType; filled: boolean }>
+    slots: ReadonlyArray<{
+      type: PartType
+      required: boolean
+      filled: boolean
+    }>
   }
   newestHref: string
   onOpenNewest?: (event: MouseEvent<HTMLAnchorElement>) => void
@@ -221,7 +246,9 @@ export function ContractVersionView({
   newestHref,
   onOpenNewest,
 }: ContractVersionViewProps) {
-  const emptySlots = contract.slots.filter(({ filled }) => !filled)
+  const emptySlots = contract.slots
+    .filter(({ required, filled }) => required && !filled)
+    .map(({ type }) => type)
 
   return (
     <div className={styles.view}>
@@ -242,15 +269,7 @@ export function ContractVersionView({
             </Link>
           </div>
         )}
-        {emptySlots.length > 0 && (
-          <ul aria-label="Empty slots" className={styles.emptySlots}>
-            {emptySlots.map(({ type }) => (
-              <li key={type} className={styles.emptySlot}>
-                {partTypes[type]}
-              </li>
-            ))}
-          </ul>
-        )}
+        <EmptySlots types={emptySlots} />
       </header>
       <Tier title="Tier 1" parts={contract.tier1} />
       <Tier title="Tier 2" parts={contract.tier2} />
