@@ -13,8 +13,13 @@ import {
 } from '../src/db/asks.ts'
 import type { Ask, AskKind } from '../src/db/asks.ts'
 import { listBuilds } from '../src/db/builds.ts'
+import {
+  answerContractQuestion,
+  askContractQuestion,
+  listContractQuestions,
+} from '../src/db/contract-questions.ts'
 import { findContract, signContract } from '../src/db/contracts.ts'
-import type { FrozenPart } from '../src/db/contracts.ts'
+import type { ContractQuestion, FrozenPart } from '../src/db/contracts.ts'
 import { listLeveledParts } from '../src/db/flight-level.ts'
 import type { LeveledPart } from '../src/db/flight-level.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
@@ -592,6 +597,9 @@ function formatHelp() {
     'pnpm concept kind set <slug> [--name <name>] [--required <slots>] [--optional <slots>]',
     'pnpm concept contract show <concept> [--version <number>]',
     'pnpm concept contract sign <concept> --owner <name>',
+    'pnpm concept contract ask <concept> --question <text> --by <name> [--version <number>]',
+    'pnpm concept contract answer <question number> --text <text> --by <name>',
+    'pnpm concept contract questions <concept>',
     'pnpm concept joint add <id> <needed id> [--two-way]',
     'pnpm concept joint add <id> <project>/<needed id>',
     'pnpm concept joint remove <id> <needed id>',
@@ -641,7 +649,9 @@ function formatHelp() {
     'A Kind lists the slots that a Concept of it fills. <slots> takes record types with commas between them, and a least count after a colon: goal,flow:2 is a Goal and two Flows.',
     'kind set with --required or --optional gives the Kind these slots in place of its old ones. concept set --kind "" takes the Kind away.',
     'contract sign freezes the records of a Concept as its next Contract Version. Each record needs Trust solid, and each required slot of the Kind needs its records.',
-    'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
+    'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why), then the questions of builders that have an answer.',
+    'contract ask asks a question about a Contract Version as a builder: the newest Version, or the one of --version. The member who is Responsible for the Concept answers it with contract answer. A question about an old Version is stale.',
+    'contract questions lists the questions of a Concept with their answers, the newest first.',
     'mine with --member: the records of the member, and the records that nobody has.',
     'ask asks another Project to check an Insight of the level hunch. The Project must be one that this Project may reference. It prints the number of the Ask.',
     'ask with --kind decision asks for a Decision. <id> is the record that waits for it: each record that is not sunk. --question is what the member wants to know.',
@@ -1160,14 +1170,38 @@ function formatFrozenPart({ id, type, title }: FrozenPart) {
   return [id, type, title].join('  ')
 }
 
+// A question about a Contract Version, and its answer on the next line. A
+// question with no answer is open.
+function printContractQuestion(question: ContractQuestion) {
+  const { id, concept, version, stale, askedBy, askedAt, text, answer } =
+    question
+  console.log(
+    [
+      `Q${id}`,
+      `${concept}@${version}`,
+      stale && 'stale',
+      `${askedBy} ${askedAt.slice(0, 10)}: ${text}`,
+    ]
+      .filter(Boolean)
+      .join('  '),
+  )
+  console.log(
+    answer
+      ? `  ${answer.by} ${answer.at.slice(0, 10)}: ${answer.text}`
+      : '  open',
+  )
+}
+
 // `contract sign <concept> --owner <name>` signs off the Concept and prints
 // the new Contract Version as `<concept>@<version>`: what a PR names in its
 // `Contract:` line. `contract show <concept>` prints the newest Version, or
 // the one of `--version`.
 async function handleContractCommand(
   db: ConceptDb,
-  [command, concept, ...rest]: string[],
+  [command, ...rest]: string[],
 ) {
+  // The word after the command, when it is no flag.
+  const concept = rest[0]?.startsWith('--') ? undefined : rest[0]
   const flags = parseFlags(rest)
   const project = await readProject(db, flags)
   switch (command) {
@@ -1181,6 +1215,7 @@ async function handleContractCommand(
       return
     }
     case 'show': {
+      if (!concept) throw new Error('contract show needs <concept>')
       const sent = flags.version as string | undefined
       const version = sent === undefined ? undefined : Number(sent)
       const contract = await findContract(db, project, concept, version)
@@ -1209,6 +1244,48 @@ async function handleContractCommand(
       for (const part of contract.tier1) console.log(formatFrozenPart(part))
       console.log('tier 2')
       for (const part of contract.tier2) console.log(formatFrozenPart(part))
+      if (contract.questions.length > 0) console.log('questions')
+      contract.questions.forEach(printContractQuestion)
+      return
+    }
+    case 'ask': {
+      const text = flags.question as string | undefined
+      const askedBy = flags.by as string | undefined
+      const sent = flags.version as string | undefined
+      if (!concept || !text || !askedBy) {
+        throw new Error('contract ask needs <concept>, --question and --by')
+      }
+      printContractQuestion(
+        await askContractQuestion(db, project, concept, {
+          text,
+          askedBy,
+          version: sent === undefined ? undefined : Number(sent),
+        }),
+      )
+      return
+    }
+    case 'answer': {
+      const text = flags.text as string | undefined
+      const answeredBy = flags.by as string | undefined
+      // The second word is the number of the question here.
+      const questionId = Number(concept)
+      if (!Number.isInteger(questionId) || !text || !answeredBy) {
+        throw new Error(
+          'contract answer needs <question number>, --text and --by',
+        )
+      }
+      printContractQuestion(
+        await answerContractQuestion(db, project, questionId, {
+          text,
+          answeredBy,
+        }),
+      )
+      return
+    }
+    case 'questions': {
+      if (!concept) throw new Error('contract questions needs <concept>')
+      const questions = await listContractQuestions(db, project, concept)
+      questions.forEach(printContractQuestion)
       return
     }
     default:

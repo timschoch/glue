@@ -1,0 +1,82 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The longest line of a text: the width of two cards.
+$text-width: $spacing-13 * 4;
+
+// The title, the field of a new question and the list belong together.
+.group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-03;
+}
+
+.title {
+  @include type-style('heading-compact-02');
+
+  color: $text-primary;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  max-inline-size: $text-width;
+}
+
+// One question: its signs, its text, then its answer or the field of it.
+.question {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border-block-end: 1px solid $border-subtle-01;
+  gap: $spacing-03;
+  padding-block: $spacing-05;
+}
+
+// The Concept, the Version, the stale mark, who and when.
+.signs {
+  @include type-style('label-01');
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  color: $text-secondary;
+  gap: $spacing-02 $spacing-05;
+}
+
+// The same mark as a stale build.
+.stale {
+  color: $text-primary;
+}
+
+.text {
+  @include type-style('body-01');
+
+  color: $text-primary;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+// The answer is below its question, one step in.
+.answer {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+  padding-inline-start: $spacing-05;
+}
+
+// A field with its button below it. The text area fills the field.
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  inline-size: 100%;
+  max-inline-size: $text-width;
+}
+
+.send {
+  align-self: flex-start;
+}

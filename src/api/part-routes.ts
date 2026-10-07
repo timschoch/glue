@@ -13,6 +13,12 @@ import {
 } from './ask-api.ts'
 import { handleGetContract, handleSignContract } from './contract-api.ts'
 import {
+  handleAnswerContractQuestion,
+  handleAskContractQuestion,
+  handleListContractQuestions,
+  handleListMineContractQuestions,
+} from './contract-question-api.ts'
+import {
   handleAddConcept,
   handleAddJoint,
   handleAddKind,
@@ -50,6 +56,7 @@ type PathParams = {
   kind?: string
   jointId?: string
   askId?: string
+  questionId?: string
 } & ({ project: string } | { product: string })
 
 type RouteRequest = { request: Request; params: PathParams }
@@ -99,6 +106,22 @@ export const kindHandlers = {
 export const contractHandlers = {
   GET: (route: RouteRequest) => handleGetContract(toApiRequest(route)),
   POST: (route: RouteRequest) => handleSignContract(toApiRequest(route)),
+}
+
+export const conceptQuestionsHandlers = {
+  GET: (route: RouteRequest) =>
+    handleListContractQuestions(toApiRequest(route)),
+  POST: (route: RouteRequest) => handleAskContractQuestion(toApiRequest(route)),
+}
+
+export const questionsHandlers = {
+  GET: (route: RouteRequest) =>
+    handleListMineContractQuestions(toApiRequest(route)),
+}
+
+export const questionHandlers = {
+  PATCH: (route: RouteRequest) =>
+    handleAnswerContractQuestion(toApiRequest(route)),
 }
 
 export const partsHandlers = {

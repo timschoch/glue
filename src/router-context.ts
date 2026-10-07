@@ -106,6 +106,16 @@ export function createRouterContext(
         server.fetchContract(contract),
         `/${contract.project}/${contract.concept}/contract/${contract.version}`,
       ),
+    fetchContractQuestions: (concept) =>
+      keepSignInTarget(
+        server.fetchContractQuestions(concept),
+        conceptPath(concept),
+      ),
+    fetchMineContractQuestions: (project) =>
+      keepSignInTarget(
+        server.fetchMineContractQuestions(project),
+        `/${project}`,
+      ),
     fetchSignals: (project) =>
       keepSignInTarget(server.fetchSignals(project), `/${project}`),
     fetchBuilds: (...read) =>

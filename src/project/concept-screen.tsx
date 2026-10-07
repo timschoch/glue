@@ -10,6 +10,7 @@ import type {
   Part,
   PartSummary,
 } from '../db/parts.ts'
+import type { ContractQuestion } from '../db/contract-questions.ts'
 import type { ContractState } from '../db/contracts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
 import { partTypes } from '../design-system/card.tsx'
@@ -21,6 +22,7 @@ import { SectionView } from '../design-system/section-view.tsx'
 import { Signals } from '../design-system/signals.tsx'
 import { AssigneesControl } from './assignees-control.tsx'
 import { findConceptFlow } from './common-flow.ts'
+import { ContractQuestionsSection } from './contract-questions-section.tsx'
 import type { NextStep } from './common-flow.ts'
 import { ContractSection, useVersionHref } from './contract-screen.tsx'
 import { KindFormScreen } from './kind-form-screen.tsx'
@@ -50,7 +52,8 @@ function listSlugs(concepts: ReadonlyArray<ConceptNode>): Array<string> {
 // of the Project too, and the section Build its builds. The section Use
 // shows its Metrics and its measured Goals, each with its newest value
 // against its target. The section Mine shows the Parts that need the owner,
-// and the Parts that the person watches. The section People shows the
+// the open questions that the person answers, and the Parts that the person
+// watches. The section People shows the
 // members of the Project. The form that the address names takes the place of
 // the screen: a new Part, a new Concept, a new Project, or a Kind. So does
 // the form of the Insight that grows from the picked Signals. The Map keeps the lens of the section.
@@ -61,9 +64,13 @@ export function ConceptScreen({
   builds,
   mapJoints,
   panelPart,
+  questions,
 }: {
   concept: Concept
   contract: ContractState
+  // The questions about the Contract Versions of the Concept. None: the
+  // Concept has no Version, or a section is open.
+  questions?: ReadonlyArray<ContractQuestion>
   signals?: ProjectSignals
   // In the section Build: the builds of the Project. With no section: the
   // builds that name the Contract of the Concept.
@@ -82,6 +89,7 @@ export function ConceptScreen({
     asks,
     watched,
     measured,
+    questions: mineQuestions,
   } = projectRoute.useLoaderData()
   const {
     updateConcept,
@@ -308,7 +316,11 @@ export function ConceptScreen({
               .join('\n') || undefined,
         }))}
         onOpen={({ href }, event) => open(href, event)}
-      />
+      >
+        {mineQuestions.length > 0 && (
+          <ContractQuestionsSection questions={mineQuestions} />
+        )}
+      </PartCards>
     )
   }
   const types = lensTypes(search.section)
@@ -434,7 +446,15 @@ export function ConceptScreen({
         (contract.versions.length > 0 ||
           contract.blocking.length > 0 ||
           contract.emptySlots.length > 0) && (
-          <ContractSection contract={contract} builds={builds?.builds} />
+          <>
+            <ContractSection contract={contract} builds={builds?.builds} />
+            {questions && (
+              <ContractQuestionsSection
+                questions={questions}
+                asked={concept.slug}
+              />
+            )}
+          </>
         )
       }
       assignees={<AssigneesControl target={{ concept: concept.slug }} />}

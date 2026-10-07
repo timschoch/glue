@@ -1,6 +1,6 @@
 import { InlineLoading, InlineNotification } from '@carbon/react'
 import { useId, useState } from 'react'
-import type { MouseEvent } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 
 import { Card } from './card.tsx'
 import type {
@@ -66,6 +66,8 @@ export type PartCardsProps = {
   // The Parts that the person watches, in a group of their own.
   watched?: ReadonlyArray<PartCardsPart>
   onOpen?: (part: PartCardsPart, event: MouseEvent<HTMLAnchorElement>) => void
+  // What else needs the person and is no Part. It comes after the Asks.
+  children?: ReactNode
 }
 
 function Cards({
@@ -166,8 +168,8 @@ function Asks({
 
 // Parts of mixed types from the whole Project in the main window: the title
 // and one card per Part, with its Work state and its home Concept. Each card
-// opens its record. The Asks come first, the watched Parts last, each group
-// below its own title.
+// opens its record. The Asks come first, then the children, the watched
+// Parts last, each group below its own title.
 export function PartCards({
   title,
   parts,
@@ -176,9 +178,10 @@ export function PartCards({
   error,
   watched = [],
   onOpen,
+  children,
 }: PartCardsProps) {
   const watchedId = useId()
-  const empty = asks.length + parts.length + watched.length === 0
+  const empty = asks.length + parts.length + watched.length === 0 && !children
 
   return (
     <div className={styles.list}>
@@ -187,6 +190,7 @@ export function PartCards({
       {asks.length > 0 && (
         <Asks asks={asks} pending={pending} error={error} onOpen={onOpen} />
       )}
+      {children}
       {parts.length > 0 && <Cards parts={parts} onOpen={onOpen} />}
       {watched.length > 0 && (
         <section className={styles.group}>

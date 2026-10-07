@@ -5,9 +5,17 @@ import {
   submitSignOut,
   submitSignUp,
 } from './authentication/session.functions.ts'
+import type {
+  ContractQuestionAnswerInput,
+  ContractQuestionAskInput,
+} from './db/contract-actions.ts'
 import {
   fetchContract,
+  fetchContractQuestions,
   fetchContractState,
+  fetchMineContractQuestions,
+  submitAnswerContractQuestion,
+  submitAskContractQuestion,
   submitSignContract,
 } from './db/contracts.functions.ts'
 import type { BuildsNamed } from './db/builds.ts'
@@ -142,6 +150,18 @@ export const server = {
   // The person of the session signs.
   signContract: (concept: ConceptInput) =>
     submitSignContract({ data: concept }),
+  // The questions about the Contract Versions of the Concept, the newest
+  // first.
+  fetchContractQuestions: (concept: ConceptInput) =>
+    fetchContractQuestions({ data: concept }),
+  // The open questions that the person answers.
+  fetchMineContractQuestions: (project: string) =>
+    fetchMineContractQuestions({ data: { project } }),
+  // The person of the session asks about the newest Version, and answers.
+  askContractQuestion: (question: ContractQuestionAskInput) =>
+    submitAskContractQuestion({ data: question }),
+  answerContractQuestion: (answer: ContractQuestionAnswerInput) =>
+    submitAnswerContractQuestion({ data: answer }),
   addMember: (member: MemberAddInput) => submitAddMember({ data: member }),
   setLoopSteps: (loopSteps: LoopStepsInput) =>
     submitSetLoopSteps({ data: loopSteps }),
