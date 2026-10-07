@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.23.0](https://github.com/timschoch/glue/compare/v1.22.0...v1.23.0) (2026-10-07)
+
+
+### Features
+
+* **contract:** ask a question about a Contract Version ([#349](https://github.com/timschoch/glue/issues/349)) ([49436aa](https://github.com/timschoch/glue/commit/49436aa7285abc620525c720948857cf3207053c))
+* **insights:** change the Evidence level of an Insight through steps ([#350](https://github.com/timschoch/glue/issues/350)) ([7ebc000](https://github.com/timschoch/glue/commit/7ebc000d274151ed446b75c8fd7023da7611f806))
+
 ## [1.22.0](https://github.com/timschoch/glue/compare/v1.21.0...v1.22.0) (2026-10-07)
 
 
