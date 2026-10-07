@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.0](https://github.com/timschoch/glue/compare/v1.26.0...v1.27.0) (2026-10-07)
+
+
+### Features
+
+* **asks:** start a study Concept for an Ask ([#371](https://github.com/timschoch/glue/issues/371)) ([c125dde](https://github.com/timschoch/glue/commit/c125dde6af4199c23f6bee1f0e14c4d6eba93bcf)), closes [#367](https://github.com/timschoch/glue/issues/367)
+
 ## [1.26.0](https://github.com/timschoch/glue/compare/v1.25.1...v1.26.0) (2026-10-07)
 
 
