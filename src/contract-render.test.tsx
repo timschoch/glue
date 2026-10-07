@@ -172,6 +172,7 @@ describe('the common flow of a Concept', () => {
               gate: {
                 result: 'holds' as const,
                 reasons: [],
+                guardrails: [],
                 checkedAt: '2026-10-05T09:00:00.000Z',
               },
             },

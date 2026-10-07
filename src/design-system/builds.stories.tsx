@@ -33,6 +33,7 @@ const meta = {
         contract: null,
         stale: false,
         gate: 'holds',
+        guardrails: [],
       },
       {
         number: 191,
@@ -43,6 +44,26 @@ const meta = {
         contract: { title: 'Part model', version: 2, href: '#' },
         stale: true,
         gate: 'breaks',
+        guardrails: [
+          {
+            id: 'R3',
+            title: 'Each build names its Decision',
+            href: '#',
+            state: 'passed',
+          },
+          {
+            id: 'R4',
+            title: 'A source change comes with a test change',
+            href: '#',
+            state: 'failed',
+          },
+          {
+            id: 'R6',
+            title: 'No text that describes the UI',
+            href: '#',
+            state: 'by-person',
+          },
+        ],
       },
       {
         number: 187,
@@ -53,6 +74,7 @@ const meta = {
         contract: null,
         stale: false,
         gate: null,
+        guardrails: [],
       },
     ],
   },

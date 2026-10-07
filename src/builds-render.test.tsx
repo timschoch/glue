@@ -66,6 +66,25 @@ describe('the builds of a Project', () => {
     ).toBe('/glue/part-model/contract/1?section=Build')
   })
 
+  it('shows in the section Build the Guardrails of a build with their states', async () => {
+    await renderPage('/glue?section=Build')
+
+    const list = within(screen.getByRole('region', { name: 'Builds' }))
+    const [open, old] = list.getAllByRole('listitem')
+    const guardrails = within(
+      within(old).getByRole('list', { name: 'Guardrails' }),
+    )
+
+    expect(guardrails.getAllByRole('listitem')).toHaveLength(1)
+    guardrails.getByRole('img', { name: 'Failed' })
+    expect(
+      guardrails
+        .getByRole('link', { name: 'R1 No query over 200ms' })
+        .getAttribute('href'),
+    ).toBe('/glue/read-model/R1?section=Build')
+    expect(within(open).queryByRole('list', { name: 'Guardrails' })).toBeNull()
+  })
+
   it('says why the section Build has no builds', async () => {
     await renderPage('/glue?section=Build', {
       fetchBuilds: vi.fn(() =>

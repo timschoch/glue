@@ -110,6 +110,7 @@ describe('POST /projects/{project}/gate', () => {
   async function validate(sent: unknown) {
     const response = await handleValidateBuild({
       db,
+      github,
       request: new Request('http://localhost/api/v1', {
         method: 'POST',
         headers: { authorization: `Bearer ${token}` },
@@ -140,6 +141,7 @@ describe('POST /projects/{project}/gate', () => {
       reasons: [
         'Decision "D7" does not exist. List them with `pnpm concept list decisions`.',
       ],
+      guardrails: [],
       checkedAt: '2026-10-05T08:00:00.000Z',
     })
   })

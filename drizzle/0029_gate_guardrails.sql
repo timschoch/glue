@@ -1,0 +1,1 @@
+ALTER TABLE "build_gates" ADD COLUMN "guardrails" jsonb DEFAULT '[]'::jsonb NOT NULL;

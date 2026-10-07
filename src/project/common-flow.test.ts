@@ -47,10 +47,16 @@ const published: Part = {
 
 const CHECKED_AT = '2026-10-05T09:00:00.000Z'
 
-const holds: Gate = { result: 'holds', reasons: [], checkedAt: CHECKED_AT }
+const holds: Gate = {
+  result: 'holds',
+  reasons: [],
+  guardrails: [],
+  checkedAt: CHECKED_AT,
+}
 const breaks: Gate = {
   result: 'breaks',
   reasons: ['Decision "D1" is sunk and has no successor.'],
+  guardrails: [],
   checkedAt: CHECKED_AT,
 }
 

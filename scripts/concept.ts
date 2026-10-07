@@ -80,7 +80,7 @@ import { listSignals } from '../src/db/signals.ts'
 import { createSignalSources } from '../src/signals/signal-sources.server.ts'
 import { evidenceTypes, isEvidence, partFields } from '../src/part-fields.ts'
 import type { PartField } from '../src/part-fields.ts'
-import { fetchGate } from './gate.ts'
+import { fetchGate, guardrailWords } from './gate.ts'
 
 const FLAG_TO_FIELD: Record<string, string> = {
   'analytics-project': 'analytics_project',
@@ -636,7 +636,7 @@ function formatHelp() {
     'signals groups lists the groups of Signals that say the same thing: the sources, then the addresses. signals insight with the addresses of a group turns it into a Hunch.',
     'signals insight adds a draft Insight at the level hunch that grows from the Signals. Without --title it takes the title of the newest Signal.',
     'builds lists the pull requests of the repository of the Project, each with the Decisions or the Contract Version that it names. stale: the Contract Version is old, or a Decision is sunk.',
-    'gate asks Glue over its HTTP API if the pull request of GITHUB_REPOSITORY names the newest Contract Version of its Concept, or Decisions that stand. Glue keeps the answer with the build. breaks exits 1. It needs GLUE_API_TOKEN and no database. The default Project is GLUE_PROJECT, then glue-build.',
+    'gate asks Glue over its HTTP API if the pull request of GITHUB_REPOSITORY names the newest Contract Version of its Concept, or Decisions that stand. Glue keeps the answer with the build. gate prints each Guardrail of the Contract Version with its state. A Guardrail with --enforced-by "check: <name>" takes the state of that check on the head commit of the pull request, and a check that failed breaks the build. breaks exits 1. It needs GLUE_API_TOKEN and no database. The default Project is GLUE_PROJECT, then glue-build.',
     'concept remove removes a Concept that holds nothing: no record, no Concept and no Contract Version. The root Concept stays.',
     'A Kind lists the slots that a Concept of it fills. <slots> takes record types with commas between them, and a least count after a colon: goal,flow:2 is a Goal and two Flows.',
     'kind set with --required or --optional gives the Kind these slots in place of its old ones. concept set --kind "" takes the Kind away.',
@@ -658,7 +658,8 @@ function formatHelp() {
 }
 
 // `gate --pr <number>` asks the gate of the Project if the pull request
-// holds. `breaks` prints the reasons and exits 1.
+// holds. It prints each Guardrail of the Contract Version with its state.
+// `breaks` prints the reasons and exits 1.
 async function handleGateCommand(
   args: string[],
   environment: Record<string, string | undefined>,
@@ -675,6 +676,9 @@ async function handleGateCommand(
     BUILD_PROJECT
   const gate = await fetchGate({ project, number }, environment, fetchApi)
   console.log(`#${number}  ${gate.result}`)
+  for (const { id, state, title } of gate.guardrails) {
+    console.log(`  ${id}  ${guardrailWords[state]}  ${title}`)
+  }
   for (const reason of gate.reasons) console.error(`  - ${reason}`)
   if (gate.result === 'breaks') process.exitCode = 1
 }

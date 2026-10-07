@@ -86,6 +86,35 @@ describe('pnpm concept gate', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('prints each Guardrail of the Contract Version with its state', async () => {
+    const guardrail = { concept: 'videos', enforcedBy: 'check: verify' }
+    const fetchApi = fakeFetch('Contract: videos@2', {
+      result: 'holds',
+      reasons: [],
+      guardrails: [
+        { ...guardrail, id: 'R1', title: 'Tests come first', state: 'passed' },
+        { ...guardrail, id: 'R2', title: 'No raw colour', state: 'waiting' },
+        {
+          id: 'R3',
+          title: 'No text that describes the UI',
+          concept: 'videos',
+          enforcedBy: 'interface-review at the merge gate',
+          state: 'by-person',
+        },
+      ],
+      checkedAt: '2026-10-05T08:00:00.000Z',
+    })
+
+    await main(['gate', '--pr', '12'], undefined, environment, fetchApi)
+
+    expect(log.mock.calls).toEqual([
+      ['#12  holds'],
+      ['  R1  passed  Tests come first'],
+      ['  R2  waiting  No raw colour'],
+      ['  R3  by a person  No text that describes the UI'],
+    ])
+  })
+
   it('fails when the gate fails, and names the status', async () => {
     const fetchApi = vi.fn<typeof fetch>(async (url) =>
       String(url).startsWith('https://api.github.com/')
