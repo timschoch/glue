@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.0](https://github.com/timschoch/glue/compare/v1.24.0...v1.25.0) (2026-10-07)
+
+
+### Features
+
+* **signals:** read social and market Signals and save filters ([#358](https://github.com/timschoch/glue/issues/358)) ([ee575bf](https://github.com/timschoch/glue/commit/ee575bfab59e3f811ba9866f0427ad72240e1b4a)), closes [#356](https://github.com/timschoch/glue/issues/356)
+
 ## [1.24.0](https://github.com/timschoch/glue/compare/v1.23.0...v1.24.0) (2026-10-07)
 
 
