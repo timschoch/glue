@@ -24,7 +24,33 @@ export default [
             'Take `pending` and `failure` from useWrite() by name: a write shows that it runs and why it failed (glue-build/D55).',
         },
       ],
+      // A screen cannot go around useWrite(): it starts no write itself
+      // and calls no server function. The same test.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: 'use-write\\.ts$',
+              importNames: ['startWrite'],
+              message:
+                'Take useWrite(): it starts the write and shows that it runs and why it failed (glue-build/D55).',
+            },
+            {
+              regex: '\\.functions\\.ts$',
+              message:
+                'Take the write from the router context and give it to useWrite() (glue-build/D55).',
+            },
+          ],
+        },
+      ],
     },
+  },
+  {
+    // The router context makes each write from its server function, and its
+    // test starts a write.
+    files: ['src/router-server.ts', 'src/router.test.ts'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   {
     ignores: [

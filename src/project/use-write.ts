@@ -32,7 +32,8 @@ export function startWrite<TDone>(write: Write<TDone>): Promise<TDone> {
 // `failure` says why the last one did not happen, and `failurePlace` at
 // which field of the form, when the server names one. After a write that
 // worked, `onDone` opens the next screen, then each screen loads again.
-// `unavailable` says that the server gave no answer.
+// `unavailable` says that the server gave no answer. `clearFailure` forgets
+// the failure: the form stopped the next write and shows its own reason.
 export function useWrite(unavailable = UNAVAILABLE) {
   const router = useRouter()
   const [pending, setPending] = useState<string>()
@@ -72,10 +73,13 @@ export function useWrite(unavailable = UNAVAILABLE) {
     [router, unavailable],
   )
 
+  const clearFailure = useCallback(() => setFailure(undefined), [])
+
   return {
     pending,
     failure: failure?.message,
     failurePlace: failure?.place,
+    clearFailure,
     write,
   }
 }

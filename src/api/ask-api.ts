@@ -71,7 +71,7 @@ export const askInputSchema = newAskSchema
   .extend({
     askedBy: z.string().trim().min(1).optional().meta({
       description:
-        'The e-mail address of the member of this Project who asks. Only this member takes the Ask back',
+        'The e-mail address of the member of this Project who asks. Only this member takes the Ask back. A token with a member asks as that member',
     }),
   })
   .meta({ id: 'AskInput' })
@@ -115,11 +115,13 @@ export function handleListAsks(input: ApiRequest) {
   })
 }
 
+// A token with a member asks as that member: the e-mail address in the
+// body does not count.
 export function handleAddAsk(input: ApiRequest) {
-  return handleApiRequest(input, async () => {
+  return handleApiRequest(input, async (member) => {
     const { db, request, params } = input
     const { askedBy, ...ask } = askInputSchema.parse(await parseJson(request))
-    const id = await addAsk(db, params.project, ask, askedBy)
+    const id = await addAsk(db, params.project, ask, member?.email ?? askedBy)
     return Response.json({ id }, { status: 201 })
   })
 }
@@ -154,21 +156,24 @@ export function handleUpdateAsk(input: ApiRequest) {
 }
 
 export const askTakeBackQuerySchema = z.object({
-  member: z.string().trim().min(1).meta({
+  member: z.string().trim().min(1).optional().meta({
     description:
-      'The e-mail address of the member who asked. An Ask that names no such member: a member who has the Part that waits, or each member when nobody has it',
+      'The e-mail address of the member who asked. An Ask that names no such member: a member who has the Part that waits, or each member when nobody has it. A token with a member takes the Ask back as that member. A token of no member needs it',
   }),
 })
 
-// The member who asked takes the Ask back.
+// The member who asked takes the Ask back. A token with a member takes it
+// back as that member: the e-mail address in the address does not count.
 export function handleRemoveAsk(input: ApiRequest) {
-  return handleApiRequest(input, async () => {
+  return handleApiRequest(input, async (member) => {
     const { db, request, params } = input
     const askId = parseAskId(params)
-    const { member } = askTakeBackQuerySchema.parse(
-      Object.fromEntries(new URL(request.url).searchParams),
-    )
-    await takeBackAsk(db, params.project, askId, member)
+    const email =
+      member?.email ??
+      askTakeBackQuerySchema
+        .required()
+        .parse(Object.fromEntries(new URL(request.url).searchParams)).member
+    await takeBackAsk(db, params.project, askId, email)
     return new Response(null, { status: 204 })
   })
 }

@@ -85,6 +85,9 @@ export function Assignees({
             <SelectItem key={member.id} value={member.id} text={member.name} />
           ))}
         </Select>
+        {pending !== undefined && (
+          <InlineLoading description={pending} className={styles.pending} />
+        )}
       </div>
       {members.length > (responsible === null ? 0 : 1) && (
         <CheckboxGroup legendText="Co-Authors" orientation="horizontal">
@@ -107,7 +110,6 @@ export function Assignees({
             ))}
         </CheckboxGroup>
       )}
-      {pending !== undefined && <InlineLoading description={pending} />}
       {error !== undefined && (
         <InlineNotification
           kind="error"

@@ -36,6 +36,9 @@ export const Nobody: Story = { args: { responsible: null, coAuthors: [] } }
 
 export const ReadOnly: Story = { args: { onChange: undefined } }
 
+// A change that is not saved yet.
+export const Saving: Story = { args: { pending: 'Saving' } }
+
 export const WithError: Story = {
   args: { error: 'Only a member of the Project can change it.' },
 }

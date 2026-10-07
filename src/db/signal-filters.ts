@@ -2,7 +2,6 @@
 // saves a filter with a name. Each member of the Project sees it beside the
 // source filters. The rule of a filter: signal-filter-rule.ts.
 import { and, asc, eq } from 'drizzle-orm'
-import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
 import { getProjectId } from './projects.ts'
@@ -18,13 +17,15 @@ const { signalFilters } = schema
 
 export type SignalFilter = SignalFilterRule & { id: number; name: string }
 
-// The filter of a write, or the refusal with the field of its first reason.
+// The filter of a write, or the refusal with its first reason and the field
+// of that reason.
 function parseFilter(input: NewSignalFilter) {
   const parsed = signalFilterSchema.safeParse(input)
   if (!parsed.success) {
-    const [field] = parsed.error.issues[0].path
+    const { message, path } = parsed.error.issues[0]
+    const [field] = path
     throw new InvalidRecordError(
-      z.prettifyError(parsed.error),
+      message,
       typeof field === 'string' ? { field } : undefined,
     )
   }

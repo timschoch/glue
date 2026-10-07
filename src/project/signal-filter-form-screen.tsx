@@ -31,7 +31,7 @@ export function SignalFilterFormScreen({
   const { addSignalFilter, updateSignalFilter, removeSignalFilter } =
     projectRoute.useRouteContext()
   const { project } = useProjectLinks()
-  const { pending, failure, failurePlace, write } = useWrite()
+  const { pending, failure, failurePlace, clearFailure, write } = useWrite()
   const [errors, setErrors] = useState<SignalFilterFormProps['errors']>({})
   // The server names the field that it refused: the reason shows there.
   const failedField = signalFilterFormFields.find(
@@ -61,7 +61,10 @@ export function SignalFilterFormScreen({
           ...(isTaken && { name: 'A filter has this name already.' }),
         }
         setErrors(problems)
-        if (Object.keys(problems).length > 0) return
+        if (Object.keys(problems).length > 0) {
+          clearFailure()
+          return
+        }
         void write(
           'Saving',
           () =>

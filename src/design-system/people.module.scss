@@ -29,8 +29,20 @@ $card-width: $spacing-13 * 2;
 }
 
 .responsible {
+  position: relative;
   inline-size: $card-width;
   max-inline-size: 100%;
+}
+
+// The words of a write that runs: on the line of the label, at its end.
+// They take no room, so nothing below moves.
+.pending {
+  position: absolute;
+  block-size: $spacing-05;
+  inline-size: auto;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  min-block-size: 0;
 }
 
 // A label with its value, for a person who reads only.

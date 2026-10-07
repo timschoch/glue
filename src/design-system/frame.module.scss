@@ -52,10 +52,17 @@ $pinned-breakpoint: 'lg';
   align-self: flex-start;
 }
 
-// The words of the sign-out that runs start where the words of the button
-// start.
+// The words of the sign-out that runs are beside its button.
 .signOutPending {
-  padding-inline: $spacing-05;
+  display: inline-flex;
+  inline-size: auto;
+  vertical-align: top;
+}
+
+// The failure of the sign-out is as wide as the panel: its close button
+// stays in the panel.
+.signOutFailure {
+  min-inline-size: 0;
 }
 
 // The trail row: the trail at the start, the count of pins at the end.

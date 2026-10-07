@@ -3,6 +3,7 @@
 // The module reads no database: the server and the screen use the same rule.
 import { z } from 'zod'
 
+import { sourceNames } from '../signals/signal-sources.ts'
 import { groupSignals } from './signal-groups.ts'
 import type { SignalGroup } from './signal-groups.ts'
 import type { Signal } from './signals.ts'
@@ -16,31 +17,32 @@ export type SignalFilterRule = {
   sources: ReadonlyArray<string>
 }
 
-// The names of the Signal sources of Glue: the adapters of
-// src/signals/signal-sources.server.ts.
-const sourceNames = ['github', 'support', 'analytics', 'social', 'market']
-
 // The most characters of a name and of a word, and the most words of a list.
 const MAX_NAME_LENGTH = 60
 const MAX_WORD_LENGTH = 60
 const MAX_WORDS = 20
 
+// Each rule of the filter has a reason in plain words: the form and the
+// answer of the server show it as it is.
+const NO_NAME = 'A filter needs a name'
+
 const wordsSchema = z
   .array(
     z
-      .string()
+      .string({ error: 'A word is a text' })
       .trim()
-      .min(1)
+      .min(1, { error: 'A word has at least 1 character' })
       .max(MAX_WORD_LENGTH, {
         error: `A word has at most ${MAX_WORD_LENGTH} characters`,
       }),
+    { error: 'The words are a list' },
   )
   .max(MAX_WORDS, { error: `A list has at most ${MAX_WORDS} words` })
   .default([])
 
 const sources = z
   .array(
-    z.string().check((context) => {
+    z.string({ error: 'A source is a name' }).check((context) => {
       if (!sourceNames.includes(context.value))
         context.issues.push({
           code: 'custom',
@@ -48,28 +50,37 @@ const sources = z
           input: context.value,
         })
     }),
+    { error: 'The sources are a list' },
   )
   .default([])
 
 export const signalFilterSchema = z
-  .strictObject({
-    name: z
-      .string()
-      .trim()
-      .min(1)
-      .max(MAX_NAME_LENGTH, {
-        error: `A name has at most ${MAX_NAME_LENGTH} characters`,
+  .strictObject(
+    {
+      name: z
+        .string({ error: NO_NAME })
+        .trim()
+        .min(1, { error: NO_NAME })
+        .max(MAX_NAME_LENGTH, {
+          error: `A name has at most ${MAX_NAME_LENGTH} characters`,
+        }),
+      mustHold: wordsSchema.meta({
+        description: 'The Signal holds each word, in its title or its text',
       }),
-    mustHold: wordsSchema.meta({
-      description: 'The Signal holds each word, in its title or its text',
-    }),
-    mustNotHold: wordsSchema.meta({
-      description: 'The Signal holds none of the words',
-    }),
-    sources: sources.meta({
-      description: 'The names of the sources. None: each source passes',
-    }),
-  })
+      mustNotHold: wordsSchema.meta({
+        description: 'The Signal holds none of the words',
+      }),
+      sources: sources.meta({
+        description: 'The names of the sources. None: each source passes',
+      }),
+    },
+    {
+      error: (issue) =>
+        issue.code === 'unrecognized_keys'
+          ? `A filter has no ${issue.keys.map((key) => `"${key}"`).join(', ')}`
+          : 'A filter has a name, words and sources',
+    },
+  )
   .refine(
     ({ mustHold, mustNotHold, sources: named }) =>
       mustHold.length + mustNotHold.length + named.length > 0,

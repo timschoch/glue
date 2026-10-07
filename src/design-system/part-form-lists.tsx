@@ -77,6 +77,8 @@ function swapRows<TRow>(rows: ReadonlyArray<TRow>, index: number, to: number) {
   return swapped
 }
 
+export type StepField = keyof StepValue
+
 // The steps of a Flow, in their order: each a text and the Entity that it
 // works on, with the controls that move it and remove it. The reason of a
 // wrong step shows at that step, each other reason at the list.
@@ -87,14 +89,19 @@ export function StepRows({
   entities,
   invalidText,
   invalidRow = -1,
+  invalidField = 'text',
   onChange,
 }: RowsProps<StepValue> & {
   // The Entities of the Project that a step can name.
   entities: ReadonlyArray<PartFormPart>
   // The place of the step that the reason is about.
   invalidRow?: number
+  // The input of that step that the reason is about.
+  invalidField?: StepField
 }) {
   const atRow = invalidText !== undefined && invalidRow in rows
+  const isInvalid = (index: number, field: StepField) =>
+    atRow && index === invalidRow && field === invalidField
 
   return (
     <Rows
@@ -114,7 +121,7 @@ export function StepRows({
                   id={`${id}-${place}-text`}
                   labelText={`Step ${place}`}
                   value={text}
-                  invalid={atRow && index === invalidRow}
+                  invalid={isInvalid(index, 'text')}
                   invalidText={invalidText}
                   className={styles.rowText}
                   onChange={({ target }) =>
@@ -125,6 +132,8 @@ export function StepRows({
                   id={`${id}-${place}-entity`}
                   labelText={`Entity of step ${place}`}
                   value={entity ?? ''}
+                  invalid={isInvalid(index, 'entity')}
+                  invalidText={invalidText}
                   className={styles.rowChoice}
                   onChange={({ target }) =>
                     onChange(
