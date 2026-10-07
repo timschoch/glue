@@ -1,3 +1,4 @@
+import { Launch } from '@carbon/icons-react'
 import {
   Button,
   ComboButton,
@@ -153,6 +154,30 @@ export function NextBox({
   }
   const action = hasStep ? actions.at(0) : undefined
   const otherActions = hasStep ? actions.slice(1) : actions
+  // A step with an address is a link. One to a tool outside Glue has the
+  // mark of such a link.
+  const link = action && 'href' in action ? action : undefined
+  const menu = otherActions.length > 0 && (
+    <OverflowMenu
+      aria-label="Additional actions"
+      iconDescription="Additional actions"
+      align="bottom-start"
+    >
+      {otherActions.map((other) => (
+        <OverflowMenuItem
+          key={other.label}
+          itemText={other.label}
+          onClick={() => run(other)}
+        />
+      ))}
+    </OverflowMenu>
+  )
+  // With no step left the menu stands alone: the box has no title.
+  const hasTitle =
+    action !== undefined ||
+    choosing !== undefined ||
+    pending !== undefined ||
+    error !== undefined
 
   if (actions.length === 0 && pending === undefined && error === undefined) {
     return null
@@ -160,10 +185,17 @@ export function NextBox({
 
   return (
     <>
-      <section ref={nextRef} aria-labelledby={nextId} className={styles.box}>
-        <h2 id={nextId} className={styles.title}>
-          Next
-        </h2>
+      <section
+        ref={nextRef}
+        aria-labelledby={hasTitle ? nextId : undefined}
+        aria-label={hasTitle ? undefined : 'Next'}
+        className={styles.box}
+      >
+        {hasTitle && (
+          <h2 id={nextId} className={styles.title}>
+            Next
+          </h2>
+        )}
         {choice && (
           <RadioButtonGroup
             legendText="Options"
@@ -224,39 +256,35 @@ export function NextBox({
         )}
         {pending !== undefined ? (
           <InlineLoading description={pending} />
-        ) : !action ? (
-          otherActions.length > 0 && (
-            <OverflowMenu
-              aria-label="Additional actions"
-              iconDescription="Additional actions"
-              align="bottom-start"
+        ) : (!action || link) && !choosing ? (
+          <div className={styles.row}>
+            {link && (
+              <Button
+                href={link.href}
+                renderIcon={link.href.startsWith('http') ? Launch : undefined}
+              >
+                {link.label}
+              </Button>
+            )}
+            {menu}
+          </div>
+        ) : otherActions.length > 0 && hydrated ? (
+          <div className={styles.combo}>
+            <ComboButton
+              label={choosing || !action ? 'Send' : action.label}
+              onClick={choosing || !action ? send : () => run(action)}
             >
               {otherActions.map((other) => (
-                <OverflowMenuItem
+                <MenuItem
                   key={other.label}
-                  itemText={other.label}
+                  label={other.label}
                   onClick={() => run(other)}
                 />
               ))}
-            </OverflowMenu>
-          )
-        ) : otherActions.length > 0 && hydrated ? (
-          <ComboButton
-            label={choosing ? 'Send' : action.label}
-            onClick={choosing ? send : () => run(action)}
-          >
-            {otherActions.map((other) => (
-              <MenuItem
-                key={other.label}
-                label={other.label}
-                onClick={() => run(other)}
-              />
-            ))}
-          </ComboButton>
-        ) : choosing ? (
+            </ComboButton>
+          </div>
+        ) : choosing || !action ? (
           <Button onClick={send}>Send</Button>
-        ) : 'href' in action ? (
-          <Button href={action.href}>{action.label}</Button>
         ) : (
           <Button onClick={() => run(action)}>{action.label}</Button>
         )}

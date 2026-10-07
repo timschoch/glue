@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Gate } from '../db/gate.ts'
 import type { Part, PartSummary } from '../db/parts.ts'
 import type { ContractState } from '../db/contracts.ts'
-import { findCommonFlow, findConceptFlow } from './common-flow.ts'
+import { findCommonFlow, findConceptFlow, isBuilt } from './common-flow.ts'
 import type { GatedBuild } from './common-flow.ts'
 
 const summary: PartSummary = {
@@ -187,7 +187,10 @@ describe('the common flow of a Part', () => {
         type: 'goal',
         neededBy: neededBy('decision'),
       }),
-    ).toMatchObject({ current: 3, next: { kind: 'open', label: 'Open X0' } })
+    ).toMatchObject({
+      current: 3,
+      next: { kind: 'open', label: 'Open X0 Show the video of the creator' },
+    })
   })
 
   it('asks for the sign-off of a Decision in review', () => {
@@ -330,6 +333,17 @@ describe('the common flow of a Part', () => {
     ).toBe(2)
   })
 
+  it('counts a Part as built when the gate of its newest build holds', () => {
+    expect(isBuilt([])).toBe(false)
+    expect(isBuilt([{ ...build, gate: holds }])).toBe(true)
+    expect(
+      isBuilt([
+        { ...build, number: 11, gate: holds },
+        { ...build, gate: breaks },
+      ]),
+    ).toBe(false)
+  })
+
   it('keeps a flag before the flow of a build', () => {
     expect(
       findCommonFlow(
@@ -400,7 +414,7 @@ describe('the next step of a Part in every state', () => {
   const openNeeding = {
     kind: 'open',
     part: { id: 'X0', concept: 'glue' },
-    label: 'Open X0',
+    label: 'Open X0 Show the video of the creator',
   }
   const addDecision = { kind: 'add', type: 'decision', label: 'Add Decision' }
   const openConcept = { kind: 'concept', label: 'Open Concept' }
@@ -424,7 +438,7 @@ describe('the next step of a Part in every state', () => {
     ['flow', null, openConcept],
     ['flow', 'entity', openConcept],
     ['metric', null, { kind: 'add', type: 'insight', label: 'Add Insight' }],
-    ['metric', 'insight', openNeeding],
+    ['metric', 'insight', undefined],
   ] as const)('of a published %s that %s needs', (type, needing, next) => {
     const flow = findCommonFlow(
       partOf(type, { neededBy: needing ? neededBy(needing) : [] }),
@@ -456,7 +470,7 @@ describe('the next step of a Part in every state', () => {
       ).toEqual({
         kind: 'open',
         part: { id: 'G9', concept: 'glue' },
-        label: 'Open G9',
+        label: 'Open G9 Show the video of the creator',
       })
       expect(next({ workState: 'sunk', neededBy: ends })).toBeUndefined()
     }
@@ -511,17 +525,63 @@ describe('the next step of a Part in every state', () => {
       current: 1,
       next: { kind: 'add', type: 'insight', label: 'Add Insight' },
     })
+    const [decision, insight] = neededBy('decision', 'insight')
+    const read = findCommonFlow({ ...goal, neededBy: [decision, insight] })
+    expect(read?.current).toBe(2)
+    expect(read?.next).toBeUndefined()
     expect(
-      findCommonFlow({ ...goal, neededBy: neededBy('decision', 'insight') }),
+      findCommonFlow({
+        ...goal,
+        neededBy: [
+          decision,
+          { ...insight, part: { ...insight.part, workState: 'draft' } },
+        ],
+      }),
     ).toMatchObject({
       current: 2,
       next: {
         kind: 'open',
         part: { id: 'X1', concept: 'glue' },
-        label: 'Open X1',
+        label: 'Open X1 Show the video of the creator',
       },
     })
   })
+
+  // A published Decision needs work until the gate of a build of it holds.
+  // `built` are the ids of the Decisions with such a build.
+  it.each(['goal', 'insight'] as const)(
+    'of a published %s opens the Part that needs work, not the first one',
+    (type) => {
+      const [first, second, third] = neededBy('decision', 'decision', 'flow')
+      const part = partOf(type, {
+        neededBy: [
+          first,
+          { ...second, part: { ...second.part, workState: 'review' } },
+          third,
+        ],
+      })
+
+      expect(findCommonFlow(part, [], undefined, [], ['X0'])?.next).toEqual({
+        kind: 'open',
+        part: { id: 'X1', concept: 'glue' },
+        label: 'Open X1 Show the video of the creator',
+      })
+    },
+  )
+
+  it.each(['goal', 'insight'] as const)(
+    'of a published %s has no step left when each Decision that needs it is published and built',
+    (type) => {
+      const part = partOf(type, { neededBy: neededBy('decision', 'decision') })
+      const flow = findCommonFlow(part, [], undefined, [], ['X0', 'X1'])
+
+      expect(flow?.current).toBe(3)
+      expect(flow?.next).toBeUndefined()
+      expect(
+        findCommonFlow(part, [], undefined, [], ['X0'])?.next,
+      ).toMatchObject({ kind: 'open', part: { id: 'X1' } })
+    },
+  )
 
   it('ends the flow of a Metric with its Insight', () => {
     expect(
@@ -612,7 +672,7 @@ describe('the common flow of a Concept', () => {
       next: {
         kind: 'open',
         part: { id: 'F5', concept: 'videos' },
-        label: 'Open F5',
+        label: 'Open F5 Show the video of the creator',
       },
     })
   })

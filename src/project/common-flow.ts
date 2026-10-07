@@ -75,8 +75,8 @@ const addDecision = addPart('decision')
 const addInsight = addPart('insight')
 
 // The loop goes on at another Part: the step opens it.
-function openPart({ id, concept }: PartSummary): NextStep {
-  return { kind: 'open', part: { id, concept }, label: `Open ${id}` }
+function openPart({ id, concept, title }: PartSummary): NextStep {
+  return { kind: 'open', part: { id, concept }, label: `Open ${id} ${title}` }
 }
 // Several sources agree (glue/D54). Glue proposes, the member decides.
 const raiseToPattern: NextStep = {
@@ -92,16 +92,35 @@ const openConcept: NextStep = { kind: 'concept', label: 'Open Concept' }
 const evidenceSteps = { hunch: 1, pattern: 2, confirmed: 3 }
 
 // The flow of a published Part, by its type. A flow that ended because a
-// Part needs this one goes on at that Part.
-function findPublishedFlow(part: Part): CommonFlow {
-  // The first Part of one of the types that needs this Part and is not sunk.
-  const findNeeding = (...types: Array<PartType>) =>
-    part.neededBy.find(
-      ({ part: needing }) =>
-        types.includes(needing.type) && needing.workState !== 'sunk',
-    )?.part
-  const isNeededBy = (...types: Array<PartType>) =>
-    findNeeding(...types) !== undefined
+// Part needs this one goes on at the first such Part that needs work: one
+// that is not published, or a Decision that is not built. `built` are the
+// ids of the built Decisions. With no such Part there is no step left.
+function findPublishedFlow(
+  part: Part,
+  built: ReadonlyArray<string>,
+): CommonFlow {
+  // The Parts of one of the types that need this Part and are not sunk.
+  const listNeeding = (...types: Array<PartType>) =>
+    part.neededBy
+      .map(({ part: needing }) => needing)
+      .filter(
+        ({ type, workState }) => types.includes(type) && workState !== 'sunk',
+      )
+  const openNeeding = (needing: ReadonlyArray<PartSummary>) => {
+    const open = needing.find(
+      ({ id, type, workState }) =>
+        workState !== 'published' ||
+        (type === 'decision' && !built.includes(id)),
+    )
+    return open && openPart(open)
+  }
+  // A reading becomes an Insight.
+  const readInsight = () => {
+    const insights = listNeeding('insight')
+    return insights.length > 0
+      ? { ...flows.use, current: 2, next: openNeeding(insights) }
+      : { ...flows.use, current: 1, next: addInsight }
+  }
 
   switch (part.type) {
     case 'insight': {
@@ -110,32 +129,26 @@ function findPublishedFlow(part: Part): CommonFlow {
         const next = { kind: 'edit', label: 'Raise the level' } as const
         return { ...flows.evidence, current, next }
       }
-      const decision = findNeeding('decision')
-      const next = decision ? openPart(decision) : addDecision
+      const decisions = listNeeding('decision')
+      const next = decisions.length > 0 ? openNeeding(decisions) : addDecision
       return { ...flows.evidence, current, next }
     }
     case 'goal': {
-      const decision = findNeeding('decision')
-      if (!decision) return { ...flows.decision, current: 1, next: addDecision }
-      // A reading against the target of the Goal becomes an Insight.
-      if (part.measure?.latestValue == null) {
-        return { ...flows.decision, current: 3, next: openPart(decision) }
+      const decisions = listNeeding('decision')
+      if (decisions.length === 0) {
+        return { ...flows.decision, current: 1, next: addDecision }
       }
-      const insight = findNeeding('insight')
-      return insight
-        ? { ...flows.use, current: 2, next: openPart(insight) }
-        : { ...flows.use, current: 1, next: addInsight }
+      // A reading against the target of the Goal becomes an Insight.
+      return part.measure?.latestValue == null
+        ? { ...flows.decision, current: 3, next: openNeeding(decisions) }
+        : readInsight()
     }
     case 'decision':
-      return isNeededBy('flow', 'entity')
+      return listNeeding('flow', 'entity').length > 0
         ? { ...flows.brief, current: 1, next: openConcept }
         : { ...flows.brief, current: 0, next: addPart('flow') }
-    case 'metric': {
-      const insight = findNeeding('insight')
-      return insight
-        ? { ...flows.use, current: 2, next: openPart(insight) }
-        : { ...flows.use, current: 1, next: addInsight }
-    }
+    case 'metric':
+      return readInsight()
     default:
       return { ...flows.brief, current: 1, next: openConcept }
   }
@@ -162,6 +175,11 @@ function findNewest(builds: ReadonlyArray<GatedBuild>): GatedBuild {
   )
 }
 
+// A Part is built when the gate of the newest build that names it holds.
+export function isBuilt(builds: ReadonlyArray<GatedBuild>): boolean {
+  return builds.length > 0 && findNewest(builds).gate?.result === 'holds'
+}
+
 // The build is in GitHub: the step opens it there.
 function openBuild({ number, url }: GatedBuild): NextStep {
   return { kind: 'link', href: url, label: `Open build ${number}` }
@@ -171,10 +189,8 @@ function openBuild({ number, url }: GatedBuild): NextStep {
 // build names a Contract Version, then a gate checks it. The flow ends when
 // the gate holds.
 function findBuildFlow(builds: ReadonlyArray<GatedBuild>): CommonFlow {
+  if (isBuilt(builds)) return { ...flows.build, current: 3, next: undefined }
   const newest = findNewest(builds)
-  if (newest.gate?.result === 'holds') {
-    return { ...flows.build, current: 3, next: undefined }
-  }
   const current = newest.gate ? 2 : newest.contract ? 1 : 0
   return { ...flows.build, current, next: openBuild(newest) }
 }
@@ -228,14 +244,16 @@ export function findConceptFlow(
 // keeps the next step of its own flow, until the Insight is handed back.
 // Then the next step glues it. `signalSources` are the sources that gave
 // the Signals of the Part: the next step of a Hunch with two or more is to
-// raise it to Pattern.
+// raise it to Pattern. `built` are the ids of the Decisions that need the
+// Part and are built.
 export function findCommonFlow(
   part: Part,
   builds: ReadonlyArray<GatedBuild> = [],
   ask?: AskStep,
   signalSources: ReadonlyArray<string> = [],
+  built: ReadonlyArray<string> = [],
 ): CommonFlow | undefined {
-  const own = findOwnFlow(part, builds)
+  const own = findOwnFlow(part, builds, built)
   const flagged = part.workState === 'to-check' || part.workState === 'waiting'
   const agreed =
     part.type === 'insight' &&
@@ -251,6 +269,7 @@ export function findCommonFlow(
 function findOwnFlow(
   part: Part,
   builds: ReadonlyArray<GatedBuild>,
+  built: ReadonlyArray<string>,
 ): CommonFlow | undefined {
   switch (part.workState) {
     case 'sunk':
@@ -272,6 +291,8 @@ function findOwnFlow(
     case 'review':
       return { ...draftFlows[part.type], next: signOff }
     case 'published':
-      return builds.length > 0 ? findBuildFlow(builds) : findPublishedFlow(part)
+      return builds.length > 0
+        ? findBuildFlow(builds)
+        : findPublishedFlow(part, built)
   }
 }

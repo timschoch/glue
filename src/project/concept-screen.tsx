@@ -364,7 +364,7 @@ export function ConceptScreen({
       case 'add':
         return changeSearch({ ...search, add: step.type })
       case 'sign':
-        return stepWrite.write('Saving', () =>
+        return stepWrite.write('Signing off', () =>
           signContract({ project, concept: concept.slug }),
         )
       case 'open':

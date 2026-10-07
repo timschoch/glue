@@ -42,6 +42,7 @@ export function RecordScreen({
   part,
   parts,
   builds = [],
+  built,
   ask,
   signalSources,
   askable = [],
@@ -50,6 +51,8 @@ export function RecordScreen({
   parts: ReadonlyArray<PartSummary>
   // The builds that name the record.
   builds?: ReadonlyArray<Build>
+  // The ids of the Decisions that need the record and are built.
+  built?: ReadonlyArray<string>
   // The open Ask of the Part.
   ask?: Ask | null
   // The sources that gave the Signals of a Hunch.
@@ -88,8 +91,8 @@ export function RecordScreen({
     [part, recordHref, parts],
   )
   const flow = useMemo(
-    () => findCommonFlow(part, builds, ask?.step, signalSources),
-    [part, builds, ask, signalSources],
+    () => findCommonFlow(part, builds, ask?.step, signalSources, built),
+    [part, builds, ask, signalSources, built],
   )
   const handleOpen = useCallback(
     (recordId: string, event: MouseEvent<HTMLAnchorElement>) => {

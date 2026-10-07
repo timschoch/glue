@@ -1683,9 +1683,24 @@ describe('the common flow of a record', () => {
   it('goes on from a published Goal at the Decision that needs it', async () => {
     const { expectAddress } = await renderPage('/glue/glue/G1')
 
-    await act('Open D4')
+    await act('Open D4 The Concept lives in the database')
 
     await expectAddress('/glue/part-model/D4', { trail: ['G1'] })
+  })
+
+  it('has no step left on a published Goal when the Decision that needs it is built', async () => {
+    const { server } = await renderPage('/glue/glue/G1', {
+      fetchBuilds: vi.fn(() =>
+        Promise.resolve({ builds: [builds[0]], reason: null }),
+      ),
+    })
+
+    const next = within(screen.getByRole('region', { name: 'Next' }))
+
+    expect(server.fetchBuilds).toHaveBeenCalledWith('glue', { decision: 'D4' })
+    expect(next.getAllByRole('button')).toEqual([
+      next.getByRole('button', { name: 'Additional actions' }),
+    ])
   })
 
   it('opens the Part that a waiting Part waits on', async () => {
@@ -1701,7 +1716,7 @@ describe('the common flow of a record', () => {
 
     expect(currentStep('React to a change')).toBe('Answer')
 
-    await act('Open R1')
+    await act('Open R1 No query over 200ms')
 
     await expectAddress('/glue/read-model/R1', { trail: ['D4'] })
   })

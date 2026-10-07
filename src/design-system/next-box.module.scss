@@ -19,6 +19,32 @@ $text-width: $card-width * 2;
   @include type-style('heading-compact-02');
 }
 
+// The button with its menu is as wide as its label, up to the width of the
+// box. Carbon cuts the label at a fixed width, and a label has the title of
+// a Part.
+.combo {
+  max-inline-size: 100%;
+
+  :global(.cds--combo-button__container) {
+    max-inline-size: 100%;
+  }
+
+  :global(.cds--combo-button__primary-action) {
+    min-inline-size: 0;
+  }
+
+  :global(.cds--combo-button__primary-action .cds--btn) {
+    max-inline-size: none;
+  }
+}
+
+// The link of a step, with the menu of the other actions after it.
+.row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
 // The answer in words is as wide as the text.
 .words {
   inline-size: 100%;

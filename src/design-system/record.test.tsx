@@ -678,6 +678,8 @@ describe('Record', () => {
 
     expect(others).toEqual([])
     expect(menu).toBe(iconButton('Additional actions'))
+    // The menu stands alone: a title would name a step that is not there.
+    expect(screen.queryByRole('heading', { name: 'Next' })).toBeNull()
 
     await userEvent.click(menu)
 
@@ -687,6 +689,69 @@ describe('Record', () => {
     ])
 
     await userEvent.click(menuItems()[1])
+
+    expect(onSink).toHaveBeenCalledOnce()
+  })
+
+  it('sends the choice of an action from the menu with no step left', async () => {
+    const next = () => within(screen.getByRole('region', { name: 'Next' }))
+    const onPick = vi.fn()
+    renderRecord(
+      {},
+      {
+        hasStep: false,
+        actions: [
+          { label: 'Not ready', onClick: () => {} },
+          {
+            label: 'Ask for a Decision',
+            choose: {
+              label: 'Project',
+              options: [{ value: 'ux', text: 'UX team' }],
+              words: 'Question',
+              onPick,
+            },
+          },
+        ],
+      },
+    )
+
+    await userEvent.click(iconButton('Additional actions'))
+    await userEvent.click(menuItems()[1])
+    await userEvent.type(
+      next().getByRole('textbox', { name: 'Question' }),
+      'Which price?',
+    )
+    await userEvent.click(next().getByRole('button', { name: 'Send' }))
+
+    expect(onPick).toHaveBeenCalledExactlyOnceWith('ux', 'Which price?')
+    expect(next().queryByRole('button', { name: 'Send' })).toBeNull()
+  })
+
+  it('marks a step that goes to a tool outside Glue, and keeps the other actions in a menu', async () => {
+    const next = () => within(screen.getByRole('region', { name: 'Next' }))
+    const onSink = vi.fn()
+    renderRecord(
+      {},
+      {
+        actions: [
+          {
+            label: 'Open build 12',
+            href: 'https://github.com/timschoch/glue/pull/12',
+          },
+          { label: 'Sink', onClick: onSink },
+        ],
+      },
+    )
+
+    const link = next().getByRole('link', { name: 'Open build 12' })
+
+    expect(link.getAttribute('href')).toBe(
+      'https://github.com/timschoch/glue/pull/12',
+    )
+    expect(link.querySelectorAll('svg')).toHaveLength(1)
+
+    await userEvent.click(iconButton('Additional actions'))
+    await userEvent.click(menuItems()[0])
 
     expect(onSink).toHaveBeenCalledOnce()
   })

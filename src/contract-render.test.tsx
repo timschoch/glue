@@ -110,6 +110,18 @@ describe('the common flow of a Concept', () => {
     })
   })
 
+  it('says that it signs off while the sign-off saves', async () => {
+    await renderPage('/glue/part-model', {
+      ...filled,
+      signContract: vi.fn(() => new Promise<{ version: number }>(() => {})),
+    })
+
+    await userEvent.click(next().getByRole('button', { name: 'Sign off' }))
+
+    await next().findByText('Signing off')
+    expect(next().queryByRole('button')).toBeNull()
+  })
+
   it('shows why the sign-off failed', async () => {
     await renderPage('/glue/part-model', {
       ...filled,
@@ -147,10 +159,39 @@ describe('the common flow of a Concept', () => {
       ),
     })
 
+    const link = next().getByRole('link', { name: 'Open build 11' })
+
     expect(currentStep()).toBe('Gate')
-    expect(
-      next().getByRole('link', { name: 'Open build 11' }).getAttribute('href'),
-    ).toBe('https://github.com/timschoch/glue/pull/11')
+    expect(link.getAttribute('href')).toBe(
+      'https://github.com/timschoch/glue/pull/11',
+    )
+    expect(link.querySelectorAll('svg')).toHaveLength(1)
+  })
+
+  it('has each step done and no box Next when the gate of the build holds', async () => {
+    await renderPage('/glue/part-model', {
+      ...signed,
+      fetchBuilds: vi.fn(() =>
+        Promise.resolve({
+          builds: [
+            {
+              ...builds[1],
+              gate: {
+                result: 'holds' as const,
+                reasons: [],
+                checkedAt: '2026-10-05T09:00:00.000Z',
+              },
+            },
+          ],
+          reason: null,
+        }),
+      ),
+    })
+
+    expect(currentStep()).toBeUndefined()
+    screen.getByRole('list', { name: 'Concept to build' })
+    expect(screen.queryByRole('heading', { name: 'Next' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Next' })).toBeNull()
   })
 
   it('has no flow for a Concept with nothing to sign', async () => {
@@ -190,7 +231,11 @@ describe('the Contract on the Concept screen', () => {
     ).toBe('/glue/glue/G1')
     expect(screen.queryByRole('button', { name: 'Sign off' })).toBeNull()
 
-    await userEvent.click(next().getByRole('button', { name: 'Open G1' }))
+    await userEvent.click(
+      next().getByRole('button', {
+        name: 'Open G1 Agents build from the Concept',
+      }),
+    )
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/glue/glue/G1')
