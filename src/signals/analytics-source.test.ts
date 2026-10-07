@@ -90,12 +90,14 @@ describe('createAnalyticsSource', () => {
     ).toEqual([
       {
         title: 'Survey answer 3 of 7',
+        titleBy: 'glue',
         text: '',
         date: '2026-10-03',
         hasAddress: true,
       },
       {
         title: 'Survey answer 2 of 7',
+        titleBy: 'glue',
         text: 'Too many options to pick from',
         date: '2026-10-02',
         hasAddress: true,

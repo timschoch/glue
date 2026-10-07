@@ -136,7 +136,7 @@ export function ConceptScreen({
             setPicked(signals.signals.filter(({ url }) => urls.includes(url)))
           }
           // The Hunch of a group is a draft in the open Concept. The server
-          // gives it the title of its newest Signal.
+          // gives it the title of the group.
           onMakeHunch={(urls) => {
             setHunchGroup(urls[0])
             void hunchWrite.write(

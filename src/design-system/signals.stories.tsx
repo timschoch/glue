@@ -60,6 +60,7 @@ export const Groups: Story = {
   args: {
     groups: [
       {
+        title: 'The list is slow',
         signals: [
           'https://github.com/timschoch/glue/issues/7',
           'https://support.example.com/agent/tickets/4',

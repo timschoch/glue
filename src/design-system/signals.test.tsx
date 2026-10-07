@@ -141,7 +141,7 @@ describe('Signals', () => {
   it('shows each group first with the count of its sources, then the single Signals', () => {
     renderSignals({
       signals: [SLOW, LOST, GROWN, TICKET],
-      groups: [{ signals: [SLOW.url, TICKET.url] }],
+      groups: [{ title: SLOW.title, signals: [SLOW.url, TICKET.url] }],
     })
 
     expect(titles()).toEqual([
@@ -156,7 +156,7 @@ describe('Signals', () => {
   it('turns a group into a Hunch with one button', async () => {
     const { onMakeHunch } = renderSignals({
       signals: [SLOW, LOST, GROWN],
-      groups: [{ signals: [SLOW.url, LOST.url] }],
+      groups: [{ title: SLOW.title, signals: [SLOW.url, LOST.url] }],
     })
 
     screen.getByText('1 source')
@@ -165,12 +165,28 @@ describe('Signals', () => {
     expect(onMakeHunch).toHaveBeenCalledWith([SLOW.url, LOST.url])
   })
 
+  it('shows the title of a group as a heading over its Signals, and in the name of its button', () => {
+    const title = 'Too many options to pick from'
+    renderSignals({
+      signals: [SLOW, TICKET, ANSWER],
+      groups: [{ title, signals: [TICKET.url, ANSWER.url] }],
+    })
+
+    const heading = screen.getByRole('heading', { level: 3, name: title })
+
+    expect(
+      heading.compareDocumentPosition(row(TICKET.title)) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    screen.getByRole('button', { name: `Make Hunch, ${title}` })
+  })
+
   it('names the group in the name of its button, and makes no landmark of a group', () => {
     renderSignals({
       signals: [SLOW, LOST, TICKET, ANSWER],
       groups: [
-        { signals: [SLOW.url, LOST.url] },
-        { signals: [TICKET.url, ANSWER.url] },
+        { title: SLOW.title, signals: [SLOW.url, LOST.url] },
+        { title: TICKET.title, signals: [TICKET.url, ANSWER.url] },
       ],
     })
 
@@ -183,8 +199,8 @@ describe('Signals', () => {
     renderSignals({
       signals: [SLOW, LOST, TICKET, ANSWER],
       groups: [
-        { signals: [SLOW.url, LOST.url] },
-        { signals: [TICKET.url, ANSWER.url] },
+        { title: SLOW.title, signals: [SLOW.url, LOST.url] },
+        { title: TICKET.title, signals: [TICKET.url, ANSWER.url] },
       ],
       hunch: { group: TICKET.url, pending: 'Saving' },
     })
@@ -200,8 +216,8 @@ describe('Signals', () => {
     renderSignals({
       signals: [SLOW, LOST, TICKET, ANSWER],
       groups: [
-        { signals: [SLOW.url, LOST.url] },
-        { signals: [TICKET.url, ANSWER.url] },
+        { title: SLOW.title, signals: [SLOW.url, LOST.url] },
+        { title: TICKET.title, signals: [TICKET.url, ANSWER.url] },
       ],
       hunch: { group: TICKET.url, failure: 'Glue is not available' },
     })
@@ -220,7 +236,7 @@ describe('Signals', () => {
   it('shows no list of single Signals when each Signal is in a group', () => {
     renderSignals({
       signals: [SLOW, LOST],
-      groups: [{ signals: [SLOW.url, LOST.url] }],
+      groups: [{ title: SLOW.title, signals: [SLOW.url, LOST.url] }],
     })
 
     expect(screen.getAllByRole('list')).toHaveLength(1)
@@ -229,7 +245,7 @@ describe('Signals', () => {
   it('shows a group only when the filters show two of its Signals', async () => {
     renderSignals({
       signals: [SLOW, LOST, TICKET],
-      groups: [{ signals: [SLOW.url, TICKET.url] }],
+      groups: [{ title: SLOW.title, signals: [SLOW.url, TICKET.url] }],
     })
 
     await userEvent.click(filter('GitHub'))

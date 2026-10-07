@@ -496,6 +496,7 @@ describe('a section', () => {
             failures: [],
             groups: [
               {
+                title: signals[0].title,
                 signals: [signals[0].url, again.url],
                 sources: ['github', 'support'],
               },
@@ -539,6 +540,7 @@ describe('a section', () => {
           failures: [],
           groups: [
             {
+              title: signals[0].title,
               signals: [signals[0].url, again.url],
               sources: ['github', 'support'],
             },

@@ -38,9 +38,9 @@ export type SignalsProps = {
   signals: ReadonlyArray<SignalRow>
   // The sources that did not answer, and why.
   failures?: ReadonlyArray<{ source: string; reason: string }>
-  // The groups of Signals that say the same thing, each with the addresses
-  // of its Signals.
-  groups?: ReadonlyArray<{ signals: ReadonlyArray<string> }>
+  // The groups of Signals that say the same thing, each with its title and
+  // the addresses of its Signals.
+  groups?: ReadonlyArray<{ title: string; signals: ReadonlyArray<string> }>
   // The Hunch of a group that is on its way, or why it was not made. The
   // group is the address of its first Signal. While one is on its way, no
   // second one starts.
@@ -58,8 +58,8 @@ export type SignalsProps = {
 // The Signals of a Project. A Signal that has no Insight can be picked: the
 // one button makes an Insight from the picks. The filters show the Signals
 // of the picked sources. No filter picked: all Signals. The groups come
-// first, each with the button that turns it into a Hunch. A group shows
-// when the filters show two of its Signals or more.
+// first, each under its title, with the button that turns it into a Hunch.
+// A group shows when the filters show two of its Signals or more.
 export function Signals({
   signals,
   failures = [],
@@ -89,9 +89,12 @@ export function Signals({
       ? signals
       : signals.filter(({ source }) => active.has(source))
   const shownGroups = groups
-    .map((group) => shown.filter(({ url }) => group.signals.includes(url)))
-    .filter((members) => members.length > 1)
-  const grouped = new Set(shownGroups.flat())
+    .map((group) => ({
+      title: group.title,
+      members: shown.filter(({ url }) => group.signals.includes(url)),
+    }))
+    .filter(({ members }) => members.length > 1)
+  const grouped = new Set(shownGroups.flatMap(({ members }) => members))
   const single = shown.filter((signal) => !grouped.has(signal))
 
   const toggle = (current: ReadonlySet<string>, key: string, on: boolean) => {
@@ -200,13 +203,14 @@ export function Signals({
               ))}
             </div>
           )}
-          {shownGroups.map((members) => {
+          {shownGroups.map(({ title, members }) => {
             const [first] = members
             const count = new Set(members.map(({ source }) => source)).size
             const own = hunch?.group === first.url ? hunch : undefined
             return (
               <div key={first.url} className={styles.repeat}>
                 <div className={styles.repeatHead}>
+                  <h3 className={styles.repeatTitle}>{title}</h3>
                   <span className={styles.label}>
                     {count} {count === 1 ? 'source' : 'sources'}
                   </span>
@@ -214,7 +218,7 @@ export function Signals({
                     <Button
                       size="sm"
                       kind="ghost"
-                      aria-label={`Make Hunch, ${first.title}`}
+                      aria-label={`Make Hunch, ${title}`}
                       disabled={hunch?.pending !== undefined}
                       onClick={() => onMakeHunch(members.map(({ url }) => url))}
                     >

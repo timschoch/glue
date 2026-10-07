@@ -73,6 +73,7 @@ export function createAnalyticsSource(options: {
         return {
           url: new URL(`/events/${id}`, url).href,
           title: `Survey answer ${value} of ${HIGHEST_SCORE}`,
+          titleBy: 'glue' as const,
           text: typeof remark === 'string' ? remark : '',
           date: timestamp.slice(0, 'yyyy-mm-dd'.length),
         }
