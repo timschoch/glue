@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.19.0](https://github.com/timschoch/glue/compare/v1.18.0...v1.19.0) (2026-10-07)
+
+
+### Features
+
+* **parts:** keep a Version of a Part at each sign-off ([#328](https://github.com/timschoch/glue/issues/328)) ([ad70df8](https://github.com/timschoch/glue/commit/ad70df892c91255e68967d4f7e6ad8326d0b16d1)), closes [#325](https://github.com/timschoch/glue/issues/325)
+
+
+### Bug Fixes
+
+* **map:** start new rows when the Map is wider than its frame ([#329](https://github.com/timschoch/glue/issues/329)) ([ae3e8f9](https://github.com/timschoch/glue/commit/ae3e8f9fb63530a6d5ffb741206df70be09742ed)), closes [#326](https://github.com/timschoch/glue/issues/326)
+
 ## [1.18.0](https://github.com/timschoch/glue/compare/v1.17.0...v1.18.0) (2026-10-06)
 
 
