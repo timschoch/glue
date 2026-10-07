@@ -168,9 +168,24 @@ function placePills(
   })
 }
 
+// Rows to the shape of the room: ELK puts the nodes that no line joins into
+// rows, in their order, and starts a new row in a long chain of lines. ELK
+// 0.12 does that only without partitions: with them it fails, or it gives a
+// line that jumps a column wrong corners.
+const ROWS = {
+  'elk.partitioning.activate': 'false',
+  'elk.layered.considerModelOrder.components': 'MODEL_ORDER',
+  'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+  'elk.layered.wrapping.strategy': 'MULTI_EDGE',
+}
+
 // The places of the nodes and of the lines of a Map. The columns go from
 // left to right in the order of their partitions. A line has right angles.
-export async function layoutMapView(view: MapView): Promise<MapLayout> {
+// A Map wider than its room gives up its columns for rows.
+export async function layoutMapView(
+  view: MapView,
+  room?: { width: number; height: number },
+): Promise<MapLayout> {
   function toElkNode(node: MapNode): ElkNode {
     const inside = view.nodes.filter(({ parent }) => parent === node.id)
     const partition =
@@ -188,20 +203,35 @@ export async function layoutMapView(view: MapView): Promise<MapLayout> {
       : { id: node.id, ...sizes[node.kind], layoutOptions: { ...partition } }
   }
 
-  const graph = await elk.layout<ElkNode>({
-    id: 'map',
-    layoutOptions: rootOptions,
-    children: view.nodes
-      .filter(({ parent }) => parent === undefined)
-      .map(toElkNode),
-    // ELK lays a flipped line out from its end to its start: it then runs
-    // straight back and not round the Map.
-    edges: view.lines.map(({ id, from, to, flipped }) => ({
-      id,
-      sources: [flipped ? to : from],
-      targets: [flipped ? from : to],
-    })),
-  })
+  const layout = (rows?: { [option: string]: string }) =>
+    elk.layout<ElkNode>({
+      id: 'map',
+      layoutOptions: { ...rootOptions, ...rows },
+      children: view.nodes
+        .filter(({ parent }) => parent === undefined)
+        .map(toElkNode),
+      // In columns, ELK lays a flipped line out from its end to its start: it
+      // then runs straight back and not round the Map.
+      edges: view.lines.map(({ id, from, to, flipped }) => ({
+        id,
+        sources: [flipped && !rows ? to : from],
+        targets: [flipped && !rows ? from : to],
+      })),
+    })
+
+  const columns = await layout()
+  const isTooWide =
+    room !== undefined && room.height > 0 && (columns.width ?? 0) > room.width
+  const rows = isTooWide
+    ? await layout({
+        ...ROWS,
+        'elk.aspectRatio': String(room.width / room.height),
+      })
+    : undefined
+  // The rows win only when they make the Map less wide.
+  const isInRows =
+    rows !== undefined && (rows.width ?? 0) < (columns.width ?? 0)
+  const graph = isInRows ? rows : columns
 
   const boxes: Array<MapBox> = []
   function addBoxes(node: ElkNode, left: number, top: number, parent?: string) {
@@ -223,7 +253,7 @@ export async function layoutMapView(view: MapView): Promise<MapLayout> {
   addBoxes(graph, 0, 0)
 
   const flipped = new Set(
-    view.lines.filter((line) => line.flipped).map(({ id }) => id),
+    view.lines.filter((line) => line.flipped && !isInRows).map(({ id }) => id),
   )
   const routes = (graph.edges ?? []).map((edge) => {
     const points = (edge.sections ?? []).flatMap((section) =>

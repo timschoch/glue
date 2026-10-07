@@ -1030,12 +1030,14 @@ describe('the section Mine', () => {
     ])
   })
 
-  it('shows no count and no card without a Part', async () => {
+  it('shows no count and no card to a member who owns nothing, and plain words in their place', async () => {
     await renderPage('/glue?section=Mine')
+    const main = within(screen.getByRole('main'))
 
     expect(pageTitle()).toBe('Mine')
     expect(section('Mine').getAttribute('aria-current')).toBe('page')
-    expect(within(screen.getByRole('main')).queryByRole('link')).toBeNull()
+    expect(main.queryByRole('link')).toBeNull()
+    expect(main.getByText('No Parts')).toBeTruthy()
   })
 })
 

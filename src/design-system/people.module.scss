@@ -24,6 +24,8 @@ $card-width: $spacing-13 * 2;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: $spacing-05 $spacing-07;
+  // As a flex item it must not be wider than its place.
+  max-inline-size: 100%;
 }
 
 .responsible {
