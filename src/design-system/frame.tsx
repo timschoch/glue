@@ -7,6 +7,8 @@ import {
   Dropdown,
   Header,
   HeaderMenuButton,
+  InlineLoading,
+  InlineNotification,
   Layer,
   Link,
   Popover,
@@ -60,6 +62,10 @@ export type FrameProps = {
   onAddConcept?: () => void
   // With the callback the left panel ends with one button that signs out.
   onSignOut?: () => void
+  // The sign-out that runs: it shows in place of the button.
+  signOutPending?: string
+  // Why the sign-out failed.
+  signOutFailure?: string
   // No section while the main window shows every Part type.
   section?: Section
   // The count of the flags that the person did not see yet, beside Mine.
@@ -102,6 +108,8 @@ export function Frame({
   onAddProject,
   onAddConcept,
   onSignOut,
+  signOutPending,
+  signOutFailure,
   section,
   newFlagCount = 0,
   sectionHref,
@@ -278,9 +286,25 @@ export function Frame({
               {onSignOut && <SideNavDivider />}
               {onSignOut && (
                 <li>
-                  <Button kind="ghost" size="sm" onClick={onSignOut}>
-                    Sign out
-                  </Button>
+                  {signOutPending === undefined ? (
+                    <Button kind="ghost" size="sm" onClick={onSignOut}>
+                      Sign out
+                    </Button>
+                  ) : (
+                    <InlineLoading
+                      description={signOutPending}
+                      className={styles.signOutPending}
+                    />
+                  )}
+                  {signOutFailure !== undefined && (
+                    <InlineNotification
+                      kind="error"
+                      role="alert"
+                      lowContrast
+                      hideCloseButton
+                      title={signOutFailure}
+                    />
+                  )}
                 </li>
               )}
             </SideNavItems>

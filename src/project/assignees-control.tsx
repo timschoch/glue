@@ -16,7 +16,7 @@ export function AssigneesControl({
   const { people } = projectRoute.useLoaderData()
   const { assign, unassign } = projectRoute.useRouteContext()
   const { project } = projectRoute.useParams()
-  const { failure, write } = useWrite()
+  const { pending, failure, write } = useWrite()
   const held = people.assignments.filter((assignment) =>
     'part' in target
       ? assignment.part === target.part
@@ -46,6 +46,7 @@ export function AssigneesControl({
               )
             }
       }
+      pending={pending}
       error={failure}
     />
   )

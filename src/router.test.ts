@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { describe, expect, it, vi } from 'vitest'
 
+import { startWrite } from './project/use-write.ts'
 import { createRouterContext } from './router-context.ts'
 import type { RouterContext, SessionMemory } from './router-context.ts'
 import type { Server } from './router-server.ts'
@@ -356,7 +357,7 @@ describe('the session of a signed-in person', () => {
     const server = serverWithOneAnswer(() => Promise.resolve(undefined))
     const router = await open('/', server)
 
-    await change(router.options.context)
+    await startWrite<unknown>(change(router.options.context))
     await openRecord(router)
 
     expect(router.state.location.pathname).toBe('/sign-in')
@@ -369,6 +370,38 @@ describe('the session of a signed-in person', () => {
     await router.navigate({ to: '/sign-in' })
 
     expect(router.state.location.pathname).toBe('/sign-in')
+  })
+})
+
+// The check of glue-build/D55. `pnpm typecheck` fails when a line below a
+// `@ts-expect-error` compiles.
+describe('a write of a screen', () => {
+  const part = { project: 'glue', recordId: 'D4' }
+
+  it('does not reach the server before useWrite starts it', async () => {
+    const server = context()
+    const { context: routes } = (await open('/sign-in', server)).options
+
+    const write = routes.watch(part)
+
+    expect(server.watch).not.toHaveBeenCalled()
+    await startWrite(write)
+    expect(server.watch).toHaveBeenCalledExactlyOnceWith(part)
+  })
+
+  it('is no promise, so a screen cannot wait for it without useWrite', async () => {
+    const { context: routes } = (await open('/sign-in', context())).options
+
+    // @ts-expect-error A write has no `then`: only useWrite starts it.
+    expect(routes.signOut().then).toBe(undefined)
+    // @ts-expect-error The same for a write with an input.
+    expect(routes.watch(part).then).toBe(undefined)
+  })
+
+  it('leaves a read as it is', async () => {
+    const { context: routes } = (await open('/sign-in', context())).options
+
+    expect(await routes.fetchNewFlagCount('glue')).toBe(0)
   })
 })
 

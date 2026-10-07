@@ -52,6 +52,12 @@ $pinned-breakpoint: 'lg';
   align-self: flex-start;
 }
 
+// The words of the sign-out that runs start where the words of the button
+// start.
+.signOutPending {
+  padding-inline: $spacing-05;
+}
+
 // The trail row: the trail at the start, the count of pins at the end.
 .trail {
   display: flex;

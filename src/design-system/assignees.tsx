@@ -1,6 +1,7 @@
 import {
   Checkbox,
   CheckboxGroup,
+  InlineLoading,
   InlineNotification,
   Select,
   SelectItem,
@@ -21,6 +22,8 @@ export type AssigneesProps = {
   // Gives the member the role, or takes the role away with null. Without
   // the callback the person reads only.
   onChange?: (change: { memberId: number; role: AssigneeRole | null }) => void
+  // The change that is not saved yet: the fields take no other change.
+  pending?: string
   // Why the last change failed.
   error?: string
 }
@@ -32,6 +35,7 @@ export function Assignees({
   responsible,
   coAuthors,
   onChange,
+  pending,
   error,
 }: AssigneesProps) {
   const id = useId()
@@ -60,13 +64,14 @@ export function Assignees({
   }
 
   return (
-    <div className={styles.assignees}>
+    <div role="group" aria-label="Assignees" className={styles.assignees}>
       <div className={styles.responsible}>
         <Select
           id={`${id}-responsible`}
           size="sm"
           labelText="Responsible"
           value={responsible ?? ''}
+          readOnly={pending !== undefined}
           onChange={({ target }) => {
             if (target.value !== '') {
               onChange({ memberId: Number(target.value), role: 'responsible' })
@@ -91,6 +96,7 @@ export function Assignees({
                 id={`${id}-${member.id}`}
                 labelText={member.name}
                 checked={coAuthors.includes(member.id)}
+                readOnly={pending !== undefined}
                 onChange={(_event, { checked }) =>
                   onChange({
                     memberId: member.id,
@@ -101,6 +107,7 @@ export function Assignees({
             ))}
         </CheckboxGroup>
       )}
+      {pending !== undefined && <InlineLoading description={pending} />}
       {error !== undefined && (
         <InlineNotification
           kind="error"

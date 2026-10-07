@@ -5,6 +5,8 @@ import { CredentialsForm } from '../design-system/credentials-form.tsx'
 import type { CredentialsValues } from '../design-system/credentials-form.tsx'
 import { PlainFrame } from '../design-system/frame.tsx'
 import { isForBrowser } from '../project/use-project-links.ts'
+import { useWrite } from '../project/use-write.ts'
+import type { Write } from '../project/use-write.ts'
 import { findProblem, validateSignIn, validateSignUp } from './credentials.ts'
 import type { Problems } from './credentials.ts'
 import { toDestination } from './redirect.ts'
@@ -47,31 +49,24 @@ export function CredentialsScreen({
   kind: keyof typeof screens
   // The page to show after sign-in.
   target?: string
-  submit: (values: CredentialsValues) => Promise<Failure | undefined>
+  submit: (values: CredentialsValues) => Write<Failure | undefined>
 }) {
   const router = useRouter()
   const [problems, setProblems] =
     useState<Partial<Problems<keyof CredentialsValues>>>()
-  const [failure, setFailure] = useState<string>()
-  const [pending, setPending] = useState(false)
   const { validate, unavailable, other, ...words } = screens[kind]
+  const { pending, failure, write } = useWrite(unavailable)
 
-  async function handleSubmit(values: CredentialsValues) {
+  function handleSubmit(values: CredentialsValues) {
     const found = validate(values)
     setProblems(found)
-    setFailure(undefined)
     if (findProblem(found)) return
 
-    setPending(true)
-    try {
-      const failed = await submit(values)
-      if (failed) setFailure(failed.message)
-      else await router.navigate(toDestination(target))
-    } catch {
-      setFailure(unavailable)
-    } finally {
-      setPending(false)
-    }
+    void write(
+      words.pendingAction,
+      () => submit(values),
+      () => router.navigate(toDestination(target)),
+    )
   }
 
   return (
@@ -80,8 +75,8 @@ export function CredentialsScreen({
         {...words}
         problems={problems}
         failure={failure}
-        pending={pending}
-        onSubmit={(values) => void handleSubmit(values)}
+        pending={pending !== undefined}
+        onSubmit={handleSubmit}
         other={{
           name: other.name,
           href: router.buildLocation({

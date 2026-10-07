@@ -10,10 +10,29 @@ function isFailure(answer: unknown): answer is Failure {
   return typeof answer === 'object' && answer !== null && 'message' in answer
 }
 
+const start = Symbol('start')
+
+// A write that did not start yet. The router context gives one for each
+// write of the server. It is no promise: a screen cannot send it or wait for
+// it. Only `useWrite` starts it, and `useWrite` says that the write runs and
+// why it failed (glue-build/D55).
+export type Write<TDone> = { readonly [start]: () => Promise<TDone> }
+
+export function toWrite<TDone>(send: () => Promise<TDone>): Write<TDone> {
+  return { [start]: send }
+}
+
+// For `useWrite` and for a test of the router context. A screen takes
+// `useWrite`.
+export function startWrite<TDone>(write: Write<TDone>): Promise<TDone> {
+  return write[start]()
+}
+
 // The writes of a screen. One write runs at a time: `pending` names it and
 // `failure` says why the last one did not happen. After a write that
 // worked, `onDone` opens the next screen, then each screen loads again.
-export function useWrite() {
+// `unavailable` says that the server gave no answer.
+export function useWrite(unavailable = UNAVAILABLE) {
   const router = useRouter()
   const [pending, setPending] = useState<string>()
   const [failure, setFailure] = useState<string>()
@@ -21,13 +40,13 @@ export function useWrite() {
   const write = useCallback(
     async <TDone>(
       name: string,
-      run: () => Promise<TDone | Failure>,
+      run: () => Write<TDone | Failure>,
       onDone?: (done: TDone) => Promise<void>,
     ) => {
       setPending(name)
       setFailure(undefined)
       try {
-        const answer = await run()
+        const answer = await startWrite(run())
         if (isFailure(answer)) {
           setFailure(answer.message)
           return
@@ -44,12 +63,12 @@ export function useWrite() {
           })
           return
         }
-        setFailure(UNAVAILABLE)
+        setFailure(unavailable)
       } finally {
         setPending(undefined)
       }
     },
-    [router],
+    [router, unavailable],
   )
 
   return { pending, failure, write }

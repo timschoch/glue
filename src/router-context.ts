@@ -3,15 +3,49 @@ import { isRedirect, redirect } from '@tanstack/react-router'
 import { parseRedirect } from './authentication/redirect.ts'
 import type { Session } from './authentication/session.ts'
 import { UNKNOWN_CONCEPT } from './project/project-search.ts'
+import { toWrite } from './project/use-write.ts'
+import type { Write } from './project/use-write.ts'
 import type { Server } from './router-server.ts'
 
 // The session that a router read before. One per router: on the server a
 // router serves one request, so a session never reaches another person.
 export type SessionMemory = { session?: Session }
 
-export type RouterContext = Server & {
-  // The session from the memory. Asks the server only when the memory is empty.
-  findSession: () => Promise<Session | undefined>
+// Mine is open, so the person saw the new flags. No person starts this
+// write, and no screen shows it.
+const UNSHOWN = 'setFlagsSeen'
+
+type ReadName = Extract<keyof Server, `fetch${string}` | typeof UNSHOWN>
+
+// Each write of the server as a write that did not start yet: a screen
+// starts it with `useWrite`.
+type Writes = {
+  [TName in Exclude<keyof Server, ReadName>]: Server[TName] extends (
+    ...input: infer TInput
+  ) => Promise<infer TDone>
+    ? (...input: TInput) => Write<TDone>
+    : never
+}
+
+export type RouterContext = Pick<Server, ReadName> &
+  Writes & {
+    // The session from the memory. Asks the server only when the memory is
+    // empty.
+    findSession: () => Promise<Session | undefined>
+  }
+
+function toWrites(server: Server): Writes {
+  const sends: Record<string, (...input: Array<never>) => Promise<unknown>> =
+    server
+  // The names decide: the type `Writes` reads the same names.
+  return Object.fromEntries(
+    Object.entries(sends)
+      .filter(([name]) => !name.startsWith('fetch') && name !== UNSHOWN)
+      .map(([name, send]) => [
+        name,
+        (...input: Array<never>) => toWrite(() => send(...input)),
+      ]),
+  ) as Writes
 }
 
 // The pages behind sign-in read the session from the memory, so a navigation
@@ -71,6 +105,7 @@ export function createRouterContext(
 
   return {
     ...server,
+    ...toWrites(server),
     fetchProject: (project) =>
       keepSignInTarget(server.fetchProject(project), `/${project}`),
     fetchParts: (project) =>
@@ -129,17 +164,20 @@ export function createRouterContext(
         `/${part.project}/${UNKNOWN_CONCEPT}/${part.recordId}`,
       ),
     findSession: async () => (memory.session ??= await server.fetchSession()),
-    signIn: (credentials) => {
-      forgetSession()
-      return server.signIn(credentials)
-    },
-    signUp: (account) => {
-      forgetSession()
-      return server.signUp(account)
-    },
-    signOut: () => {
-      forgetSession()
-      return server.signOut()
-    },
+    signIn: (credentials) =>
+      toWrite(() => {
+        forgetSession()
+        return server.signIn(credentials)
+      }),
+    signUp: (account) =>
+      toWrite(() => {
+        forgetSession()
+        return server.signUp(account)
+      }),
+    signOut: () =>
+      toWrite(() => {
+        forgetSession()
+        return server.signOut()
+      }),
   }
 }
