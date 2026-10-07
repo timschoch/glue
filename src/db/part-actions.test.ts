@@ -147,9 +147,12 @@ const requests = {
   listMineAsks: () => actions.listMineAsks({ project }),
   findAskState: () => actions.findAskState({ project, recordId: 'I1' }),
   addAsk: () =>
-    actions.addAsk({ project, ask: { insight: 'I1', toProject: 'ux' } }),
+    actions.addAsk({
+      project,
+      ask: { kind: 'insight', part: 'I1', toProject: 'ux' },
+    }),
   pickAsk: () => actions.pickAsk({ project, askId: 1 }),
-  handBackAsk: () => actions.handBackAsk({ project, askId: 1, insight: 'I1' }),
+  handBackAsk: () => actions.handBackAsk({ project, askId: 1, part: 'I1' }),
   takeBackAsk: () => actions.takeBackAsk({ project, askId: 1 }),
 } satisfies Record<keyof typeof actions, () => Promise<unknown>>
 
@@ -707,7 +710,7 @@ describe('an Ask to another Project', () => {
       title: 'Lists feel slow',
       source: 'study',
     })
-    await addAsk(db, 'ux', { insight: 'I1', toProject: project })
+    await addAsk(db, 'ux', { part: 'I1', toProject: project })
 
     expect(await actions.listMineAsks({ project })).toMatchObject([
       { id: 1, step: 'pick' },
@@ -728,9 +731,29 @@ describe('an Ask to another Project', () => {
     expect(
       await actions.addAsk({
         project,
-        ask: { insight: 'I1', toProject: project },
+        ask: { kind: 'insight', part: 'I1', toProject: project },
       }),
     ).toEqual({ message: 'Project "flexibeck" cannot ask Project "flexibeck"' })
+  })
+
+  it('is made by the member of the session', async () => {
+    await addProject(db, 'ux', 'UX team')
+    await addProjectReference(db, project, 'ux')
+
+    expect(
+      await actions.addAsk({
+        project,
+        ask: {
+          kind: 'decision',
+          part: 'G1',
+          toProject: 'ux',
+          question: 'Which list do we page first?',
+        },
+      }),
+    ).toEqual({ id: 1 })
+    expect(
+      await actions.findAskState({ project, recordId: 'G1' }),
+    ).toMatchObject({ ask: { askedBy: { email: 'ada@example.com' } } })
   })
 })
 

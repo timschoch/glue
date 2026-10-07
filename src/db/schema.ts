@@ -741,15 +741,22 @@ export const partActivity = pgTable(
   ],
 )
 
-// An Ask (glue/D51): the Hunch `partId` asks the Project `projectId` to
-// check it. A member of that Project picks the Ask and hands back a
-// published Insight of the own Project. The Ask is done when the Hunch needs
-// that Insight. Nothing moves and nothing is copied.
+// What an Ask asks for: the check of a Hunch, which gives an Insight
+// (glue/D51), or a Decision (glue/D56).
+export const askKinds = ['insight', 'decision'] as const
+export type AskKind = (typeof askKinds)[number]
+
+// An Ask (glue/D51, glue/D56): the Part `partId` asks the Project
+// `projectId` for a Part of the `kind`. A member of that Project picks the
+// Ask and hands back a published Part of the own Project. The Ask is done
+// when the Part that asks needs that Part. Nothing moves and nothing is
+// copied.
 export const asks = pgTable(
   'asks',
   {
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
-    // The Insight of the level Hunch that asks.
+    kind: text('kind').notNull().default('insight').$type<AskKind>(),
+    // The Part that waits for the answer. An Ask for an Insight: a Hunch.
     partId: integer('part_id')
       .notNull()
       .references(() => parts.id, { onDelete: 'cascade' }),
@@ -757,11 +764,17 @@ export const asks = pgTable(
     projectId: integer('project_id')
       .notNull()
       .references(() => projects.id),
+    // What the member who asks wants to know.
+    question: text('question'),
+    // The member who made the Ask. An Ask from before glue/D56 has none.
+    askedById: integer('asked_by_id').references(() => members.id, {
+      onDelete: 'set null',
+    }),
     // The member of the asked Project who picked the Ask.
     pickedById: integer('picked_by_id').references(() => members.id, {
       onDelete: 'set null',
     }),
-    // The Insight of the asked Project that was handed back.
+    // The Part of the asked Project that was handed back.
     handedBackPartId: integer('handed_back_part_id').references(
       () => parts.id,
       { onDelete: 'set null' },
@@ -771,6 +784,7 @@ export const asks = pgTable(
     handedBackAt: timestamp('handed_back_at', { withTimezone: true }),
   },
   (table) => [
+    check('asks_kind_check', sql`${table.kind} in ('insight', 'decision')`),
     index('asks_part_id_index').on(table.partId),
     index('asks_project_id_index').on(table.projectId),
   ],

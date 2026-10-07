@@ -12,6 +12,7 @@ import type {
 } from '../db/parts.ts'
 import type { ContractState } from '../db/contracts.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
+import { partTypes } from '../design-system/card.tsx'
 import { ConceptView } from '../design-system/concept-view.tsx'
 import { PartCards } from '../design-system/part-cards.tsx'
 import type { PartCardsAsk } from '../design-system/part-cards.tsx'
@@ -179,22 +180,27 @@ export function ConceptScreen({
     href: recordHref(part),
   })
 
-  // The card of an Ask is a Part of the other Project: the Hunch for the
-  // asked member, the Insight that came back for the member who asked.
+  // The card of an Ask is a Part of the other Project: the Part that waits
+  // for the asked member, the Part that came back for the member who asked.
   const toAskCard = (shown: AskPart, note?: string) => ({
     id: shown.id,
-    type: 'insight' as const,
+    type: shown.type,
     title: shown.title,
     trust: shown.trust,
     concept: shown.project.name,
     note,
     href: recordHref(shown, shown.project.slug),
   })
-  // The Insights that a member can hand back.
-  const published = parts.filter(
-    ({ type, workState }) => type === 'insight' && workState === 'published',
-  )
-  const toAsk = ({ id: askId, step, hunch, insight }: Ask): PartCardsAsk => {
+  // The Parts that a member can hand back: the kind of the Ask is their type.
+  const published = parts.filter(({ workState }) => workState === 'published')
+  const toAsk = ({
+    id: askId,
+    kind,
+    step,
+    part: hunch,
+    question,
+    handedBack: insight,
+  }: Ask): PartCardsAsk => {
     if (step === 'check' && insight) {
       return {
         id: askId,
@@ -214,9 +220,10 @@ export function ConceptScreen({
         },
       }
     }
+    const fitting = published.filter(({ type }) => type === kind)
     return {
       id: askId,
-      part: toAskCard(hunch),
+      part: toAskCard(hunch, question ?? undefined),
       action:
         step === 'pick'
           ? {
@@ -224,23 +231,23 @@ export function ConceptScreen({
               onClick: () =>
                 void write('Saving', () => pickAsk({ project, askId })),
             }
-          : published.length === 0
-            ? // No Insight to hand back yet: the step is to add one.
+          : fitting.length === 0
+            ? // No Part to hand back yet: the step is to add one.
               {
-                label: 'Add Insight',
-                onClick: () => void changeSearch({ ...search, add: 'insight' }),
+                label: `Add ${partTypes[kind]}`,
+                onClick: () => void changeSearch({ ...search, add: kind }),
               }
             : {
                 label: 'Hand back',
                 pick: {
-                  label: 'Insight',
-                  parts: published.map((part) => ({
+                  label: partTypes[kind],
+                  parts: fitting.map((part) => ({
                     ...part,
                     href: recordHref(part),
                   })),
                   onPick: (recordId) =>
                     void write('Saving', () =>
-                      handBackAsk({ project, askId, insight: recordId }),
+                      handBackAsk({ project, askId, part: recordId }),
                     ),
                 },
               },

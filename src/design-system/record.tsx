@@ -504,11 +504,13 @@ type ClickAction = {
 type PartPick = { label: string; onPick: (recordId: string) => void }
 
 // The choice that an action needs: its label, its options, and the run with
-// the value of the pick.
+// the value of the pick. A choice with `words` takes a text too: the label
+// of its field. The run gets the text, and waits for it.
 type OptionPick = {
   label: string
   options: ReadonlyArray<{ value: string; text: string }>
-  onPick: (value: string) => void
+  words?: string
+  onPick: (value: string, words: string) => void
 }
 
 // One action on the record. An action with a pick asks for a Part first,
@@ -608,6 +610,7 @@ export function Record({
   const questionId = useId()
   const pickId = useId()
   const chooseId = useId()
+  const chooseWordsId = useId()
   const activityId = useId()
   // Carbon renders the closed menu of the button on the server and not in
   // the browser. So the menu comes after the page is hydrated.
@@ -624,6 +627,7 @@ export function Record({
     label: string
     choose: OptionPick
     chosen: string | undefined
+    words: string
   }>()
   // The focus goes back to the button of the Next box when the choice closes
   // with Escape or with the button. The button is away while a write saves.
@@ -648,9 +652,11 @@ export function Record({
   }, [isChoosing])
   const send = () => {
     if (choosing?.chosen === undefined) return
+    const said = choosing.words.trim()
+    if (choosing.choose.words !== undefined && said === '') return
     refocus.current = true
     setChoosing(undefined)
-    choosing.choose.onPick(choosing.chosen)
+    choosing.choose.onPick(choosing.chosen, said)
   }
   const run = (action: RecordAction) => {
     if ('pick' in action) setPicking(action.pick)
@@ -660,7 +666,7 @@ export function Record({
       setChoosing((open) =>
         open?.label === label
           ? undefined
-          : { label, choose, chosen: choose.options.at(0)?.value },
+          : { label, choose, chosen: choose.options.at(0)?.value, words: '' },
       )
     } else if ('href' in action) window.location.assign(action.href)
     else if (action.confirm) setConfirming(action)
@@ -833,6 +839,19 @@ export function Record({
                   <SelectItem key={value} value={value} text={text} />
                 ))}
               </Select>
+            </div>
+          )}
+          {choosing?.choose.words !== undefined && pending === undefined && (
+            <div className={styles.words}>
+              <TextArea
+                id={chooseWordsId}
+                labelText={choosing.choose.words}
+                rows={2}
+                value={choosing.words}
+                onChange={({ target }) =>
+                  setChoosing({ ...choosing, words: target.value })
+                }
+              />
             </div>
           )}
           {pending !== undefined ? (

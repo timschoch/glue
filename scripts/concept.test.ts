@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { listMineAsks } from '../src/db/asks.ts'
 import { joinProject, setLoopSteps } from '../src/db/members.ts'
 import { createPartOperations } from '../src/db/part-operations.ts'
 import { addPart, addProject, setReading } from '../src/db/part-records.ts'
@@ -681,6 +682,80 @@ describe('runConcept', () => {
       'R1  not-ready  draft  CI takes ten minutes at most',
       'G1  open  not-ready  draft  Ship faster',
       'Ask 1  check  flexibeck/I1  Novices skip the fold  ux/I1',
+    ])
+  })
+
+  it('asks another Project for a Decision, and the hand back glues it', async () => {
+    await addProject(db, 'ux', 'UX team')
+    await run('project', 'set', 'flexibeck', '--references', 'ux')
+    await joinProject(db, 'ux', {
+      id: 'user-fred',
+      name: 'Fred',
+      email: 'fred@example.com',
+    })
+    await joinProject(db, 'flexibeck', {
+      id: 'user-mara',
+      name: 'Mara',
+      email: 'mara@example.com',
+    })
+    await addPart(db, 'ux', {
+      type: 'goal',
+      title: 'Each study ends with a Decision',
+      metric: 'studies with a Decision',
+      source: 'okr',
+    })
+    await addPart(db, 'ux', {
+      type: 'insight',
+      title: 'Novices read the first step only',
+      source: 'study',
+    })
+    await addPart(db, 'ux', {
+      type: 'decision',
+      title: 'Show one step at a time',
+      owner: 'Fred',
+      date: '2026-10-02',
+      status: 'accepted',
+      needs: ['G1', 'I1'],
+    })
+    vi.mocked(console.log).mockClear()
+
+    await run(
+      'ask',
+      'G1',
+      '--to-project',
+      'ux',
+      '--kind',
+      'decision',
+      '--question',
+      'How many steps fit on a screen?',
+      '--member',
+      'mara@example.com',
+      '--project',
+      'flexibeck',
+    )
+    await run(
+      'ask',
+      'pick',
+      '1',
+      '--member',
+      'fred@example.com',
+      '--project',
+      'ux',
+    )
+    const asks = await listMineAsks(db, 'ux')
+    await run('ask', 'hand-back', '1', '--decision', 'D1', '--project', 'ux')
+
+    expect(logged()).toEqual(['Ask 1'])
+    expect(asks).toMatchObject([
+      {
+        kind: 'decision',
+        question: 'How many steps fit on a screen?',
+        askedBy: { email: 'mara@example.com' },
+      },
+    ])
+    expect(await listMineAsks(db, 'ux')).toEqual([])
+    expect((await findPart(db, 'flexibeck', 'G1'))?.needs).toMatchObject([
+      { project: { slug: 'ux' }, part: { id: 'D1' } },
     ])
   })
 

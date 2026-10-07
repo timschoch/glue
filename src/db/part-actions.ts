@@ -153,8 +153,9 @@ export const askPickInputSchema = projectInputSchema.extend({
   askId: z.int(),
 })
 
+// `part` is the record id of the Insight or the Decision that goes back.
 export const askHandBackInputSchema = askPickInputSchema.extend({
-  insight: z.string(),
+  part: z.string(),
 })
 
 // The Project is the one that asked.
@@ -393,8 +394,9 @@ export function createPartActions(request: ActionRequest) {
       },
     ),
 
-    addAsk: withMember((db, { project, ask }: AskAddInput) =>
-      addAsk(db, project, ask).then((id) => ({ id }), toFailure),
+    // The member of the session makes the Ask.
+    addAsk: withMember((db, { project, ask }: AskAddInput, member) =>
+      addAsk(db, project, ask, member.email).then((id) => ({ id }), toFailure),
     ),
 
     // The member of the session picks the Ask.
@@ -405,12 +407,8 @@ export function createPartActions(request: ActionRequest) {
       ),
     ),
 
-    handBackAsk: withMember(
-      (db, { project, askId, insight }: AskHandBackInput) =>
-        handBackAsk(db, project, askId, insight).then(
-          () => undefined,
-          toFailure,
-        ),
+    handBackAsk: withMember((db, { project, askId, part }: AskHandBackInput) =>
+      handBackAsk(db, project, askId, part).then(() => undefined, toFailure),
     ),
 
     // The member of the session takes the Ask back.

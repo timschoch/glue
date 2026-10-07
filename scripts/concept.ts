@@ -11,7 +11,7 @@ import {
   pickAsk,
   takeBackAsk,
 } from '../src/db/asks.ts'
-import type { Ask } from '../src/db/asks.ts'
+import type { Ask, AskKind } from '../src/db/asks.ts'
 import { listBuilds } from '../src/db/builds.ts'
 import { findContract, signContract } from '../src/db/contracts.ts'
 import type { FrozenPart } from '../src/db/contracts.ts'
@@ -160,6 +160,8 @@ const KNOWN_FIELDS = new Set([
   'references',
   'pr',
   'insight',
+  'decision',
+  'question',
 ])
 
 type Flags = Record<string, string | string[] | GoalMeasure | undefined>
@@ -566,9 +568,11 @@ function formatHelp() {
     'pnpm concept builds',
     'pnpm concept gate --pr <number> [--project <slug>]',
     'pnpm concept mine [--member <e-mail>]',
-    'pnpm concept ask <id> --to-project <slug>',
+    'pnpm concept ask <id> --to-project <slug> [--member <e-mail>]',
+    'pnpm concept ask <id> --to-project <slug> --kind decision --question <text> [--member <e-mail>]',
     'pnpm concept ask pick <ask> --member <e-mail>',
     'pnpm concept ask hand-back <ask> --insight <id>',
+    'pnpm concept ask hand-back <ask> --decision <id>',
     'pnpm concept ask take-back <ask> --member <e-mail>',
     'pnpm concept member add <e-mail>',
     'pnpm concept member list',
@@ -632,8 +636,11 @@ function formatHelp() {
     'contract show prints the newest Contract Version: tier 1 (what to build), then tier 2 (the why).',
     'mine with --member: the records of the member, and the records that nobody has.',
     'ask asks another Project to check an Insight of the level hunch. The Project must be one that this Project may reference. It prints the number of the Ask.',
-    'ask pick and ask hand-back take the Project that is asked as --project. hand-back names a published Insight of that Project.',
-    'ask take-back takes the Project that asked as --project, and the member who asked as --member: a member who has the Hunch, or each member when nobody has it. It works while no member picked the Ask.',
+    'ask with --kind decision asks for a Decision. <id> is the record that waits for it: each record that is not sunk. --question is what the member wants to know.',
+    'ask with --member names the member who asks. Only this member takes the Ask back.',
+    'ask pick and ask hand-back take the Project that is asked as --project. hand-back names a published Insight of that Project, or a published Decision for an Ask of the kind decision.',
+    'ask hand-back with --decision ends the Ask: the record that waits needs the Decision.',
+    'ask take-back takes the Project that asked as --project, and the member who asked as --member. An Ask that names no such member: a member who has the Hunch, or each member when nobody has it. It works while no member picked the Ask.',
     'mine lists the open Asks too: pick and hand-back in the Project that is asked, check in the Project that asked. joint add <id> <project>/<id> glues the Insight to the Hunch: the Ask is done.',
     'list with --member: each record with its flight level for the member. operational: the record is of a loop step of the member, or the member is Responsible or Co-Author of the record or of its Concept. strategic: each other record.',
     'member add takes the e-mail address of an account. A record or a Concept has one Responsible.',
@@ -1179,17 +1186,19 @@ async function handleMemberCommand(
   }
 }
 
-function formatAsk({ id, step, hunch, insight }: Ask) {
+function formatAsk({ id, step, part, question, handedBack }: Ask) {
   return [
     `Ask ${id}`,
     step,
-    `${hunch.project.slug}/${hunch.id}`,
-    hunch.title,
-    ...(insight ? [`${insight.project.slug}/${insight.id}`] : []),
+    `${part.project.slug}/${part.id}`,
+    part.title,
+    ...(question === null ? [] : [question]),
+    ...(handedBack ? [`${handedBack.project.slug}/${handedBack.id}`] : []),
   ].join('  ')
 }
 
 // `ask <id> --to-project <slug>` asks another Project to check a Hunch.
+// With `--kind decision --question <text>` it asks for a Decision.
 // `ask pick` and `ask hand-back` are the steps of the Project that is asked.
 // `ask take-back` is a step of the member who asked.
 async function handleAskCommand(db: ConceptDb, [first, ...rest]: string[]) {
@@ -1205,10 +1214,12 @@ async function handleAskCommand(db: ConceptDb, [first, ...rest]: string[]) {
       return
     }
     case 'hand-back': {
-      const insight = flags.insight as string | undefined
-      if (!Number.isInteger(askId) || !insight)
-        throw new Error('ask hand-back needs <ask> --insight <id>')
-      await handBackAsk(db, project, askId, insight)
+      const recordId = (flags.insight ?? flags.decision) as string | undefined
+      if (!Number.isInteger(askId) || !recordId)
+        throw new Error(
+          'ask hand-back needs <ask> --insight <id> or --decision <id>',
+        )
+      await handBackAsk(db, project, askId, recordId)
       return
     }
     case 'take-back': {
@@ -1222,7 +1233,17 @@ async function handleAskCommand(db: ConceptDb, [first, ...rest]: string[]) {
       const toProject = flags.to_project as string | undefined
       if (!first || first.startsWith('--') || !toProject)
         throw new Error('ask needs <id> --to-project <slug>')
-      const id = await addAsk(db, project, { insight: first, toProject })
+      const id = await addAsk(
+        db,
+        project,
+        {
+          kind: flags.kind as AskKind | undefined,
+          part: first,
+          toProject,
+          question: flags.question as string | undefined,
+        },
+        flags.member as string | undefined,
+      )
       console.log(`Ask ${id}`)
     }
   }
