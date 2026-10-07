@@ -120,7 +120,8 @@ export const parts: LeveledPart[] = [
 ]
 
 // The builds of Glue: one names the Decision D4 and its gate holds, one names
-// an old Contract Version of the Part model and its gate breaks.
+// an old Contract Version of the Part model and its gate breaks. The check
+// of the Guardrail R1 failed on that build.
 export const builds: Build[] = [
   {
     number: 12,
@@ -133,6 +134,7 @@ export const builds: Build[] = [
     gate: {
       result: 'holds',
       reasons: [],
+      guardrails: [],
       checkedAt: '2026-10-05T09:00:00.000Z',
     },
   },
@@ -153,6 +155,15 @@ export const builds: Build[] = [
       result: 'breaks',
       reasons: [
         'Contract "part-model@1" is not the newest Version. Build with "part-model@2": `pnpm concept contract show part-model`.',
+      ],
+      guardrails: [
+        {
+          id: guardrail.id,
+          title: guardrail.title,
+          concept: guardrail.concept,
+          enforcedBy: 'check: verify',
+          state: 'failed',
+        },
       ],
       checkedAt: '2026-10-05T09:00:00.000Z',
     },

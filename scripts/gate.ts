@@ -10,9 +10,28 @@ const DEFAULT_API_URL = 'https://glue-glue-glue.vercel.app'
 const GITHUB_API_URL = 'https://api.github.com'
 
 const pullRequestSchema = z.object({ body: z.string().nullable() })
+
+// The states of a Guardrail, each with its word in the print.
+export const guardrailWords = {
+  passed: 'passed',
+  failed: 'failed',
+  waiting: 'waiting',
+  'by-person': 'by a person',
+} as const
+
 const gateSchema = z.object({
   result: z.enum(['holds', 'breaks']),
   reasons: z.array(z.string()),
+  // A deployment from before glue/D59 sends none.
+  guardrails: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        state: z.enum(['passed', 'failed', 'waiting', 'by-person']),
+      }),
+    )
+    .default([]),
 })
 
 type Environment = Record<string, string | undefined>

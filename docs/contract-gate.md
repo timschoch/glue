@@ -59,11 +59,39 @@ The answer:
   "reasons": [
     "Contract \"videos@1\" is not the newest Version. Build with \"videos@2\": `pnpm concept contract show videos`."
   ],
+  "guardrails": [
+    {
+      "id": "R1",
+      "title": "Tests come first",
+      "concept": "videos",
+      "enforcedBy": "check: verify",
+      "state": "passed"
+    }
+  ],
   "checkedAt": "2026-10-05T09:00:00.000Z"
 }
 ```
 
 The OpenAPI document at `/api/v1/openapi.json` describes the call as the operation `validateBuild` ([src/api/openapi.ts](../src/api/openapi.ts)).
+
+## Guardrails
+
+The gate lists the Guardrails of the Contract Version that the pull request names. A build that names only Decisions has no Guardrails in the answer.
+
+The field `enforcedBy` of a Guardrail says who checks it:
+
+- `check: <name>` names a check run of GitHub, for example `check: verify`. Glue reads the check runs of the head commit of the pull request.
+- Any other text means that a person enforces the Guardrail.
+
+| State       | Meaning                                                | Gate   |
+| ----------- | ------------------------------------------------------ | ------ |
+| `passed`    | Each check run of that name passed                     | Holds  |
+| `failed`    | A check run of that name failed                        | Breaks |
+| `waiting`   | The check run still runs, or no check run has the name | Holds  |
+| `waiting`   | GitHub skipped the check run, or GitHub did not answer | Holds  |
+| `by-person` | A person enforces the Guardrail                        | Holds  |
+
+A check run of the same job that calls the gate still runs at that time, so its Guardrail is `waiting`. Call the gate again after the checks end.
 
 ## What `breaks` means
 
@@ -76,5 +104,6 @@ The pull request does not match the Concept of today. Each reason says what to d
 | A Decision is superseded                   | Name the Decision that the reason gives                            |
 | A Decision does not exist                  | Correct the id                                                     |
 | The body names no Decision and no Contract | Add the `Contract:` line or the `Decision:` line                   |
+| The check of a Guardrail failed            | Fix the check, then run the gate again                             |
 
 Run the check again after each change to the body of the pull request.

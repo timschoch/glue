@@ -4,8 +4,8 @@ import type { Build } from '../db/builds.ts'
 import { Builds } from '../design-system/builds.tsx'
 import { useProjectLinks } from './use-project-links.ts'
 
-// The builds with the addresses of what they name. `reason` says why the
-// list is empty.
+// The builds with the addresses of what they name and of their Guardrails.
+// `reason` says why the list is empty.
 export function LinkedBuilds({
   builds,
   reason,
@@ -22,6 +22,12 @@ export function LinkedBuilds({
       builds={builds.map(({ decisions, contract, gate, ...build }) => ({
         ...build,
         gate: gate?.result ?? null,
+        guardrails: (gate?.guardrails ?? []).map((guardrail) => ({
+          id: guardrail.id,
+          title: guardrail.title,
+          state: guardrail.state,
+          href: recordHref(guardrail),
+        })),
         decisions: decisions.map((part) => ({
           id: part.id,
           type: part.type,
@@ -47,6 +53,7 @@ export function LinkedBuilds({
       reason={reason}
       onOpenPart={({ href }, event) => open(href, event)}
       onOpenContract={({ href }, event) => open(href, event)}
+      onOpenGuardrail={({ href }, event) => open(href, event)}
     />
   )
 }
