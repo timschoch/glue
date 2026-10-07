@@ -361,7 +361,7 @@ describe('the common flow of a Part', () => {
     } as const
 
     expect(findCommonFlow(hunch, [], 'pick')).toEqual({
-      name: 'Ask another team',
+      name: 'Ask another Project',
       steps: ['Ask', 'Pick', 'Hand back'],
       current: 1,
       next: { kind: 'edit', label: 'Raise the level' },
@@ -377,7 +377,7 @@ describe('the common flow of a Part', () => {
     } as const
 
     expect(findCommonFlow(hunch, [], 'check')).toEqual({
-      name: 'Ask another team',
+      name: 'Ask another Project',
       steps: ['Ask', 'Pick', 'Hand back'],
       current: 3,
       next: { kind: 'glue', label: 'Check and glue' },

@@ -2437,7 +2437,7 @@ describe('an Ask to another Project', () => {
 
     // Ada asks flexibeck to check her Hunch.
     await renderPage('/glue/part-model/I3', asking)
-    await act('Ask another team')
+    await act('Ask another Project')
     await userEvent.selectOptions(
       // The frame has the Project switch with the same name.
       within(screen.getByRole('main')).getByRole('combobox', {
@@ -2449,7 +2449,7 @@ describe('an Ask to another Project', () => {
 
     await waitFor(() =>
       expect(
-        within(screen.getByRole('list', { name: 'Ask another team' }))
+        within(screen.getByRole('list', { name: 'Ask another Project' }))
           .getAllByRole('button')
           .find((step) => step.getAttribute('aria-current') === 'step')?.title,
       ).toBe('Pick'),
@@ -2570,7 +2570,7 @@ describe('an Ask to another Project', () => {
         name: 'Project',
       })
 
-    await act('Ask another team')
+    await act('Ask another Project')
     await userEvent.selectOptions(
       within(screen.getByRole('main')).getByRole('combobox', {
         name: 'Project',
@@ -2586,7 +2586,7 @@ describe('an Ask to another Project', () => {
     expect(server.addAsk).not.toHaveBeenCalled()
     expect(document.activeElement).toBe(button('Raise the level'))
 
-    await act('Ask another team')
+    await act('Ask another Project')
     await userEvent.click(button('Send'))
 
     await waitFor(() => expect(choice()).toBeNull())
@@ -2760,6 +2760,30 @@ describe('an Ask to another Project', () => {
         part: 'D1',
       }),
     )
+  })
+
+  it('shows the question of the Ask on the Part that waits for the Decision', async () => {
+    const question = 'How long may a query of the map take?'
+    await renderPage(
+      '/glue/read-model/R1',
+      hunchWith({
+        ...open,
+        kind: 'decision',
+        part: {
+          ...open.part,
+          id: 'R1',
+          type: 'guardrail',
+          title: R1,
+          concept: 'read-model',
+        },
+        question,
+        askedBy: ada,
+      }),
+    )
+
+    const term = await screen.findByText('Question', { selector: 'dt' })
+
+    expect(term.nextElementSibling?.textContent).toBe(question)
   })
 
   it('does not take back an Ask that a member picked', async () => {

@@ -9,7 +9,7 @@ import { canReference, getProjectId } from './projects.ts'
 import { InvalidRecordError, PartNotFoundError } from './record-errors.ts'
 import * as schema from './schema.ts'
 
-// Ask another team. A member names a Part that waits for an answer and asks
+// Ask another Project. A member names a Part that waits for an answer and asks
 // another Project for it. A member of that Project picks the Ask and hands
 // back a published Part of the own Project. The Ask is done when the Part
 // that waits needs that Part: the Joint of a reference. Nothing moves and

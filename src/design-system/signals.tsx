@@ -16,6 +16,10 @@ import styles from './signals.module.scss'
 export type SignalRow = {
   url: string
   title: string
+  // `glue`: the tool has no title, so the source gave it one.
+  titleBy?: 'glue'
+  // What the user said, in words.
+  text?: string
   // The day that the Signal came in: 2026-10-02.
   date: string
   // The name of the Signal source that gave it.
@@ -120,49 +124,63 @@ export function Signals({
     )
   }
 
-  const toRow = ({ url, title, date, source, insight }: SignalRow) => (
-    <li key={url} className={styles.signal}>
-      {insight ? (
-        <span />
-      ) : (
-        <Checkbox
-          id={`${listId}-${url}`}
-          labelText={title}
-          hideLabel
-          checked={picks.has(url)}
-          onChange={(_, { checked }) =>
-            setPicks((current) => toggle(current, url, checked))
-          }
-        />
-      )}
-      <Link
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        renderIcon={Launch}
-        className={styles.signalTitle}
-      >
-        {title}
-      </Link>
-      <span className={`${styles.label} ${styles.source}`}>
-        {toSourceLabel(source)}
-      </span>
-      <time dateTime={date} className={styles.label}>
-        {date}
-      </time>
-      {insight && (
+  // The words of a person say what a Signal is about: the title, or the
+  // text when Glue gave the title. So each answer of a survey reads as
+  // itself.
+  const toRow = ({
+    url,
+    title: given,
+    titleBy,
+    text,
+    date,
+    source,
+    insight,
+  }: SignalRow) => {
+    const title = (titleBy === 'glue' && text) || given
+    return (
+      <li key={url} className={styles.signal}>
+        {insight ? (
+          <span />
+        ) : (
+          <Checkbox
+            id={`${listId}-${url}`}
+            labelText={title}
+            hideLabel
+            checked={picks.has(url)}
+            onChange={(_, { checked }) =>
+              setPicks((current) => toggle(current, url, checked))
+            }
+          />
+        )}
         <Link
-          href={insight.href}
-          className={styles.insight}
-          onClick={
-            onOpenInsight && ((event) => onOpenInsight(insight.id, event))
-          }
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          renderIcon={Launch}
+          className={styles.signalTitle}
         >
-          {insight.id} {insight.title}
+          {title}
         </Link>
-      )}
-    </li>
-  )
+        <span className={`${styles.label} ${styles.source}`}>
+          {toSourceLabel(source)}
+        </span>
+        <time dateTime={date} className={styles.label}>
+          {date}
+        </time>
+        {insight && (
+          <Link
+            href={insight.href}
+            className={styles.insight}
+            onClick={
+              onOpenInsight && ((event) => onOpenInsight(insight.id, event))
+            }
+          >
+            {insight.id} {insight.title}
+          </Link>
+        )}
+      </li>
+    )
+  }
 
   return (
     <section aria-labelledby={listId} className={styles.group}>

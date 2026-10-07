@@ -1,5 +1,7 @@
 import { ProgressIndicator, ProgressStep } from '@carbon/react'
 
+import styles from './step-bar.module.scss'
+
 export type StepBarProps = {
   // The name of the common flow, for example Insight to Decision.
   name: string
@@ -12,7 +14,11 @@ export type StepBarProps = {
 // before it are done.
 export function StepBar({ name, steps, current }: StepBarProps) {
   return (
-    <ProgressIndicator aria-label={name} currentIndex={current}>
+    <ProgressIndicator
+      aria-label={name}
+      currentIndex={current}
+      className={styles.bar}
+    >
       {steps.map((step, position) => (
         <ProgressStep
           key={step}

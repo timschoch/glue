@@ -707,7 +707,7 @@ describe('Record', () => {
             choose: {
               label: 'Project',
               options: [{ value: 'ux', text: 'UX team' }],
-              words: 'Question',
+              words: { label: 'Question', missing: 'Enter a question.' },
               onPick,
             },
           },
@@ -1018,7 +1018,7 @@ describe('the box Next', () => {
       {
         actions: [
           {
-            label: 'Ask another team',
+            label: 'Ask another Project',
             choose: {
               label: 'Project',
               options: [
@@ -1035,7 +1035,7 @@ describe('the box Next', () => {
     expect(screen.queryByRole('combobox')).toBeNull()
 
     await userEvent.click(
-      next().getByRole('button', { name: 'Ask another team' }),
+      next().getByRole('button', { name: 'Ask another Project' }),
     )
     await userEvent.selectOptions(
       next().getByRole('combobox', { name: 'Project' }),
@@ -1055,7 +1055,7 @@ describe('the box Next', () => {
     expect(onPick).toHaveBeenCalledExactlyOnceWith('data', '')
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(document.activeElement).toBe(
-      next().getByRole('button', { name: 'Ask another team' }),
+      next().getByRole('button', { name: 'Ask another Project' }),
     )
   })
 
@@ -1066,7 +1066,7 @@ describe('the box Next', () => {
         actions: [
           { label: 'Sign off', onClick: () => {} },
           {
-            label: 'Ask another team',
+            label: 'Ask another Project',
             choose: {
               label: 'Project',
               options: [{ value: 'ux', text: 'UX team' }],
@@ -1104,7 +1104,7 @@ describe('the box Next', () => {
       {
         actions: [
           {
-            label: 'Ask another team',
+            label: 'Ask another Project',
             choose: {
               label: 'Project',
               options: [{ value: 'ux', text: 'UX team' }],
@@ -1116,7 +1116,7 @@ describe('the box Next', () => {
     )
 
     await userEvent.click(
-      next().getByRole('button', { name: 'Ask another team' }),
+      next().getByRole('button', { name: 'Ask another Project' }),
     )
     await userEvent.click(next().getByRole('combobox', { name: 'Project' }))
     await userEvent.keyboard('{Escape}')
@@ -1125,8 +1125,62 @@ describe('the box Next', () => {
     expect(next().queryByRole('button', { name: 'Send' })).toBeNull()
     expect(onPick).not.toHaveBeenCalled()
     expect(document.activeElement).toBe(
-      next().getByRole('button', { name: 'Ask another team' }),
+      next().getByRole('button', { name: 'Ask another Project' }),
     )
+  })
+
+  it('shows the reason at the field when the words of a choice are empty', async () => {
+    const onPick = vi.fn()
+    renderRecord(
+      {},
+      {
+        actions: [
+          {
+            label: 'Ask for a Decision',
+            choose: {
+              label: 'Project',
+              options: [{ value: 'ux', text: 'UX team' }],
+              words: { label: 'Question', missing: 'Enter a question.' },
+              onPick,
+            },
+          },
+        ],
+      },
+    )
+    const field = () => next().getByRole('textbox', { name: 'Question' })
+    const reason = () =>
+      document.getElementById(field().getAttribute('aria-errormessage') ?? '')
+
+    await userEvent.click(
+      next().getByRole('button', { name: 'Ask for a Decision' }),
+    )
+
+    expect(field().getAttribute('aria-invalid')).not.toBe('true')
+
+    await userEvent.click(next().getByRole('button', { name: 'Send' }))
+
+    expect(onPick).not.toHaveBeenCalled()
+    expect(field().getAttribute('aria-invalid')).toBe('true')
+    expect(reason()?.textContent).toBe('Enter a question.')
+
+    await userEvent.type(field(), 'Which map?')
+
+    expect(field().getAttribute('aria-invalid')).not.toBe('true')
+
+    await userEvent.click(next().getByRole('button', { name: 'Send' }))
+
+    expect(onPick).toHaveBeenCalledExactlyOnceWith('ux', 'Which map?')
+  })
+
+  it('shows the question of the Ask that the Part waits on', () => {
+    renderRecord({}, { askQuestion: 'How long may a query take?' })
+
+    expect(
+      within(inRecord('dl'))
+        .getAllByRole('term')
+        .map((term) => [term.textContent, term.nextElementSibling?.textContent])
+        .at(-1),
+    ).toEqual(['Question', 'How long may a query take?'])
   })
 
   it('takes an answer in words above the button', async () => {
@@ -1374,6 +1428,36 @@ describe('the activity of a record', () => {
     expect(version.getByText('2026-10-01')).toBeTruthy()
     expect(version.getByText('Enforced by')).toBeTruthy()
     expect(version.getByText('lint')).toBeTruthy()
+  })
+
+  it('shows the number of an open Version and the day of its sign-off', async () => {
+    renderRecord({ activity: [signed] })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Version 1' }))
+
+    const version = within(screen.getByRole('region', { name: 'Version 1' }))
+    expect(version.getByText('Version 1')).toBeTruthy()
+    expect(version.getByText('2026-10-02')).toBeTruthy()
+  })
+
+  it('labels the owner and the date of an open Version', async () => {
+    renderRecord({ activity: [signed] })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Version 1' }))
+
+    const version = within(screen.getByRole('region', { name: 'Version 1' }))
+    expect(
+      version
+        .getAllByRole('term')
+        .map((term) => [
+          term.textContent,
+          term.nextElementSibling?.textContent,
+        ]),
+    ).toEqual([
+      ['Owner', 'Mara'],
+      ['Date', '2026-10-01'],
+      ['Enforced by', 'lint'],
+    ])
   })
 
   it('closes the Version again', async () => {
