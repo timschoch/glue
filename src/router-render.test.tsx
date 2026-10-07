@@ -345,6 +345,7 @@ describe('a section', () => {
     expect(cards()).toEqual([
       'Solid Goal G1 Agents build from the Concept Published Glue',
       `Solid Decision D4 ${D4} Published Part model`,
+      `Solid Guardrail R1 ${R1} Published Read model`,
     ])
     expect(
       within(screen.getByRole('main')).queryByRole('group', {
@@ -359,7 +360,7 @@ describe('a section', () => {
     // The click keeps the detail.
     await expectAddress('/glue/read-model', { section: 'Decide', detail: true })
     expect(items('Breadcrumb')).toEqual(['Glue', 'Part model', 'Read model'])
-    expect(cards()).toEqual([])
+    expect(cards()).toEqual([`Solid Guardrail R1 ${R1} Published Read model`])
     screen.getByRole('tab', { name: 'Summary' })
 
     await userEvent.click(button('Add Decision'))
@@ -943,6 +944,117 @@ describe('the edit of a Part', () => {
 
     await waitFor(() => expect(alerts()).toEqual([changed]))
     expect(field('Enforced by')).toHaveProperty('value', 'verify ci')
+  })
+})
+
+describe('the steps of a Flow and the fields of an Entity', () => {
+  // An Entity of Glue, beside its other Parts.
+  const E1: LeveledPart = {
+    ...parts[3],
+    id: 'E1',
+    type: 'entity',
+    title: 'Concept row',
+  }
+
+  it('shows the steps of a Flow with the Entity of a step as a link, and saves one more step', async () => {
+    const { expectAddress, server } = await renderPage('/glue/read-model/R1', {
+      fetchParts: vi.fn(() => Promise.resolve([...parts, E1])),
+      fetchPart: vi.fn(
+        changedPart('R1', {
+          type: 'flow',
+          steps: [
+            { text: 'Open the Concept', entity: 'E1' },
+            { text: 'Read its Parts', entity: null },
+            // An Entity that was removed after the step named it.
+            { text: 'Sign it', entity: 'E9' },
+          ],
+        }),
+      ),
+    })
+
+    const steps = within(screen.getByRole('region', { name: 'Steps' }))
+
+    expect(
+      steps.getAllByRole('listitem').map((step) => step.textContent),
+    ).toEqual([
+      'Open the Concept E1 Concept row',
+      'Read its Parts',
+      'Sign it E9',
+    ])
+    expect(steps.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'E1 Concept row',
+    ])
+    expect(
+      steps.getByRole('link', { name: 'E1 Concept row' }).getAttribute('href'),
+    ).toContain('/glue/read-model/E1')
+
+    await userEvent.click(button('Edit'))
+    await expectAddress('/glue/read-model/R1', { edit: true })
+    expect(field('Step 1')).toHaveProperty('value', 'Open the Concept')
+    await userEvent.click(button('Add step'))
+    await userEvent.type(field('Step 4'), 'Close it')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/read-model/R1')
+    const seen = [
+      { text: 'Open the Concept', entity: 'E1' },
+      { text: 'Read its Parts', entity: null },
+      { text: 'Sign it', entity: 'E9' },
+    ]
+    expect(server.updatePart).toHaveBeenCalledWith({
+      project: 'glue',
+      recordId: 'R1',
+      change: expect.objectContaining({
+        steps: [...seen, { text: 'Close it', entity: null }],
+      }),
+      expected: expect.objectContaining({ title: R1, steps: seen }),
+    })
+  })
+
+  it('shows the fields of an Entity, each name with its meaning, and saves another meaning', async () => {
+    const { expectAddress, server } = await renderPage('/glue/read-model/R1', {
+      fetchPart: vi.fn(
+        changedPart('R1', {
+          type: 'entity',
+          fields: [
+            { name: 'slug', meaning: 'The name in the address' },
+            { name: 'title', meaning: '' },
+          ],
+        }),
+      ),
+    })
+
+    const fields = within(screen.getByRole('region', { name: 'Fields' }))
+
+    expect(fields.getAllByRole('term').map((name) => name.textContent)).toEqual(
+      ['slug', 'title'],
+    )
+    expect(
+      fields.getAllByRole('definition').map((meaning) => meaning.textContent),
+    ).toEqual(['The name in the address', ''])
+
+    await userEvent.click(button('Edit'))
+    await userEvent.type(field('Meaning of field 2'), 'The name on the card')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue/read-model/R1')
+    expect(server.updatePart).toHaveBeenCalledWith({
+      project: 'glue',
+      recordId: 'R1',
+      change: expect.objectContaining({
+        fields: [
+          { name: 'slug', meaning: 'The name in the address' },
+          { name: 'title', meaning: 'The name on the card' },
+        ],
+      }),
+      expected: expect.objectContaining({
+        title: R1,
+        fields: [
+          { name: 'slug', meaning: 'The name in the address' },
+          { name: 'title', meaning: '' },
+        ],
+      }),
+    })
   })
 })
 
@@ -1547,6 +1659,7 @@ describe('the common flow of a record', () => {
           concept: 'part-model',
           title: 'Read a Concept',
           body: '',
+          steps: [],
           needs: ['D4'],
         },
       }),

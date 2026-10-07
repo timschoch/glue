@@ -4,11 +4,12 @@
 import { z } from 'zod'
 
 import { findContract, signContract } from '../db/contracts.ts'
-import type { Contract, FrozenPart } from '../db/contracts.ts'
+import type { Contract, ContractPart } from '../db/contracts.ts'
 import { evidenceLevels, partTypes } from '../db/parts.ts'
 import { ApiError, handleApiRequest, parseJson } from './api-request.ts'
 import type { ApiRequest } from './api-request.ts'
 import { contractQuestionSchema } from './contract-question-api.ts'
+import { entityFieldSchema, flowStepSchema } from './part-api.ts'
 
 const frozenPartSchema = z
   .object({
@@ -27,11 +28,17 @@ const frozenPartSchema = z
     needs: z.array(z.string()).meta({
       description: 'The record ids of the Parts that it needs',
     }),
+    steps: z.array(flowStepSchema).meta({
+      description: 'The steps of a Flow, in order',
+    }),
+    fields: z.array(entityFieldSchema).meta({
+      description: 'The fields of an Entity',
+    }),
   })
   .meta({
     id: 'FrozenPart',
     description: 'A Part as it was at the sign-off',
-  }) satisfies z.ZodType<FrozenPart>
+  }) satisfies z.ZodType<ContractPart>
 
 export const contractSchema = z
   .object({

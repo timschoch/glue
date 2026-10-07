@@ -19,7 +19,7 @@ import {
   listContractQuestions,
 } from '../src/db/contract-questions.ts'
 import { findContract, signContract } from '../src/db/contracts.ts'
-import type { ContractQuestion, FrozenPart } from '../src/db/contracts.ts'
+import type { ContractPart, ContractQuestion } from '../src/db/contracts.ts'
 import { listLeveledParts } from '../src/db/flight-level.ts'
 import type { LeveledPart } from '../src/db/flight-level.ts'
 import { goalMeasureSchema } from '../src/db/goal-measure.ts'
@@ -147,6 +147,8 @@ const KNOWN_FIELDS = new Set([
   'parent',
   'name',
   'measure',
+  'steps',
+  'fields',
   'analytics_project',
   'repository',
   'social_handle',
@@ -171,15 +173,25 @@ const KNOWN_FIELDS = new Set([
   'optional',
 ])
 
-type Flags = Record<string, string | string[] | GoalMeasure | undefined>
+// The steps of a Flow or the fields of an Entity, as the flag has them. The
+// operation reads them with the schema of the type.
+type JsonRows = Array<Record<string, unknown>>
+
+type Flags = Record<
+  string,
+  string | string[] | GoalMeasure | JsonRows | undefined
+>
+
+function parseJson(key: string, value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    throw new Error(`"--${key}" must be JSON`)
+  }
+}
 
 function parseMeasure(value: string): GoalMeasure {
-  let json: unknown
-  try {
-    json = JSON.parse(value)
-  } catch {
-    throw new Error('"--measure" must be JSON')
-  }
+  const json = parseJson('measure', value)
   const result = goalMeasureSchema.safeParse(json)
   if (!result.success) {
     throw new Error(`"--measure": ${z.prettifyError(result.error)}`)
@@ -191,6 +203,9 @@ function parseFlagValue(key: string, value: string) {
   if (key === 'evidence' || key === 'needs') return value.split(',')
   if (key === 'required' || key === 'optional') return value.split(',')
   if (key === 'measure') return parseMeasure(value)
+  if (key === 'steps' || key === 'fields') {
+    return parseJson(key, value) as JsonRows
+  }
   return value
 }
 
@@ -256,7 +271,7 @@ function toDecisionInput({
     needs: [
       requireType(String(goal), ['goal'], 'goal'),
       ...(Array.isArray(evidence) ? evidence : []).map((id) =>
-        requireType(id, evidenceTypes, 'evidence'),
+        requireType(String(id), evidenceTypes, 'evidence'),
       ),
       ...(Array.isArray(needs) ? needs : []),
     ],
@@ -415,6 +430,18 @@ function printTrust(part: Part) {
   }
 }
 
+// The steps of a Flow and the fields of an Entity, each list as JSON: what
+// `--steps` and `--fields` take.
+function formatLists({
+  steps,
+  fields,
+}: Pick<ContractPart, 'steps' | 'fields'>) {
+  return [
+    ...(steps.length > 0 ? [`steps: ${JSON.stringify(steps)}`] : []),
+    ...(fields.length > 0 ? [`fields: ${JSON.stringify(fields)}`] : []),
+  ]
+}
+
 // A Part as it was at one sign-off: the frozen title, fields and body.
 function printVersion(id: string, frozen: PartVersion) {
   const { status, owner, date, source, metric, enforcedBy, evidenceLevel } =
@@ -434,6 +461,7 @@ function printVersion(id: string, frozen: PartVersion) {
   for (const [key, value] of Object.entries(fields)) {
     if (value !== null) console.log(`${key}: ${value}`)
   }
+  for (const line of formatLists(frozen)) console.log(line)
   console.log(`signed_at: ${frozen.signedAt}`)
   if (frozen.signedBy) console.log(`signed_by: ${frozen.signedBy}`)
   if (frozen.body) console.log(`\n${frozen.body}`)
@@ -531,6 +559,7 @@ function printPart(part: Part) {
   if (part.measure) {
     console.log(`measure: ${JSON.stringify(part.measure.measure)}`)
   }
+  for (const line of formatLists(part)) console.log(line)
   console.log(`concept: ${part.concept}`)
   for (const needed of part.needs) {
     console.log(`needs: ${formatNeeded(needed)}`)
@@ -615,6 +644,8 @@ function formatHelp() {
     ...types,
     `  ${Object.keys(PART_FOLDERS).join(', ')}: ${formatNeededFlags(PART_TYPES[0])}`,
     '  goals and metrics also take --measure <json>, decisions --supersedes <id>',
+    '  flows also take --steps <json>, the whole list in order: [{"text":"Open the cart","entity":"E1"},{"text":"Pay","entity":null}]. entity is the id of an Entity of the Project.',
+    '  entities also take --fields <json>, the whole list: [{"name":"total","meaning":"The sum to pay"}]',
     '  decisions also take --option <text>, once per option, and --pick <number>: the option that the author would take',
     `  insights also take --level ${evidenceLevels.join('|')} and --status draft`,
     '  guardrails, entities, flows and metrics also take --source',
@@ -1119,7 +1150,7 @@ function toSlots(flags: Flags) {
   }
   const readSlots = (names: Flags[string], required: boolean) =>
     (Array.isArray(names) ? names : []).map((name) => {
-      const [type, count = '1'] = name.split(':')
+      const [type, count = '1'] = String(name).split(':')
       return { type: type as PartType, required, minCount: Number(count) }
     })
   return [
@@ -1166,8 +1197,13 @@ async function handleKindCommand(db: ConceptDb, [command, ...rest]: string[]) {
   }
 }
 
-function formatFrozenPart({ id, type, title }: FrozenPart) {
-  return [id, type, title].join('  ')
+// One Part of a Contract Version: its line, then its steps or its fields.
+function formatFrozenPart(part: ContractPart) {
+  const { id, type, title } = part
+  return [
+    [id, type, title].join('  '),
+    ...formatLists(part).map((line) => `  ${line}`),
+  ]
 }
 
 // A question about a Contract Version, and its answer on the next line. A
@@ -1241,9 +1277,13 @@ async function handleContractCommand(
         )
       }
       console.log('tier 1')
-      for (const part of contract.tier1) console.log(formatFrozenPart(part))
+      for (const line of contract.tier1.flatMap(formatFrozenPart)) {
+        console.log(line)
+      }
       console.log('tier 2')
-      for (const part of contract.tier2) console.log(formatFrozenPart(part))
+      for (const line of contract.tier2.flatMap(formatFrozenPart)) {
+        console.log(line)
+      }
       if (contract.questions.length > 0) console.log('questions')
       contract.questions.forEach(printContractQuestion)
       return

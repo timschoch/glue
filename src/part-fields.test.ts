@@ -65,8 +65,8 @@ describe('the fields of each Part type', () => {
     ['goal', ['title', 'body', 'metric', 'source']],
     ['decision', ['title', 'body', 'owner', 'date', 'goal', 'evidence']],
     ['guardrail', ['title', 'body', 'enforcedBy']],
-    ['entity', ['title', 'body']],
-    ['flow', ['title', 'body']],
+    ['entity', ['title', 'body', 'fields']],
+    ['flow', ['title', 'body', 'steps']],
     ['metric', ['title', 'body']],
   ] as const)('give the Part form the fields of the type %s', (type, shown) => {
     expect(listFormFields(type).map(({ name }) => name)).toEqual(shown)

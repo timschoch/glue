@@ -89,8 +89,20 @@ export const partFields = {
     owner,
     source,
   ],
-  entity: [title, body, owner, source],
-  flow: [title, body, owner, source],
+  entity: [
+    title,
+    body,
+    { name: 'fields', kind: 'json', required: false, label: 'Fields' },
+    owner,
+    source,
+  ],
+  flow: [
+    title,
+    body,
+    { name: 'steps', kind: 'json', required: false, label: 'Steps' },
+    owner,
+    source,
+  ],
   metric: [title, body, measure, owner, source],
 } as const satisfies Record<string, ReadonlyArray<PartField>>
 
@@ -107,6 +119,18 @@ export const evidenceTypes = ['insight', 'guardrail'] as const
 export function isEvidence(type: PartType): boolean {
   const types: ReadonlyArray<PartType> = evidenceTypes
   return types.includes(type)
+}
+
+// The place of the first field of an Entity that has the name of a field
+// before it, or -1. An Entity has one field of each name. A field without
+// a name is none. The form, its values and the server read it.
+export function findRepeatedField(
+  fields: ReadonlyArray<{ name: string }>,
+): number {
+  const names = fields.map(({ name }) => name.trim())
+  return names.findIndex(
+    (name, index) => name !== '' && names.indexOf(name) < index,
+  )
 }
 
 // The fields of the Part type that the Part form shows, in its order.

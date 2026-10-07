@@ -1,7 +1,11 @@
 import type { ExpectedPart, NewPart, PartChange } from '../db/part-records.ts'
 import type { Part, PartType } from '../db/parts.ts'
 import type { PartFormValues } from '../design-system/part-form.tsx'
-import { isEvidence, listFormFields } from '../part-fields.ts'
+import {
+  findRepeatedField,
+  isEvidence,
+  listFormFields,
+} from '../part-fields.ts'
 import { todayUtc } from '../today-utc.ts'
 
 // What goes between the Part form and the writes of the Part model.
@@ -26,16 +30,38 @@ function pickFields<TSource extends Record<Field, unknown>>(
   return picked
 }
 
+// The values as a write takes them: the date without spaces around it, and
+// only the steps with a text and the fields with a name. A row that the
+// person added and left empty is no step and no field.
+function toFilled(values: PartFormValues) {
+  return {
+    ...values,
+    date: values.date.trim(),
+    steps: values.steps.filter(({ text }) => text.trim() !== ''),
+    fields: values.fields.filter(({ name }) => name.trim() !== ''),
+  }
+}
+
 // The reason of each field with a wrong value. The form keeps Save off
-// while a field has no value, so only the format is left to check.
+// while a field has no value, so only the format of the date and the
+// names of the fields of an Entity are left to check.
 export function findProblems(
   type: PartType,
   values: PartFormValues,
 ): Partial<Record<keyof PartFormValues, string>> {
-  const dated = listFormFields(type).some(({ kind }) => kind === 'date')
-  return dated && !ISO_DATE.test(values.date.trim())
-    ? { date: `Enter a date, such as ${todayUtc()}.` }
-    : {}
+  const names = listFormFields(type).map(({ name }) => name)
+  const repeated = names.includes('fields')
+    ? findRepeatedField(values.fields)
+    : -1
+  return {
+    ...(names.includes('date') &&
+      !ISO_DATE.test(values.date.trim()) && {
+        date: `Enter a date, such as ${todayUtc()}.`,
+      }),
+    ...(repeated !== -1 && {
+      fields: `A field has one name. "${values.fields[repeated].name.trim()}" is there twice.`,
+    }),
+  }
 }
 
 // The new Part of the form. A new Decision is proposed. One that supersedes
@@ -57,7 +83,7 @@ export function toNewPart(
     body: values.body,
     ...(needs && { needs }),
   }
-  const date = values.date.trim()
+  const { date, steps, fields } = toFilled(values)
   switch (type) {
     case 'insight':
       return {
@@ -84,6 +110,10 @@ export function toNewPart(
       }
     case 'guardrail':
       return { type, ...common, enforcedBy: values.enforcedBy }
+    case 'entity':
+      return { type, ...common, fields }
+    case 'flow':
+      return { type, ...common, steps }
     default:
       return { type, ...common }
   }
@@ -98,7 +128,7 @@ export function toPartChange(
   start: Pick<PartFormValues, 'goal'>,
 ): PartChange {
   return {
-    ...pickFields(type, { ...values, date: values.date.trim() }),
+    ...pickFields(type, toFilled(values)),
     ...(type === 'decision' &&
       values.goal &&
       values.goal !== start.goal && { goal: values.goal }),
@@ -107,7 +137,8 @@ export function toPartChange(
 }
 
 // The values that the person saw in the form. The write changes nothing
-// when a second person changed one of them.
+// when a second person changed one of them: a text, a step of a Flow or a
+// field of an Entity.
 export function toExpectedPart(part: Part): ExpectedPart {
   return pickFields(part.type, part)
 }
@@ -126,6 +157,8 @@ export function toFormValues(part: Part): PartFormValues {
     enforcedBy: part.enforcedBy ?? '',
     goal: needed.find(({ type }) => type === 'goal')?.id ?? null,
     evidence: needed.filter(({ type }) => isEvidence(type)).map(({ id }) => id),
+    steps: part.steps,
+    fields: part.fields,
     sameMeaning: false,
   }
 }

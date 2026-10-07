@@ -145,6 +145,29 @@ describe('pnpm concept contract', () => {
     ])
   })
 
+  it('show prints the steps of a Flow below its line', async () => {
+    await run(
+      'set',
+      'F1',
+      '--steps',
+      '[{"text":"Open the recipe","entity":null}]',
+    )
+    await run('answer', 'F1', 'supersede')
+    await run('contract', 'sign', 'videos', '--owner', 'Tim')
+    printed.mockClear()
+
+    await run('contract', 'show', 'videos')
+
+    const lines = listPrinted()
+    expect(
+      lines.slice(lines.indexOf('tier 1'), lines.indexOf('tier 2')),
+    ).toEqual([
+      'tier 1',
+      'F1  flow  Watch a technique',
+      '  steps: [{"text":"Open the recipe","entity":null}]',
+    ])
+  })
+
   it('show --version prints an older Version and says that it is superseded', async () => {
     await run('answer', 'F1', 'supersede')
     await run('contract', 'sign', 'videos', '--owner', 'Tim')

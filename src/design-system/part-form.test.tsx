@@ -338,6 +338,8 @@ describe('PartForm', () => {
       enforcedBy: '',
       goal: 'G2',
       evidence: ['I7'],
+      steps: [],
+      fields: [],
       sameMeaning: false,
     })
   })
@@ -580,5 +582,181 @@ describe('PartForm', () => {
     renderForm()
 
     expect(alerts()).toEqual([])
+  })
+})
+
+describe('the steps of a Flow in the Part form', () => {
+  const CART: PartFormPart = {
+    id: 'E1',
+    type: 'entity',
+    title: 'Cart',
+    trust: 'solid',
+    href: '#E1',
+  }
+
+  const button = (name: string) =>
+    screen.getByRole<HTMLButtonElement>('button', { name })
+
+  function renderFlow(props: Partial<PartFormProps> = {}) {
+    return renderForm({
+      type: 'flow',
+      parts: [...PARTS, CART],
+      values: { title: 'Pay the cart' },
+      ...props,
+    })
+  }
+
+  it('starts with no step, and saves a Flow without steps', async () => {
+    const user = userEvent.setup()
+    const { onSave } = renderFlow()
+
+    expect(screen.queryByRole('textbox', { name: 'Step 1' })).toBeNull()
+    await user.click(saveButton())
+
+    expect(onSave.mock.calls[0][0].steps).toEqual([])
+  })
+
+  it('adds steps in their order, and a step names an Entity of the Project', async () => {
+    const user = userEvent.setup()
+    const { onSave } = renderFlow()
+
+    await user.click(button('Add step'))
+    await user.type(field('Step 1'), 'Open the cart')
+    await user.selectOptions(picker('Entity of step 1'), 'E1 Cart')
+    await user.click(button('Add step'))
+    await user.type(field('Step 2'), 'Pay')
+    await user.click(saveButton())
+
+    expect(
+      within(picker('Entity of step 1'))
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['', 'E1 Cart'])
+    expect(onSave.mock.calls[0][0].steps).toEqual([
+      { text: 'Open the cart', entity: 'E1' },
+      { text: 'Pay', entity: null },
+    ])
+  })
+
+  it('moves a step up and down, and removes a step', async () => {
+    const user = userEvent.setup()
+    const { onSave } = renderFlow({
+      values: {
+        title: 'Pay the cart',
+        steps: [
+          { text: 'Open the cart', entity: 'E1' },
+          { text: 'Pay', entity: null },
+          { text: 'Leave', entity: null },
+        ],
+      },
+    })
+
+    await user.click(iconButton('Move step 2 up'))
+    await user.click(iconButton('Move step 2 down'))
+    await user.click(iconButton('Remove step 1'))
+    await user.click(saveButton())
+
+    expect(onSave.mock.calls[0][0].steps).toEqual([
+      { text: 'Leave', entity: null },
+      { text: 'Open the cart', entity: 'E1' },
+    ])
+  })
+
+  it('has no way up for the first step and no way down for the last one', () => {
+    renderFlow({
+      values: {
+        title: 'Pay the cart',
+        steps: [
+          { text: 'Open the cart', entity: null },
+          { text: 'Pay', entity: null },
+        ],
+      },
+    })
+
+    expect(iconButton('Move step 1 up')).toHaveProperty('disabled', true)
+    expect(iconButton('Move step 1 down')).toHaveProperty('disabled', false)
+    expect(iconButton('Move step 2 up')).toHaveProperty('disabled', false)
+    expect(iconButton('Move step 2 down')).toHaveProperty('disabled', true)
+  })
+
+  it('shows the reason of wrong steps at the steps', () => {
+    renderFlow({ errors: { steps: '"E7" is not an Entity' } })
+
+    expect(
+      within(screen.getByRole('group', { name: 'Steps' })).getByText(
+        '"E7" is not an Entity',
+      ),
+    ).toBeTruthy()
+  })
+})
+
+describe('the fields of an Entity in the Part form', () => {
+  const button = (name: string) => screen.getByRole('button', { name })
+
+  it('adds a field with its name and its meaning, and removes a field', async () => {
+    const user = userEvent.setup()
+    const { onSave } = renderForm({
+      type: 'entity',
+      values: {
+        title: 'Cart',
+        fields: [{ name: 'owner', meaning: 'Who pays' }],
+      },
+    })
+
+    await user.click(button('Add field'))
+    await user.type(field('Field 2'), 'total')
+    await user.type(field('Meaning of field 2'), 'The sum to pay')
+    await user.click(iconButton('Remove field 1'))
+    await user.click(saveButton())
+
+    expect(onSave.mock.calls[0][0].fields).toEqual([
+      { name: 'total', meaning: 'The sum to pay' },
+    ])
+  })
+
+  it('has a meaning that takes more than one line', () => {
+    renderForm({
+      type: 'entity',
+      values: { title: 'Cart', fields: [{ name: 'owner', meaning: '' }] },
+    })
+
+    expect(field('Meaning of field 1').tagName).toBe('TEXTAREA')
+    expect(field('Field 1').tagName).toBe('INPUT')
+  })
+
+  it('shows the reason at the field that has the name of a field before it', () => {
+    const reason = 'A field has one name. "total" is there twice.'
+    renderForm({
+      type: 'entity',
+      values: {
+        title: 'Cart',
+        fields: [
+          { name: 'total', meaning: 'The sum to pay' },
+          { name: 'owner', meaning: 'Who pays' },
+          { name: ' total', meaning: 'The sum with tax' },
+        ],
+      },
+      errors: { fields: reason },
+    })
+
+    const invalid = ['Field 1', 'Field 2', 'Field 3'].map(
+      (name) => field(name).getAttribute('aria-invalid') === 'true',
+    )
+
+    expect(invalid).toEqual([false, false, true])
+    expect(screen.getAllByText(reason)).toHaveLength(1)
+    expect(
+      field('Field 3').closest('li')?.contains(screen.getByText(reason)),
+    ).toBe(true)
+  })
+
+  it('shows another reason of wrong fields at the fields', () => {
+    renderForm({ type: 'entity', errors: { fields: 'Too many fields' } })
+
+    expect(
+      within(screen.getByRole('group', { name: 'Fields' })).getByText(
+        'Too many fields',
+      ),
+    ).toBeTruthy()
   })
 })

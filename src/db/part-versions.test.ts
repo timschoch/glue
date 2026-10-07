@@ -59,6 +59,8 @@ describe('the Versions of a Part', () => {
         metric: null,
         enforcedBy: 'lint',
         evidenceLevel: null,
+        steps: [],
+        fields: [],
         signedAt: expect.any(String),
         signedBy: 'Ada',
       },

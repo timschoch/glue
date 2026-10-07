@@ -14,9 +14,11 @@ import { isEvidence, listFormFields } from '../part-fields.ts'
 import type { FormField } from '../part-fields.ts'
 import { Card, partTypes } from './card.tsx'
 import { PartFormBody } from './part-form-body.tsx'
+import { FieldRows, StepRows } from './part-form-lists.tsx'
 import styles from './part-form.module.scss'
 import { PartSearch } from './part-search.tsx'
 import type { PartType } from './card.tsx'
+import type { FieldValue, StepValue } from './part-form-lists.tsx'
 import type { PartFormPart } from './part-search.tsx'
 
 export type { PartFormPart }
@@ -34,6 +36,10 @@ export type PartFormValues = {
   goal: string | null
   // The record ids of the Parts that a Decision needs as evidence.
   evidence: ReadonlyArray<string>
+  // The steps of a Flow, in their order.
+  steps: ReadonlyArray<StepValue>
+  // The fields of an Entity.
+  fields: ReadonlyArray<FieldValue>
   // A wording fix: the new title or body means the same as the old one.
   sameMeaning: boolean
 }
@@ -50,6 +56,8 @@ const EMPTY: PartFormValues = {
   enforcedBy: '',
   goal: null,
   evidence: [],
+  steps: [],
+  fields: [],
   sameMeaning: false,
 }
 
@@ -271,6 +279,29 @@ export function PartForm({
               }))
             }
             onOpen={onOpen}
+          />
+        )
+      case 'steps':
+        return (
+          <StepRows
+            key={field}
+            id={shared.id}
+            label={label}
+            rows={values.steps}
+            entities={parts.filter((part) => part.type === 'entity')}
+            invalidText={errors[field]}
+            onChange={(rows) => change({ steps: rows })}
+          />
+        )
+      case 'fields':
+        return (
+          <FieldRows
+            key={field}
+            id={shared.id}
+            label={label}
+            rows={values.fields}
+            invalidText={errors[field]}
+            onChange={(rows) => change({ fields: rows })}
           />
         )
       default:

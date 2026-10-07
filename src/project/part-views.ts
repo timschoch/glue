@@ -93,6 +93,8 @@ export function toRecordPart(
     enforcedBy: part.enforcedBy,
     evidenceLevel: part.evidenceLevel,
     evidenceBase: part.evidenceBase,
+    steps: part.steps,
+    fields: part.fields,
     issueUrl: part.issueUrl,
     measure: measure && {
       baseline: measure.baseline,
