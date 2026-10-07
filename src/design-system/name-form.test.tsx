@@ -24,7 +24,8 @@ function renderForm(props: Partial<NameFormProps> = {}) {
   return { onSave, onCancel }
 }
 
-const field = () => screen.getByRole<HTMLInputElement>('textbox')
+const field = () =>
+  screen.getByRole<HTMLInputElement>('textbox', { name: 'Title' })
 
 const saveButton = () =>
   screen.getByRole<HTMLButtonElement>('button', { name: 'Save' })
@@ -49,6 +50,20 @@ describe('NameForm', () => {
     expect(screen.getAllByRole('textbox')).toEqual([
       screen.getByLabelText('Name'),
     ])
+  })
+
+  it('shows one more field between its field and its buttons', () => {
+    renderForm({ children: <input aria-label="Kind" /> })
+
+    const more = screen.getByLabelText('Kind')
+
+    expect(
+      field().compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      more.compareDocumentPosition(saveButton()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 
   it('has no placeholder and no helper text', () => {

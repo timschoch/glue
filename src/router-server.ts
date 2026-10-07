@@ -19,8 +19,11 @@ import type {
   AskTakeBackInput,
   AssignInput,
   ConceptAddInput,
+  ConceptUpdateInput,
   JointAddInput,
   JointRemoveInput,
+  KindAddInput,
+  KindUpdateInput,
   LoopStepsInput,
   MemberAddInput,
   PartAddInput,
@@ -49,6 +52,7 @@ import {
   submitAddAsk,
   submitAddConcept,
   submitAddJoint,
+  submitAddKind,
   submitAddMember,
   submitAddPart,
   submitAddProject,
@@ -64,6 +68,8 @@ import {
   submitSetLoopSteps,
   submitUnassign,
   submitUnwatch,
+  submitUpdateConcept,
+  submitUpdateKind,
   submitUpdatePart,
   submitWatch,
 } from './db/parts.functions.ts'
@@ -104,8 +110,13 @@ export const server = {
   // happen and the message says why.
   addProject: (project: ProjectAddInput) => submitAddProject({ data: project }),
   addConcept: (concept: ConceptAddInput) => submitAddConcept({ data: concept }),
+  updateConcept: (concept: ConceptUpdateInput) =>
+    submitUpdateConcept({ data: concept }),
   removeConcept: (concept: ConceptInput) =>
     submitRemoveConcept({ data: concept }),
+  addKind: (kind: KindAddInput) => submitAddKind({ data: kind }),
+  // `kind` is the slug of the Kind.
+  updateKind: (kind: KindUpdateInput) => submitUpdateKind({ data: kind }),
   addPart: (part: PartAddInput) => submitAddPart({ data: part }),
   updatePart: (part: PartUpdateInput) => submitUpdatePart({ data: part }),
   answerPart: (answer: AnswerInput) => submitAnswer({ data: answer }),

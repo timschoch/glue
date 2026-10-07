@@ -3,6 +3,7 @@ import {
   Button,
   ClickableTile,
   ContentSwitcher,
+  InlineLoading,
   InlineNotification,
   Switch,
 } from '@carbon/react'
@@ -12,6 +13,8 @@ import type { MouseEvent, ReactElement, ReactNode, SyntheticEvent } from 'react'
 import { Card, partTypes } from './card.tsx'
 import type { PartType, ReviewNote, Slot, Trust } from './card.tsx'
 import styles from './concept-view.module.scss'
+import { KindSelect } from './kind-select.tsx'
+import type { KindOption } from './kind-select.tsx'
 
 // The Part types in the order of the loop, each with its word for many Parts.
 export const typeGroups = [
@@ -23,8 +26,6 @@ export const typeGroups = [
   { type: 'flow', many: 'Flows' },
   { type: 'metric', many: 'Metrics' },
 ] as const satisfies ReadonlyArray<{ type: PartType; many: string }>
-
-const kinds = { brief: 'Brief' } as const
 
 // The count of cards that a folded type group shows.
 const FOLDED_COUNT = 6
@@ -134,7 +135,8 @@ export type ConceptViewPart = {
 export type ConceptViewNode = {
   slug: string
   title: string
-  kind: keyof typeof kinds | null
+  // The slug of its Kind.
+  kind: string | null
   partCount: number
   concepts: ReadonlyArray<ConceptViewNode>
 }
@@ -159,7 +161,8 @@ export type ConceptViewProps = {
   concept: {
     slug: string
     title: string
-    kind: keyof typeof kinds | null
+    // The slug of its Kind.
+    kind: string | null
     concepts: ReadonlyArray<ConceptViewNode>
     // The Parts that have their home here.
     parts: ReadonlyArray<ConceptViewPart>
@@ -167,8 +170,26 @@ export type ConceptViewProps = {
     // Concept.
     linkedParts: ReadonlyArray<ConceptViewPart>
     // One slot per Part type of the Kind.
-    slots: ReadonlyArray<{ type: PartType; filled: boolean }>
+    slots: ReadonlyArray<{
+      type: PartType
+      required: boolean
+      filled: boolean
+    }>
   }
+  // The Kinds of the Project.
+  kinds?: ReadonlyArray<KindOption>
+  // With the callback the head holds the field that picks the Kind of the
+  // Concept, in place of the name of the Kind.
+  onKindChange?: (kind: string | null) => void
+  // The pick of a Kind that is not saved yet: it shows in place of the
+  // field.
+  kindPending?: string
+  // Why the last pick of a Kind was not saved.
+  kindFailure?: string
+  // With the callbacks the head holds the button that opens the Kind of the
+  // Concept, and the one that adds a Kind.
+  onEditKind?: () => void
+  onAddKind?: () => void
   // The list of the Parts in their type groups, or the Map.
   view?: 'list' | 'map'
   // The Map, and the panel beside it that shows what the Map opened.
@@ -205,12 +226,18 @@ export type ConceptViewProps = {
 
 // One Concept in the main window: its head, the Concepts inside it, and its
 // Parts in one group per Part type. A linked Part names its home Concept on
-// its card. A slot of the Kind with no Part shows as an empty slot at the
-// place of its type. A type with no Part and no slot shows only while a Part
-// can be added. The map view shows the Map in place of the Concepts and the
+// its card. A required slot of the Kind that is not filled shows as an
+// empty slot at the place of its type. A type with no Part and no such slot
+// shows only while a Part can be added. The map view shows the Map in place of the Concepts and the
 // Parts, with its panel at the end of the row.
 export function ConceptView({
   concept,
+  kinds = [],
+  onKindChange,
+  kindPending,
+  kindFailure,
+  onEditKind,
+  onAddKind,
   view = 'list',
   map,
   panel,
@@ -235,7 +262,7 @@ export function ConceptView({
         ({ type }) => type === words.type,
       ),
       empty: concept.slots.some(
-        (slot) => slot.type === words.type && !slot.filled,
+        (slot) => slot.type === words.type && slot.required && !slot.filled,
       ),
     }))
     .filter(
@@ -264,10 +291,37 @@ export function ConceptView({
     <div className={styles.view}>
       <header className={styles.head}>
         <div className={styles.group}>
-          {concept.kind && (
-            <span className={styles.label}>{kinds[concept.kind]}</span>
+          {concept.kind && !onKindChange && (
+            <span className={styles.label}>
+              {kinds.find(({ slug }) => slug === concept.kind)?.name ??
+                concept.kind}
+            </span>
           )}
           <h1 className={styles.title}>{concept.title}</h1>
+          {onKindChange && (
+            <div className={styles.kind}>
+              {kindPending === undefined ? (
+                <KindSelect
+                  kinds={kinds}
+                  value={concept.kind}
+                  size="sm"
+                  failure={kindFailure}
+                  onChange={onKindChange}
+                />
+              ) : (
+                <InlineLoading
+                  description={kindPending}
+                  className={styles.kindPending}
+                />
+              )}
+              {concept.kind && onEditKind && (
+                <Button kind="ghost" size="sm" onClick={onEditKind}>
+                  Edit Kind
+                </Button>
+              )}
+              {onAddKind && <AddButton thing="Kind" onClick={onAddKind} />}
+            </div>
+          )}
         </div>
         <div className={styles.buttons}>
           {onRemove && (

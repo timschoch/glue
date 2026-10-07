@@ -15,16 +15,20 @@ import { handleGetContract, handleSignContract } from './contract-api.ts'
 import {
   handleAddConcept,
   handleAddJoint,
+  handleAddKind,
   handleAddPart,
   handleAnswerPart,
   handleAnswerQuestion,
   handleGetPart,
   handleGetProject,
   handleGetProjectConcept,
+  handleListKinds,
   handleListMine,
   handleListParts,
   handleRemoveConcept,
   handleRemoveJoint,
+  handleUpdateConcept,
+  handleUpdateKind,
   handleUpdatePart,
 } from './part-api.ts'
 import {
@@ -43,6 +47,7 @@ import { handleValidateBuild, handleListBuilds } from './build-api.ts'
 type PathParams = {
   recordId?: string
   concept?: string
+  kind?: string
   jointId?: string
   askId?: string
 } & ({ project: string } | { product: string })
@@ -78,7 +83,17 @@ export const projectConceptsHandlers = {
 
 export const projectConceptHandlers = {
   GET: (route: RouteRequest) => handleGetProjectConcept(toApiRequest(route)),
+  PATCH: (route: RouteRequest) => handleUpdateConcept(toApiRequest(route)),
   DELETE: (route: RouteRequest) => handleRemoveConcept(toApiRequest(route)),
+}
+
+export const kindsHandlers = {
+  GET: (route: RouteRequest) => handleListKinds(toApiRequest(route)),
+  POST: (route: RouteRequest) => handleAddKind(toApiRequest(route)),
+}
+
+export const kindHandlers = {
+  PATCH: (route: RouteRequest) => handleUpdateKind(toApiRequest(route)),
 }
 
 export const contractHandlers = {

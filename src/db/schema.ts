@@ -18,7 +18,6 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import type { GoalMeasure } from './goal-measure.ts'
-import type { Kind } from './kinds.ts'
 
 export const projects = pgTable('projects', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
@@ -239,6 +238,51 @@ export const decisionEvidence = pgTable(
 // The tables of the Part model. They hold the records. The tables of the
 // records above are read-only: ticket 135 drops them.
 
+// A Kind lists the slots that a Concept of it fills (glue/D57). Each Project
+// has its own Kinds and starts with the Kind Brief.
+export const kinds = pgTable(
+  'kinds',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id),
+    slug: text('slug').notNull(),
+    name: text('name').notNull(),
+  },
+  (table) => [
+    unique().on(table.projectId, table.slug),
+    // The target of the foreign key that keeps a Concept and its Kind inside
+    // one Project.
+    unique().on(table.projectId, table.id),
+  ],
+)
+
+// One slot of a Kind: the Part type, and the least count of Parts that fill
+// it. A sign-off needs each required slot filled.
+export const kindSlots = pgTable(
+  'kind_slots',
+  {
+    kindId: integer('kind_id')
+      .notNull()
+      .references(() => kinds.id, { onDelete: 'cascade' }),
+    type: text('type').notNull().$type<PartType>(),
+    required: boolean('required').notNull().default(true),
+    // 1: what a coding agent reads. 2: the why.
+    tier: integer('tier').notNull().$type<1 | 2>(),
+    minCount: integer('min_count').notNull().default(1),
+  },
+  (table) => [
+    primaryKey({ columns: [table.kindId, table.type] }),
+    check(
+      'kind_slots_type_check',
+      sql`${table.type} in ('insight', 'goal', 'decision', 'guardrail', 'entity', 'flow', 'metric')`,
+    ),
+    check('kind_slots_tier_check', sql`${table.tier} in (1, 2)`),
+    check('kind_slots_min_count_check', sql`${table.minCount} >= 1`),
+  ],
+)
+
 // A Concept is assembled from Parts and holds smaller Concepts. The Concept
 // without a parent is the root of its Project.
 export const concepts = pgTable(
@@ -252,7 +296,10 @@ export const concepts = pgTable(
     // The root takes the slug of its Project.
     slug: text('slug').notNull(),
     title: text('title').notNull(),
-    kind: text('kind').$type<Kind>(),
+    // Read-only: the Kind of a Concept is `kindId`. A later migration drops
+    // this column with its check.
+    kind: text('kind'),
+    kindId: integer('kind_id'),
   },
   (table) => [
     unique().on(table.projectId, table.slug),
@@ -267,6 +314,10 @@ export const concepts = pgTable(
       .on(table.projectId)
       .where(sql`${table.parentId} is null`),
     check('concepts_kind_check', sql`${table.kind} in ('brief')`),
+    foreignKey({
+      columns: [table.projectId, table.kindId],
+      foreignColumns: [kinds.projectId, kinds.id],
+    }),
   ],
 )
 

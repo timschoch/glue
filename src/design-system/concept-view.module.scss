@@ -38,6 +38,20 @@ $card-width: $spacing-13 * 2;
   gap: $spacing-05;
 }
 
+// The Kind of the Concept: its field, then its buttons on the line of the
+// field.
+.kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: $spacing-03;
+}
+
+// The save of a Kind takes no more room than its text.
+.kindPending {
+  inline-size: auto;
+}
+
 .switch {
   inline-size: $spacing-13;
 }
@@ -91,6 +105,10 @@ $card-width: $spacing-13 * 2;
 
 .add {
   align-self: flex-start;
+
+  .kind & {
+    align-self: flex-end;
+  }
 }
 
 // The buttons of the head, and the ones after the list of a group: the fold

@@ -21,6 +21,7 @@ import { SectionView } from '../design-system/section-view.tsx'
 import { Signals } from '../design-system/signals.tsx'
 import { AssigneesControl } from './assignees-control.tsx'
 import { ContractSection } from './contract-screen.tsx'
+import { KindFormScreen } from './kind-form-screen.tsx'
 import { LinkedBuilds } from './linked-builds.tsx'
 import { MapPanelScreen, MapScreen } from './map-screen.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
@@ -49,8 +50,8 @@ function listSlugs(concepts: ReadonlyArray<ConceptNode>): Array<string> {
 // against its target. The section Mine shows the Parts that need the owner,
 // and the Parts that the person watches. The section People shows the
 // members of the Project. The form that the address names takes the place of
-// the screen. So does the form of the Insight that grows from the picked
-// Signals. The Map keeps the lens of the section.
+// the screen: a new Part, a new Concept, a new Project, or a Kind. So does
+// the form of the Insight that grows from the picked Signals. The Map keeps the lens of the section.
 export function ConceptScreen({
   concept,
   contract,
@@ -71,15 +72,30 @@ export function ConceptScreen({
   panelPart?: Part
 }) {
   const router = useRouter()
-  const { parts, mine, asks, watched, measured } = projectRoute.useLoaderData()
-  const { removeConcept, pickAsk, handBackAsk, addJoint, addSignalInsight } =
-    projectRoute.useRouteContext()
+  const {
+    project: { kinds },
+    parts,
+    mine,
+    asks,
+    watched,
+    measured,
+  } = projectRoute.useLoaderData()
+  const {
+    updateConcept,
+    removeConcept,
+    pickAsk,
+    handBackAsk,
+    addJoint,
+    addSignalInsight,
+  } = projectRoute.useRouteContext()
   const { project, search, conceptHref, recordHref, open, changeSearch } =
     useProjectLinks()
   const { pending, failure, write } = useWrite()
   // The Hunch of a group of Signals has its own write: the list shows at
   // the group that it saves, or why it was not made.
   const hunchWrite = useWrite()
+  // The pick of a Kind has its own write too: it shows at the Kind field.
+  const kindWrite = useWrite()
   const [hunchGroup, setHunchGroup] = useState<string>()
   const [picked, setPicked] = useState<ReadonlyArray<Signal>>()
 
@@ -87,6 +103,8 @@ export function ConceptScreen({
     // The key gives each Part type its own form with its own values.
     return <PartFormScreen key={search.add} type={search.add} parts={parts} />
   }
+  if (search.add === 'kind' || search.kind)
+    return <KindFormScreen key={search.kind} slug={search.kind} />
   if (search.add) return <NameFormScreen key={search.add} added={search.add} />
   if (picked) {
     return (
@@ -328,6 +346,18 @@ export function ConceptScreen({
   return (
     <ConceptView
       concept={concept}
+      kinds={kinds}
+      onKindChange={(kind) =>
+        void kindWrite.write('Saving', () =>
+          updateConcept({ project, concept: concept.slug, change: { kind } }),
+        )
+      }
+      kindPending={kindWrite.pending}
+      kindFailure={kindWrite.failure}
+      onEditKind={() =>
+        void changeSearch({ ...search, kind: concept.kind ?? undefined })
+      }
+      onAddKind={() => void changeSearch({ ...search, add: 'kind' })}
       view={search.view ?? 'list'}
       onViewChange={(view) =>
         void changeSearch({

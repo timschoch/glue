@@ -19,11 +19,21 @@ describe('pnpm concept contract', () => {
   }
 
   // The Brief `videos` of glue has the Insight I1 and the Flow F1. The Flow
-  // starts as a draft.
+  // starts as a draft. The Brief of glue requires an Insight, a Decision and
+  // a Flow.
   beforeEach(async () => {
     printed = vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
     await run('project', 'add', 'glue')
+    await run(
+      'kind',
+      'set',
+      'brief',
+      '--required',
+      'insight,decision,flow',
+      '--optional',
+      'goal,metric,entity,guardrail',
+    )
     await run(
       'concept',
       'add',
@@ -94,6 +104,15 @@ describe('pnpm concept contract', () => {
     await expect(
       run('contract', 'sign', 'videos', '--owner', 'Tim'),
     ).rejects.toThrow('sign-off needs Trust solid: F1')
+  })
+
+  it('sign names the required slots that are empty', async () => {
+    await run('answer', 'F1', 'supersede')
+    await run('kind', 'set', 'brief', '--required', 'entity')
+
+    await expect(
+      run('contract', 'sign', 'videos', '--owner', 'Tim'),
+    ).rejects.toThrow('sign-off needs each required slot filled: entity')
   })
 
   it('sign needs --owner: who signs off', async () => {

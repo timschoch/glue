@@ -22,6 +22,7 @@ export type ApiRequest = {
     project: string
     recordId?: string
     concept?: string
+    kind?: string
     jointId?: string
     askId?: string
   }

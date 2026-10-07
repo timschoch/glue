@@ -4,8 +4,13 @@ import { alias } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
-import { kinds } from './kinds.ts'
-import type { Kind } from './kinds.ts'
+import {
+  selectConceptSlots,
+  sortSlots,
+  tier1Types,
+  tier2Types,
+} from './kinds.ts'
+import type { ConceptSlot } from './kinds.ts'
 import {
   flagParts,
   selectEmptySlots,
@@ -24,18 +29,7 @@ import type { FrozenPart, PartType } from './schema.ts'
 
 export type { FrozenPart } from './schema.ts'
 
-// Tier 1 is what a coding agent reads. Tier 2 is the why.
-export const tier1Types = [
-  'flow',
-  'entity',
-  'guardrail',
-] as const satisfies PartType[]
-export const tier2Types = [
-  'insight',
-  'goal',
-  'decision',
-  'metric',
-] as const satisfies PartType[]
+export { tier1Types, tier2Types } from './kinds.ts'
 
 export type ContractVersion = {
   version: number
@@ -52,22 +46,30 @@ export type ContractState = {
   ahead: boolean
   // The Parts without Trust solid. A sign-off needs none.
   blocking: PartSummary[]
+  // The required slots of the Kind that are empty. A sign-off needs none.
+  emptySlots: EmptySlot[]
 }
+
+// A required slot that is not filled: the count of its Parts, and the count
+// that it needs.
+export type EmptySlot = { type: PartType; count: number; minCount: number }
 
 export type Contract = ContractVersion & {
   // The slug of the Concept.
   concept: string
   title: string
-  kind: Kind | null
+  // The slug of the Kind of the Concept.
+  kind: string | null
   // A higher number than `version`: this Version is superseded.
   newestVersion: number
   tier1: FrozenPart[]
   tier2: FrozenPart[]
   // One slot per Part type of the Kind. Empty when the Concept has no Kind.
-  slots: { type: PartType; filled: boolean }[]
+  // A slot is filled when the Version holds a Part of its type.
+  slots: ConceptSlot[]
 }
 
-const { concepts, contractVersions, projects } = schema
+const { concepts, contractVersions, kinds, kindSlots, projects } = schema
 
 // The Parts of `live` in selectLiveParts, for the Trust that a reader sees.
 const liveTrust = selectTrust(alias(schema.parts, 'live'))
@@ -82,10 +84,12 @@ async function findConceptRow(
       id: concepts.id,
       slug: concepts.slug,
       title: concepts.title,
-      kind: concepts.kind,
+      kindId: concepts.kindId,
+      kind: kinds.slug,
     })
     .from(concepts)
     .innerJoin(projects, eq(concepts.projectId, projects.id))
+    .leftJoin(kinds, eq(concepts.kindId, kinds.id))
     .where(and(eq(projects.slug, projectSlug), eq(concepts.slug, conceptSlug)))
   return found.at(0)
 }
@@ -176,10 +180,25 @@ const liveStateSchema = z.object({
         newest_version: z.number().nullable(),
         newest_checksum: z.string().nullable(),
         blocking: z.array(z.custom<PartSummary>()),
+        empty_slots: z.array(
+          z.object({
+            type: z.enum(schema.partTypes),
+            count: z.number(),
+            minCount: z.number(),
+          }),
+        ),
       }),
     )
     .length(1),
 })
+
+// The required slots of the Kind of the Concept that are empty, as a select.
+function emptySlots(conceptId: number) {
+  return sql`
+    select slot."type", slot."count", slot."minCount"
+    from (${selectConceptSlots(sql`${conceptId}::integer`)}) as slot
+    where slot."required" and not slot."filled"`
+}
 
 async function readLiveState(db: ConceptDb, conceptId: number) {
   const result = await db.execute(sql`
@@ -210,10 +229,15 @@ async function readLiveState(db: ConceptDb, conceptId: number) {
         )
         from live
         where ${liveTrust} <> 'solid'
-      ) as "blocking"
+      ) as "blocking",
+      (
+        select coalesce(jsonb_agg(to_jsonb(slot)), '[]'::jsonb)
+        from (${emptySlots(conceptId)}) as slot
+      ) as "empty_slots"
     from frozen
   `)
-  return liveStateSchema.parse(result).rows[0]
+  const live = liveStateSchema.parse(result).rows[0]
+  return { ...live, empty_slots: sortSlots(live.empty_slots) }
 }
 
 function listVersions(db: ConceptDb, conceptId: number) {
@@ -252,6 +276,7 @@ export async function findContractState(
     ahead:
       live.newest_checksum !== null && live.newest_checksum !== live.checksum,
     blocking: live.blocking,
+    emptySlots: live.empty_slots,
   }
 }
 
@@ -271,13 +296,20 @@ export async function findContract(
 ): Promise<Contract | undefined> {
   const concept = await findConceptRow(db, projectSlug, conceptSlug)
   if (!concept) return undefined
-  const versions = await listVersions(db, concept.id)
+  const [versions, slots] = await Promise.all([
+    listVersions(db, concept.id),
+    concept.kindId === null
+      ? []
+      : db
+          .select({ type: kindSlots.type, required: kindSlots.required })
+          .from(kindSlots)
+          .where(eq(kindSlots.kindId, concept.kindId)),
+  ])
   const found =
     version === undefined
       ? versions.at(0)
       : versions.find((row) => row.version === version)
   if (!found) return undefined
-  const slotTypes = concept.kind === null ? [] : kinds[concept.kind].slots
 
   return {
     ...toVersion(found),
@@ -287,8 +319,9 @@ export async function findContract(
     newestVersion: versions[0].version,
     tier1: listTier(found.parts, tier1Types),
     tier2: listTier(found.parts, tier2Types),
-    slots: slotTypes.map((type) => ({
+    slots: sortSlots(slots).map(({ type, required }) => ({
       type,
+      required,
       filled: found.parts.some((part) => part.type === type),
     })),
   }
@@ -442,6 +475,7 @@ export async function signContract(
       from frozen
       where jsonb_array_length(frozen."parts") > 0
         and not exists (select 1 from live where ${liveTrust} <> 'solid')
+        and not exists (${emptySlots(concept.id)})
         and ${liveChecksum} is distinct from (select "checksum" from newest)
       returning "version"
     ),
@@ -479,6 +513,10 @@ export async function signContract(
   if (live.blocking.length > 0)
     throw new InvalidRecordError(
       `sign-off needs Trust solid: ${live.blocking.map(({ id }) => id).join(', ')}`,
+    )
+  if (live.empty_slots.length > 0)
+    throw new InvalidRecordError(
+      `sign-off needs each required slot filled: ${live.empty_slots.map(({ type }) => type).join(', ')}`,
     )
   throw new InvalidRecordError(
     live.part_count === 0

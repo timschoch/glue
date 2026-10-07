@@ -23,16 +23,20 @@ import type { ApiRequest } from './api-request.ts'
 import {
   handleAddConcept,
   handleAddJoint,
+  handleAddKind,
   handleAddPart,
   handleAnswerPart,
   handleAnswerQuestion,
   handleGetPart,
   handleGetProject,
   handleGetProjectConcept,
+  handleListKinds,
   handleListMine,
   handleListParts,
   handleRemoveConcept,
   handleRemoveJoint,
+  handleUpdateConcept,
+  handleUpdateKind,
   handleUpdatePart,
 } from './part-api.ts'
 
@@ -144,10 +148,26 @@ describe('every endpoint of the Part model', () => {
       'POST',
       { body: { slug: 'checkout', title: 'Checkout' } },
     ],
+    'PATCH a Concept': [
+      handleUpdateConcept,
+      'PATCH',
+      { params: { concept: 'flexibeck' }, body: { title: 'Bakery' } },
+    ],
     'DELETE a Concept': [
       handleRemoveConcept,
       'DELETE',
       { params: { concept: 'checkout' } },
+    ],
+    'GET the Kinds': [handleListKinds, 'GET', {}],
+    'POST a Kind': [
+      handleAddKind,
+      'POST',
+      { body: { slug: 'prd', name: 'PRD', slots: [{ type: 'goal' }] } },
+    ],
+    'PATCH a Kind': [
+      handleUpdateKind,
+      'PATCH',
+      { params: { kind: 'brief' }, body: { name: 'Short brief' } },
     ],
     'POST a Part': [
       handleAddPart,
@@ -246,11 +266,124 @@ describe('GET the Project', () => {
           },
         ],
       },
+      kinds: [
+        {
+          slug: 'brief',
+          name: 'Brief',
+          slots: [
+            { type: 'insight', required: true, tier: 2, minCount: 1 },
+            { type: 'goal', required: true, tier: 2, minCount: 1 },
+            { type: 'decision', required: true, tier: 2, minCount: 1 },
+            { type: 'metric', required: true, tier: 2, minCount: 1 },
+            { type: 'flow', required: true, tier: 1, minCount: 1 },
+            { type: 'entity', required: true, tier: 1, minCount: 1 },
+            { type: 'guardrail', required: true, tier: 1, minCount: 1 },
+          ],
+        },
+      ],
     })
   })
 })
 
+describe('Kinds', () => {
+  const prd = {
+    slug: 'prd',
+    name: 'PRD',
+    slots: [
+      { type: 'goal', required: true, tier: 2, minCount: 1 },
+      { type: 'flow', required: false, tier: 1, minCount: 2 },
+    ],
+  }
+
+  it('adds a Kind and lists it after the Brief', async () => {
+    const added = await call(handleAddKind, 'POST', {
+      body: {
+        slug: 'prd',
+        name: 'PRD',
+        slots: [
+          { type: 'flow', required: false, minCount: 2 },
+          { type: 'goal' },
+        ],
+      },
+    })
+    const listed = await call(handleListKinds, 'GET')
+
+    expect(added).toEqual({ status: 201, body: prd })
+    expect(listed.status).toBe(200)
+    expect(listed.body.map(({ slug }: { slug: string }) => slug)).toEqual([
+      'brief',
+      'prd',
+    ])
+    expect(listed.body[1]).toEqual(prd)
+  })
+
+  it('changes the slots of a Kind', async () => {
+    const changed = await call(handleUpdateKind, 'PATCH', {
+      params: { kind: 'brief' },
+      body: { name: 'Short brief', slots: [{ type: 'goal' }] },
+    })
+
+    expect(changed).toEqual({
+      status: 200,
+      body: {
+        slug: 'brief',
+        name: 'Short brief',
+        slots: [{ type: 'goal', required: true, tier: 2, minCount: 1 }],
+      },
+    })
+  })
+
+  it('answers 400 for a Kind that exists already', async () => {
+    const response = await call(handleAddKind, 'POST', {
+      body: { slug: 'brief', name: 'Brief', slots: [] },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('kind "brief" exists already')
+  })
+
+  it('answers 404 for the change of a Kind that does not exist', async () => {
+    const response = await call(handleUpdateKind, 'PATCH', {
+      params: { kind: 'nope' },
+      body: { name: 'Nope' },
+    })
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.message).toBe('kind "nope" not found')
+  })
+})
+
 describe('Concepts', () => {
+  it('gives a Concept another Kind', async () => {
+    await call(handleAddKind, 'POST', {
+      body: { slug: 'prd', name: 'PRD', slots: [{ type: 'goal' }] },
+    })
+    await call(handleAddConcept, 'POST', {
+      body: { slug: 'checkout', title: 'Checkout', kind: 'brief' },
+    })
+
+    const changed = await call(handleUpdateConcept, 'PATCH', {
+      params: { concept: 'checkout' },
+      body: { kind: 'prd' },
+    })
+
+    expect(changed.status).toBe(200)
+    expect(changed.body).toMatchObject({
+      slug: 'checkout',
+      kind: 'prd',
+      slots: [{ type: 'goal', required: true, filled: false }],
+    })
+  })
+
+  it('answers 400 for a Kind that the Project does not have', async () => {
+    const response = await call(handleAddConcept, 'POST', {
+      body: { slug: 'checkout', title: 'Checkout', kind: 'prd' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('kind "prd" not found')
+  })
+
   it('adds a Concept to its parent and reads it back with its Parts', async () => {
     await call(handleAddConcept, 'POST', {
       body: { slug: 'checkout', title: 'Checkout' },
@@ -292,8 +425,16 @@ describe('Concepts', () => {
         },
       ],
     })
-    expect(read.body.slots).toContainEqual({ type: 'flow', filled: true })
-    expect(read.body.slots).toContainEqual({ type: 'goal', filled: false })
+    expect(read.body.slots).toContainEqual({
+      type: 'flow',
+      required: true,
+      filled: true,
+    })
+    expect(read.body.slots).toContainEqual({
+      type: 'goal',
+      required: true,
+      filled: false,
+    })
   })
 
   it('answers 404 for a Concept that does not exist', async () => {

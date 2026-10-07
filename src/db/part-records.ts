@@ -14,8 +14,7 @@ import {
 } from './projects.ts'
 import { goalMeasureSchema, isOnTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
-import { kinds } from './kinds.ts'
-import type { Kind } from './kinds.ts'
+import { addKindSql, briefKind, findKindId } from './kinds.ts'
 import { findFlagOwner } from './members.ts'
 import {
   listAnswers,
@@ -36,6 +35,7 @@ import {
   toNotFoundMessage,
 } from './record-errors.ts'
 import { parseRecordReference, RECORD_LETTERS } from './record-id.ts'
+import { parseInput, slug as slugSchema, text } from './record-input.ts'
 import * as schema from './schema.ts'
 
 // The write side of the Part model.
@@ -44,24 +44,13 @@ import * as schema from './schema.ts'
 // writes with one statement, so a network failure never leaves a part of
 // the change.
 
-const text = z.string().trim().min(1)
-
-// Reads the input with the schema. What breaks a rule is refused with the
-// same error as a record that breaks a rule.
-function parseInput<TOutput>(inputSchema: z.ZodType<TOutput>, input: unknown) {
-  const parsed = inputSchema.safeParse(input)
-  if (!parsed.success)
-    throw new InvalidRecordError(z.prettifyError(parsed.error))
-  return parsed.data
-}
-
 // The rows of a statement that gives back the row id of what it wrote.
 const idRowsSchema = z.object({ rows: z.array(z.object({ id: z.number() })) })
 
-// Adds the Project when it does not exist, and its root Concept when it has
-// none. The root takes the slug and the name of the Project. A Project
-// without a name takes its slug as its name. Gives back the row id of the
-// Project.
+// Adds the Project when it does not exist, its root Concept when it has
+// none, and the Kind Brief when it has no Kind of that slug. The root takes
+// the slug and the name of the Project. A Project without a name takes its
+// slug as its name. Gives back the row id of the Project.
 export async function addProject(
   db: ConceptDb,
   projectSlug: string,
@@ -78,18 +67,19 @@ export async function addProject(
       insert into "concepts" ("project_id", "slug", "title")
       select "id", "slug", "name" from project
       on conflict ("project_id") where "parent_id" is null do nothing
-    )
+    ),
+    ${addKindSql(sql`(select "id" from project)`, briefKind)}
     select "id" from project
   `)
   return idRowsSchema.parse(result).rows[0].id
 }
 
 export const newConceptSchema = z.strictObject({
-  slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, {
-    error: 'a slug is lowercase words joined by hyphens',
-  }),
+  slug: slugSchema,
   title: text,
-  kind: z.literal(Object.keys(kinds) as Kind[]).optional(),
+  kind: z.string().optional().meta({
+    description: 'The slug of a Kind of the Project. Default: no Kind',
+  }),
   parent: z.string().optional().meta({
     description: 'The slug of the Concept that holds it. Default: the root',
   }),
@@ -129,9 +119,11 @@ export async function addConcept(
   const { slug, title, kind, parent } = parseInput(newConceptSchema, concept)
   const projectId = await getProjectId(db, projectSlug)
   const parentId = await findConceptId(db, projectId, parent)
+  const kindId =
+    kind === undefined ? undefined : await findKindId(db, projectId, kind)
   const added = await db
     .insert(schema.concepts)
-    .values({ projectId, parentId, slug, title, kind })
+    .values({ projectId, parentId, slug, title, kindId })
     .onConflictDoNothing()
     .returning({ slug: schema.concepts.slug })
   if (added.length === 0)
@@ -144,21 +136,25 @@ export const conceptChangeSchema = z.strictObject({
   parent: z.string().optional().meta({
     description: 'The slug of the Concept that holds it from now on',
   }),
+  kind: z.string().nullable().optional().meta({
+    description:
+      'The slug of the Kind that it has from now on. null: it has no Kind',
+  }),
 })
 
 export type ConceptChange = z.input<typeof conceptChangeSchema>
 
-// Gives a Concept a new title, a new parent, or both. Its Concepts and its
-// Parts go with it. A Concept is never its own ancestor, and the root stays
-// the root.
+// Gives a Concept a new title, a new parent, another Kind, or more than one
+// of them. Its Concepts and its Parts go with it. A Concept is never its own
+// ancestor, and the root stays the root.
 export async function updateConcept(
   db: ConceptDb,
   projectSlug: string,
   slug: string,
   change: ConceptChange,
 ): Promise<void> {
-  const { title, parent } = parseInput(conceptChangeSchema, change)
-  if (title === undefined && parent === undefined)
+  const { title, parent, kind } = parseInput(conceptChangeSchema, change)
+  if (title === undefined && parent === undefined && kind === undefined)
     throw new InvalidRecordError('send at least one field')
   const { concepts } = schema
   const projectId = await getProjectId(db, projectSlug)
@@ -189,9 +185,10 @@ export async function updateConcept(
     const { parentId } = ancestor
     ancestor = found.find(({ id }) => id === parentId)
   }
+  const kindId = kind == null ? kind : await findKindId(db, projectId, kind)
   await db
     .update(concepts)
-    .set({ title, parentId: nextParent?.id })
+    .set({ title, parentId: nextParent?.id, kindId })
     .where(eq(concepts.id, concept.id))
 }
 

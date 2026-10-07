@@ -47,15 +47,20 @@ const BRIEF: Concept = {
   kind: 'brief',
   parts: CONCEPT.parts.slice(0, 2),
   slots: [
-    { type: 'insight', filled: true },
-    { type: 'goal', filled: true },
-    { type: 'decision', filled: false },
-    { type: 'metric', filled: false },
-    { type: 'flow', filled: false },
-    { type: 'entity', filled: false },
-    { type: 'guardrail', filled: false },
+    { type: 'insight', required: true, filled: true },
+    { type: 'goal', required: true, filled: true },
+    { type: 'decision', required: true, filled: false },
+    { type: 'metric', required: true, filled: false },
+    { type: 'flow', required: true, filled: false },
+    { type: 'entity', required: true, filled: false },
+    { type: 'guardrail', required: true, filled: false },
   ],
 }
+
+const KINDS = [
+  { slug: 'brief', name: 'Brief' },
+  { slug: 'prd', name: 'PRD' },
+]
 
 // The titles of the type groups, in the order of the loop.
 const LOOP_ORDER = [
@@ -144,12 +149,111 @@ function buttons(name: string): Array<string | null> {
 
 describe('ConceptView', () => {
   it('shows the title of the Concept as the page title, with its Kind', () => {
-    renderView({ concept: BRIEF })
+    renderView({ concept: BRIEF, kinds: KINDS })
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
       'Technique videos',
     )
     screen.getByText('Brief')
+  })
+
+  it('changes the Kind with the select of the head', async () => {
+    const onKindChange = vi.fn()
+    renderView({ concept: BRIEF, kinds: KINDS, onKindChange })
+    const select = screen.getByRole<HTMLSelectElement>('combobox', {
+      name: 'Kind',
+    })
+
+    expect(select.value).toBe('brief')
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['None', 'Brief', 'PRD'])
+
+    await userEvent.selectOptions(select, 'PRD')
+    await userEvent.selectOptions(select, 'None')
+
+    expect(onKindChange.mock.calls).toEqual([['prd'], [null]])
+  })
+
+  it('shows the save of the Kind in place of its select', () => {
+    renderView({
+      concept: BRIEF,
+      kinds: KINDS,
+      onKindChange: vi.fn(),
+      kindPending: 'Saving',
+    })
+
+    expect(screen.queryByRole('combobox', { name: 'Kind' })).toBeNull()
+    screen.getByText('Saving')
+  })
+
+  it('shows why the Kind was not saved at its select', () => {
+    renderView({
+      concept: BRIEF,
+      kinds: KINDS,
+      onKindChange: vi.fn(),
+      kindFailure: 'kind "prd" not found',
+    })
+    const select = screen.getByRole('combobox', { name: 'Kind' })
+
+    expect(select.getAttribute('aria-invalid')).toBe('true')
+    expect(
+      document.getElementById(select.getAttribute('aria-describedby') ?? '')
+        ?.textContent,
+    ).toBe('kind "prd" not found')
+  })
+
+  it('has one button that changes the Kind of the Concept, and one that adds a Kind', async () => {
+    const onEditKind = vi.fn()
+    const onAddKind = vi.fn()
+    renderView({
+      concept: BRIEF,
+      kinds: KINDS,
+      onKindChange: vi.fn(),
+      onEditKind,
+      onAddKind,
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit Kind' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add Kind' }))
+
+    expect(onEditKind).toHaveBeenCalledOnce()
+    expect(onAddKind).toHaveBeenCalledOnce()
+  })
+
+  it('has no button that changes the Kind of a Concept without one', () => {
+    renderView({
+      kinds: KINDS,
+      onKindChange: vi.fn(),
+      onEditKind: vi.fn(),
+      onAddKind: vi.fn(),
+    })
+
+    expect(screen.queryByRole('button', { name: 'Edit Kind' })).toBeNull()
+    screen.getByRole('button', { name: 'Add Kind' })
+  })
+
+  it('shows a slot that is not required and has no Part as no empty slot', () => {
+    renderView({
+      onAddPart: undefined,
+      concept: {
+        ...BRIEF,
+        slots: BRIEF.slots.map((slot) =>
+          slot.type === 'decision' ? { ...slot, required: false } : slot,
+        ),
+      },
+    })
+
+    expect(groups()).toEqual([
+      'Insights',
+      'Goals',
+      'Guardrails',
+      'Entities',
+      'Flows',
+      'Metrics',
+    ])
   })
 
   it('shows no Kind for a Concept without one', () => {

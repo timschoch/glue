@@ -13,7 +13,7 @@ import {
   vi,
 } from 'vitest'
 
-import { kinds } from './kinds.ts'
+import { listKinds } from './kinds.ts'
 import { addPart } from './part-records.ts'
 import { findPart, findProject, listParts } from './parts.ts'
 import * as schema from './schema.ts'
@@ -27,6 +27,7 @@ const cutoverMigration = '0011_part_model_cutover.sql'
 const trustMigration = '0013_trust_and_work_state.sql'
 const peopleMigration = '0016_people.sql'
 const versionsMigration = '0026_part_versions.sql'
+const kindsMigration = '0028_kinds.sql'
 
 let client: PGlite
 
@@ -370,17 +371,14 @@ describe('the migration that adds the tables of the Part model', () => {
     ])
   })
 
-  it('takes each Kind of the code as the kind of a Concept', async () => {
-    expect(Object.keys(kinds)).toEqual(['brief'])
-    for (const kind of Object.keys(kinds)) {
-      await client.query(
-        `insert into concepts (project_id, parent_id, slug, title, kind) values (1, 1, $1, $1, $1)`,
-        [kind],
-      )
-    }
+  it('takes the Kind brief as the kind of a Concept', async () => {
+    await client.exec(`
+      insert into concepts (project_id, parent_id, slug, title, kind)
+      values (1, 1, 'videos', 'Videos', 'brief')
+    `)
   })
 
-  it('refuses a Concept of a Kind that the code does not have', async () => {
+  it('refuses a Concept of another kind', async () => {
     await expect(
       client.exec(`
         insert into concepts (project_id, parent_id, slug, title, kind)
@@ -552,9 +550,10 @@ describe('the migration that copies the records into the Part model', () => {
   })
 
   it('gives each Project one root Concept that holds its Parts', async () => {
+    await runMigrationsAfter(cutoverMigration)
     const db = drizzle(client, { schema })
 
-    expect(await findProject(db, 'glue')).toEqual({
+    expect(await findProject(db, 'glue')).toMatchObject({
       slug: 'glue',
       name: 'Glue',
       concept: {
@@ -1069,5 +1068,73 @@ describe('the migration that adds the Part Versions and the activity', () => {
 
     const versions = await client.query('select id from part_versions')
     expect(versions.rows).toEqual([])
+  })
+})
+
+describe('the migration that adds the Kinds', () => {
+  // Project 1 is glue with the root Concept 1 and the Brief `videos`.
+  // Project 2 is flexibeck with the root Concept 3 and the Brief `bakes`.
+  setStartState(async () => {
+    await runMigrationsBefore(kindsMigration)
+    await client.exec(`
+      insert into projects (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
+      insert into concepts (project_id, parent_id, slug, title, kind) values
+        (1, null, 'glue', 'Glue', null),
+        (1, 1, 'videos', 'Videos', 'brief'),
+        (2, null, 'flexibeck', 'flexibeck', null),
+        (2, 3, 'bakes', 'Bakes', 'brief');
+    `)
+    await runMigration(kindsMigration)
+  })
+
+  const brief = {
+    slug: 'brief',
+    name: 'Brief',
+    slots: [
+      { type: 'insight', required: true, tier: 2, minCount: 1 },
+      { type: 'goal', required: true, tier: 2, minCount: 1 },
+      { type: 'decision', required: true, tier: 2, minCount: 1 },
+      { type: 'metric', required: true, tier: 2, minCount: 1 },
+      { type: 'flow', required: true, tier: 1, minCount: 1 },
+      { type: 'entity', required: true, tier: 1, minCount: 1 },
+      { type: 'guardrail', required: true, tier: 1, minCount: 1 },
+    ],
+  }
+
+  it('writes the Kind Brief with one required slot per Part type for each Project', async () => {
+    const db = drizzle(client, { schema })
+
+    expect(await listKinds(db, 'glue')).toEqual([brief])
+    expect(await listKinds(db, 'flexibeck')).toEqual([brief])
+  })
+
+  it('gives each Brief the Kind of its own Project, and keeps the old column', async () => {
+    const concepts = await client.query(`
+      select concept.slug, concept.kind, kind.slug as kind_slug,
+        kind.project_id = concept.project_id as same_project
+      from concepts as concept
+      left join kinds as kind on kind.id = concept.kind_id
+      order by concept.id
+    `)
+
+    expect(concepts.rows).toEqual([
+      { slug: 'glue', kind: null, kind_slug: null, same_project: null },
+      { slug: 'videos', kind: 'brief', kind_slug: 'brief', same_project: true },
+      { slug: 'flexibeck', kind: null, kind_slug: null, same_project: null },
+      { slug: 'bakes', kind: 'brief', kind_slug: 'brief', same_project: true },
+    ])
+  })
+
+  it('takes a Concept from the code from before the migration', async () => {
+    await client.exec(`
+      insert into concepts (project_id, parent_id, slug, title, kind)
+      values (1, 1, 'player', 'Player', 'brief')
+    `)
+  })
+
+  it('refuses a Concept with a Kind of another Project', async () => {
+    await expect(
+      client.exec(`update concepts set kind_id = 2 where slug = 'videos'`),
+    ).rejects.toThrow(/concepts_project_id_kind_id_kinds_project_id_id_fk/)
   })
 })

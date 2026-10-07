@@ -27,7 +27,11 @@ import {
   answerInputSchema,
   changedPartSchema,
   conceptInputSchema,
+  conceptUpdateSchema,
   jointInputSchema,
+  kindInputSchema,
+  kindSchema,
+  kindUpdateSchema,
   leveledPartSchema,
   partInputSchema,
   partSchema,
@@ -156,6 +160,20 @@ function listPartPaths() {
           ...readErrorResponses,
         },
       },
+      patch: {
+        operationId: 'updateConcept',
+        summary: 'Give a Concept a new title, a new parent or another Kind',
+        requestParams: { path: path.extend({ concept: conceptSlug }) },
+        requestBody: jsonContent(conceptUpdateSchema),
+        responses: {
+          200: {
+            description: 'The Concept after the change',
+            ...jsonContent(projectConceptSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
       delete: {
         operationId: 'removeConcept',
         summary:
@@ -163,6 +181,52 @@ function listPartPaths() {
         requestParams: { path: path.extend({ concept: conceptSlug }) },
         responses: {
           204: { description: 'The Concept is gone' },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/kinds`]: {
+      get: {
+        operationId: 'listKinds',
+        summary: 'List the Kinds of the Project with their slots',
+        requestParams: { path },
+        responses: {
+          200: {
+            description: 'The Kinds, in the order they were added',
+            ...jsonContent(z.array(kindSchema)),
+          },
+          ...readErrorResponses,
+        },
+      },
+      post: {
+        operationId: 'addKind',
+        summary: 'Add a Kind with its slots',
+        requestParams: { path },
+        requestBody: jsonContent(kindInputSchema),
+        responses: {
+          201: { description: 'The new Kind', ...jsonContent(kindSchema) },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/kinds/{kind}`]: {
+      patch: {
+        operationId: 'updateKind',
+        summary:
+          'Give a Kind a new name or new slots. Each Concept of the Kind has the new slots from then on',
+        requestParams: {
+          path: path.extend({
+            kind: z.string().meta({ description: 'The slug of the Kind' }),
+          }),
+        },
+        requestBody: jsonContent(kindUpdateSchema),
+        responses: {
+          200: {
+            description: 'The Kind after the change',
+            ...jsonContent(kindSchema),
+          },
           400: errorResponses[400],
           ...readErrorResponses,
         },
@@ -189,7 +253,7 @@ function listPartPaths() {
       post: {
         operationId: 'signContract',
         summary:
-          'Sign off a Concept: freeze its Parts as the next Contract Version. Each Part needs Trust solid',
+          'Sign off a Concept: freeze its Parts as the next Contract Version. Each Part needs Trust solid, and each required slot of the Kind needs its Parts',
         requestParams: { path: path.extend({ concept: conceptSlug }) },
         requestBody: jsonContent(contractSignInputSchema),
         responses: {

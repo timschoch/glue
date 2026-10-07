@@ -55,13 +55,13 @@ const brief: Concept = {
   kind: 'brief',
   parts: concept.parts.slice(0, 4),
   slots: [
-    { type: 'insight', filled: true },
-    { type: 'goal', filled: true },
-    { type: 'decision', filled: true },
-    { type: 'metric', filled: false },
-    { type: 'flow', filled: false },
-    { type: 'entity', filled: false },
-    { type: 'guardrail', filled: true },
+    { type: 'insight', required: true, filled: true },
+    { type: 'goal', required: true, filled: true },
+    { type: 'decision', required: true, filled: true },
+    { type: 'metric', required: true, filled: false },
+    { type: 'flow', required: true, filled: false },
+    { type: 'entity', required: true, filled: false },
+    { type: 'guardrail', required: true, filled: true },
   ],
 }
 

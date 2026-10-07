@@ -53,6 +53,7 @@ const meta = {
     versions,
     ahead: false,
     blocking: [],
+    emptySlots: [],
     versionHref: () => '#',
     onSignOff: () => {},
   },
@@ -70,6 +71,17 @@ export const NoVersion: Story = { args: { versions: [] } }
 
 // The cause of the grey button is above it.
 export const Blocked: Story = { args: { ahead: true, blocking } }
+
+// A required slot of the Kind is empty: its chip is the cause.
+export const EmptySlots: Story = {
+  args: {
+    ahead: true,
+    emptySlots: [
+      { type: 'metric', count: 0, minCount: 1 },
+      { type: 'flow', count: 1, minCount: 2 },
+    ],
+  },
+}
 
 export const Failed: Story = {
   args: { ahead: true, failure: 'sign-off needs Trust solid: F5' },
@@ -115,13 +127,13 @@ export const Version: Story = {
           },
         ],
         slots: [
-          { type: 'insight', filled: false },
-          { type: 'goal', filled: true },
-          { type: 'decision', filled: true },
-          { type: 'metric', filled: false },
-          { type: 'flow', filled: true },
-          { type: 'entity', filled: true },
-          { type: 'guardrail', filled: true },
+          { type: 'insight', required: true, filled: false },
+          { type: 'goal', required: true, filled: true },
+          { type: 'decision', required: true, filled: true },
+          { type: 'metric', required: true, filled: false },
+          { type: 'flow', required: true, filled: true },
+          { type: 'entity', required: true, filled: true },
+          { type: 'guardrail', required: true, filled: true },
         ],
       }}
       newestHref="#"

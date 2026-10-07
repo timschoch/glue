@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import { updateKind } from '../db/kinds.ts'
 import {
   addConcept,
   addPart,
@@ -25,10 +26,20 @@ beforeAll(async () => {
 })
 
 // The Brief `videos` of flexibeck has the Insight I1 and the Flow F1. The
-// Flow starts as a draft.
+// Flow starts as a draft. The Brief of flexibeck requires an Insight, a
+// Goal, a Decision and a Flow.
 beforeEach(async () => {
   await client.exec('truncate projects restart identity cascade')
   ;({ token } = await createToken(db, 'flexibeck', 'agent'))
+  await updateKind(db, 'flexibeck', 'brief', {
+    slots: [
+      { type: 'insight' },
+      { type: 'goal' },
+      { type: 'decision' },
+      { type: 'flow' },
+      { type: 'entity', required: false },
+    ],
+  })
   await addConcept(db, 'flexibeck', {
     slug: 'videos',
     title: 'Technique videos',
@@ -128,6 +139,20 @@ describe('POST the Contract of a Concept', () => {
     expect(keys.indexOf('tier1')).toBeLessThan(keys.indexOf('tier2'))
   })
 
+  it('names the required slots that are empty', async () => {
+    await publishFlow()
+    await updateKind(db, 'flexibeck', 'brief', {
+      slots: [{ type: 'entity' }, { type: 'guardrail' }],
+    })
+
+    const { status, body } = await sign()
+
+    expect(status).toBe(400)
+    expect(body.error.message).toBe(
+      'sign-off needs each required slot filled: entity, guardrail',
+    )
+  })
+
   it('wants the name of who signs', async () => {
     await publishFlow()
 
@@ -182,7 +207,11 @@ describe('GET the Contract of a Concept', () => {
     const newest = await call(handleGetContract, 'GET')
     expect(newest.body).toMatchObject({ version: 2, newestVersion: 2 })
     expect(newest.body.tier1[0].title).toBe('Watch a step')
-    expect(newest.body.slots).toContainEqual({ type: 'goal', filled: false })
+    expect(newest.body.slots).toContainEqual({
+      type: 'goal',
+      required: true,
+      filled: false,
+    })
 
     const first = await call(handleGetContract, 'GET', {
       query: '?version=1',

@@ -17,7 +17,8 @@ import { listVersionChanges } from './contracts.ts'
 import type { VersionChange } from './contracts.ts'
 import { isOnTarget, toTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
-import type { Kind } from './kinds.ts'
+import { listConceptSlots, listKinds } from './kinds.ts'
+import type { ConceptSlot, Kind } from './kinds.ts'
 import type {
   ActivityKind,
   EvidenceLevel,
@@ -28,7 +29,6 @@ import type {
   VersionFields,
   WorkState,
 } from './schema.ts'
-import { kinds } from './kinds.ts'
 import { findFlagOwner } from './members.ts'
 import {
   listAnswers,
@@ -137,7 +137,8 @@ export type PartVersion = VersionFields & {
 export type ConceptNode = {
   slug: string
   title: string
-  kind: Kind | null
+  // The slug of its Kind.
+  kind: string | null
   // The Parts that have their home in this Concept or in a Concept in it.
   partCount: number
   concepts: ConceptNode[]
@@ -148,12 +149,15 @@ export type Project = {
   name: string
   // The root Concept.
   concept: ConceptNode
+  // The Kinds that a Concept of the Project can have.
+  kinds: Kind[]
 }
 
 export type Concept = {
   slug: string
   title: string
-  kind: Kind | null
+  // The slug of its Kind.
+  kind: string | null
   // The Concepts that hold this one, root first. The root has an empty path.
   path: { slug: string; title: string }[]
   concepts: ConceptNode[]
@@ -171,7 +175,7 @@ export type Concept = {
     link: boolean
   }[]
   // One slot per Part type of the Kind. Empty when the Concept has no Kind.
-  slots: { type: PartType; filled: boolean }[]
+  slots: ConceptSlot[]
 }
 
 // One Joint as one of its two Parts sees it: `part` is the Part at the
@@ -227,6 +231,7 @@ export type Part = PartSummary & {
 }
 
 const { projects, concepts, parts, joints, measures, flags, signals } = schema
+const { kinds } = schema
 const { members, partActivity, partVersions } = schema
 const { partTypes } = schema
 
@@ -377,11 +382,12 @@ async function listConcepts(db: ConceptDb, projectSlug: string) {
         parentId: concepts.parentId,
         slug: concepts.slug,
         title: concepts.title,
-        kind: concepts.kind,
+        kind: kinds.slug,
         projectName: projects.name,
       })
       .from(concepts)
       .innerJoin(projects, eq(concepts.projectId, projects.id))
+      .leftJoin(kinds, eq(concepts.kindId, kinds.id))
       .where(eq(projects.slug, projectSlug))
       .orderBy(concepts.id),
     db
@@ -434,7 +440,12 @@ export async function findProject(
   const root = found.find((concept) => concept.parentId === null)
   if (!root) return undefined
 
-  return { slug: projectSlug, name: root.projectName, concept: root.node }
+  return {
+    slug: projectSlug,
+    name: root.projectName,
+    concept: root.node,
+    kinds: await listKinds(db, projectSlug),
+  }
 }
 
 export async function findConcept(
@@ -455,7 +466,7 @@ export async function findConcept(
     parentId = parent.parentId
   }
 
-  const [homeParts, jointRows] = await Promise.all([
+  const [homeParts, jointRows, slots] = await Promise.all([
     listSummaries(db, eq(parts.conceptId, concept.id)),
     // A reference is not a Joint of the Concept: its Parts are of two
     // Projects.
@@ -469,6 +480,7 @@ export async function findConcept(
         ),
       ),
     ),
+    listConceptSlots(db, concept.id),
   ])
 
   const linked = new Map<string, PartSummary>()
@@ -478,7 +490,6 @@ export async function findConcept(
     }
   }
   const linkedParts = sortParts([...linked.values()])
-  const slotTypes = concept.kind === null ? [] : kinds[concept.kind].slots
 
   return {
     slug: concept.slug,
@@ -495,10 +506,7 @@ export async function findConcept(
       twoWay,
       link,
     })),
-    slots: slotTypes.map((type) => ({
-      type,
-      filled: [...homeParts, ...linkedParts].some((part) => part.type === type),
-    })),
+    slots,
   }
 }
 
