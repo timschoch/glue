@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.20.0](https://github.com/timschoch/glue/compare/v1.19.0...v1.20.0) (2026-10-07)
+
+
+### Features
+
+* **asks:** ask another Project for a Decision ([#336](https://github.com/timschoch/glue/issues/336)) ([cc27aba](https://github.com/timschoch/glue/commit/cc27abaa3121e15c903e29e646598093cb86d799))
+
+
+### Bug Fixes
+
+* **signals:** group by what a person wrote, and give each group a title ([#333](https://github.com/timschoch/glue/issues/333)) ([36e9c26](https://github.com/timschoch/glue/commit/36e9c2647531f93081aba354d98335c950c67871)), closes [#330](https://github.com/timschoch/glue/issues/330)
+
 ## [1.19.0](https://github.com/timschoch/glue/compare/v1.18.0...v1.19.0) (2026-10-07)
 
 
