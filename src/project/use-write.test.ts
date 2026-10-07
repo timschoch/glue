@@ -7,14 +7,20 @@ import { describe, expect, it } from 'vitest'
 const MESSAGE =
   'Take `pending` and `failure` from useWrite() by name: a write shows that it runs and why it failed (glue-build/D55).'
 
-const eslint = new ESLint()
-
 // The count of the faults that the rule finds in the code of a screen. The
-// lint reads types, so the code takes the path of a file of the Project.
+// lint has the rule alone, as the config of the repo gives it to a screen:
+// it reads no types, so it is fast.
 async function countFaults(code: string): Promise<number> {
-  const [{ messages }] = await eslint.lintText(code, {
-    filePath: 'src/project/use-write.ts',
+  const { rules } = await new ESLint().calculateConfigForFile(
+    'src/project/use-write.ts',
+  )
+  const eslint = new ESLint({
+    overrideConfigFile: true,
+    overrideConfig: {
+      rules: { 'no-restricted-syntax': rules['no-restricted-syntax'] },
+    },
   })
+  const [{ messages }] = await eslint.lintText(code)
   return messages.filter(({ message }) => message === MESSAGE).length
 }
 
