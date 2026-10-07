@@ -468,8 +468,13 @@ export function createPartActions(request: ActionRequest) {
       ),
     ),
 
-    handBackAsk: withMember((db, { project, askId, part }: AskHandBackInput) =>
-      handBackAsk(db, project, askId, part).then(() => undefined, toFailure),
+    // The member of the session hands back.
+    handBackAsk: withMember(
+      (db, { project, askId, part }: AskHandBackInput, member) =>
+        handBackAsk(db, project, askId, part, member.email).then(
+          () => undefined,
+          toFailure,
+        ),
     ),
 
     // The member of the session takes the Ask back.

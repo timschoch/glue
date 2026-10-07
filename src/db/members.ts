@@ -289,16 +289,43 @@ function validateFound(
     throw new InvalidRecordError(`${input.part ?? input.concept} not found`)
 }
 
+// Only the owner answers a flag, so only the owner changes who has a Part
+// with an open flag (glue-build/D53). Else a member takes the Part, or
+// leaves it with no owner, and answers the flag. `changedBy` is the e-mail
+// address of the member who changes the assignments.
+async function refuseFlaggedPart(
+  db: ConceptDb,
+  projectSlug: string,
+  { part: recordId }: AssignmentTarget,
+  changedBy: string | undefined,
+) {
+  if (changedBy === undefined || recordId === undefined) return
+  const found = await db
+    .select({ id: parts.id })
+    .from(parts)
+    .innerJoin(projects, eq(parts.projectId, projects.id))
+    .where(and(eq(projects.slug, projectSlug), eq(parts.recordId, recordId)))
+  const part = found.at(0)
+  const owner = part && (await findFlagOwner(db, part.id, changedBy))
+  if (owner)
+    throw new InvalidRecordError(
+      `"${recordId}" has a flag: only its owner ${owner.name} changes who has it`,
+    )
+}
+
 // Makes the member Responsible or Co-Author of the Concept or the Part. A
 // Concept or a Part has one Responsible: the new one takes the place of the
 // old one. A member that has a role already changes the role. The owner of
-// a Part does not watch it: a new Responsible stops watching.
+// a Part does not watch it: a new Responsible stops watching. With
+// `changedBy`: see refuseFlaggedPart.
 export async function assign(
   db: ConceptDb,
   projectSlug: string,
   input: unknown,
+  changedBy?: string,
 ): Promise<void> {
   const assignment = parseInput(newAssignmentSchema, input)
+  await refuseFlaggedPart(db, projectSlug, assignment, changedBy)
   const result = await db.execute(sql`
     with ${selectTarget(projectSlug, assignment)},
     removed as (
@@ -441,13 +468,16 @@ export async function unwatch(
   validateFound(result, projectSlug, watcher)
 }
 
-// Takes the Concept or the Part from the member.
+// Takes the Concept or the Part from the member. With `changedBy`: see
+// refuseFlaggedPart.
 export async function unassign(
   db: ConceptDb,
   projectSlug: string,
   input: unknown,
+  changedBy?: string,
 ): Promise<void> {
   const assignment = parseInput(assignmentTargetSchema, input)
+  await refuseFlaggedPart(db, projectSlug, assignment, changedBy)
   const result = await db.execute(sql`
     with ${selectTarget(projectSlug, assignment)},
     removed as (

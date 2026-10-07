@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Session } from '../authentication/session.ts'
 import type { GithubClient } from '../github/client.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
-import { addAsk } from './asks.ts'
+import { addAsk, pickAsk } from './asks.ts'
 import { addProjectReference, setProductRepository } from './projects.ts'
 import {
   answerInputSchema,
@@ -749,6 +749,27 @@ describe('an Ask to another Project', () => {
       ask: { id: 1 },
       projects: [{ slug: 'flexibeck', name: 'flexibeck' }],
     })
+  })
+
+  it('is handed back only by the member who picked it', async () => {
+    await addProject(db, 'ux', 'UX team')
+    await addProjectReference(db, 'ux', project)
+    await addPart(db, 'ux', {
+      type: 'insight',
+      title: 'Lists feel slow',
+      source: 'study',
+    })
+    await addAsk(db, 'ux', { part: 'I1', toProject: project })
+    await joinProject(db, project, {
+      id: 'user-bo',
+      name: 'Bo',
+      email: 'bo@example.com',
+    })
+    await pickAsk(db, project, 1, 'bo@example.com')
+
+    expect(
+      await actions.handBackAsk({ project, askId: 1, part: 'I1' }),
+    ).toEqual({ message: 'ada@example.com did not pick Ask 1' })
   })
 
   it('answers a rule that it breaks as a failure', async () => {

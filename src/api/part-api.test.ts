@@ -39,6 +39,7 @@ import {
   handleUpdateKind,
   handleUpdatePart,
 } from './part-api.ts'
+import { handleAssign, handleUnassign } from './people-api.ts'
 
 let client: PGlite
 let db: ReturnType<typeof drizzle<typeof schema>>
@@ -1772,5 +1773,67 @@ describe('A write with the token of a member', () => {
       text: 'Cache it for one hour',
       by: 'Ada',
     })
+  })
+
+  it('signs the answer to a question with the member, not with the name in the body', async () => {
+    await call(handleAddPart, 'POST', { body: decision })
+
+    const response = await call(handleAnswerQuestion, 'POST', {
+      token: adaToken,
+      params: { recordId: 'D1' },
+      body: { text: 'Cache it for one hour', by: 'Tim' },
+    })
+
+    expect(response.body.question.answer).toMatchObject({ by: 'Ada' })
+  })
+
+  const assignE1 = (sent: string, member: string, role: string) =>
+    call(handleAssign, 'POST', {
+      token: sent,
+      body: { member, role, part: 'E1' },
+    })
+  const refusedChange = {
+    status: 400,
+    body: {
+      error: {
+        code: 'invalid-request',
+        message: '"E1" has a flag: only its owner Tim changes who has it',
+      },
+    },
+  }
+
+  it('answers 400 when another member takes a Part with a flag from its owner', async () => {
+    const taken = await assignE1(adaToken, ada.email, 'responsible')
+    const answered = await answerFlag(adaToken)
+
+    expect(taken).toEqual(refusedChange)
+    expect(answered.status).toBe(400)
+  })
+
+  it('answers 400 when another member leaves a Part with a flag without an owner', async () => {
+    const demoted = await assignE1(adaToken, tim.email, 'co-author')
+    const removed = await call(handleUnassign, 'DELETE', {
+      token: adaToken,
+      query: `?member=${tim.email}&part=E1`,
+    })
+    const answered = await answerFlag(adaToken)
+
+    expect(demoted).toEqual(refusedChange)
+    expect(removed).toEqual(refusedChange)
+    expect(answered.status).toBe(400)
+  })
+
+  it('lets the owner of a Part with a flag hand it to another member', async () => {
+    const handed = await assignE1(timToken, ada.email, 'responsible')
+    const answered = await answerFlag(adaToken)
+
+    expect(handed.status).toBe(201)
+    expect(answered.status).toBe(200)
+  })
+
+  it('takes a new owner of a Part with a flag from a token of no member, as before', async () => {
+    const taken = await assignE1(token, ada.email, 'responsible')
+
+    expect(taken.status).toBe(201)
   })
 })
