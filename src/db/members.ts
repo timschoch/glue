@@ -156,6 +156,28 @@ export async function addMember(
   return joinProject(db, projectSlug, account)
 }
 
+// An agent is a user too (glue/D67): a member with no account, so it never
+// signs in. It acts with a token. Its user id and its e-mail address come
+// from its name. The address is how each write names the member, and no
+// mail reaches it: `.invalid` is reserved (RFC 2606).
+export async function addAgent(
+  db: ConceptDb,
+  projectSlug: string,
+  name: string,
+): Promise<Member> {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  if (!slug) throw new InvalidRecordError('an agent needs a name with a letter')
+  return joinProject(db, projectSlug, {
+    id: `agent:${slug}`,
+    name: name.trim(),
+    email: `${slug}@agent.invalid`,
+  })
+}
+
 export const loopStepsSchema = z.array(z.literal(loopSteps))
 
 // Sets the usual loop steps of the member, in the order of the loop.

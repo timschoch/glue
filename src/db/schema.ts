@@ -80,12 +80,17 @@ export const recordCounters = pgTable(
 )
 
 // A token gives HTTP API access to the Concept of one Product.
-// Only the SHA-256 hash of the token is stored.
+// Only the SHA-256 hash of the token is stored. The token belongs to one
+// member of its Project (glue/D67): a write with it is a write of that
+// member. No member: a token from before, its writes name nobody.
 export const tokens = pgTable('tokens', {
   id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
   projectId: integer('project_id')
     .notNull()
     .references(() => projects.id),
+  memberId: integer('member_id').references((): AnyPgColumn => members.id, {
+    onDelete: 'set null',
+  }),
   name: text('name').notNull(),
   hash: text('hash').notNull().unique(),
   createdAt: timestamp('created_at', { withTimezone: true })
@@ -711,7 +716,8 @@ export type LoopStep = (typeof loopSteps)[number]
 
 // A member of a Project: an account of Neon Auth that writes to the Project
 // in the app (D31). The name and the e-mail address are the ones of the
-// account at the time it became a member.
+// account at the time it became a member. An agent is a member with no
+// account (glue/D67): its `userId` starts with `agent:`, see addAgent.
 export const members = pgTable(
   'members',
   {

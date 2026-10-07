@@ -2133,9 +2133,10 @@ async function restsOnHunch(db: ConceptDb, partId: number) {
 // The answer to the question of a Decision, as a request sends it: one of
 // its options, counted from 1, or an answer in words.
 const answeredBy = {
-  by: text
-    .optional()
-    .meta({ description: 'The name of the person who answers' }),
+  by: text.optional().meta({
+    description:
+      'The name of the person who answers. Without it: the member of the token',
+  }),
 }
 
 export const questionAnswerSchema = z.union([

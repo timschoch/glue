@@ -4,19 +4,19 @@ Use these terms in code, docs, issues and UI. A new term goes here first. Layout
 
 ## Product
 
-| Term        | Meaning                                                                                                                                                   |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Company     | The customer account. Owns many Products and their users.                                                                                                 |
-| Product     | What a Glue workspace describes: an app, a website, a service. Glue holds the why for one or more Products.                                               |
-| Concept     | Parts assembled with glue: the why of one Product, or of one area of it. A Concept can hold smaller Concepts. Today the code has one Concept per Product. |
-| Version     | An immutable, numbered state of a Part or a Concept. Downstream tools read signed-off Versions only.                                                      |
-| Goal        | A target the Product must reach, as a KPI or OKR with a metric source. Every Decision serves a Goal.                                                      |
-| Decision    | One choice with its reason, date and owner. Serves a Goal and needs evidence: an Insight or a Guardrail.                                                  |
-| Insight     | A finding from UX research, usage data or feedback. Evidence for Decisions.                                                                               |
-| Guardrail   | A rule every change to the Product must respect. Enforced downstream, not suggested. Evidence for Decisions.                                              |
-| Integration | A sync with an outside tool that reads from or writes to a Concept.                                                                                       |
-| Mock        | A stand-in for an outside tool (analytics, CRM, design system) that Glue integrates with. Lives outside Glue's code.                                      |
-| Token       | A secret that opens the Concept of one Product over the HTTP API. Glue stores only its hash.                                                              |
+| Term        | Meaning                                                                                                                                                           |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Company     | The customer account. Owns many Products and their users.                                                                                                         |
+| Product     | What a Glue workspace describes: an app, a website, a service. Glue holds the why for one or more Products.                                                       |
+| Concept     | Parts assembled with glue: the why of one Product, or of one area of it. A Concept can hold smaller Concepts. Today the code has one Concept per Product.         |
+| Version     | An immutable, numbered state of a Part or a Concept. Downstream tools read signed-off Versions only.                                                              |
+| Goal        | A target the Product must reach, as a KPI or OKR with a metric source. Every Decision serves a Goal.                                                              |
+| Decision    | One choice with its reason, date and owner. Serves a Goal and needs evidence: an Insight or a Guardrail.                                                          |
+| Insight     | A finding from UX research, usage data or feedback. Evidence for Decisions.                                                                                       |
+| Guardrail   | A rule every change to the Product must respect. Enforced downstream, not suggested. Evidence for Decisions.                                                      |
+| Integration | A sync with an outside tool that reads from or writes to a Concept.                                                                                               |
+| Mock        | A stand-in for an outside tool (analytics, CRM, design system) that Glue integrates with. Lives outside Glue's code.                                              |
+| Token       | A secret that opens the Concept of one Product over the HTTP API. Glue stores only its hash. It belongs to one member: a write with it is a write of that member. |
 
 ## Concept model
 
@@ -27,6 +27,7 @@ The target model. Diagrams and rules: [docs/concept.md](docs/concept.md). The ap
 | Project        | The top level that holds Concepts: a Product, or other work such as a UX study. Today the code has only Product.                                                                                                                                                                                                                    |
 | Part           | One record in a Concept. Types: Insight, Goal, Decision, Guardrail, Entity, Flow, Metric. Has one home Concept and one owner.                                                                                                                                                                                                       |
 | Owner          | The one member of the Project who answers for a Part: its Responsible. A new Part takes the member who adds it. Only the owner answers a flag.                                                                                                                                                                                      |
+| Agent          | A member of a Project with no account. It never signs in. It writes with a Token, and it can own a Part like each other member.                                                                                                                                                                                                     |
 | Watcher        | A member who follows a Part. Sees it in Mine in a group of its own, with its flags as a note. Not the owner.                                                                                                                                                                                                                        |
 | Entity         | A Part that names a thing the Product has, for example Technique.                                                                                                                                                                                                                                                                   |
 | Flow           | A Part that says how something moves, step by step.                                                                                                                                                                                                                                                                                 |

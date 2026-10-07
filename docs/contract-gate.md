@@ -20,6 +20,13 @@ pnpm concept token create --project <slug> --name ci
 
 The command prints the token once. Save it as the secret `GLUE_API_TOKEN` of your repository. A token works for one Project.
 
+A token can belong to a member of the Project. Then each write with it is a write of that member. For an agent, make the member first:
+
+```sh
+pnpm concept member add-agent "CI" --project <slug>
+pnpm concept token create --project <slug> --name ci --member ci@agent.invalid
+```
+
 ## 3. Name what the pull request builds
 
 The body of the pull request has one of these lines:

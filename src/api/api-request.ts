@@ -13,7 +13,8 @@ import {
   SignalFilterNotFoundError,
 } from '../db/record-errors.ts'
 import { canReference } from '../db/projects.ts'
-import { findProductByToken } from '../db/tokens.ts'
+import { findToken } from '../db/tokens.ts'
+import type { TokenMember } from '../db/tokens.ts'
 import type { GithubClient } from '../github/client.ts'
 
 export type ApiRequest = {
@@ -107,32 +108,40 @@ const BEARER = /^Bearer (\S+)$/i
 
 // A token opens the Concept of its own Project. It also reads a Project
 // that its Project may reference (D45). Each other Project answers 404, so
-// a token does not reveal which Projects exist.
-async function validateToken({ db, request, params }: ApiRequest) {
+// a token does not reveal which Projects exist. Gives back the member that
+// the token belongs to (glue/D67), or undefined for a token of no member.
+async function validateToken({
+  db,
+  request,
+  params,
+}: ApiRequest): Promise<TokenMember | undefined> {
   const token = request.headers.get('authorization')?.match(BEARER)?.[1]
-  const project = token ? await findProductByToken(db, token) : undefined
-  if (!project) {
+  const found = token ? await findToken(db, token) : undefined
+  if (!found) {
     throw new ApiError(
       'unauthorized',
       'send a valid token as "Authorization: Bearer <token>"',
     )
   }
-  if (project === params.project) return
+  const member = found.member ?? undefined
+  if (found.project === params.project) return member
   const reads =
     request.method === 'GET' &&
-    (await canReference(db, project, params.project))
+    (await canReference(db, found.project, params.project))
   if (!reads) {
     throw new ApiError('not-found', `project "${params.project}" not found`)
   }
+  return member
 }
 
+// `respond` gets the member that the token belongs to. A write is a write
+// of this member: the handler hands the e-mail address to the operation.
 export async function handleApiRequest(
   input: ApiRequest,
-  respond: () => Promise<Response>,
+  respond: (member?: TokenMember) => Promise<Response>,
 ): Promise<Response> {
   try {
-    await validateToken(input)
-    return await respond()
+    return await respond(await validateToken(input))
   } catch (error) {
     return toErrorResponse(error)
   }

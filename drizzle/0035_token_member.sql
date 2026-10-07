@@ -1,0 +1,2 @@
+ALTER TABLE "tokens" ADD COLUMN "member_id" integer;--> statement-breakpoint
+ALTER TABLE "tokens" ADD CONSTRAINT "tokens_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;

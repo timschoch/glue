@@ -357,7 +357,19 @@ describe('GET /api/v1/openapi.json', () => {
     expect(document.components.securitySchemes.token).toEqual({
       type: 'http',
       scheme: 'bearer',
+      description:
+        'A token belongs to one member of its Project: a person or an agent. Each write of a Part with the token is a write of that member. The member owns the Parts that it adds, the activity names the member, and only the owner of a Part answers its flag. A token with no member writes as nobody',
     })
+    const answers =
+      document.paths['/api/v1/projects/{project}/parts/{recordId}/answers']
+    expect(answers.post.responses[400].description).toBe(
+      'The request breaks a rule, or the Part has a flag and the member of the token is not its owner',
+    )
+    const { anyOf } = document.components.schemas.QuestionAnswerInput
+    expect(anyOf[0].properties.by.description).toBe(
+      'The name of the person who answers. Without it: the member of the token',
+    )
+    expect(anyOf[0].required).toEqual(['option'])
     expect(Object.keys(document.components.schemas)).toEqual(
       expect.arrayContaining([
         'GoalMeasure',

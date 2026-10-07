@@ -1662,3 +1662,115 @@ describe('Joints', () => {
     expect(response.body.error.message).toContain('joint 1 is its last one')
   })
 })
+
+// Tim and Ada are members of flexibeck, each with a token. Tim adds the
+// Entity E1 that needs I1, and publishes it. Then I1 gets a new title with
+// the token of nobody, so E1 has a flag.
+describe('A write with the token of a member', () => {
+  const tim = { id: 'user-tim', name: 'Tim', email: 'tim@example.com' }
+  const ada = { id: 'user-ada', name: 'Ada', email: 'ada@example.com' }
+  let timToken: string
+  let adaToken: string
+
+  beforeEach(async () => {
+    await joinProject(db, 'flexibeck', tim)
+    await joinProject(db, 'flexibeck', ada)
+    timToken = (await createToken(db, 'flexibeck', 'tim', tim.email)).token
+    adaToken = (await createToken(db, 'flexibeck', 'ada', ada.email)).token
+    await call(handleAddPart, 'POST', {
+      token: timToken,
+      body: { type: 'entity', title: 'Shift', needs: ['I1'] },
+    })
+    await call(handleAnswerPart, 'POST', {
+      token: timToken,
+      params: { recordId: 'E1' },
+      body: { answer: 'supersede' },
+    })
+    await call(handleUpdatePart, 'PATCH', {
+      params: { recordId: 'I1' },
+      body: { title: 'Users leave on slow loads' },
+    })
+  })
+
+  const answerFlag = (sent: string) =>
+    call(handleAnswerPart, 'POST', {
+      token: sent,
+      params: { recordId: 'E1' },
+      body: { answer: 'fine' },
+    })
+
+  it('makes the member the owner of a new Part, and the activity names the member', async () => {
+    const part = await call(handleGetPart, 'GET', {
+      params: { recordId: 'E1' },
+    })
+
+    expect(part.body.activity.at(-1)).toMatchObject({
+      kind: 'draft',
+      by: 'Tim',
+    })
+    expect(part.body.activity.at(-2)).toMatchObject({
+      kind: 'published',
+      by: 'Tim',
+    })
+    const mine = async (member: string) => {
+      const listed = await call(handleListMine, 'GET', {
+        query: `?member=${member}`,
+      })
+      return listed.body.map(({ id }: { id: string }) => id)
+    }
+    expect(await mine(tim.email)).toEqual(['E1', 'R1', 'G1'])
+    expect(await mine(ada.email)).toEqual(['R1', 'G1'])
+  })
+
+  it('names the member in the activity of a change', async () => {
+    const response = await call(handleUpdatePart, 'PATCH', {
+      token: adaToken,
+      params: { recordId: 'I1' },
+      body: { title: 'Users leave on slow pages', sameMeaning: true },
+    })
+
+    expect(response.body.activity[0]).toMatchObject({
+      kind: 'wording',
+      by: 'Ada',
+    })
+  })
+
+  it('answers 400 for the answer to a flag with the token of another member', async () => {
+    const response = await answerFlag(adaToken)
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe(
+      '"E1" has a flag: only its owner Tim answers it',
+    )
+  })
+
+  it('takes the answer to a flag with the token of the owner', async () => {
+    const response = await answerFlag(timToken)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({ workState: 'published', flags: [] })
+  })
+
+  it('takes the answer to a flag with a token of no member, as before', async () => {
+    const response = await answerFlag(token)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({ workState: 'published', flags: [] })
+  })
+
+  it('takes the name of the member as who answers the question of a Decision', async () => {
+    await call(handleAddPart, 'POST', { body: decision })
+
+    const response = await call(handleAnswerQuestion, 'POST', {
+      token: adaToken,
+      params: { recordId: 'D1' },
+      body: { text: 'Cache it for one hour' },
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body.question.answer).toMatchObject({
+      text: 'Cache it for one hour',
+      by: 'Ada',
+    })
+  })
+})

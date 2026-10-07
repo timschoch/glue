@@ -17,7 +17,7 @@ import { listKinds } from './kinds.ts'
 import { addPart } from './part-records.ts'
 import { findPart, findProject, listParts } from './parts.ts'
 import * as schema from './schema.ts'
-import { findProductByToken } from './tokens.ts'
+import { findToken } from './tokens.ts'
 
 const countersMigration = '0005_record_counters.sql'
 const goalStatusMigration = '0006_goal_mean_status.sql'
@@ -189,11 +189,12 @@ describe('the migration that renames Product to Project', () => {
     ])
   })
 
-  it('still opens the Project of a token', async () => {
+  // The token is from before a token had a member (glue/D67).
+  it('still opens the Project of a token, and the token has no member', async () => {
     await runMigrationsAfter(projectsMigration)
 
-    const project = await findProductByToken(drizzle(client, { schema }), token)
-    expect(project).toBe('flexibeck')
+    const found = await findToken(drizzle(client, { schema }), token)
+    expect(found).toEqual({ project: 'flexibeck', member: null })
   })
 
   describe('for the code from before the migration', () => {
