@@ -1,12 +1,16 @@
 version: 2
 # cooldown: a version must be this old before Dependabot proposes it.
+# rebase-strategy: disabled stops the force-push on every conflict with main, which
+# reran CI and the preview builds each time. Comment `@dependabot rebase` to update a PR.
 updates:
   - package-ecosystem: npm
     directory: /
     schedule: { interval: weekly }
     cooldown: { default-days: 7 }
+    rebase-strategy: disabled
   # Keeps the commit pins of the actions in .github/workflows/ fresh.
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
     cooldown: { default-days: 7 }
+    rebase-strategy: disabled
