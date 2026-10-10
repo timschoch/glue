@@ -44,12 +44,56 @@ describe('the actions of the Integrations', () => {
       await actions.pauseIntegration({ project, integrationId: 1 }),
       await actions.startIntegration({ project, integrationId: 1 }),
       await actions.removeIntegration({ project, integrationId: 1 }),
+      await actions.setIntegrationKey({
+        project,
+        integrationId: 1,
+        key: TEAM_KEY,
+      }),
     ]
 
     expect(answers).toEqual(
-      Array(4).fill({ message: 'Only a member of the Project can change it.' }),
+      Array(5).fill({ message: 'Only a member of the Project can change it.' }),
     )
     expect(await actions.listIntegrations({ project })).toEqual([])
+    expect(await actions.listMineIntegrations({ project })).toEqual([])
+  })
+
+  it('makes the member who adds an Integration its Responsible: Mine has it when it failed', async () => {
+    session = { user: ada }
+    await joinProject(db, project, ada)
+    await actions.addIntegration({ project, integration })
+    await db
+      .update(schema.integrations)
+      .set({ state: 'failed', lastReadError: 'GitHub refused the key' })
+
+    const mine = await actions.listMineIntegrations({ project })
+
+    expect(mine).toMatchObject([
+      { id: 1, state: 'failed', lastRead: { error: 'GitHub refused the key' } },
+    ])
+  })
+
+  it('gives an Integration a new key, and says at the key why the tool refused one', async () => {
+    session = { user: ada }
+    await joinProject(db, project, ada)
+    await actions.addIntegration({ project, integration })
+
+    const refused = await actions.setIntegrationKey({
+      project,
+      integrationId: 1,
+      key: 'another-key',
+    })
+    const changed = await actions.setIntegrationKey({
+      project,
+      integrationId: 1,
+      key: TEAM_KEY,
+    })
+
+    expect(refused).toEqual({
+      message: 'GitHub refused the key',
+      place: { field: 'key' },
+    })
+    expect(changed).toEqual({ id: 1 })
   })
 
   it('adds, pauses, starts and removes for a member, and says where a write failed', async () => {

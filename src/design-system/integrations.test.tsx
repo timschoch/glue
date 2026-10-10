@@ -16,6 +16,7 @@ const INTEGRATIONS: IntegrationsProps['integrations'] = [
     address: 'acme/shop',
     keyLastFour: '1234',
     state: 'active',
+    lastRead: { at: '2026-10-09T08:30:00.000Z', signalCount: 12, error: null },
   },
   {
     id: 2,
@@ -30,9 +31,22 @@ const INTEGRATIONS: IntegrationsProps['integrations'] = [
     address: 'acme/app',
     keyLastFour: '9876',
     state: 'failed',
-    error: 'GitHub refused the key',
+    lastRead: {
+      at: '2026-10-10T07:05:00.000Z',
+      signalCount: null,
+      error: 'GitHub refused the key',
+    },
   },
 ]
+
+// Carbon's dialog watches its size, which jsdom can not do.
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe() {}
+    disconnect() {}
+  },
+)
 
 const listRows = () =>
   within(screen.getByRole('list', { name: 'Integrations' }))
@@ -40,30 +54,62 @@ const listRows = () =>
     .map((row) => row.textContent)
 
 describe('Integrations', () => {
-  it('lists each Integration with its tool, its address, the end of its key and its state', () => {
+  it('lists each Integration with its tool, its address, the end of its key, its state and its last read', () => {
     render(<Integrations integrations={INTEGRATIONS} onClose={() => {}} />)
 
     expect(listRows()).toEqual([
-      'GitHubacme/shop••••1234Active',
+      'GitHubacme/shop••••1234Active2026-10-09 08:3012 Signals',
       'GitHubacme/web••••wxyzPaused',
-      'GitHubacme/app••••9876FailedGitHub refused the key',
+      'GitHubacme/app••••9876Failed2026-10-10 07:05GitHub refused the key',
     ])
+    expect(screen.getByText('2026-10-09 08:30').getAttribute('datetime')).toBe(
+      '2026-10-09T08:30:00.000Z',
+    )
     expect(screen.queryByRole('button', { name: /Pause|Start|Remove/ })).toBe(
       null,
     )
   })
 
-  it('pauses an active one, starts a paused or failed one, and removes each one', async () => {
+  it('shows the error of a read that failed at an Integration that is still active, and one Signal as one', () => {
+    render(
+      <Integrations
+        integrations={[
+          {
+            ...INTEGRATIONS[0],
+            lastRead: {
+              at: '2026-10-10T07:05:00.000Z',
+              signalCount: null,
+              error: 'GitHub limits the reads with this key for now.',
+            },
+          },
+          {
+            ...INTEGRATIONS[1],
+            lastRead: {
+              at: '2026-10-10T07:05:00.000Z',
+              signalCount: 1,
+              error: null,
+            },
+          },
+        ]}
+        onClose={() => {}}
+      />,
+    )
+
+    expect(listRows()).toEqual([
+      'GitHubacme/shop••••1234Active2026-10-10 07:05GitHub limits the reads with this key for now.',
+      'GitHubacme/web••••wxyzPaused2026-10-10 07:051 Signal',
+    ])
+  })
+
+  it('pauses an active one and starts a paused or failed one', async () => {
     const user = userEvent.setup()
     const onPause = vi.fn()
     const onStart = vi.fn()
-    const onRemove = vi.fn()
     render(
       <Integrations
         integrations={INTEGRATIONS}
         onPause={onPause}
         onStart={onStart}
-        onRemove={onRemove}
         onClose={() => {}}
       />,
     )
@@ -77,13 +123,140 @@ describe('Integrations', () => {
     await user.click(
       screen.getByRole('button', { name: 'Start GitHub acme/app' }),
     )
-    await user.click(
-      screen.getByRole('button', { name: 'Remove GitHub acme/web' }),
-    )
 
     expect(onPause.mock.calls).toEqual([[1]])
     expect(onStart.mock.calls).toEqual([[2], [3]])
+  })
+
+  it('asks one time before it removes an Integration, and removes it on the button of the dialog', async () => {
+    const user = userEvent.setup()
+    const onRemove = vi.fn()
+    render(
+      <Integrations
+        integrations={INTEGRATIONS}
+        onRemove={onRemove}
+        onClose={() => {}}
+      />,
+    )
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await user.click(
+      screen.getByRole('button', { name: 'Remove GitHub acme/web' }),
+    )
+    expect(onRemove).not.toHaveBeenCalled()
+    await user.click(
+      within(
+        screen.getByRole('dialog', { name: 'Remove GitHub acme/web?' }),
+      ).getByRole('button', { name: 'Remove' }),
+    )
+
     expect(onRemove.mock.calls).toEqual([[2]])
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('closes the dialog on Cancel and keeps the Integration', async () => {
+    const user = userEvent.setup()
+    const onRemove = vi.fn()
+    render(
+      <Integrations
+        integrations={INTEGRATIONS}
+        onRemove={onRemove}
+        onClose={() => {}}
+      />,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Remove GitHub acme/web' }),
+    )
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Cancel',
+      }),
+    )
+
+    expect(onRemove).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('opens the form for a new key at the row, and gives the key without the spaces around it', async () => {
+    const user = userEvent.setup()
+    const onEditKey = vi.fn()
+    const onSetKey = vi.fn()
+    const { rerender } = render(
+      <Integrations
+        integrations={INTEGRATIONS}
+        onEditKey={onEditKey}
+        onSetKey={onSetKey}
+        onClose={() => {}}
+      />,
+    )
+
+    expect(screen.queryByLabelText('New key')).toBeNull()
+    await user.click(
+      screen.getByRole('button', { name: 'New key GitHub acme/web' }),
+    )
+    expect(onEditKey.mock.calls).toEqual([[2]])
+
+    rerender(
+      <Integrations
+        integrations={INTEGRATIONS}
+        keyOf={2}
+        onEditKey={onEditKey}
+        onSetKey={onSetKey}
+        onClose={() => {}}
+      />,
+    )
+    const [, row] = screen.getAllByRole('listitem')
+    const key = within(row).getByLabelText('New key')
+    const save = within(row).getByRole('button', { name: 'Save key' })
+
+    expect(key.getAttribute('type')).toBe('password')
+    expect((save as HTMLButtonElement).disabled).toBe(true)
+    await user.type(key, ' new-key-of-the-team ')
+    await user.click(save)
+    await user.click(within(row).getByRole('button', { name: 'Cancel' }))
+
+    expect(onSetKey.mock.calls).toEqual([[2, 'new-key-of-the-team']])
+    expect(onEditKey.mock.calls).toEqual([[2], []])
+  })
+
+  it('shows in the form of the new key that the write runs, and at the key why the server refused it', () => {
+    const { rerender } = render(
+      <Integrations
+        integrations={INTEGRATIONS}
+        keyOf={2}
+        change={{ id: 2, pending: 'Saving', isKey: true }}
+        onEditKey={() => {}}
+        onSetKey={() => {}}
+        onClose={() => {}}
+      />,
+    )
+    const [, row] = screen.getAllByRole('listitem')
+
+    expect(within(row).getByText('Saving')).toBeDefined()
+    expect(within(row).queryByRole('button', { name: 'Save key' })).toBeNull()
+
+    rerender(
+      <Integrations
+        integrations={INTEGRATIONS}
+        keyOf={2}
+        change={{
+          id: 2,
+          failure: 'GitHub refused the key',
+          field: 'key',
+          isKey: true,
+        }}
+        onEditKey={() => {}}
+        onSetKey={() => {}}
+        onClose={() => {}}
+      />,
+    )
+
+    expect(
+      within(row).getByLabelText('New key').getAttribute('aria-invalid'),
+    ).toBe('true')
+    expect(within(row).getByText('GitHub refused the key')).toBeDefined()
+    expect(within(row).queryByRole('alert')).toBeNull()
   })
 
   it('shows at its row that a write runs, and takes no second write', () => {
@@ -121,6 +294,33 @@ describe('Integrations', () => {
     const [, row] = screen.getAllByRole('listitem')
     expect(within(row).getByText('GitHub refused the key')).toBeDefined()
   })
+
+  it.each([
+    ['closed', undefined],
+    ['open', 2],
+  ])(
+    'says at its row why a start failed when the server refused the stored key, with the form of the new key %s',
+    (_form, keyOf) => {
+      render(
+        <Integrations
+          integrations={INTEGRATIONS}
+          keyOf={keyOf}
+          change={{ id: 2, failure: 'GitHub refused the key', field: 'key' }}
+          onStart={() => {}}
+          onEditKey={() => {}}
+          onSetKey={() => {}}
+          onClose={() => {}}
+        />,
+      )
+
+      const [, row] = screen.getAllByRole('listitem')
+      expect(
+        within(within(row).getByRole('alert')).getByText(
+          'GitHub refused the key',
+        ),
+      ).toBeDefined()
+    },
+  )
 
   it('goes back to the Signals', async () => {
     const onClose = vi.fn()

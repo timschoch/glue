@@ -24,6 +24,11 @@ const meta = {
         address: 'acme/shop',
         keyLastFour: '1234',
         state: 'active',
+        lastRead: {
+          at: '2026-10-09T08:30:00.000Z',
+          signalCount: 12,
+          error: null,
+        },
       },
       {
         id: 2,
@@ -38,12 +43,18 @@ const meta = {
         address: 'acme/app',
         keyLastFour: '9876',
         state: 'failed',
-        error: 'GitHub refused the key',
+        lastRead: {
+          at: '2026-10-10T07:05:00.000Z',
+          signalCount: null,
+          error: 'GitHub refused the key',
+        },
       },
     ],
     onPause: () => {},
     onStart: () => {},
     onRemove: () => {},
+    onEditKey: () => {},
+    onSetKey: () => {},
     onClose: () => {},
     children: form,
   },
@@ -62,7 +73,30 @@ export const ReadOnly: Story = {
     onPause: undefined,
     onStart: undefined,
     onRemove: undefined,
+    onEditKey: undefined,
+    onSetKey: undefined,
     children: undefined,
+  },
+}
+
+export const NewKey: Story = { args: { keyOf: 3 } }
+
+export const RefusedNewKey: Story = {
+  args: {
+    keyOf: 3,
+    change: {
+      id: 3,
+      failure: 'GitHub refused the key',
+      field: 'key',
+      isKey: true,
+    },
+  },
+}
+
+// A start that the tool refused: the stored key is wrong.
+export const RefusedStart: Story = {
+  args: {
+    change: { id: 3, failure: 'GitHub refused the key', field: 'key' },
   },
 }
 

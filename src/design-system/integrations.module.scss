@@ -6,6 +6,9 @@
 // The width of a card: a field is as wide as one card.
 $card-width: $spacing-13 * 2;
 
+// The width of the three buttons of a row.
+$actions-width: $spacing-12 * 3;
+
 // The title, and the button that shows the Signals again.
 .head {
   display: flex;
@@ -18,6 +21,20 @@ $card-width: $spacing-13 * 2;
 .list {
   display: flex;
   flex-direction: column;
+  inline-size: 100%;
+}
+
+// The failed Integrations in Mine: their title and their list.
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.title {
+  @include type-style('heading-compact-02');
+
+  color: $text-primary;
 }
 
 // One Integration: the tool, the address, the end of the key, the state,
@@ -29,7 +46,7 @@ $card-width: $spacing-13 * 2;
   gap: $spacing-03 $spacing-05;
   grid-template-columns:
     $spacing-11 minmax(0, 1fr) $spacing-11 $spacing-10
-    $spacing-13;
+    $actions-width;
   min-block-size: $spacing-09;
   overflow-wrap: anywhere;
   padding-block: $spacing-03;
@@ -78,13 +95,40 @@ $card-width: $spacing-13 * 2;
   inline-size: auto;
 }
 
-// Why the last read failed, and why a write failed: under the row, as wide
-// as the row.
-.reason {
+// The last read: its time, then the count of its Signals or why it failed.
+// Under the row, as wide as the row.
+.read {
   @include type-style('label-01');
 
-  color: $text-error;
+  display: flex;
+  flex-wrap: wrap;
+  color: $text-secondary;
+  gap: $spacing-02 $spacing-05;
   grid-column: 1 / -1;
+}
+
+.reason {
+  color: $text-error;
+}
+
+// The form of the new key: under the row, as wide as one card.
+.keyForm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-05;
+  grid-column: 1 / -1;
+  max-inline-size: $card-width;
+  padding-block: $spacing-03;
+
+  > :first-child {
+    inline-size: 100%;
+  }
+}
+
+.keyActions {
+  display: flex;
+  gap: $spacing-03;
 }
 
 .failure {

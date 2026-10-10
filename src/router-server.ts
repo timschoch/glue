@@ -87,12 +87,15 @@ import {
 import type {
   IntegrationAddInput,
   IntegrationChangeInput,
+  IntegrationKeyInput,
 } from './db/integration-actions.ts'
 import {
   fetchIntegrations,
+  fetchMineIntegrations,
   submitAddIntegration,
   submitPauseIntegration,
   submitRemoveIntegration,
+  submitSetIntegrationKey,
   submitStartIntegration,
 } from './db/integrations.functions.ts'
 import type {
@@ -142,6 +145,9 @@ export const server = {
   // The Integrations of the Project, by tool and address. No key comes back.
   fetchIntegrations: (project: string) =>
     fetchIntegrations({ data: { project } }),
+  // The failed Integrations that the person is Responsible for.
+  fetchMineIntegrations: (project: string) =>
+    fetchMineIntegrations({ data: { project } }),
   // Without `named`: the builds of the Project. With it: each build that
   // names the Decision or the Contract of the Concept.
   fetchBuilds: (project: string, named?: BuildsNamed) =>
@@ -185,6 +191,10 @@ export const server = {
     submitPauseIntegration({ data: integration }),
   startIntegration: (integration: IntegrationChangeInput) =>
     submitStartIntegration({ data: integration }),
+  // Glue reads with the new key one time, and saves it only when the read
+  // works.
+  setIntegrationKey: (integration: IntegrationKeyInput) =>
+    submitSetIntegrationKey({ data: integration }),
   removeIntegration: (integration: IntegrationChangeInput) =>
     submitRemoveIntegration({ data: integration }),
   fetchContractState: (concept: ConceptInput) =>

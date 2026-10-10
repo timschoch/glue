@@ -2,7 +2,7 @@
 // team with its address and its key, and Glue reads the Signals of the tool
 // with that key. The key is stored encrypted and no answer of this module
 // holds it (glue/D71).
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
@@ -11,12 +11,13 @@ import { getProjectId } from './projects.ts'
 import {
   IntegrationNotFoundError,
   InvalidRecordError,
+  isUniqueViolation,
 } from './record-errors.ts'
 import * as schema from './schema.ts'
 import type { IntegrationState } from './schema.ts'
 import type { SignalSource, SourceSignal } from './signals.ts'
 
-const { integrations } = schema
+const { integrations, members } = schema
 
 // The states of an Integration, for the callers outside src/db.
 export const { integrationStates } = schema
@@ -43,6 +44,10 @@ export class IntegrationReadError extends Error {
   }
 }
 
+// The tool limits the reads for now. A later read works with no change, so
+// the read is none of the failed reads in a row.
+export class IntegrationLimitError extends Error {}
+
 // An Integration as each reader gets it. The key stays in the database:
 // only its last four characters show.
 export type Integration = {
@@ -60,8 +65,12 @@ export type Integration = {
 }
 
 const LAST_CHARACTERS = 4
+// The failed reads in a row that set an Integration to failed. One failed
+// read can be the network or a limit of the tool, and it goes away.
+const MAX_FAILED_READS = 3
 // A shorter key would show too much of itself in its last four characters.
 const MIN_KEY_LENGTH = 8
+const MIN_SECRET_LENGTH = 32
 
 export const integrationSchema = z.strictObject({
   tool: z.string({ error: 'An Integration needs a tool' }).meta({
@@ -124,6 +133,11 @@ async function readSignals(
   }
 }
 
+const toDuplicateError = (address: string) =>
+  new InvalidRecordError(`"${address}" is an Integration already`, {
+    field: 'address',
+  })
+
 function toIntegration(row: Row): Integration {
   const { id, tool, address, keyLastFour, state } = row
   return {
@@ -172,13 +186,41 @@ export function createIntegrationOperations({
     return tools[name]
   }
 
-  // Without the secret Glue stores no key, and opens none.
+  // Without the secret Glue stores no key, and opens none. A short secret
+  // is one that a person can guess.
   function getSecret() {
     if (!secret)
       throw new InvalidRecordError(
         'This server cannot store a key. Its setting INTEGRATION_KEY_SECRET is missing.',
       )
+    if (secret.length < MIN_SECRET_LENGTH)
+      throw new InvalidRecordError(
+        `This server cannot store a key. Its setting INTEGRATION_KEY_SECRET has fewer than ${MIN_SECRET_LENGTH} characters.`,
+      )
     return secret
+  }
+
+  // The id of the member of the Project with the e-mail address.
+  async function getMemberId(
+    projectId: number,
+    projectSlug: string,
+    email: string,
+  ) {
+    const found = await db
+      .select({ id: members.id })
+      .from(members)
+      .where(
+        and(
+          eq(members.projectId, projectId),
+          eq(sql`lower(${members.email})`, email.trim().toLowerCase()),
+        ),
+      )
+    const member = found.at(0)
+    if (!member)
+      throw new InvalidRecordError(
+        `${email.trim()} is no member of ${projectSlug}.`,
+      )
+    return member.id
   }
 
   // The Integration of the Project. One of another Project is not found.
@@ -202,8 +244,10 @@ export function createIntegrationOperations({
   }
 
   // The Signals of the active Integrations of one tool. Each read keeps its
-  // time and its count. A read that fails marks its Integration as failed,
-  // so the next read leaves it out.
+  // time and its count, or why it failed. One good read sets the count of
+  // the failed reads back. The third failed read in a row marks the
+  // Integration as failed, so the next read leaves it out (glue/D73). A
+  // read that the tool limits shows as the last error and counts as none.
   async function readActive(rows: Row[], tool: IntegrationTool) {
     const openSecret = getSecret()
     const signals: SourceSignal[] = []
@@ -218,14 +262,17 @@ export function createIntegrationOperations({
             lastReadAt: now(),
             lastReadSignalCount: read.length,
             lastReadError: null,
+            failedReadCount: 0,
           })
           .where(byId)
         signals.push(...read)
       } catch (error) {
+        const failedReads = error instanceof IntegrationLimitError ? 0 : 1
         await db
           .update(integrations)
           .set({
-            state: 'failed',
+            state: sql`case when ${integrations.failedReadCount} + ${failedReads} >= ${MAX_FAILED_READS} then 'failed' else ${integrations.state} end`,
+            failedReadCount: sql`${integrations.failedReadCount} + ${failedReads}`,
             lastReadAt: now(),
             lastReadSignalCount: null,
             lastReadError:
@@ -238,6 +285,18 @@ export function createIntegrationOperations({
     return signals
   }
 
+  // The Integration of the Project with its stored row.
+  async function getRow(projectSlug: string, id: number) {
+    const projectId = await getProjectId(db, projectSlug)
+    const rows = await db
+      .select()
+      .from(integrations)
+      .where(ofProject(projectId, id))
+    const row = rows.at(0)
+    if (!row) throw new IntegrationNotFoundError(id)
+    return row
+  }
+
   return {
     // The Integrations of the Project, by tool and address.
     async list(projectSlug: string): Promise<Integration[]> {
@@ -245,21 +304,52 @@ export function createIntegrationOperations({
       return rows.map(toIntegration)
     },
 
+    // The failed Integrations that the member with the e-mail address is
+    // Responsible for (glue/D73). They leave the list when a member starts
+    // them again and the read works.
+    async listMine(
+      projectSlug: string,
+      memberEmail: string,
+    ): Promise<Integration[]> {
+      const rows = await db
+        .select({ integration: integrations })
+        .from(integrations)
+        .innerJoin(members, eq(integrations.responsibleMemberId, members.id))
+        .where(
+          and(
+            eq(integrations.projectId, await getProjectId(db, projectSlug)),
+            eq(integrations.state, 'failed'),
+            eq(sql`lower(${members.email})`, memberEmail.trim().toLowerCase()),
+          ),
+        )
+        .orderBy(asc(integrations.tool), asc(integrations.address))
+      return rows.map(({ integration }) => toIntegration(integration))
+    },
+
     // Reads from the tool one time as a test. Only a read that works saves
-    // the Integration.
-    async add(projectSlug: string, input: NewIntegration) {
+    // the Integration. `responsible` is the e-mail address of the member who
+    // adds it: that member is its Responsible.
+    async add(
+      projectSlug: string,
+      input: NewIntegration,
+      responsible?: string,
+    ) {
       const { tool: name, address, key } = parseIntegration(input)
       const tool = getTool(name)
       const problem = tool.findAddressProblem(address)
       if (problem) throw new InvalidRecordError(problem, { field: 'address' })
       const openSecret = getSecret()
       const projectId = await getProjectId(db, projectSlug)
+      const responsibleMemberId =
+        responsible === undefined
+          ? undefined
+          : await getMemberId(projectId, projectSlug, responsible)
       const rows = await listRows(projectId)
       if (rows.some((row) => row.tool === name && row.address === address))
-        throw new InvalidRecordError(`"${address}" is an Integration already`, {
-          field: 'address',
-        })
+        throw toDuplicateError(address)
       const signals = await readSignals(tool, address, key)
+      // A second add of the address at the same time passed the check
+      // above: the unique rule of the table refuses it.
       const [added] = await db
         .insert(integrations)
         .values({
@@ -271,8 +361,13 @@ export function createIntegrationOperations({
           state: 'active',
           lastReadAt: now(),
           lastReadSignalCount: signals.length,
+          responsibleMemberId,
         })
         .returning()
+        .catch((error: unknown) => {
+          if (isUniqueViolation(error)) throw toDuplicateError(address)
+          throw error
+        })
       return toIntegration(added)
     },
 
@@ -283,13 +378,7 @@ export function createIntegrationOperations({
     // Reads from the tool one time with the stored key. Only a read that
     // works makes the Integration active again.
     async start(projectSlug: string, id: number) {
-      const projectId = await getProjectId(db, projectSlug)
-      const rows = await db
-        .select()
-        .from(integrations)
-        .where(ofProject(projectId, id))
-      const row = rows.at(0)
-      if (!row) throw new IntegrationNotFoundError(id)
+      const row = await getRow(projectSlug, id)
       const key = decryptKey(getSecret(), row.encryptedKey)
       const signals = await readSignals(getTool(row.tool), row.address, key)
       return update(projectSlug, id, {
@@ -297,6 +386,31 @@ export function createIntegrationOperations({
         lastReadAt: now(),
         lastReadSignalCount: signals.length,
         lastReadError: null,
+        failedReadCount: 0,
+      })
+    },
+
+    // Gives the Integration a new key. Reads from the tool one time with
+    // it: only a read that works saves it, in the place of the old key, and
+    // makes a failed Integration active. A paused one stays paused.
+    async setKey(projectSlug: string, id: number, input: string) {
+      const parsed = integrationSchema.shape.key.safeParse(input)
+      if (!parsed.success)
+        throw new InvalidRecordError(parsed.error.issues[0].message, {
+          field: 'key',
+        })
+      const key = parsed.data
+      const openSecret = getSecret()
+      const row = await getRow(projectSlug, id)
+      const signals = await readSignals(getTool(row.tool), row.address, key)
+      return update(projectSlug, id, {
+        encryptedKey: encryptKey(openSecret, key),
+        keyLastFour: key.slice(-LAST_CHARACTERS),
+        state: row.state === 'paused' ? 'paused' : 'active',
+        lastReadAt: now(),
+        lastReadSignalCount: signals.length,
+        lastReadError: null,
+        failedReadCount: 0,
       })
     },
 
@@ -313,25 +427,39 @@ export function createIntegrationOperations({
     // The Signal sources as the Project reads them. A source with the name
     // of a tool reads the active Integrations of that tool with their keys.
     // A Project with no Integration of the tool keeps the source as it is.
+    // A tool with no source of the server gets its own source, so a new
+    // tool needs no entry in the sources.
     toSources(
       projectSlug: string,
       sources: ReadonlyArray<SignalSource>,
     ): ReadonlyArray<SignalSource> {
-      return sources.map((source) => {
-        if (!Object.hasOwn(tools, source.name)) return source
-        const tool = tools[source.name]
-        return {
-          name: source.name,
-          async listSignals(project) {
-            const projectId = await getProjectId(db, projectSlug)
-            const rows = (await listRows(projectId)).filter(
-              (row) => row.tool === source.name,
-            )
-            if (rows.length === 0) return source.listSignals(project)
-            return readActive(rows, tool)
-          },
-        }
+      const toToolSource = (
+        name: string,
+        serverSource?: SignalSource,
+      ): SignalSource => ({
+        name,
+        async listSignals(project) {
+          const projectId = await getProjectId(db, projectSlug)
+          const rows = (await listRows(projectId)).filter(
+            (row) => row.tool === name,
+          )
+          if (rows.length === 0)
+            return serverSource ? serverSource.listSignals(project) : []
+          return readActive(rows, tools[name])
+        },
       })
+      const sourceNames = new Set(sources.map(({ name }) => name))
+
+      return [
+        ...sources.map((source) =>
+          Object.hasOwn(tools, source.name)
+            ? toToolSource(source.name, source)
+            : source,
+        ),
+        ...Object.keys(tools)
+          .filter((name) => !sourceNames.has(name))
+          .map((name) => toToolSource(name)),
+      ]
     },
   }
 }

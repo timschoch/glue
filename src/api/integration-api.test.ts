@@ -92,6 +92,17 @@ describe('POST an Integration of a Project', () => {
   })
 })
 
+describe('the member of the token', () => {
+  it('is the Responsible of the Integration that the token adds', async () => {
+    await add()
+    await db.update(schema.integrations).set({ state: 'failed' })
+
+    const mine = await createFakeIntegrations(db).listMine('glue', ada.email)
+
+    expect(mine).toEqual([{ ...active, state: 'failed' }])
+  })
+})
+
 describe('PATCH an Integration', () => {
   it('pauses it, and starts it again', async () => {
     await add()
@@ -104,6 +115,22 @@ describe('PATCH an Integration', () => {
       body: { ...active, state: 'paused' },
     })
     expect(started).toEqual({ status: 200, body: active })
+  })
+
+  it('takes a new key, and answers 400 with the reason when the tool refuses it', async () => {
+    await add({ ...input, key: TEAM_KEY })
+    const setKey = (key: string) =>
+      call(handleChangeIntegration, 'PATCH', {
+        integrationId: '1',
+        body: { key },
+      })
+
+    const refused = await setKey('another-key')
+    const changed = await setKey(TEAM_KEY)
+
+    expect(refused.status).toBe(400)
+    expect(refused.body.error.message).toBe('GitHub refused the key')
+    expect(changed).toEqual({ status: 200, body: active })
   })
 
   it('answers 400 for a state that no member sets', async () => {

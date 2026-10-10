@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  IntegrationLimitError,
   IntegrationReadError,
   createIntegrationOperations,
 } from './integrations.ts'
 import type { IntegrationTool } from './integrations.ts'
+import { joinProject } from './members.ts'
 import { addProject } from './part-records.ts'
 import {
   IntegrationNotFoundError,
@@ -18,7 +20,7 @@ const { db } = createTestDatabase(schema)
 
 // No real key: the fake tool takes this one only.
 const KEY = 'key-of-the-team-1234'
-const SECRET = 'secret-of-the-server'
+const SECRET = 'secret-of-the-server-0123456789ab'
 const REPOSITORY = 'acme/shop'
 
 const shopSignal: SourceSignal = {
@@ -239,6 +241,131 @@ describe('add', () => {
     })
     expect(reads).toHaveLength(1)
   })
+
+  it('refuses the second of two adds of one address at the same time as a duplicate', async () => {
+    const operations = createOperations()
+
+    const [first, second] = await Promise.allSettled([
+      operations.add('glue', input),
+      operations.add('glue', input),
+    ])
+
+    expect(first).toMatchObject({ status: 'fulfilled', value: active })
+    expect(second).toEqual({
+      status: 'rejected',
+      reason: new InvalidRecordError('"acme/shop" is an Integration already', {
+        field: 'address',
+      }),
+    })
+    expect(await listRows()).toHaveLength(1)
+  })
+
+  it('refuses a save on a server with a secret shorter than 32 characters, before a read', async () => {
+    const operations = createOperations('a-secret-of-31-characters-abcde')
+
+    const refused = operations.add('glue', input)
+
+    await expect(refused).rejects.toThrow(InvalidRecordError)
+    await expect(refused).rejects.toMatchObject({
+      message:
+        'This server cannot store a key. Its setting INTEGRATION_KEY_SECRET has fewer than 32 characters.',
+    })
+    expect(reads).toEqual([])
+    expect(await listRows()).toEqual([])
+  })
+})
+
+describe('setKey', () => {
+  const NEW_KEY = 'new-key-of-the-team-9876'
+
+  it('reads one time with the new key, then reads with it from then on', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    reads = []
+    clock = new Date('2026-10-11T09:00:00.000Z')
+
+    const changed = await operations.setKey('glue', 1, ` ${NEW_KEY} `)
+    await listGithub(operations)
+
+    expect(changed).toEqual({
+      ...active,
+      keyLastFour: '9876',
+      lastRead: { at: '2026-10-11T09:00:00.000Z', signalCount: 1, error: null },
+    })
+    expect(reads).toEqual([
+      { address: REPOSITORY, key: NEW_KEY },
+      { address: REPOSITORY, key: NEW_KEY },
+    ])
+  })
+
+  it('makes a failed Integration active again', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    readError = new IntegrationReadError('GitHub refused the key', 'key')
+    for (const _read of [1, 2, 3])
+      await listGithub(operations).catch(() => undefined)
+    readError = undefined
+
+    const changed = await operations.setKey('glue', 1, NEW_KEY)
+
+    expect(changed).toMatchObject({ state: 'active', keyLastFour: '9876' })
+  })
+
+  it('keeps a paused Integration paused', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    await operations.pause('glue', 1)
+
+    const changed = await operations.setKey('glue', 1, NEW_KEY)
+
+    expect(changed).toMatchObject({ state: 'paused', keyLastFour: '9876' })
+  })
+
+  it('keeps the old key when the read with the new key fails, and gives the reason at the key', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    reads = []
+    readError = new IntegrationReadError('GitHub refused the key', 'key')
+
+    const refused = operations.setKey('glue', 1, NEW_KEY)
+
+    await expect(refused).rejects.toThrow(InvalidRecordError)
+    await expect(refused).rejects.toMatchObject({
+      message: 'GitHub refused the key',
+      place: { field: 'key' },
+    })
+    readError = undefined
+    reads = []
+    await listGithub(operations)
+    expect(reads).toEqual([{ address: REPOSITORY, key: KEY }])
+    expect(await operations.list('glue')).toEqual([active])
+  })
+
+  it('refuses a key that is too short, before a read', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    reads = []
+
+    const refused = operations.setKey('glue', 1, '1234567')
+
+    await expect(refused).rejects.toThrow(InvalidRecordError)
+    await expect(refused).rejects.toMatchObject({
+      message: 'A key has at least 8 characters',
+      place: { field: 'key' },
+    })
+    expect(reads).toEqual([])
+  })
+
+  it('finds no Integration of another Project', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    reads = []
+
+    await expect(operations.setKey('flexibeck', 1, NEW_KEY)).rejects.toThrow(
+      new IntegrationNotFoundError(1),
+    )
+    expect(reads).toEqual([])
+  })
 })
 
 describe('pause and start', () => {
@@ -307,10 +434,75 @@ describe('an Integration of another Project', () => {
   )
 })
 
-describe('toSources', () => {
-  const listGithub = (operations = createOperations()) =>
-    operations.toSources('glue', [serverSource])[0].listSignals(project)
+const listGithub = (operations = createOperations()) =>
+  operations.toSources('glue', [serverSource])[0].listSignals(project)
 
+describe('the Responsible of an Integration', () => {
+  const ada = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
+  const ben = { id: 'user-2', name: 'Ben', email: 'ben@example.com' }
+
+  // Three reads in a row fail: the Integration is failed.
+  async function failIntegration(
+    operations: ReturnType<typeof createOperations>,
+  ) {
+    readError = new IntegrationReadError('GitHub refused the key', 'key')
+    for (const _read of [1, 2, 3])
+      await listGithub(operations).catch(() => undefined)
+    readError = undefined
+  }
+
+  beforeEach(async () => {
+    await joinProject(db, 'glue', ada)
+    await joinProject(db, 'glue', ben)
+  })
+
+  it('is the member who added it: a failed Integration is in the Mine of that member only', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input, 'Ada@example.com')
+    const whileActive = await operations.listMine('glue', ada.email)
+
+    await failIntegration(operations)
+
+    expect(whileActive).toEqual([])
+    expect(await operations.listMine('glue', ada.email)).toEqual([
+      {
+        ...active,
+        state: 'failed',
+        lastRead: {
+          at: '2026-10-10T08:00:00.000Z',
+          signalCount: null,
+          error: 'GitHub refused the key',
+        },
+      },
+    ])
+    expect(await operations.listMine('glue', ben.email)).toEqual([])
+  })
+
+  it('leaves Mine when a member starts the Integration again and the read works', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input, ada.email)
+    await failIntegration(operations)
+
+    await operations.start('glue', 1)
+
+    expect(await operations.listMine('glue', ada.email)).toEqual([])
+  })
+
+  it('refuses a person who is no member of the Project, before a read', async () => {
+    const operations = createOperations()
+
+    const refused = operations.add('glue', input, 'eve@example.com')
+
+    await expect(refused).rejects.toThrow(InvalidRecordError)
+    await expect(refused).rejects.toMatchObject({
+      message: 'eve@example.com is no member of glue.',
+    })
+    expect(reads).toEqual([])
+    expect(await listRows()).toEqual([])
+  })
+})
+
+describe('toSources', () => {
   it('keeps the source of the server for a Project with no Integration', async () => {
     await createOperations().add('flexibeck', input)
     reads = []
@@ -353,30 +545,94 @@ describe('toSources', () => {
     expect(reads).toEqual([])
   })
 
-  it('marks the Integration as failed when a read fails, and reads it no more', async () => {
+  const failedRead = {
+    at: '2026-10-11T09:00:00.000Z',
+    signalCount: null,
+    error: 'GitHub refused the key',
+  }
+
+  // Reads one time. The read fails.
+  const failRead = (operations: ReturnType<typeof createOperations>) =>
+    expect(listGithub(operations)).rejects.toThrow('GitHub refused the key')
+
+  it('keeps the Integration active after two failed reads, with the error of the read', async () => {
     const operations = createOperations()
     await operations.add('glue', input)
     reads = []
     clock = new Date('2026-10-11T09:00:00.000Z')
     readError = new IntegrationReadError('GitHub refused the key', 'key')
 
-    await expect(listGithub(operations)).rejects.toThrow(
-      'GitHub refused the key',
-    )
+    await failRead(operations)
+    await failRead(operations)
+
+    expect(reads).toHaveLength(2)
+    expect(await operations.list('glue')).toEqual([
+      { ...active, lastRead: failedRead },
+    ])
+  })
+
+  it('marks the Integration as failed after three failed reads in a row, and reads it no more', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    reads = []
+    clock = new Date('2026-10-11T09:00:00.000Z')
+    readError = new IntegrationReadError('GitHub refused the key', 'key')
+
+    await failRead(operations)
+    await failRead(operations)
+    await failRead(operations)
     const again = await listGithub(operations)
 
     expect(again).toEqual([])
-    expect(reads).toHaveLength(1)
+    expect(reads).toHaveLength(3)
+    expect(await operations.list('glue')).toEqual([
+      { ...active, state: 'failed', lastRead: failedRead },
+    ])
+  })
+
+  it('counts the failed reads from zero again after one good read', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    clock = new Date('2026-10-11T09:00:00.000Z')
+    readError = new IntegrationReadError('GitHub refused the key', 'key')
+    await failRead(operations)
+    await failRead(operations)
+    readError = undefined
+    await listGithub(operations)
+    readError = new IntegrationReadError('GitHub refused the key', 'key')
+
+    await failRead(operations)
+    await failRead(operations)
+
+    expect(await operations.list('glue')).toEqual([
+      { ...active, lastRead: failedRead },
+    ])
+  })
+
+  it('shows a read that the tool limits as the last error, and does not count it as a failed read', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    clock = new Date('2026-10-11T09:00:00.000Z')
+    readError = new IntegrationReadError('GitHub refused the key', 'key')
+    await failRead(operations)
+    await failRead(operations)
+    readError = new IntegrationLimitError('GitHub limits the reads for now')
+
+    const limited = listGithub(operations)
+
+    await expect(limited).rejects.toThrow('GitHub limits the reads for now')
     expect(await operations.list('glue')).toEqual([
       {
         ...active,
-        state: 'failed',
-        lastRead: {
-          at: '2026-10-11T09:00:00.000Z',
-          signalCount: null,
-          error: 'GitHub refused the key',
-        },
+        lastRead: { ...failedRead, error: 'GitHub limits the reads for now' },
       },
+    ])
+    // The two failed reads before the limit still count: one more is the
+    // third.
+    readError = new IntegrationReadError('GitHub refused the key', 'key')
+    await failRead(operations)
+    expect(await operations.list('glue')).toEqual([
+      { ...active, state: 'failed', lastRead: failedRead },
     ])
   })
 
@@ -399,5 +655,106 @@ describe('toSources', () => {
       'This server cannot store a key. Its setting INTEGRATION_KEY_SECRET is missing.',
     )
     expect(reads).toEqual([])
+  })
+})
+
+// A new tool is one adapter and one entry in the list of the tools. The
+// module names no tool: this one is known to this test only.
+describe('a tool that only the list of the tools names', () => {
+  const ada = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
+  const alert: SourceSignal = {
+    url: 'https://pager.example/alerts/1',
+    title: 'The shop is down',
+    text: '',
+    date: '2026-10-09',
+  }
+  let pagerError: Error | undefined
+
+  const pager: IntegrationTool = {
+    findAddressProblem: (address) =>
+      address.startsWith('team-') ? undefined : 'A pager address is team-name',
+    listSignals: async () => {
+      if (pagerError) throw pagerError
+      return [alert]
+    },
+  }
+  const createPagerOperations = () =>
+    createIntegrationOperations({
+      db,
+      secret: SECRET,
+      tools: { github, pager },
+      now: () => clock,
+    })
+  const pagerInput = { tool: 'pager', address: 'team-shop', key: KEY }
+  const added = {
+    id: 1,
+    tool: 'pager',
+    address: 'team-shop',
+    keyLastFour: '1234',
+    state: 'active',
+    lastRead: { at: '2026-10-10T08:00:00.000Z', signalCount: 1, error: null },
+  }
+  const refusedRead = {
+    at: '2026-10-10T08:00:00.000Z',
+    signalCount: null,
+    error: 'The pager refused the key',
+  }
+  // The Signals of the tool, as the Project reads them. The server has no
+  // source with the name of the tool.
+  const listAlerts = (operations: ReturnType<typeof createPagerOperations>) =>
+    operations
+      .toSources('glue', [serverSource])
+      .find(({ name }) => name === 'pager')
+      ?.listSignals(project)
+
+  beforeEach(async () => {
+    pagerError = undefined
+    await joinProject(db, 'glue', ada)
+  })
+
+  it('adds with a test read and its own address check, lists, and reads its Signals', async () => {
+    const operations = createPagerOperations()
+
+    const refused = operations.add('glue', { ...pagerInput, address: 'shop' })
+    await expect(refused).rejects.toEqual(
+      new InvalidRecordError('A pager address is team-name', {
+        field: 'address',
+      }),
+    )
+    expect(await operations.add('glue', pagerInput, ada.email)).toEqual(added)
+
+    expect(await operations.list('glue')).toEqual([added])
+    expect(await listAlerts(operations)).toEqual([alert])
+  })
+
+  it('fails after three reads, is in Mine, takes a new key, pauses, starts and is removed', async () => {
+    const operations = createPagerOperations()
+    await operations.add('glue', pagerInput, ada.email)
+    pagerError = new IntegrationReadError('The pager refused the key', 'key')
+    for (const _read of [1, 2, 3])
+      await listAlerts(operations)?.catch(() => undefined)
+    const failed = { ...added, state: 'failed', lastRead: refusedRead }
+
+    expect(await operations.listMine('glue', ada.email)).toEqual([failed])
+    await expect(
+      operations.setKey('glue', 1, 'new-key-of-the-team-5678'),
+    ).rejects.toEqual(
+      new InvalidRecordError('The pager refused the key', { field: 'key' }),
+    )
+
+    pagerError = undefined
+    await operations.setKey('glue', 1, 'new-key-of-the-team-5678')
+    const withNewKey = { ...added, keyLastFour: '5678' }
+
+    expect(await operations.list('glue')).toEqual([withNewKey])
+    expect(await operations.listMine('glue', ada.email)).toEqual([])
+
+    await operations.pause('glue', 1)
+    expect(await listAlerts(operations)).toEqual([])
+    await operations.start('glue', 1)
+    expect(await operations.list('glue')).toEqual([withNewKey])
+
+    await operations.remove('glue', 1)
+    expect(await operations.list('glue')).toEqual([])
   })
 })

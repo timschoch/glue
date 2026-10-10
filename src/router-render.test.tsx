@@ -757,8 +757,8 @@ describe('a section', () => {
         .getAllByRole('listitem')
         .map((row) => row.textContent),
     ).toEqual([
-      'GitHubacme/shop••••1234ActivePauseRemove',
-      'GitHubacme/web••••1234PausedStartRemove',
+      'GitHubacme/shop••••1234ActivePauseNew keyRemove',
+      'GitHubacme/web••••1234PausedStartNew keyRemove',
     ])
 
     await userEvent.click(button('Signals'))
@@ -818,6 +818,11 @@ describe('a section', () => {
     await userEvent.click(
       await screen.findByRole('button', { name: 'Remove GitHub acme/web' }),
     )
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Remove',
+      }),
+    )
 
     await waitFor(() =>
       expect(vi.mocked(server.removeIntegration).mock.calls).toEqual([
@@ -830,6 +835,135 @@ describe('a section', () => {
     expect(vi.mocked(server.startIntegration).mock.calls).toEqual([
       [{ project: 'glue', integrationId: 2 }],
     ])
+  })
+
+  it('gives an Integration a new key, and closes the form', async () => {
+    const { server } = await renderIntegrations()
+
+    await userEvent.click(button('New key GitHub acme/web'))
+    await userEvent.type(
+      screen.getByLabelText('New key'),
+      'new-key-of-the-team',
+    )
+    await userEvent.click(button('Save key'))
+
+    await waitFor(() => expect(screen.queryByLabelText('New key')).toBeNull())
+    expect(vi.mocked(server.setIntegrationKey).mock.calls).toEqual([
+      [{ project: 'glue', integrationId: 2, key: 'new-key-of-the-team' }],
+    ])
+  })
+
+  it('says at the new key why the tool refused it, and keeps the form', async () => {
+    await renderIntegrations({
+      setIntegrationKey: vi.fn(() =>
+        Promise.resolve({
+          message: 'GitHub refused the key',
+          place: { field: 'key' },
+        }),
+      ),
+    })
+
+    await userEvent.click(button('New key GitHub acme/web'))
+    await userEvent.type(
+      screen.getByLabelText('New key'),
+      'new-key-of-the-team',
+    )
+    await userEvent.click(button('Save key'))
+
+    await screen.findByText('GitHub refused the key')
+    expect(screen.getByLabelText('New key').getAttribute('aria-invalid')).toBe(
+      'true',
+    )
+  })
+
+  it('says at the row why a start failed when the tool refused the stored key, and not at the open form of the new key', async () => {
+    await renderIntegrations({
+      startIntegration: vi.fn(() =>
+        Promise.resolve({
+          message: 'GitHub refused the key',
+          place: { field: 'key' },
+        }),
+      ),
+    })
+
+    const [, row] = within(
+      screen.getByRole('list', { name: 'Integrations' }),
+    ).getAllByRole('listitem')
+    // The reason in the notification of the row.
+    const findReason = async () =>
+      within(await within(row).findByRole('alert')).getByText(
+        'GitHub refused the key',
+      )
+
+    await userEvent.click(button('Start GitHub acme/web'))
+
+    expect(await findReason()).toBeDefined()
+
+    await userEvent.click(button('New key GitHub acme/web'))
+    await userEvent.click(button('Start GitHub acme/web'))
+
+    expect(await findReason()).toBeDefined()
+    expect(screen.getByLabelText('New key').getAttribute('aria-invalid')).toBe(
+      null,
+    )
+  })
+
+  it('shows the refused new key no more after Cancel closed its form', async () => {
+    await renderIntegrations({
+      setIntegrationKey: vi.fn(() =>
+        Promise.resolve({
+          message: 'GitHub refused the key',
+          place: { field: 'key' },
+        }),
+      ),
+    })
+    await userEvent.click(button('New key GitHub acme/web'))
+    await userEvent.type(
+      screen.getByLabelText('New key'),
+      'new-key-of-the-team',
+    )
+    await userEvent.click(button('Save key'))
+    await screen.findByText('GitHub refused the key')
+
+    await userEvent.click(button('Cancel'))
+
+    expect(screen.queryByText('GitHub refused the key')).toBeNull()
+  })
+
+  it('shows in Mine the failed Integrations that the person is Responsible for, and starts one there', async () => {
+    const { server } = await renderPage('/glue?section=Mine', {
+      fetchMineIntegrations: vi.fn(() =>
+        Promise.resolve([
+          {
+            ...web,
+            state: 'failed' as const,
+            lastRead: {
+              at: '2026-10-10T07:05:00.000Z',
+              signalCount: null,
+              error: 'GitHub refused the key',
+            },
+          },
+        ]),
+      ),
+    })
+    const mine = within(screen.getByRole('region', { name: 'Integrations' }))
+
+    expect(screen.queryByText('No Parts')).toBeNull()
+    expect(mine.getAllByRole('listitem').map((row) => row.textContent)).toEqual(
+      [
+        'GitHubacme/web••••1234FailedStartNew key2026-10-10 07:05GitHub refused the key',
+      ],
+    )
+
+    await userEvent.click(
+      mine.getByRole('button', { name: 'Start GitHub acme/web' }),
+    )
+
+    await waitFor(() =>
+      expect(vi.mocked(server.startIntegration).mock.calls).toEqual([
+        [{ project: 'glue', integrationId: 2 }],
+      ]),
+    )
   })
 
   const noPhone = {

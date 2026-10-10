@@ -17,7 +17,12 @@ export const integrationChangeInputSchema = integrationsInputSchema.extend({
   integrationId: z.int().positive(),
 })
 
+export const integrationKeyInputSchema = integrationChangeInputSchema.extend({
+  key: integrationSchema.shape.key,
+})
+
 type IntegrationsInput = z.infer<typeof integrationsInputSchema>
+export type IntegrationKeyInput = z.input<typeof integrationKeyInputSchema>
 export type IntegrationAddInput = z.input<typeof integrationAddInputSchema>
 export type IntegrationChangeInput = z.infer<
   typeof integrationChangeInputSchema
@@ -25,25 +30,40 @@ export type IntegrationChangeInput = z.infer<
 
 // What the server functions of the Integrations do. Each action looks for
 // the session first. A member of the Project adds, pauses, starts and
-// removes. `getIntegrations` gives the operations with the tools and the
-// secret of the server.
+// removes, and gives a new key. The member who adds an Integration is its
+// Responsible. `getIntegrations` gives the operations with the tools and
+// the secret of the server.
 export function createIntegrationActions({
   getIntegrations,
   ...request
 }: Pick<ActionRequest, 'findSession' | 'getDb'> & {
   getIntegrations: (db: ConceptDb) => IntegrationOperations
 }) {
-  const { withSession, withMember } = createSessionGuard(request)
+  const { withSession, withReader, withMember } = createSessionGuard(request)
 
   return {
     listIntegrations: withSession((db, { project }: IntegrationsInput) =>
       getIntegrations(db).list(project),
     ),
 
+    // The failed Integrations that the person is Responsible for. A person
+    // who is no member has none.
+    listMineIntegrations: withReader(
+      async (db, { project }: IntegrationsInput, member) =>
+        member ? getIntegrations(db).listMine(project, member.email) : [],
+    ),
+
     addIntegration: withMember(
-      (db, { project, integration }: IntegrationAddInput) =>
+      (db, { project, integration }: IntegrationAddInput, member) =>
         getIntegrations(db)
-          .add(project, integration)
+          .add(project, integration, member.email)
+          .then(({ id }) => ({ id }), toFailure),
+    ),
+
+    setIntegrationKey: withMember(
+      (db, { project, integrationId, key }: IntegrationKeyInput) =>
+        getIntegrations(db)
+          .setKey(project, integrationId, key)
           .then(({ id }) => ({ id }), toFailure),
     ),
 

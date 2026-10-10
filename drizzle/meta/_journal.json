@@ -274,6 +274,13 @@
       "when": 1791652246804,
       "tag": "0038_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791655459479,
+      "tag": "0040_integration_failed_reads",
+      "breakpoints": true
     }
   ]
 }
