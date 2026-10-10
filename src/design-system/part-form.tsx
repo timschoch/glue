@@ -184,7 +184,7 @@ export type PartFormProps = {
   // The members of the Project: one of them is the Responsible.
   members?: ReadonlyArray<{ name: string; email: string }>
   // The reason of each field with a wrong value.
-  errors?: Partial<Record<Field, string>>
+  errors?: Partial<Record<Field | 'responsible', string>>
   // The place of the step that the reason of the steps is about. The first
   // step has 0. None: the reason is about the list.
   invalidStep?: number
@@ -224,7 +224,11 @@ export function PartForm({
     ({ name, kind }) =>
       recordId === undefined || kind !== 'joint' || name === 'goal',
   )
-  // A Decision needs an owner.
+  // A Decision needs an owner: the control says so while it has none.
+  const noResponsible =
+    type === 'decision' && values.responsible === ''
+      ? 'A Decision needs a Responsible.'
+      : errors.responsible
   const canSave =
     fields.every(({ name, required }) => !required || hasValue(values[name])) &&
     (type !== 'decision' || values.responsible !== '')
@@ -348,6 +352,8 @@ export function PartForm({
       <Select
         id={`${formId}-responsible`}
         labelText="Responsible"
+        invalid={noResponsible !== undefined}
+        invalidText={noResponsible}
         value={values.responsible}
         onChange={({ target }) => change({ responsible: target.value })}
       >

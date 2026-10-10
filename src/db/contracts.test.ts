@@ -1,11 +1,12 @@
 import { PGlite } from '@electric-sql/pglite'
+import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { findContract, findContractState, signContract } from './contracts.ts'
 import { briefKind, updateKind } from './kinds.ts'
-import { joinProject } from './members.ts'
+import { assign, joinProject } from './members.ts'
 import { addProjectReference } from './projects.ts'
 import {
   addConcept,
@@ -333,6 +334,55 @@ describe('a Concept that changed after its Contract Version', () => {
     const first = await findContract(db, 'glue', 'videos', 1)
     expect(first).toMatchObject({ version: 1, newestVersion: 2 })
     expect(first?.tier1[1].title).toBe('Technique')
+  })
+})
+
+// Tim is the Responsible of the Flow F1. The Entity E1 has no Responsible,
+// and the old owner text "Orchestrator".
+describe('the owner that a Contract Version freezes', () => {
+  const listFrozenOwners = async (version?: number) =>
+    (await findContract(db, 'glue', 'videos', version))?.tier1.map(
+      ({ id, owner }) => ({ id, owner }),
+    )
+
+  beforeEach(async () => {
+    await assign(db, 'glue', {
+      member: 'tim@example.com',
+      part: 'F1',
+      role: 'responsible',
+    })
+    await db
+      .update(schema.parts)
+      .set({ owner: 'Orchestrator' })
+      .where(eq(schema.parts.recordId, 'E1'))
+    await publish('F1', 'E1')
+    await signContract(db, 'glue', 'videos', 'Tim')
+  })
+
+  it('is the name of the Responsible, or the old text of a Part with none', async () => {
+    expect(await listFrozenOwners()).toEqual([
+      { id: 'F1', owner: 'Tim' },
+      { id: 'E1', owner: 'Orchestrator' },
+    ])
+  })
+
+  it('stays in an old Version, and the Concept is ahead, when a Part gets another Responsible', async () => {
+    await joinProject(db, 'glue', {
+      id: 'user-ada',
+      name: 'Ada',
+      email: 'ada@example.com',
+    })
+    await assign(db, 'glue', {
+      member: 'ada@example.com',
+      part: 'F1',
+      role: 'responsible',
+    })
+
+    expect((await findContractState(db, 'glue', 'videos'))?.ahead).toBe(true)
+    await signContract(db, 'glue', 'videos', 'Ada')
+
+    expect((await listFrozenOwners(1))?.[0]).toEqual({ id: 'F1', owner: 'Tim' })
+    expect((await listFrozenOwners(2))?.[0]).toEqual({ id: 'F1', owner: 'Ada' })
   })
 })
 

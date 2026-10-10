@@ -1,4 +1,3 @@
-@use '@carbon/react/scss/breakpoint' as *;
 @use '@carbon/react/scss/spacing' as *;
 @use '@carbon/react/scss/theme' as *;
 @use '@carbon/react/scss/type' as *;
@@ -48,18 +47,14 @@ $card-width: $spacing-13 * 2;
   gap: $spacing-03;
 }
 
-// A write that runs takes no more room than its text.
+// A write that runs takes no more room than its text, also in a button.
 .pending {
   inline-size: auto;
-}
+  min-block-size: 0;
 
-// The words of the removal that runs are after the button in a narrow
-// window and before it in a wide one: the button does not move.
-.removePending {
-  inline-size: auto;
-
-  @include breakpoint('md') {
-    order: -1;
+  // A ghost button fills each icon in it: the spinner stays a ring.
+  :global(.cds--loading) :global(.cds--loading__svg) {
+    fill: transparent;
   }
 }
 

@@ -35,7 +35,7 @@ beforeAll(async () => {
 
 // The Project glue has the root Concept glue and the Concept people in it.
 // D1 and D2 are in people, I1 is in the root. All three are drafts.
-// Tim is a member of glue.
+// Tim is a member of glue. D1 and D2 have the old owner text of no member.
 beforeEach(async () => {
   await client.exec(`
     insert into projects (slug, name) values ('glue', 'Glue'), ('flexibeck', 'flexibeck');
@@ -44,8 +44,8 @@ beforeEach(async () => {
       (1, 1, 'people', 'People'),
       (2, null, 'flexibeck', 'flexibeck');
     insert into parts (project_id, concept_id, type, record_id, title, status, date, owner, work_state) values
-      (1, 2, 'decision', 'D1', 'A Project has members', 'proposed', '2026-10-01', 'Tim', 'draft'),
-      (1, 2, 'decision', 'D2', 'A member picks loop steps', 'proposed', '2026-10-02', 'Tim', 'draft');
+      (1, 2, 'decision', 'D1', 'A Project has members', 'proposed', '2026-10-01', 'Mara', 'draft'),
+      (1, 2, 'decision', 'D2', 'A member picks loop steps', 'proposed', '2026-10-02', 'Mara', 'draft');
     insert into parts (project_id, concept_id, type, record_id, title, date, source, evidence_level, work_state) values
       (1, 1, 'insight', 'I1', 'Open sign-up', '2026-10-03', 'review', 'pattern', 'draft');
   `)

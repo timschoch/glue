@@ -3,6 +3,7 @@ import type { SQL } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 import { evidenceTypes } from '../part-fields.ts'
+import { selectOwnerOf } from './members.ts'
 import type {
   DecisionStatus,
   EvidenceLevel,
@@ -177,6 +178,8 @@ export function toPublishedAt(workState: WorkState): SQL {
 //   the activity line of the Part keep it.
 // - `isEdit`: the write is an edit of the Part. It gets an activity line
 //   also when the text and the Work state stay.
+// - `owner`: the name of the owner that the same write gives the Part. A
+//   Version of the write freezes it: see selectVersionFields.
 // - `step`: the write is a step of the evidence level (glue/D60). Its
 //   activity line has the kind and the note of the step. A dispute flags
 //   each Part that needs the Insight, as a new text does.
@@ -195,6 +198,7 @@ export function spreadTrust(
     member = sql`null::integer`,
     isEdit = false,
     step,
+    owner,
   }: {
     closesFlags?: SQL
     isOffTarget?: boolean
@@ -202,6 +206,7 @@ export function spreadTrust(
     member?: SQL
     isEdit?: boolean
     step?: LevelStep
+    owner?: SQL
   } = {},
 ): SQL {
   const newParts = sql.identifier(changed)
@@ -326,7 +331,7 @@ export function spreadTrust(
         ${selectNextVersion(sql`new_part."id"`)},
         new_part."title",
         new_part."body",
-        ${selectVersionFields(sql`new_part`)},
+        ${selectVersionFields(sql`new_part`, owner)},
         ${member}
       from ${newParts} as new_part
       join old_parts as old_part on old_part."id" = new_part."id"
@@ -386,11 +391,17 @@ export function selectNextVersion(partId: SQL): SQL {
 }
 
 // The fields that a Part Version freezes next to the title and the body.
-// `part` names a row with the history fields.
-export function selectVersionFields(part: SQL): SQL {
+// `part` names a row with the history fields. The owner is the one that the
+// page of the Part shows: the name of its Responsible (glue-build/D58).
+// `owner` is the name that the same statement gives the Part: the statement
+// does not read its own write of the Responsible.
+export function selectVersionFields(
+  part: SQL,
+  owner: SQL = selectOwnerOf(part),
+): SQL {
   return sql`jsonb_build_object(
     'status', ${part}."status",
-    'owner', ${part}."owner",
+    'owner', ${owner},
     'date', ${part}."date",
     'source', ${part}."source",
     'metric', ${part}."metric",

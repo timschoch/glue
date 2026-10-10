@@ -183,6 +183,27 @@ describe('the Part that the form edits', () => {
     })
   })
 
+  it('takes the owner of a Part away when the person picked nobody', () => {
+    expect(toPartChange('flow', { ...values, responsible: '' }, start)).toEqual(
+      {
+        title: 'Show the video of the creator',
+        body: 'It follows #I3.',
+        steps: values.steps,
+        owner: null,
+      },
+    )
+  })
+
+  it('names no owner for a Part that had none and gets none', () => {
+    expect(
+      toPartChange(
+        'flow',
+        { ...values, responsible: '' },
+        { ...start, responsible: '' },
+      ),
+    ).not.toHaveProperty('owner')
+  })
+
   it('gives a Decision the Goal that the person picked in the place of its Goal', () => {
     expect(toPartChange('decision', values, { ...start, goal: 'G2' })).toEqual({
       title: 'Show the video of the creator',

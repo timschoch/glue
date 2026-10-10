@@ -349,22 +349,23 @@ export function ConceptView({
         </div>
         <div className={styles.buttons}>
           {/* The button stays while the removal runs: it keeps the keyboard
-              focus. */}
+              focus, and it says itself that the removal runs. */}
           {onRemove && (
             <Button
-              kind="danger"
+              kind={removePending === undefined ? 'danger' : 'ghost'}
               size="sm"
               aria-disabled={removePending !== undefined}
               onClick={removePending === undefined ? onRemove : undefined}
             >
-              Remove Concept
+              {removePending === undefined ? (
+                'Remove Concept'
+              ) : (
+                <InlineLoading
+                  description={removePending}
+                  className={styles.pending}
+                />
+              )}
             </Button>
-          )}
-          {onRemove && removePending !== undefined && (
-            <InlineLoading
-              description={removePending}
-              className={styles.removePending}
-            />
           )}
           {onViewChange && (
             <ContentSwitcher

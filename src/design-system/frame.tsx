@@ -287,7 +287,8 @@ export function Frame({
               {onSignOut && (
                 <li>
                   {/* The button stays while the sign-out runs: it keeps
-                      the keyboard focus. */}
+                      the keyboard focus, and it says itself that the
+                      sign-out runs. */}
                   <Button
                     kind="ghost"
                     size="sm"
@@ -296,14 +297,15 @@ export function Frame({
                       signOutPending === undefined ? onSignOut : undefined
                     }
                   >
-                    Sign out
+                    {signOutPending === undefined ? (
+                      'Sign out'
+                    ) : (
+                      <InlineLoading
+                        description={signOutPending}
+                        className={styles.signOutPending}
+                      />
+                    )}
                   </Button>
-                  {signOutPending !== undefined && (
-                    <InlineLoading
-                      description={signOutPending}
-                      className={styles.signOutPending}
-                    />
-                  )}
                   {signOutFailure !== undefined && (
                     <InlineNotification
                       kind="error"

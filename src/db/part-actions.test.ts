@@ -1017,6 +1017,7 @@ describe('the people of a Project', () => {
       }),
     ).toEqual({
       message: '"E1" has a flag: only its owner Bo changes who has it',
+      place: { field: 'owner' },
     })
     expect(
       await actions.unassign({
@@ -1025,6 +1026,7 @@ describe('the people of a Project', () => {
       }),
     ).toEqual({
       message: '"E1" has a flag: only its owner Bo changes who has it',
+      place: { field: 'owner' },
     })
   })
 })

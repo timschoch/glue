@@ -220,9 +220,13 @@ describe('the start of a Project', () => {
 
     await userEvent.click(button('Remove Concept'))
 
-    await waitFor(() => within(screen.getByRole('main')).getByText('Removing'))
-    expect(document.activeElement).toBe(button('Remove Concept'))
-    expect(button('Remove Concept').getAttribute('aria-disabled')).toBe('true')
+    // The button itself says that the removal runs: no words beside it.
+    const busy = await screen.findByRole('button', { name: /Removing/ })
+    expect(within(screen.getByRole('main')).getAllByText('Removing')).toEqual([
+      within(busy).getByText('Removing'),
+    ])
+    expect(document.activeElement).toBe(busy)
+    expect(busy.getAttribute('aria-disabled')).toBe('true')
 
     await userEvent.keyboard('{Enter}')
 
@@ -1460,6 +1464,23 @@ describe('the steps of a Flow and the fields of an Entity', () => {
     expect(entity(1).getAttribute('aria-invalid')).toBe('true')
     expect(entity(2).getAttribute('aria-invalid')).toBeNull()
     expect(field('Step 1').getAttribute('aria-invalid')).toBeNull()
+    expect(alerts()).toEqual([])
+  })
+
+  it('shows at the control Responsible why the server refused the owner', async () => {
+    const refusal = '"R1" has a flag: only its owner Ada changes who has it'
+    await renderFlowForm({
+      updatePart: vi.fn(() =>
+        Promise.resolve({ message: refusal, place: { field: 'owner' } }),
+      ),
+    })
+
+    await userEvent.type(field('Step 2'), 'Close it')
+    await userEvent.click(button('Save'))
+
+    await screen.findByText(refusal)
+    const responsible = screen.getByRole('combobox', { name: 'Responsible' })
+    expect(responsible.getAttribute('aria-invalid')).toBe('true')
     expect(alerts()).toEqual([])
   })
 
@@ -3205,9 +3226,13 @@ describe('the session', () => {
 
     await userEvent.click(signOut())
 
-    await waitFor(() => panel.getByText('Signing out'))
-    expect(document.activeElement).toBe(signOut())
-    expect(signOut().getAttribute('aria-disabled')).toBe('true')
+    // The button itself says that the sign-out runs: no words beside it.
+    const busy = await panel.findByRole('button', { name: /Signing out/ })
+    expect(panel.getAllByText('Signing out')).toEqual([
+      within(busy).getByText('Signing out'),
+    ])
+    expect(document.activeElement).toBe(busy)
+    expect(busy.getAttribute('aria-disabled')).toBe('true')
 
     await userEvent.keyboard('{Enter}')
 

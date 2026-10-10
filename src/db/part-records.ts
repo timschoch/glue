@@ -18,11 +18,11 @@ import { goalMeasureSchema, isOnTarget } from './goal-measure.ts'
 import type { GoalMeasure } from './goal-measure.ts'
 import { addKindSql, briefKind, findKindId } from './kinds.ts'
 import {
-  assign,
   findFlagOwner,
   listMembers,
   refuseFlaggedPart,
   selectOwner,
+  writeOwner,
 } from './members.ts'
 import type { Member } from './members.ts'
 import {
@@ -926,7 +926,12 @@ async function addPartRow(
       )
       select
         "id", 1, "title", "body",
-        ${selectVersionFields(sql`added_part`)},
+        ${selectVersionFields(
+          sql`added_part`,
+          responsibleId === undefined
+            ? undefined
+            : sql`(select "name" from "members" where "id" = ${responsibleId}::integer)`,
+        )},
         ${member}
       from added_part
       where "work_state" = 'published'
@@ -1033,7 +1038,8 @@ async function getMember(
 }
 
 // The member of the Project that `owner` names: by the name or by the
-// e-mail address, with no case.
+// e-mail address, with no case. The reason of a refusal lists the names of
+// the members only: each token of the Project reads it.
 async function getOwner(
   db: ConceptDb,
   project: ProjectRow,
@@ -1047,7 +1053,8 @@ async function getOwner(
   )
   if (!member)
     throw new InvalidRecordError(
-      `"${owner}" names no member of ${project.slug}. Its members: ${members.map(({ name, email }) => `${name} <${email}>`).join(', ') || 'none'}`,
+      `"${owner}" names no member of ${project.slug}. Its members: ${members.map(({ name }) => name).join(', ') || 'none'}`,
+      { field: 'owner' },
     )
   return member
 }
@@ -1341,7 +1348,9 @@ async function findNextGoal(
 // Part was not in the expected state, and nothing changed. `changedBy` is
 // the e-mail address of the member who changes it. `owner` names a member of
 // the Project, who becomes the Responsible: see getOwner and
-// refuseFlaggedPart.
+// refuseFlaggedPart. `owner` null takes the Responsible away. A Decision
+// needs one, so it keeps its owner. The owner changes in the statement of
+// the fields: see writeOwner.
 export async function updatePart(
   db: ConceptDb,
   projectSlug: string,
@@ -1363,8 +1372,16 @@ export async function updatePart(
   const project = { id: projectId, slug: projectSlug }
   const owner =
     ownerName == null ? undefined : await getOwner(db, project, ownerName)
-  const owned = { member: owner?.email, part: recordId, role: 'responsible' }
-  if (owner) await refuseFlaggedPart(db, projectSlug, owned, changedBy)
+  const hasNewOwner =
+    owner !== undefined || (ownerName === null && part.type !== 'decision')
+  if (hasNewOwner)
+    await refuseFlaggedPart(
+      db,
+      projectSlug,
+      { part: recordId },
+      changedBy,
+      owner?.email,
+    )
   // The column `owner`: see addPart.
   const columns = {
     ...fields,
@@ -1551,15 +1568,23 @@ export async function updatePart(
     )`
   const result = await db.execute(sql`
     with changed as ${changed}
-    ${hasColumns ? spreadTrust('changed', { sameMeaning, member, isEdit: true }) : sql``}
+    ${
+      hasColumns
+        ? spreadTrust('changed', {
+            sameMeaning,
+            member,
+            isEdit: true,
+            owner: hasNewOwner ? sql`${owner?.name ?? null}::text` : undefined,
+          })
+        : sql``
+    }
+    ${hasNewOwner ? writeOwner('changed', owner?.id ?? null) : sql``}
     ${nextMeasure === undefined ? sql`` : changedMeasure}
     ${nextGoal === undefined ? sql`` : changedGoal}
     ${gluesAgain ? changedJoints : sql``}
     select "id" from changed
   `)
-  const isChanged = idRowsSchema.parse(result).rows.length > 0
-  if (isChanged && owner) await assign(db, projectSlug, owned)
-  return isChanged
+  return idRowsSchema.parse(result).rows.length > 0
 }
 
 // Keeps the issue that Glue opened for the Decision. Only Glue calls it: a

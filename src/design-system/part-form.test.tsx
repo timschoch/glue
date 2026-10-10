@@ -590,6 +590,36 @@ describe('PartForm', () => {
     expect(field('Title').getAttribute('aria-invalid')).not.toBe('true')
   })
 
+  it('says at the control Responsible that a Decision needs one, while it has none', async () => {
+    const reason = 'A Decision needs a Responsible.'
+    renderForm({ values: { ...DECISION, responsible: '' } })
+
+    expect(picker('Responsible').getAttribute('aria-invalid')).toBe('true')
+    screen.getByText(reason)
+    expect(saveButton().disabled).toBe(true)
+
+    await userEvent.selectOptions(picker('Responsible'), 'Mara')
+
+    expect(picker('Responsible').getAttribute('aria-invalid')).toBeNull()
+    expect(screen.queryByText(reason)).toBeNull()
+    expect(saveButton().disabled).toBe(false)
+  })
+
+  it('asks no Responsible of a type that needs no owner', () => {
+    renderForm({ type: 'entity', values: { title: 'Technique' } })
+
+    expect(picker('Responsible').getAttribute('aria-invalid')).toBeNull()
+    expect(saveButton().disabled).toBe(false)
+  })
+
+  it('shows the reason of a refused owner at the control Responsible', () => {
+    const reason = '"D5" has a flag: only its owner Fred changes who has it'
+    renderForm({ values: DECISION, errors: { responsible: reason } })
+
+    expect(picker('Responsible').getAttribute('aria-invalid')).toBe('true')
+    screen.getByText(reason)
+  })
+
   it('shows an error of the server as one notification', () => {
     renderForm({ serverError: 'The record id D12 is taken' })
 

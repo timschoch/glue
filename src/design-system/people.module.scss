@@ -5,6 +5,9 @@
 // The width of a card: a field is as wide as one card.
 $card-width: $spacing-13 * 2;
 
+// The room of the words of a write that runs, at the end of a label line.
+$pending-room: $spacing-11;
+
 // The form that adds a member: its one field and its one button.
 .form {
   display: flex;
@@ -32,6 +35,12 @@ $card-width: $spacing-13 * 2;
   position: relative;
   inline-size: $card-width;
   max-inline-size: 100%;
+
+  // The label leaves the room of those words free: a long label goes to
+  // the next line before it reaches them.
+  label {
+    padding-inline-end: $pending-room;
+  }
 }
 
 // The words of a write that runs: on the line of the label, at its end.
@@ -40,6 +49,7 @@ $card-width: $spacing-13 * 2;
   position: absolute;
   block-size: $spacing-05;
   inline-size: auto;
+  max-inline-size: $pending-room;
   inset-block-start: 0;
   inset-inline-end: 0;
   min-block-size: 0;

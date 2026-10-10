@@ -52,11 +52,16 @@ $pinned-breakpoint: 'lg';
   align-self: flex-start;
 }
 
-// The words of the sign-out that runs are beside its button.
+// The words of the sign-out that runs are in its button: they take no
+// more room than their text.
 .signOutPending {
-  display: inline-flex;
   inline-size: auto;
-  vertical-align: top;
+  min-block-size: 0;
+
+  // A ghost button fills each icon in it: the spinner stays a ring.
+  :global(.cds--loading) :global(.cds--loading__svg) {
+    fill: transparent;
+  }
 }
 
 // The failure of the sign-out is as wide as the panel: its close button

@@ -11,7 +11,7 @@ const tim = { id: 'user-tim', name: 'Tim', email: 'tim@example.com' }
 
 // The Project glue has the root Concept glue and the Concept people in it.
 // I1 and R1 are in the root, D1 and R2 are in people. Tim is a member of
-// glue with no loop step.
+// glue with no loop step. D1 has the old owner text of no member.
 beforeEach(async () => {
   await client.exec(`
     insert into projects (slug, name) values ('glue', 'Glue');
@@ -19,7 +19,7 @@ beforeEach(async () => {
       (1, null, 'glue', 'Glue'),
       (1, 1, 'people', 'People');
     insert into parts (project_id, concept_id, type, record_id, title, status, date, owner) values
-      (1, 2, 'decision', 'D1', 'A Project has members', 'proposed', '2026-10-01', 'Tim');
+      (1, 2, 'decision', 'D1', 'A Project has members', 'proposed', '2026-10-01', 'Mara');
     insert into parts (project_id, concept_id, type, record_id, title, date, source, evidence_level) values
       (1, 1, 'insight', 'I1', 'Open sign-up', '2026-10-03', 'review', 'pattern');
     insert into parts (project_id, concept_id, type, record_id, title, enforced_by) values
