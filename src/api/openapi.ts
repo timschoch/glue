@@ -56,6 +56,11 @@ import {
   watcherOutputSchema,
   watchersQuerySchema,
 } from './people-api.ts'
+import {
+  integrationChangeSchema,
+  integrationInputSchema,
+  savedIntegrationSchema,
+} from './integration-api.ts'
 import { projectSignalsSchema, signalInsightInputSchema } from './signal-api.ts'
 import {
   savedSignalFilterSchema,
@@ -127,6 +132,11 @@ function listPartPaths() {
   const path = z.object({ project: slug })
   const filterPath = path.extend({
     filterId: z.string().meta({ description: 'The id of the saved filter' }),
+  })
+  const integrationPath = path.extend({
+    integrationId: z
+      .string()
+      .meta({ description: 'The id of the Integration' }),
   })
   const conceptSlug = z
     .string()
@@ -555,6 +565,64 @@ function listPartPaths() {
         requestParams: { path: filterPath },
         responses: {
           204: { description: 'The filter is gone' },
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/integrations`]: {
+      get: {
+        operationId: 'listIntegrations',
+        summary:
+          'List the Integrations of the Project: the tools of the team that Glue reads Signals from',
+        requestParams: { path },
+        responses: {
+          200: {
+            description:
+              'The Integrations, by tool and address. No answer holds a key',
+            ...jsonContent(z.array(savedIntegrationSchema)),
+          },
+          ...readErrorResponses,
+        },
+      },
+      post: {
+        operationId: 'addIntegration',
+        summary:
+          'Add an Integration. Glue reads from the tool one time, and saves only when the read works. Needs the token of a member',
+        requestParams: { path },
+        requestBody: jsonContent(integrationInputSchema),
+        responses: {
+          201: {
+            description: 'The saved Integration',
+            ...jsonContent(savedIntegrationSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/integrations/{integrationId}`]: {
+      patch: {
+        operationId: 'changeIntegration',
+        summary:
+          'Pause an Integration, or start it again. Needs the token of a member',
+        requestParams: { path: integrationPath },
+        requestBody: jsonContent(integrationChangeSchema),
+        responses: {
+          200: {
+            description: 'The changed Integration',
+            ...jsonContent(savedIntegrationSchema),
+          },
+          400: errorResponses[400],
+          ...readErrorResponses,
+        },
+      },
+      delete: {
+        operationId: 'removeIntegration',
+        summary:
+          'Delete an Integration with its key. Needs the token of a member',
+        requestParams: { path: integrationPath },
+        responses: {
+          204: { description: 'The Integration and its key are gone' },
           ...readErrorResponses,
         },
       },

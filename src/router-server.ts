@@ -85,6 +85,17 @@ import {
   submitWatch,
 } from './db/parts.functions.ts'
 import type {
+  IntegrationAddInput,
+  IntegrationChangeInput,
+} from './db/integration-actions.ts'
+import {
+  fetchIntegrations,
+  submitAddIntegration,
+  submitPauseIntegration,
+  submitRemoveIntegration,
+  submitStartIntegration,
+} from './db/integrations.functions.ts'
+import type {
   SignalFilterAddInput,
   SignalFilterRemoveInput,
   SignalFilterUpdateInput,
@@ -128,6 +139,9 @@ export const server = {
   // The saved filters of the Signals of the Project, by name.
   fetchSignalFilters: (project: string) =>
     fetchSignalFilters({ data: { project } }),
+  // The Integrations of the Project, by tool and address. No key comes back.
+  fetchIntegrations: (project: string) =>
+    fetchIntegrations({ data: { project } }),
   // Without `named`: the builds of the Project. With it: each build that
   // names the Decision or the Contract of the Concept.
   fetchBuilds: (project: string, named?: BuildsNamed) =>
@@ -164,6 +178,15 @@ export const server = {
     submitUpdateSignalFilter({ data: filter }),
   removeSignalFilter: (filter: SignalFilterRemoveInput) =>
     submitRemoveSignalFilter({ data: filter }),
+  // Glue reads from the tool one time, and saves only when the read works.
+  addIntegration: (integration: IntegrationAddInput) =>
+    submitAddIntegration({ data: integration }),
+  pauseIntegration: (integration: IntegrationChangeInput) =>
+    submitPauseIntegration({ data: integration }),
+  startIntegration: (integration: IntegrationChangeInput) =>
+    submitStartIntegration({ data: integration }),
+  removeIntegration: (integration: IntegrationChangeInput) =>
+    submitRemoveIntegration({ data: integration }),
   fetchContractState: (concept: ConceptInput) =>
     fetchContractState({ data: concept }),
   // Without a version: the newest Contract Version.

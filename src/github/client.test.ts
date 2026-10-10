@@ -79,6 +79,30 @@ describe('listIssues', () => {
       createGithubClient().listIssues('timschoch/glue', 'user-feedback'),
     ).rejects.toThrow(/GitHub list issues: 404/)
   })
+
+  it('gives the status of the answer that GitHub refused with', async () => {
+    stubGithub({ [`GET ${LIST_URL}`]: [401, { message: 'Bad credentials' }] })
+
+    await expect(
+      createGithubClient().listIssues('timschoch/glue', 'user-feedback'),
+    ).rejects.toMatchObject({ status: 401 })
+  })
+
+  it('asks with the token of the server, or with the token it was made with', async () => {
+    const sent: unknown[] = []
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      sent.push(new Headers(init.headers).get('authorization'))
+      return Response.json([])
+    })
+
+    await createGithubClient().listIssues('timschoch/glue', 'user-feedback')
+    await createGithubClient(() => 'token-of-the-team').listIssues(
+      'acme/shop',
+      'user-feedback',
+    )
+
+    expect(sent).toEqual(['Bearer github_test', 'Bearer token-of-the-team'])
+  })
 })
 
 describe('searchPullRequests', () => {

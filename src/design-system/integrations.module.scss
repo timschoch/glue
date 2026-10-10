@@ -1,0 +1,115 @@
+@use '@carbon/react/scss/breakpoint' as *;
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// The width of a card: a field is as wide as one card.
+$card-width: $spacing-13 * 2;
+
+// The title, and the button that shows the Signals again.
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03 $spacing-05;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+// One Integration: the tool, the address, the end of the key, the state,
+// then the buttons. Each column has one width in each row.
+.row {
+  display: grid;
+  align-items: center;
+  border-block-end: 1px solid $border-subtle-01;
+  gap: $spacing-03 $spacing-05;
+  grid-template-columns:
+    $spacing-11 minmax(0, 1fr) $spacing-11 $spacing-10
+    $spacing-13;
+  min-block-size: $spacing-09;
+  overflow-wrap: anywhere;
+  padding-block: $spacing-03;
+
+  // A narrow screen: the tool and the address have the first line, the key
+  // and the state the second one, the buttons the third one.
+  @include breakpoint-down('md') {
+    grid-template-columns: max-content minmax(0, 1fr);
+
+    .actions {
+      grid-column: 1 / -1;
+      justify-content: flex-start;
+    }
+  }
+}
+
+.tool {
+  @include type-style('heading-compact-01');
+
+  color: $text-primary;
+}
+
+.address {
+  @include type-style('body-compact-01');
+
+  color: $text-primary;
+}
+
+.label {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: $spacing-03;
+  min-block-size: $spacing-07;
+}
+
+// The write of the row runs: the line stands in the place of the buttons.
+// Carbon gives it the full width.
+.pending {
+  inline-size: auto;
+}
+
+// Why the last read failed, and why a write failed: under the row, as wide
+// as the row.
+.reason {
+  @include type-style('label-01');
+
+  color: $text-error;
+  grid-column: 1 / -1;
+}
+
+.failure {
+  grid-column: 1 / -1;
+
+  // Carbon gives the notice a fixed width on a narrow screen.
+  @include breakpoint-down('md') {
+    max-inline-size: 100%;
+    min-inline-size: 0;
+  }
+}
+
+// The form that adds an Integration: its fields and its one button.
+.form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-05;
+  max-inline-size: $card-width;
+
+  > * {
+    inline-size: 100%;
+  }
+
+  > button {
+    inline-size: auto;
+  }
+}
