@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.1](https://github.com/timschoch/glue/compare/v1.28.0...v1.28.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **parts:** a Version and a Contract name the Responsible ([#391](https://github.com/timschoch/glue/issues/391)) ([0ced521](https://github.com/timschoch/glue/commit/0ced521b1d442f75409d89ed2e3b601b0b30e400)), closes [#388](https://github.com/timschoch/glue/issues/388)
+
 ## [1.28.0](https://github.com/timschoch/glue/compare/v1.27.2...v1.28.0) (2026-10-07)
 
 
