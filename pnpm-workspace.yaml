@@ -33,8 +33,5 @@ trustPolicy: no-downgrade
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
-    # source-map-js 1.2.1. The fix, 1.2.2, is younger than minimumReleaseAge until
-    # 2026-10-07 14:08 UTC. Then move to 1.2.2 and delete this entry (glue-build/D49, issue 322).
-    - GHSA-68fv-2mgg-jv7q
 packages:
   - mocks/*
