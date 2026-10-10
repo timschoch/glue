@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.29.0](https://github.com/timschoch/glue/compare/v1.28.1...v1.29.0) (2026-10-10)
+
+
+### Features
+
+* **signals:** a member adds an Integration with its own key ([#397](https://github.com/timschoch/glue/issues/397)) ([9288ad0](https://github.com/timschoch/glue/commit/9288ad01f5babd7a2473265aa41bef4f6dadbf4c)), closes [#393](https://github.com/timschoch/glue/issues/393) [#394](https://github.com/timschoch/glue/issues/394)
+* **signals:** an Integration shows its last read and its error ([#399](https://github.com/timschoch/glue/issues/399)) ([495247a](https://github.com/timschoch/glue/commit/495247af989376ce4ae933427bb4c95a556dd51c))
+* **signals:** PostHog and a webhook as Integrations ([#400](https://github.com/timschoch/glue/issues/400)) ([153fe97](https://github.com/timschoch/glue/commit/153fe979e8909bece41134ddf63f60b695af9026)), closes [#395](https://github.com/timschoch/glue/issues/395)
+
 ## [1.28.1](https://github.com/timschoch/glue/compare/v1.28.0...v1.28.1) (2026-10-10)
 
 
