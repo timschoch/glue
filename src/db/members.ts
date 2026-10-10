@@ -1,4 +1,5 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
@@ -122,20 +123,39 @@ const memberRowsSchema = z.object({
 
 // Makes the account a member of the Project. An account that is a member
 // already keeps its loop steps and takes the name and the e-mail address of
-// now.
+// now. A Part of the Project from before the Responsible was the owner has
+// a name as text (glue-build/D56). The member with that name, with no case,
+// becomes the Responsible of each such Part that has none.
 export async function joinProject(
   db: ConceptDb,
   projectSlug: string,
   account: Account,
 ): Promise<Member> {
   const result = await db.execute(sql`
-    insert into "members" ("project_id", "user_id", "name", "email")
-    select "id", ${account.id}::text, ${account.name}::text, ${account.email}::text
-    from "projects" where "slug" = ${projectSlug}::text
-    on conflict ("project_id", "user_id") do update
-      set "name" = excluded."name", "email" = excluded."email"
-    returning "id", "user_id" as "userId", "name", "email",
-      "loop_steps" as "loopSteps"
+    with joined as (
+      insert into "members" ("project_id", "user_id", "name", "email")
+      select "id", ${account.id}::text, ${account.name}::text, ${account.email}::text
+      from "projects" where "slug" = ${projectSlug}::text
+      on conflict ("project_id", "user_id") do update
+        set "name" = excluded."name", "email" = excluded."email"
+      returning "id", "project_id", "user_id" as "userId", "name", "email",
+        "loop_steps" as "loopSteps"
+    ),
+    owned as (
+      insert into "assignments" ("member_id", "part_id", "role")
+      select joined."id", "parts"."id", 'responsible'
+      from joined
+      inner join "parts" on "parts"."project_id" = joined."project_id"
+      where lower("parts"."owner") = lower(joined."name")
+        and not exists (
+          select 1 from "assignments"
+          where "assignments"."part_id" = "parts"."id"
+            and "assignments"."role" = 'responsible'
+        )
+      on conflict ("member_id", "concept_id", "part_id")
+        do update set "role" = excluded."role"
+    )
+    select "id", "userId", "name", "email", "loopSteps" from joined
   `)
   const joined = memberRowsSchema.parse(result).rows.at(0)
   if (!joined) throw new InvalidRecordError(`${projectSlug} not found`)
@@ -292,12 +312,15 @@ function validateFound(
 // Only the owner answers a flag, so only the owner changes who has a Part
 // with an open flag (glue-build/D53). Else a member takes the Part, or
 // leaves it with no owner, and answers the flag. `changedBy` is the e-mail
-// address of the member who changes the assignments.
+// address of the member who changes the assignments. `responsible` is the
+// e-mail address of the member that the change makes the Responsible: the
+// owner that the Part has already is no change of owner.
 export async function refuseFlaggedPart(
   db: ConceptDb,
   projectSlug: string,
   { part: recordId }: Pick<AssignmentTarget, 'part'>,
   changedBy: string | undefined,
+  responsible?: string,
 ) {
   if (changedBy === undefined || recordId === undefined) return
   const found = await db
@@ -307,17 +330,18 @@ export async function refuseFlaggedPart(
     .where(and(eq(projects.slug, projectSlug), eq(parts.recordId, recordId)))
   const part = found.at(0)
   const owner = part && (await findFlagOwner(db, part.id, changedBy))
-  if (owner)
+  if (owner && owner.email.toLowerCase() !== responsible?.toLowerCase())
     throw new InvalidRecordError(
       `"${recordId}" has a flag: only its owner ${owner.name} changes who has it`,
+      { field: 'owner' },
     )
 }
 
 // Makes the member Responsible or Co-Author of the Concept or the Part. A
 // Concept or a Part has one Responsible: the new one takes the place of the
-// old one. A member that has a role already changes the role. The owner of
-// a Part does not watch it: a new Responsible stops watching. With
-// `changedBy`: see refuseFlaggedPart.
+// old one. A member that has a role already changes the role. A new
+// Responsible stops watching: see isWatcher. With `changedBy`: see
+// refuseFlaggedPart.
 export async function assign(
   db: ConceptDb,
   projectSlug: string,
@@ -325,7 +349,13 @@ export async function assign(
   changedBy?: string,
 ): Promise<void> {
   const assignment = parseInput(newAssignmentSchema, input)
-  await refuseFlaggedPart(db, projectSlug, assignment, changedBy)
+  await refuseFlaggedPart(
+    db,
+    projectSlug,
+    assignment,
+    changedBy,
+    assignment.role === 'responsible' ? assignment.member : undefined,
+  )
   const result = await db.execute(sql`
     with ${selectTarget(projectSlug, assignment)},
     removed as (
@@ -335,12 +365,6 @@ export async function assign(
         and "assignments"."concept_id" is not distinct from target."concept_id"
         and "assignments"."part_id" is not distinct from target."part_id"
         and "assignments"."member_id" <> (select "id" from member)
-    ),
-    unwatched as (
-      delete from "watchers" using target
-      where ${assignment.role}::text = 'responsible'
-        and "watchers"."part_id" = target."part_id"
-        and "watchers"."member_id" = (select "id" from member)
     ),
     written as (
       insert into "assignments" ("member_id", "concept_id", "part_id", "role")
@@ -382,18 +406,54 @@ export async function findFlagOwner(
   return found.at(0)
 }
 
-// The owner that a Part of the table `parts` shows: the name of its
-// Responsible (glue-build/D56). A Part from before that has a name as text:
-// it shows until a member takes the Part.
-export const selectOwner = sql<string | null>`coalesce(
-  (
-    select "members"."name" from "assignments"
-    inner join "members" on "members"."id" = "assignments"."member_id"
-    where "assignments"."part_id" = "parts"."id"
-      and "assignments"."role" = 'responsible'
-    limit 1
-  ),
-  "parts"."owner"
+// The owner that a Part shows: the name of its Responsible
+// (glue-build/D56). A Part from before that has a name as text: it shows
+// until a member takes the Part. `part` names a row of `parts`.
+export function selectOwnerOf(part: SQL) {
+  return sql<string | null>`coalesce(
+    (
+      select "members"."name" from "assignments"
+      inner join "members" on "members"."id" = "assignments"."member_id"
+      where "assignments"."part_id" = ${part}."id"
+        and "assignments"."role" = 'responsible'
+      limit 1
+    ),
+    ${part}."owner"
+  )`
+}
+
+// The owner of a Part of the table `parts`.
+export const selectOwner = selectOwnerOf(sql`"parts"`)
+
+// The write of the owner of a Part, as common table expressions of the
+// statement that changes the Part (glue-build/D58): the Part and its owner
+// change together, or not at all. `changed` names the expression that gives
+// the Part when the write happens. The member becomes its Responsible in
+// the place of the old one. null: the Part has no Responsible from now on.
+export function writeOwner(changed: string, memberId: number | null): SQL {
+  const written = sql`, written_owner as (
+      insert into "assignments" ("member_id", "part_id", "role")
+      select ${memberId}::integer, "id", 'responsible'
+      from ${sql.identifier(changed)}
+      on conflict ("member_id", "concept_id", "part_id")
+        do update set "role" = excluded."role"
+    )`
+  return sql`, removed_owner as (
+      delete from "assignments"
+      where "part_id" in (select "id" from ${sql.identifier(changed)})
+        and "role" = 'responsible'
+        and "member_id" is distinct from ${memberId}::integer
+    )${memberId === null ? sql`` : written}`
+}
+
+// The owner of a Part does not watch it (D47). The rule reads a row of
+// `watchers`, so it holds for each way that made the member the
+// Responsible: the app, the CLI, a migration.
+const isWatcher = sql`not exists (
+  select 1 from "assignments"
+  where "assignments"."part_id" = "watchers"."part_id"
+    and "assignments"."member_id" = "watchers"."member_id"
+    and "assignments"."role" = 'responsible'
 )`
 
 // A member who watches a Part (D47). Watching is not owning: the owner of a
@@ -424,6 +484,7 @@ export function listWatchers(
       and(
         eq(projects.slug, projectSlug),
         recordId === undefined ? undefined : eq(parts.recordId, recordId),
+        isWatcher,
       ),
     )
     .orderBy(asc(watchers.partId), asc(watchers.memberId))

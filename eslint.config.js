@@ -25,19 +25,20 @@ export default [
         },
       ],
       // A screen cannot go around useWrite(): it starts no write itself
-      // and calls no server function. The same test.
+      // and calls no server function. An import with no file ending and a
+      // re-export count too. The same test.
       'no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              regex: 'use-write\\.ts$',
+              regex: 'use-write(\\.[jt]sx?)?$',
               importNames: ['startWrite'],
               message:
                 'Take useWrite(): it starts the write and shows that it runs and why it failed (glue-build/D55).',
             },
             {
-              regex: '\\.functions\\.ts$',
+              regex: '\\.functions(\\.[jt]sx?)?$',
               message:
                 'Take the write from the router context and give it to useWrite() (glue-build/D55).',
             },

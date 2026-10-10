@@ -355,9 +355,7 @@ describe('runConcept', () => {
     expect(logged()).toContain('owner: Ada')
     await expect(
       run('set', 'E1', '--project', 'flexibeck', '--owner', 'Mara'),
-    ).rejects.toThrow(
-      '"Mara" names no member of flexibeck. Its members: Ada <ada@example.com>',
-    )
+    ).rejects.toThrow(/"Mara" names no member of flexibeck\. Its members: Ada$/)
   })
 
   it.each([

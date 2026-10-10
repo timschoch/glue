@@ -1,8 +1,9 @@
-import { eq } from 'drizzle-orm'
+import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { createFakeGithub } from '../test/github.ts'
 import {
+  addAgent,
   assign,
   joinProject,
   listAssignments,
@@ -16,7 +17,7 @@ import { findPart, listMine, listWatched } from './parts.ts'
 import * as schema from './schema.ts'
 import { createTestDatabase } from './test-database.ts'
 
-const { db } = createTestDatabase(schema)
+const { client, db } = createTestDatabase(schema)
 
 const project = 'glue'
 const tim = 'tim@example.com'
@@ -102,7 +103,7 @@ describe('the owner that a new Part names', () => {
     await expect(
       operations.addPart(project, { ...goal, owner: 'Orchestrator' }, tim),
     ).rejects.toThrow(
-      '"Orchestrator" names no member of glue. Its members: Ada <ada@example.com>, Tim <tim@example.com>',
+      /^"Orchestrator" names no member of glue\. Its members: Ada, Tim$/,
     )
     await expect(operations.getPart(project, 'G1')).rejects.toThrow(
       'goal "G1" not found',
@@ -166,11 +167,146 @@ describe('the owner that a change names', () => {
     await expect(
       operations.updatePart(project, 'G1', { owner: 'Orchestrator' }),
     ).rejects.toThrow(
-      '"Orchestrator" names no member of glue. Its members: Ada <ada@example.com>, Tim <tim@example.com>',
+      /^"Orchestrator" names no member of glue\. Its members: Ada, Tim$/,
     )
     expect(await operations.getPart(project, 'G1')).toMatchObject({
       owner: 'Tim',
     })
+  })
+
+  it('says that the refused value is the owner', async () => {
+    await expect(
+      operations.updatePart(project, 'G1', { owner: 'Orchestrator' }),
+    ).rejects.toMatchObject({ place: { field: 'owner' } })
+  })
+
+  it('takes the Responsible away when it names nobody', async () => {
+    await operations.updatePart(project, 'G1', { owner: null })
+
+    expect(await listAssignments(db, project)).toEqual([])
+    expect(await operations.getPart(project, 'G1')).toMatchObject({
+      owner: null,
+    })
+  })
+
+  it('changes nothing of the Part when the Responsible is not written', async () => {
+    await client.exec(`
+      create function refuse_ada() returns trigger language plpgsql as
+        $$ begin raise exception 'no Ada'; end $$;
+      create trigger refuse_ada before insert on assignments
+        for each row when (new.member_id = 2) execute function refuse_ada();
+    `)
+
+    try {
+      await expect(
+        operations.updatePart(project, 'G1', {
+          title: 'Ship sooner',
+          owner: 'Ada',
+        }),
+      ).rejects.toThrow()
+    } finally {
+      await client.exec('drop function refuse_ada cascade')
+    }
+
+    expect(await operations.getPart(project, 'G1')).toMatchObject({
+      title: 'Ship faster',
+      owner: 'Tim',
+    })
+  })
+})
+
+describe('the owner that a Part Version freezes', () => {
+  const listFrozenOwners = async (recordId: string) =>
+    (await operations.getPart(project, recordId)).versions.map(
+      ({ version, owner }) => ({ version, owner }),
+    )
+
+  it('is the name of the Responsible', async () => {
+    await operations.addPart(project, goal, tim)
+    await operations.answerPart(project, 'G1', { answer: 'supersede' }, tim)
+
+    expect(await listFrozenOwners('G1')).toEqual([{ version: 1, owner: 'Tim' }])
+  })
+
+  it('is the Responsible of a Part that is published when it is added', async () => {
+    await operations.addPart(
+      project,
+      { type: 'insight', title: 'Bakers start at four', source: 'interview' },
+      tim,
+    )
+
+    expect(await listFrozenOwners('I1')).toEqual([{ version: 1, owner: 'Tim' }])
+  })
+
+  it('is the old text for a Part with no Responsible', async () => {
+    await operations.addPart(project, goal)
+    await setOldOwner('G1', 'Orchestrator')
+    await operations.answerPart(project, 'G1', { answer: 'supersede' })
+
+    expect(await listFrozenOwners('G1')).toEqual([
+      { version: 1, owner: 'Orchestrator' },
+    ])
+  })
+
+  it('is the member that the change with the sign-off names', async () => {
+    await operations.addPart(project, goal)
+    await operations.addPart(project, {
+      type: 'insight',
+      title: 'Bakers start at four',
+      source: 'interview',
+    })
+    await operations.addPart(project, decision, tim)
+
+    await operations.updatePart(project, 'D1', {
+      owner: 'Ada',
+      status: 'accepted',
+    })
+
+    expect(await listFrozenOwners('D1')).toEqual([{ version: 1, owner: 'Ada' }])
+  })
+
+  it('stays in an old Version when the Part gets another Responsible', async () => {
+    await operations.addPart(project, goal, tim)
+    await operations.answerPart(project, 'G1', { answer: 'supersede' }, tim)
+
+    await assign(db, project, { member: ada, part: 'G1', role: 'responsible' })
+
+    expect(await listFrozenOwners('G1')).toEqual([{ version: 1, owner: 'Tim' }])
+    expect(await operations.getPart(project, 'G1')).toMatchObject({
+      owner: 'Ada',
+    })
+  })
+})
+
+describe('a new member of the Project', () => {
+  beforeEach(async () => {
+    await operations.addPart(project, goal)
+    await setOldOwner('G1', 'orchestrator')
+  })
+
+  it('gets each Part with no Responsible whose old owner text is its name', async () => {
+    await addAgent(db, project, 'Orchestrator')
+
+    expect(await listAssignments(db, project)).toEqual([
+      { id: 1, memberId: 3, role: 'responsible', concept: null, part: 'G1' },
+    ])
+  })
+
+  it('leaves a Part that has a Responsible, and a Part of another Project', async () => {
+    await assign(db, project, { member: ada, part: 'G1', role: 'responsible' })
+    await addProject(db, 'flexibeck')
+    await operations.addPart('flexibeck', goal)
+    await db
+      .update(schema.parts)
+      .set({ owner: 'Orchestrator' })
+      .where(isNull(schema.parts.owner))
+
+    await addAgent(db, project, 'Orchestrator')
+
+    expect(await listAssignments(db, project)).toEqual([
+      { id: 1, memberId: 2, role: 'responsible', concept: null, part: 'G1' },
+    ])
+    expect(await listAssignments(db, 'flexibeck')).toEqual([])
   })
 })
 
@@ -274,6 +410,33 @@ describe('a Part with a flag that a member watches', () => {
     })
   })
 
+  it('says that the refused value of that change is the owner', async () => {
+    await expect(
+      operations.updatePart(project, 'E1', { owner: 'Ada' }, undefined, ada),
+    ).rejects.toMatchObject({ place: { field: 'owner' } })
+  })
+
+  it('takes a change that names the owner that the Part has, from each member', async () => {
+    await operations.updatePart(
+      project,
+      'E1',
+      { owner: 'Tim', body: 'A block of work' },
+      undefined,
+      ada,
+    )
+
+    expect(await operations.getPart(project, 'E1')).toMatchObject({
+      owner: 'Tim',
+      body: 'A block of work',
+    })
+  })
+
+  it('refuses a change that takes the owner away, from a member who is not the owner', async () => {
+    await expect(
+      operations.updatePart(project, 'E1', { owner: null }, undefined, ada),
+    ).rejects.toThrow('"E1" has a flag: only its owner Tim changes who has it')
+  })
+
   it('refuses a member who is not the owner and takes it', async () => {
     await expect(
       assign(
@@ -355,6 +518,21 @@ describe('a Part with a flag that a member watches', () => {
     await assign(db, project, { member: ada, part: 'E1', role: 'responsible' })
 
     expect(await listWatchers(db, project, 'E1')).toEqual([])
+  })
+
+  it('counts no watcher who became the owner with no step of the app', async () => {
+    await operations.addPart(project, goal)
+    await watch(db, project, { member: ada, part: 'G2' })
+    const [{ id: partId }] = await db
+      .select({ id: schema.parts.id })
+      .from(schema.parts)
+      .where(eq(schema.parts.recordId, 'G2'))
+
+    await db
+      .insert(schema.assignments)
+      .values({ memberId: 2, partId, role: 'responsible' })
+
+    expect(await listWatchers(db, project, 'G2')).toEqual([])
   })
 
   it('leaves a Part that the watcher holds out of the watched group', async () => {

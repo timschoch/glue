@@ -3,7 +3,7 @@
 // The module reads no database: the server and the screen use the same rule.
 import { z } from 'zod'
 
-import { sourceNames } from '../signals/signal-sources.ts'
+import { sourceNames } from '../signals/signal-source-names.ts'
 import { groupSignals } from './signal-groups.ts'
 import type { SignalGroup } from './signal-groups.ts'
 import type { Signal } from './signals.ts'
@@ -43,7 +43,7 @@ const wordsSchema = z
 const sources = z
   .array(
     z.string({ error: 'A source is a name' }).check((context) => {
-      if (!sourceNames.includes(context.value))
+      if (!sourceNames.some((name) => name === context.value))
         context.issues.push({
           code: 'custom',
           message: `"${context.value}" is no source`,

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import { signalFilterSchema } from '../db/signal-filter-rule.ts'
 import type { GithubClient } from '../github/client.ts'
-import { signalSources, sourceNames } from './signal-sources.ts'
+import { sourceNames } from './signal-source-names.ts'
+import { signalSources } from './signal-sources.ts'
 
 // No adapter reads its tool before it lists Signals.
 const mock = { url: undefined, readKey: undefined }
@@ -27,6 +28,7 @@ describe('the Signal sources of Glue', () => {
   it('give the saved filter its sources: each adapter, and no other name', () => {
     const filter = { name: 'All', sources: sourceNames }
 
+    expect(Object.keys(signalSources)).toEqual([...sourceNames])
     expect(signalFilterSchema.safeParse(filter).success).toBe(true)
     expect(
       signalFilterSchema.safeParse({ name: 'Fax', sources: ['fax'] }).success,

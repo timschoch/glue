@@ -50,6 +50,14 @@ export function PartFormScreen({
   // the Entity, because the server refuses only the Entity of a step.
   const refusedStep =
     failurePlace?.field === 'steps' ? failurePlace.row : undefined
+  // A refused owner shows at the control Responsible.
+  const refusedOwner = failurePlace?.field === 'owner'
+  const placed =
+    refusedStep !== undefined
+      ? { steps: failure }
+      : refusedOwner
+        ? { ...errors, responsible: failure }
+        : errors
   const formParts = useMemo(
     () => toRecordSummaries(parts, recordHref),
     [parts, recordHref],
@@ -140,10 +148,12 @@ export function PartFormScreen({
       values={startValues}
       parts={formParts}
       members={people.members}
-      errors={refusedStep === undefined ? errors : { steps: failure }}
+      errors={placed}
       invalidStep={refusedStep ?? emptyStep}
       invalidStepField={refusedStep === undefined ? 'text' : 'entity'}
-      serverError={refusedStep === undefined ? failure : undefined}
+      serverError={
+        refusedStep === undefined && !refusedOwner ? failure : undefined
+      }
       pending={pending !== undefined}
       onSave={handleSave}
       onCancel={() => void changeSearch(closed)}

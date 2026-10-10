@@ -48,8 +48,29 @@ describe('the lint rule for the imports of a write', () => {
       "import { startWrite, useWrite } from '../project/use-write.ts'",
     ],
     [
+      'starts a write itself, with no file ending',
+      "import { startWrite } from './use-write'",
+    ],
+    [
+      'takes each export of the module, with no file ending',
+      "import * as writes from '../project/use-write'",
+    ],
+    [
+      'hands startWrite on to other modules',
+      "export { startWrite } from './use-write.ts'",
+    ],
+    [
+      'hands startWrite on under another name',
+      "export { startWrite as begin } from './use-write'",
+    ],
+    ['hands each export of the module on', "export * from './use-write.ts'"],
+    [
       'calls a server function',
       "import { updatePartFn } from '../db/parts.functions.ts'",
+    ],
+    [
+      'calls a server function, with no file ending',
+      "import { updatePartFn } from '../db/parts.functions'",
     ],
   ])('finds a screen that %s', async (_name, code) => {
     expect(

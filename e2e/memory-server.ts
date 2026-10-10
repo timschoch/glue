@@ -1,7 +1,7 @@
 import { createMemoryServer } from '../src/test/server.ts'
 
 // Ada picked an Ask of flexibeck: it waits for its study or its hand-back.
-export const server = createMemoryServer({
+const memory = createMemoryServer({
   fetchMineAsks: () =>
     Promise.resolve([
       {
@@ -26,3 +26,13 @@ export const server = createMemoryServer({
       },
     ]),
 })
+
+// A spec sets `holdAssign` in the window: the write of an assignment then
+// never ends, so the page keeps the words of the write that runs.
+export const server: typeof memory = {
+  ...memory,
+  assign: (...input) =>
+    'holdAssign' in globalThis
+      ? new Promise(() => {})
+      : memory.assign(...input),
+}

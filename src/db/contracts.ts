@@ -13,6 +13,7 @@ import {
   tier2Types,
 } from './kinds.ts'
 import type { ConceptSlot } from './kinds.ts'
+import { selectOwnerOf } from './members.ts'
 import {
   flagParts,
   selectEmptySlots,
@@ -27,7 +28,8 @@ import type { EntityField, FlowStep, FrozenPart, PartType } from './schema.ts'
 
 // The Contract of a Concept (D28): a sign-off freezes the Parts of the
 // Concept, and of the Concepts in it, as one Contract Version with a
-// checksum. A sunk Part is at its end, so no Version holds it.
+// checksum. A sunk Part is at its end, so no Version holds it. The owner of
+// a frozen Part is the one that its page shows (glue-build/D58).
 
 export type { FrozenPart } from './schema.ts'
 export type { ContractQuestion } from './contract-questions.ts'
@@ -136,7 +138,7 @@ function selectLiveParts(conceptId: number) {
             'body', live."body",
             'concept', live."concept_slug",
             'status', live."status",
-            'owner', live."owner",
+            'owner', ${selectOwnerOf(sql`live`)},
             'date', live."date",
             'source', live."source",
             'metric', live."metric",

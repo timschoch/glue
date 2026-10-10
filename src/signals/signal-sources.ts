@@ -3,6 +3,7 @@ import type { GithubClient } from '../github/client.ts'
 import { createAnalyticsSource } from './analytics-source.ts'
 import { createGithubSource } from './github-source.ts'
 import { createMarketSource } from './market-source.ts'
+import type { SourceName } from './signal-source-names.ts'
 import { createSocialSource } from './social-source.ts'
 import { createSupportSource } from './support-source.ts'
 
@@ -18,14 +19,12 @@ export type SourceTools = {
 }
 
 // The Signal sources of Glue, each adapter under its name. A new tool is
-// one more adapter in this list. The module reads no setting, so the
-// screen can take the names from it.
+// one more name in signal-source-names.ts and one more adapter in this
+// list: the screen takes the names alone.
 export const signalSources = {
   github: ({ github }) => createGithubSource(github),
   support: () => createSupportSource(),
   analytics: ({ analytics }) => createAnalyticsSource(analytics),
   social: ({ social }) => createSocialSource(social),
   market: () => createMarketSource(),
-} satisfies Record<string, (tools: SourceTools) => SignalSource>
-
-export const sourceNames: ReadonlyArray<string> = Object.keys(signalSources)
+} satisfies Record<SourceName, (tools: SourceTools) => SignalSource>

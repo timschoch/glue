@@ -132,7 +132,8 @@ export function toNewPart(
 // The change of the form. `start` are the values that the form started
 // with: a Decision gets a Goal only when the person picked another one,
 // and a Part gets an owner only when the person picked another member.
-// The change is a wording fix when the person said so.
+// Nobody picked takes the owner away: a Decision keeps its owner, it needs
+// one. The change is a wording fix when the person said so.
 export function toPartChange(
   type: PartType,
   values: PartFormValues,
@@ -140,9 +141,9 @@ export function toPartChange(
 ): PartChange {
   return {
     ...pickFields(type, toFilled(values)),
-    ...(values.responsible &&
-      values.responsible !== start.responsible && {
-        owner: values.responsible,
+    ...(values.responsible !== start.responsible &&
+      (values.responsible !== '' || type !== 'decision') && {
+        owner: values.responsible || null,
       }),
     ...(type === 'decision' &&
       values.goal &&

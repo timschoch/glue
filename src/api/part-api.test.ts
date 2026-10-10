@@ -737,7 +737,7 @@ describe('POST a Part', () => {
     expect(added.body.owner).toBe('Ada')
     expect(refused.status).toBe(400)
     expect(refused.body.error.message).toBe(
-      '"Mara" names no member of flexibeck. Its members: Ada <ada@example.com>',
+      '"Mara" names no member of flexibeck. Its members: Ada',
     )
   })
 

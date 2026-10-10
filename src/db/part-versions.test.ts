@@ -53,7 +53,7 @@ describe('the Versions of a Part', () => {
         title: 'No Tailwind',
         body: 'Carbon only.',
         status: null,
-        owner: null,
+        owner: 'Tim',
         date: null,
         source: null,
         metric: null,
