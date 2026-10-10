@@ -105,14 +105,18 @@ describe('createGithubTool', () => {
     },
   )
 
-  it.each(['shop', 'https://github.com/acme/shop', 'acme/shop/issues'])(
-    'refuses the address %s',
-    (address) => {
-      const tool = createGithubTool(() => createFakeGithub().github)
+  it.each([
+    'shop',
+    'https://github.com/acme/shop',
+    'acme/shop/issues',
+    '../..',
+    'acme/..',
+    './shop',
+  ])('refuses the address %s', (address) => {
+    const tool = createGithubTool(() => createFakeGithub().github)
 
-      expect(tool.findAddressProblem(address)).toBe(
-        'A repository is owner/name, for example acme/shop',
-      )
-    },
-  )
+    expect(tool.findAddressProblem(address)).toBe(
+      'A repository is owner/name, for example acme/shop',
+    )
+  })
 })

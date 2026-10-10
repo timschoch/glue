@@ -650,6 +650,7 @@ function formatHelp() {
     'pnpm concept token create --project <slug> --name <name> [--member <e-mail>]',
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
+    'pnpm concept integration tools',
     'INTEGRATION_KEY=<key> pnpm concept integration add --tool <tool> --address <address> [--member <e-mail>]',
     'pnpm concept integration list',
     'pnpm concept integration pause <id> [--member <e-mail>]',
@@ -1098,7 +1099,7 @@ async function handleSignalsCommand(
   }
   const { signals, failures, groups } = await listSignals(
     db,
-    createSignalSources(getGithub(), db, project),
+    await createSignalSources(getGithub(), db, project),
     project,
     { source: flags.source as string | undefined },
   )
@@ -1626,7 +1627,9 @@ async function handleTokenCommand(db: ConceptDb, [command, ...rest]: string[]) {
 // from the environment variable INTEGRATION_KEY: an argument stays in the
 // history of the shell. No command prints a key, only its last four
 // characters. `--member` names who writes: only a member of the Project,
-// and the member who adds an Integration is its Responsible (glue/D73).
+// and the member who adds an Integration is its Responsible (glue/D73). A
+// tool that posts to Glue takes no key: `add` prints the secret that Glue
+// made, one time. `tools` prints what each tool asks for.
 async function handleIntegrationCommand(
   db: ConceptDb,
   integrations: IntegrationOperations,
@@ -1655,6 +1658,26 @@ async function handleIntegrationCommand(
     return { project, member }
   }
   switch (command) {
+    case 'tools': {
+      for (const {
+        name,
+        label,
+        addressFields,
+        needsKey,
+      } of integrations.listTools()) {
+        const address = addressFields
+          .map(({ label: field, options }) =>
+            options
+              ? `${field} (${options.map(({ value }) => value).join('|')})`
+              : field,
+          )
+          .join(' / ')
+        console.log(
+          [name, label, address, needsKey ? 'key' : 'no key'].join('  '),
+        )
+      }
+      return
+    }
     case 'list': {
       const project = await readProject(db, parseFlags(rest))
       for (const integration of await integrations.list(project)) {
@@ -1666,13 +1689,22 @@ async function handleIntegrationCommand(
       const flags = parseFlags(rest)
       const tool = flags.tool as string | undefined
       const address = flags.address as string | undefined
-      if (!tool || !address || !key) {
+      const needsKey = integrations
+        .listTools()
+        .some((form) => form.name === tool && form.needsKey)
+      if (!tool || !address || (needsKey && !key)) {
         throw new Error(
           'integration add needs --tool, --address and the key in INTEGRATION_KEY',
         )
       }
       const { project, member } = await readWrite(flags)
-      print(await integrations.add(project, { tool, address, key }, member))
+      const added = await integrations.add(
+        project,
+        { tool, address, key: key || undefined },
+        member,
+      )
+      print(added)
+      if (added.secret) console.log(`secret  ${added.secret}`)
       return
     }
     case 'pause':

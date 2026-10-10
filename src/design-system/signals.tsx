@@ -32,20 +32,13 @@ export type SignalRow = {
   insight: { id: string; title: string; href: string } | null
 }
 
-// The Signal sources as a person reads them. A source with no label here
-// shows its name.
-export const sourceLabels: Record<string, string> = {
-  github: 'GitHub',
-  support: 'Support',
-  analytics: 'Analytics',
-  social: 'Social',
-  market: 'Market',
-}
-
-const toSourceLabel = (source: string) => sourceLabels[source] ?? source
+// A Signal source of the Project, with the name that a person reads.
+export type SignalSourceLabel = { name: string; label: string }
 
 export type SignalsProps = {
   signals: ReadonlyArray<SignalRow>
+  // The sources of the Project. A source that is not here shows its name.
+  sources?: ReadonlyArray<SignalSourceLabel>
   // The sources that did not answer, and why.
   failures?: ReadonlyArray<{ source: string; reason: string }>
   // The groups of Signals that say the same thing, each with its title and
@@ -90,6 +83,7 @@ export type SignalsProps = {
 // starts a second one.
 export function Signals({
   signals,
+  sources: labelled = [],
   failures = [],
   groups = [],
   hunch,
@@ -106,6 +100,8 @@ export function Signals({
   const listId = useId()
   const [picks, setPicks] = useState<ReadonlySet<string>>(new Set())
   const [filters, setFilters] = useState<ReadonlySet<string>>(new Set())
+  const toSourceLabel = (source: string) =>
+    labelled.find(({ name }) => name === source)?.label ?? source
   const picked = signals.filter(
     ({ url, insight }) => insight === null && picks.has(url),
   )

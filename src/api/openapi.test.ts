@@ -47,6 +47,7 @@ describe('GET /api/v1/openapi.json', () => {
             'post /integrations',
             'patch /integrations/{integrationId}',
             'delete /integrations/{integrationId}',
+            'post /webhook',
             'get /builds',
             'post /gate',
             'post /joints',
@@ -382,6 +383,31 @@ describe('GET /api/v1/openapi.json', () => {
         'SkippedGoal',
         'Error',
       ]),
+    )
+  })
+
+  it('describes the post of a webhook: its secret, its limits and its answers', async () => {
+    const document = await handleGetOpenApi().json()
+    const { post } = document.paths['/api/v1/projects/{project}/webhook']
+    const { WebhookPost, Integration } = document.components.schemas
+
+    expect(post.operationId).toBe('postWebhookSignals')
+    expect(post.security).toEqual([{ webhookSecret: [] }])
+    expect(post.requestBody.content['application/json'].schema).toEqual({
+      $ref: '#/components/schemas/WebhookPost',
+    })
+    expect(WebhookPost.properties.signals.maxItems).toBe(100)
+    expect(Object.keys(post.responses)).toEqual(['201', '400', '401', '413'])
+    expect(Object.keys(Integration.properties)).toContain('secret')
+    expect(Integration.required).not.toContain('secret')
+  })
+
+  it('says what each tool asks for, at the add of an Integration', async () => {
+    const document = await handleGetOpenApi().json()
+    const { post } = document.paths['/api/v1/projects/{project}/integrations']
+
+    expect(post.description).toBe(
+      'The tools: github (address: Repository; with a key), posthog (address: Region us or eu / Project ID; with a key), webhook (address: Name; no key, Glue makes the secret)',
     )
   })
 

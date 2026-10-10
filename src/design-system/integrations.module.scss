@@ -141,6 +141,32 @@ $actions-width: $spacing-12 * 3;
   }
 }
 
+// The name, the URL and the secret of a new Integration: as wide as the
+// list.
+.secret {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+// One value under its label.
+.value {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+// Carbon gives the code a fixed width. Here it is as wide as its place, and
+// a long word breaks at the edge.
+.code {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+
+  pre {
+    overflow-wrap: anywhere;
+  }
+}
+
 // The form that adds an Integration: its fields and its one button.
 .form {
   display: flex;

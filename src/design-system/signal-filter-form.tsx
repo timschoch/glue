@@ -11,7 +11,7 @@ import { useId, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import formStyles from './part-form.module.scss'
-import { sourceLabels } from './signals.tsx'
+import type { SignalSourceLabel } from './signals.tsx'
 
 export type SignalFilterFormValues = {
   name: string
@@ -33,6 +33,8 @@ export const signalFilterFormFields = [
 type SignalFilterFormField = (typeof signalFilterFormFields)[number]
 
 export type SignalFilterFormProps = {
+  // The sources of the Project: the filter picks from them.
+  sources: ReadonlyArray<SignalSourceLabel>
   // The filter that the form changes. None: the form adds a filter.
   filter?: {
     [Key in keyof SignalFilterFormValues]: Readonly<SignalFilterFormValues[Key]>
@@ -55,6 +57,7 @@ const toWords = (text: string) => text.split(/[\s,]+/).filter(Boolean)
 // The form of a saved filter of the Signals: its name, the words that a
 // Signal must hold and must not hold, and its sources.
 export function SignalFilterForm({
+  sources: offered,
   filter,
   errors = {},
   serverError,
@@ -77,9 +80,9 @@ export function SignalFilterForm({
     mustHold: toWords(mustHold),
     mustNotHold: toWords(mustNotHold),
     // The order of the form, whatever the order of the clicks.
-    sources: Object.keys(sourceLabels).filter((source) =>
-      sources.includes(source),
-    ),
+    sources: offered
+      .map(({ name: source }) => source)
+      .filter((source) => sources.includes(source)),
   }
   // A filter with no word and no source filters nothing.
   const canSave =
@@ -123,7 +126,7 @@ export function SignalFilterForm({
         onChange={({ target }) => setMustNotHold(target.value)}
       />
       <FormGroup legendText="Sources">
-        {Object.entries(sourceLabels).map(([source, label]) => (
+        {offered.map(({ name: source, label }) => (
           <Checkbox
             key={source}
             id={`${formId}-source-${source}`}

@@ -38,6 +38,8 @@ let clock: Date
 
 // A tool like GitHub: an address is owner/name, and it has one Signal.
 const github: IntegrationTool = {
+  label: 'GitHub',
+  addressFields: [{ label: 'Repository' }],
   findAddressProblem: (address) =>
     address.includes('/') ? undefined : 'A repository is owner/name',
   listSignals: async (address, key) => {
@@ -434,8 +436,10 @@ describe('an Integration of another Project', () => {
   )
 })
 
-const listGithub = (operations = createOperations()) =>
-  operations.toSources('glue', [serverSource])[0].listSignals(project)
+const listGithub = async (operations = createOperations()) => {
+  const [source] = await operations.toSources('glue', [serverSource])
+  return source.listSignals(project)
+}
 
 describe('the Responsible of an Integration', () => {
   const ada = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
@@ -642,9 +646,51 @@ describe('toSources', () => {
       listSignals: async () => [],
     }
 
-    const [source] = createOperations().toSources('glue', [support])
+    const [source] = await createOperations().toSources('glue', [support])
 
     expect(source).toBe(support)
+  })
+
+  it('reads a tool for the source that the tool names', async () => {
+    const posthog: IntegrationTool = { ...github, source: 'analytics' }
+    const mock: SignalSource = {
+      name: 'analytics',
+      listSignals: async () => [],
+    }
+    const operations = createIntegrationOperations({
+      db,
+      secret: SECRET,
+      tools: { posthog },
+      now: () => clock,
+    })
+    await operations.add('glue', { ...input, tool: 'posthog' })
+
+    const [ofGlue] = await operations.toSources('glue', [mock])
+    const [ofFlexibeck] = await operations.toSources('flexibeck', [mock])
+
+    expect(ofGlue.name).toBe('analytics')
+    expect(await ofGlue.listSignals(project)).toEqual([shopSignal])
+    expect(await ofFlexibeck.listSignals(project)).toEqual([])
+  })
+
+  it('reads no Signals, and not the source as it was, when each Integration of the tool is paused', async () => {
+    const posthog: IntegrationTool = { ...github, source: 'analytics' }
+    const mock: SignalSource = {
+      name: 'analytics',
+      listSignals: async () => [shopSignal],
+    }
+    const operations = createIntegrationOperations({
+      db,
+      secret: SECRET,
+      tools: { posthog },
+      now: () => clock,
+    })
+    await operations.add('glue', { ...input, tool: 'posthog' })
+    await operations.pause('glue', 1)
+
+    const [source] = await operations.toSources('glue', [mock])
+
+    expect(await source.listSignals(project)).toEqual([])
   })
 
   it('reads nothing on a server with no secret', async () => {
@@ -659,7 +705,8 @@ describe('toSources', () => {
 })
 
 // A new tool is one adapter and one entry in the list of the tools. The
-// module names no tool: this one is known to this test only.
+// module names no tool: this one is known to this test only. The server
+// has no Signal source for it, and the test gives none.
 describe('a tool that only the list of the tools names', () => {
   const ada = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
   const alert: SourceSignal = {
@@ -671,6 +718,8 @@ describe('a tool that only the list of the tools names', () => {
   let pagerError: Error | undefined
 
   const pager: IntegrationTool = {
+    label: 'Pager',
+    addressFields: [{ label: 'Team' }],
     findAddressProblem: (address) =>
       address.startsWith('team-') ? undefined : 'A pager address is team-name',
     listSignals: async () => {
@@ -699,13 +748,17 @@ describe('a tool that only the list of the tools names', () => {
     signalCount: null,
     error: 'The pager refused the key',
   }
-  // The Signals of the tool, as the Project reads them. The server has no
+  // The source of the tool, as the Project reads it. The server has no
   // source with the name of the tool.
-  const listAlerts = (operations: ReturnType<typeof createPagerOperations>) =>
-    operations
-      .toSources('glue', [serverSource])
-      .find(({ name }) => name === 'pager')
-      ?.listSignals(project)
+  const findSource = async (
+    operations: ReturnType<typeof createPagerOperations>,
+  ) => {
+    const sources = await operations.toSources('glue', [])
+    return sources.find(({ name }) => name === 'pager')
+  }
+  const listAlerts = async (
+    operations: ReturnType<typeof createPagerOperations>,
+  ) => (await findSource(operations))?.listSignals(project)
 
   beforeEach(async () => {
     pagerError = undefined
@@ -727,12 +780,22 @@ describe('a tool that only the list of the tools names', () => {
     expect(await listAlerts(operations)).toEqual([alert])
   })
 
+  it('has its own Signal source with the label of its adapter, with no Integration too', async () => {
+    const sources = await createPagerOperations().toSources('glue', [])
+
+    expect(sources.map(({ name, label }) => [name, label])).toEqual([
+      ['github', 'GitHub'],
+      ['pager', 'Pager'],
+    ])
+    expect(await sources[1].listSignals(project)).toEqual([])
+  })
+
   it('fails after three reads, is in Mine, takes a new key, pauses, starts and is removed', async () => {
     const operations = createPagerOperations()
     await operations.add('glue', pagerInput, ada.email)
     pagerError = new IntegrationReadError('The pager refused the key', 'key')
     for (const _read of [1, 2, 3])
-      await listAlerts(operations)?.catch(() => undefined)
+      await listAlerts(operations).catch(() => undefined)
     const failed = { ...added, state: 'failed', lastRead: refusedRead }
 
     expect(await operations.listMine('glue', ada.email)).toEqual([failed])
@@ -756,5 +819,185 @@ describe('a tool that only the list of the tools names', () => {
 
     await operations.remove('glue', 1)
     expect(await operations.list('glue')).toEqual([])
+  })
+})
+
+// The proof of glue/R9: a tool that this module never saw works when it is
+// in the list of the tools, with no other change. `board` is a tool that
+// Glue reads. `inbox` is a tool that posts to Glue.
+describe('a new tool in the list of the tools', () => {
+  const idea: SourceSignal = {
+    url: 'https://board.example.com/acme/top/7',
+    title: 'Sort the list by date',
+    text: '',
+    date: '2026-10-03',
+  }
+  const board: IntegrationTool = {
+    label: 'Idea board',
+    addressFields: [
+      { label: 'Workspace' },
+      { label: 'Lane', options: [{ value: 'top', label: 'Top ideas' }] },
+    ],
+    findAddressProblem: (address) =>
+      address.endsWith('/top') ? undefined : 'A board has the lane top',
+    listSignals: async (address, key) => {
+      reads.push({ address, key })
+      if (readError) throw readError
+      return [idea]
+    },
+  }
+  const inbox: IntegrationTool = {
+    label: 'Inbox',
+    addressFields: [{ label: 'Name' }],
+    findAddressProblem: () => undefined,
+  }
+  const createNewOperations = () =>
+    createIntegrationOperations({
+      db,
+      secret: SECRET,
+      tools: { board, inbox },
+      now: () => clock,
+      createWebhookSecret: () => 'secret-of-the-inbox-wxyz',
+    })
+  const ofBoard = {
+    id: 1,
+    tool: 'board',
+    address: 'acme/top',
+    keyLastFour: '1234',
+    state: 'active',
+    lastRead: { at: '2026-10-10T08:00:00.000Z', signalCount: 1, error: null },
+  }
+
+  it('says what each tool asks of a member', () => {
+    expect(createNewOperations().listTools()).toEqual([
+      {
+        name: 'board',
+        label: 'Idea board',
+        addressFields: [
+          { label: 'Workspace' },
+          { label: 'Lane', options: [{ value: 'top', label: 'Top ideas' }] },
+        ],
+        needsKey: true,
+      },
+      {
+        name: 'inbox',
+        label: 'Inbox',
+        addressFields: [{ label: 'Name' }],
+        needsKey: false,
+      },
+    ])
+  })
+
+  it('adds with a test read, lists, pauses, starts and removes a tool that Glue reads', async () => {
+    const operations = createNewOperations()
+
+    const refused = operations.add('glue', {
+      tool: 'board',
+      address: 'acme/new',
+      key: KEY,
+    })
+    await expect(refused).rejects.toMatchObject({
+      message: 'A board has the lane top',
+      place: { field: 'address' },
+    })
+    const added = await operations.add('glue', {
+      tool: 'board',
+      address: 'acme/top',
+      key: KEY,
+    })
+    const listed = await operations.list('glue')
+    const paused = await operations.pause('glue', 1)
+    const started = await operations.start('glue', 1)
+    await operations.remove('glue', 1)
+
+    expect(added).toEqual(ofBoard)
+    expect(listed).toEqual([ofBoard])
+    expect(paused).toEqual({ ...ofBoard, state: 'paused' })
+    expect(started).toEqual(ofBoard)
+    expect(reads).toEqual([
+      { address: 'acme/top', key: KEY },
+      { address: 'acme/top', key: KEY },
+    ])
+    expect(await operations.list('glue')).toEqual([])
+  })
+
+  it('reads the Signals of the tool, and keeps the reason of a read that fails', async () => {
+    const operations = createNewOperations()
+    await operations.add('glue', {
+      tool: 'board',
+      address: 'acme/top',
+      key: KEY,
+    })
+    const mock: SignalSource = { name: 'board', listSignals: async () => [] }
+
+    const [source] = await operations.toSources('glue', [mock])
+    const signals = await source.listSignals(project)
+    readError = new IntegrationReadError('The board refused the key', 'key')
+    await expect(source.listSignals(project)).rejects.toThrow(
+      'The board refused the key',
+    )
+
+    expect(signals).toEqual([idea])
+    expect(await operations.list('glue')).toEqual([
+      {
+        ...ofBoard,
+        lastRead: {
+          at: '2026-10-10T08:00:00.000Z',
+          signalCount: null,
+          error: 'The board refused the key',
+        },
+      },
+    ])
+  })
+
+  it('makes the secret of a tool that posts to Glue, and shows its Signals under its address', async () => {
+    const operations = createNewOperations()
+
+    const added = await operations.add('glue', {
+      tool: 'inbox',
+      address: 'Sales',
+    })
+    const stored = await operations.addWebhookSignals(
+      'glue',
+      'secret-of-the-inbox-wxyz',
+      () =>
+        Promise.resolve({
+          signals: [
+            {
+              title: 'The export is missing',
+              link: 'https://inbox.example.com/41',
+              time: '2026-10-09T10:00:00Z',
+              tool: 'Inbox',
+            },
+          ],
+        }),
+    )
+    const paused = await operations.pause('glue', 1)
+    const started = await operations.start('glue', 1)
+    const [ofBoardTool, source] = await operations.toSources('glue', [])
+
+    expect(ofBoardTool).toMatchObject({ name: 'board', label: 'Idea board' })
+    expect(added).toEqual({
+      id: 1,
+      tool: 'inbox',
+      address: 'Sales',
+      keyLastFour: 'wxyz',
+      state: 'active',
+      lastRead: null,
+      secret: 'secret-of-the-inbox-wxyz',
+    })
+    expect(stored).toEqual({ stored: 1 })
+    expect(paused.state).toBe('paused')
+    expect(started.state).toBe('active')
+    expect(source.name).toBe('Sales')
+    expect(await source.listSignals(project)).toEqual([
+      {
+        url: 'https://inbox.example.com/41',
+        title: 'The export is missing',
+        text: '',
+        date: '2026-10-09',
+      },
+    ])
+    expect(reads).toEqual([])
   })
 })

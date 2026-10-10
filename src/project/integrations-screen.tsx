@@ -1,18 +1,29 @@
 import { getRouteApi } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import type { Integration } from '../db/integrations.ts'
+import type { ProjectIntegrations } from '../db/integration-actions.ts'
 import {
   FailedIntegrations,
   IntegrationForm,
+  IntegrationSecret,
   Integrations,
   integrationFormFields,
 } from '../design-system/integrations.tsx'
-import { toolNames } from '../signals/integration-tool-names.ts'
 import { useProjectLinks } from './use-project-links.ts'
 import { useWrite } from './use-write.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
+
+// The Integrations as a list shows them: each one with the label of its
+// tool. `tools` says what each tool of the server is: the screen names no
+// tool itself.
+const toRows = ({ tools, integrations }: ProjectIntegrations) =>
+  integrations.map((integration) => ({
+    ...integration,
+    tool:
+      tools.find(({ name }) => name === integration.tool)?.label ??
+      integration.tool,
+  }))
 
 // The writes of the Integrations of a list: a member pauses, starts and
 // removes each one, and gives it a new key. Each write shows at its row. A
@@ -76,14 +87,10 @@ function useIntegrationWrites() {
 // The failed Integrations that the person is Responsible for, in Mine. The
 // person starts one again or gives it a new key there. A read that works
 // takes it out of Mine.
-export function FailedIntegrationsSection({
-  integrations,
-}: {
-  integrations: ReadonlyArray<Integration>
-}) {
+export function FailedIntegrationsSection(failed: ProjectIntegrations) {
   return (
     <FailedIntegrations
-      integrations={integrations}
+      integrations={toRows(failed)}
       {...useIntegrationWrites()}
       onRemove={undefined}
     />
@@ -92,12 +99,12 @@ export function FailedIntegrationsSection({
 
 // The Integrations of the Project in the main window, in the place of the
 // Signals that they bring. A member adds one, and changes each one. A person
-// who is no member reads only.
+// who is no member reads only. `tools` says what each tool asks of a member.
 export function IntegrationsScreen({
+  tools,
   integrations,
   onClose,
-}: {
-  integrations: ReadonlyArray<Integration>
+}: ProjectIntegrations & {
   onClose: () => void
 }) {
   const { people } = projectRoute.useLoaderData()
@@ -109,17 +116,33 @@ export function IntegrationsScreen({
   const writes = useIntegrationWrites()
   // A form that saved starts again with no value: the key is gone.
   const [added, setAdded] = useState(0)
+  // The last add that Glue made a secret for. It shows until the next add,
+  // or until the person leaves the screen.
+  const [made, setMade] = useState<{ name: string; secret: string }>()
+  const toLabel = (tool: string) =>
+    tools.find(({ name }) => name === tool)?.label ?? tool
   const failedField = integrationFormFields.find(
     (field) => field === failurePlace?.field,
   )
   const isMember = people.me !== null
 
   return (
-    <Integrations integrations={integrations} onClose={onClose} {...writes}>
-      {isMember && (
+    <Integrations
+      integrations={toRows({ tools, integrations })}
+      onClose={onClose}
+      {...writes}
+    >
+      {made && (
+        <IntegrationSecret
+          name={made.name}
+          address={`${window.location.origin}/api/v1/projects/${project}/webhook`}
+          secret={made.secret}
+        />
+      )}
+      {isMember && tools.length > 0 && (
         <IntegrationForm
           key={added}
-          tools={toolNames}
+          tools={tools}
           errors={failedField ? { [failedField]: failure } : {}}
           serverError={failedField ? undefined : failure}
           pending={pending}
@@ -127,7 +150,18 @@ export function IntegrationsScreen({
             void write(
               'Adding',
               () => addIntegration({ project, integration }),
-              () => Promise.resolve(setAdded((count) => count + 1)),
+              ({ secret }) => {
+                setMade(
+                  secret
+                    ? {
+                        name: `${toLabel(integration.tool)} ${integration.address}`,
+                        secret,
+                      }
+                    : undefined,
+                )
+                setAdded((count) => count + 1)
+                return Promise.resolve()
+              },
             )
           }
         />

@@ -72,6 +72,10 @@ describe('listSignals', () => {
     const found = await listSignals(db, [github, support], 'glue')
 
     expect(found).toEqual({
+      sources: [
+        { name: 'github', label: 'github' },
+        { name: 'support', label: 'support' },
+      ],
       failures: [],
       signals: [
         { ...slow, source: 'github', insight: null },
@@ -80,6 +84,34 @@ describe('listSignals', () => {
       ],
       groups: [],
     })
+  })
+
+  it('names each source of the Project with its label, the asked one or not', async () => {
+    await addGlue()
+    const pager: SignalSource = { ...support, name: 'pager', label: 'Pager' }
+
+    const found = await listSignals(db, [github, pager], 'glue', {
+      source: 'github',
+    })
+
+    expect(found.sources).toEqual([
+      { name: 'github', label: 'github' },
+      { name: 'pager', label: 'Pager' },
+    ])
+  })
+
+  it('gives an address to the first source that has it: a later source cannot take it', async () => {
+    await addGlue()
+    const taken = { ...slow, title: 'Not the issue' }
+    const helpdesk = createFakeSource('Helpdesk', [taken, refund]).source
+
+    const found = await listSignals(db, [github, helpdesk], 'glue')
+
+    expect(found.signals).toEqual([
+      { ...slow, source: 'github', insight: null },
+      { ...refund, source: 'Helpdesk', insight: null },
+      { ...lost, source: 'github', insight: null },
+    ])
   })
 
   it('asks each source with the settings of the Project', async () => {
@@ -101,6 +133,11 @@ describe('listSignals', () => {
     })
 
     expect(found).toEqual({
+      sources: [
+        { name: 'github', label: 'github' },
+        { name: 'support', label: 'support' },
+        { name: 'analytics', label: 'analytics' },
+      ],
       failures: [],
       signals: [{ ...refund, source: 'support', insight: null }],
       groups: [],
@@ -113,6 +150,10 @@ describe('listSignals', () => {
     const found = await listSignals(db, [failing, support], 'glue')
 
     expect(found).toEqual({
+      sources: [
+        { name: 'analytics', label: 'analytics' },
+        { name: 'support', label: 'support' },
+      ],
       failures: [
         { source: 'analytics', reason: 'mock analytics answered 503' },
       ],

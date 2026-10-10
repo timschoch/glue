@@ -9,15 +9,15 @@ import { createResponseError } from '../measure/response-error.ts'
 const TIMEOUT_MS = 10_000
 
 // The answer to the Single Ease Question: 1 very hard to 7 very easy.
-const SURVEY_EVENT = 'survey sent'
-const SCORE_PROPERTY = '$survey_response'
-const HIGHEST_SCORE = 7
+export const SURVEY_EVENT = 'survey sent'
+export const SCORE_PROPERTY = '$survey_response'
+export const HIGHEST_SCORE = 7
 // A score that says the task was hard.
-const LOW_SCORE = 3
+export const LOW_SCORE = 3
 // The property with the words of the answer.
-const REMARK_PROPERTY = 'comment'
+export const REMARK_PROPERTY = 'comment'
 
-const WINDOW_DAYS = 30
+export const WINDOW_DAYS = 30
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 const lowValuesResponseSchema = z.object({

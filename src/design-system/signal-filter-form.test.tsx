@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { shownSources } from '../test/signal-sources.ts'
 import './theme.scss'
 import { SignalFilterForm } from './signal-filter-form.tsx'
 
@@ -20,7 +21,14 @@ function renderForm(
 ) {
   const onSave = vi.fn()
   const onCancel = vi.fn()
-  render(<SignalFilterForm onSave={onSave} onCancel={onCancel} {...props} />)
+  render(
+    <SignalFilterForm
+      sources={shownSources}
+      onSave={onSave}
+      onCancel={onCancel}
+      {...props}
+    />,
+  )
   return { onSave, onCancel }
 }
 
@@ -55,6 +63,26 @@ describe('SignalFilterForm', () => {
         .getAllByRole('checkbox')
         .map((checkbox) => checkbox.getAttribute('value')),
     ).toEqual(['github', 'support', 'analytics', 'social', 'market'])
+  })
+
+  it('offers the source of a tool that it never saw, with the label that it gets', async () => {
+    const { onSave } = renderForm({
+      sources: [
+        { name: 'github', label: 'GitHub' },
+        { name: 'pager', label: 'Pager' },
+      ],
+    })
+
+    await userEvent.type(field('Name'), 'Pages')
+    await userEvent.click(source('Pager'))
+    await userEvent.click(save())
+
+    expect(onSave).toHaveBeenCalledWith({
+      name: 'Pages',
+      mustHold: [],
+      mustNotHold: [],
+      sources: ['pager'],
+    })
   })
 
   it('starts with the values of the filter that it changes', () => {

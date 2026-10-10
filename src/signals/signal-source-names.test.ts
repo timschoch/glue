@@ -6,13 +6,12 @@ vi.mock('./signal-sources.ts', () => {
   throw new Error('the rule of a saved filter imports the adapters')
 })
 
-// A tool that only the list of the tools names.
-vi.mock('./integration-tool-names.ts', () => ({
-  toolNames: ['github', 'pager'],
-}))
+vi.mock('./integration-tools.ts', () => {
+  throw new Error('the rule of a saved filter imports the tools')
+})
 
 describe('the names of the Signal sources', () => {
-  it('reach the rule of a saved filter for a tool of the list of the tools', async () => {
+  it('reach the rule of a saved filter for a tool that no file but the list of the tools names', async () => {
     const { signalFilterSchema } = await import('../db/signal-filter-rule.ts')
 
     expect(
@@ -20,9 +19,9 @@ describe('the names of the Signal sources', () => {
         .success,
     ).toBe(true)
     expect(
-      signalFilterSchema.safeParse({ name: 'Faxes', sources: ['fax'] }).error
+      signalFilterSchema.safeParse({ name: 'None', sources: [''] }).error
         ?.issues[0].message,
-    ).toBe('"fax" is no source')
+    ).toBe('A source is a name')
   })
 
   it('reach the rule of a saved filter with no adapter', async () => {

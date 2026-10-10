@@ -1,7 +1,9 @@
 import { vi } from 'vitest'
 
 import type { Session } from '../authentication/session.ts'
+import type { ProjectIntegrations } from '../db/integration-actions.ts'
 import type { Server } from '../router-server.ts'
+import { shownSources } from './signal-sources.ts'
 import {
   findConcept,
   findContract,
@@ -19,6 +21,23 @@ export const session: Session = {
 }
 
 const saved = (id: string) => ({ id, issueMissing: false })
+
+// What the two tools of the memory server ask of a member: one that Glue
+// reads with a key, and one that posts to Glue.
+export const toolForms: ProjectIntegrations['tools'] = [
+  {
+    name: 'github',
+    label: 'GitHub',
+    addressFields: [{ label: 'Repository' }],
+    needsKey: true,
+  },
+  {
+    name: 'webhook',
+    label: 'Webhook',
+    addressFields: [{ label: 'Name' }],
+    needsKey: false,
+  },
+]
 
 // The server for the tests of the routes, in memory: Ada is signed in, each
 // read answers from the Project of project.ts, each write succeeds and saves
@@ -42,11 +61,26 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
     fetchMapJoints: vi.fn(() => Promise.resolve([])),
     fetchPart: vi.fn((part) => Promise.resolve(findPart(part))),
     fetchSignals: vi.fn(() =>
-      Promise.resolve({ signals: [], failures: [], groups: [] }),
+      Promise.resolve({
+        sources: shownSources,
+        signals: [],
+        failures: [],
+        groups: [],
+      }),
     ),
     fetchSignalFilters: vi.fn(() => Promise.resolve([])),
-    fetchIntegrations: vi.fn(() => Promise.resolve([])),
-    fetchMineIntegrations: vi.fn(() => Promise.resolve([])),
+    fetchMineIntegrations: vi.fn(() =>
+      Promise.resolve<ProjectIntegrations>({
+        tools: toolForms,
+        integrations: [],
+      }),
+    ),
+    fetchIntegrations: vi.fn(() =>
+      Promise.resolve<ProjectIntegrations>({
+        tools: toolForms,
+        integrations: [],
+      }),
+    ),
     fetchBuilds: vi.fn(() => Promise.resolve({ builds: [], reason: null })),
     fetchPeople: vi.fn(() => Promise.resolve(people)),
     fetchMineAsks: vi.fn(() => Promise.resolve([])),

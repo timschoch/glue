@@ -1,8 +1,12 @@
 import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
-import { integrationSchema } from './integrations.ts'
-import type { IntegrationOperations } from './integrations.ts'
+import { integrationKeySchema, integrationSchema } from './integrations.ts'
+import type {
+  Integration,
+  IntegrationOperations,
+  ToolForm,
+} from './integrations.ts'
 import { createSessionGuard, toFailure } from './session-actions.ts'
 import type { ActionRequest } from './session-actions.ts'
 
@@ -18,46 +22,85 @@ export const integrationChangeInputSchema = integrationsInputSchema.extend({
 })
 
 export const integrationKeyInputSchema = integrationChangeInputSchema.extend({
-  key: integrationSchema.shape.key,
+  key: integrationKeySchema,
 })
 
 type IntegrationsInput = z.infer<typeof integrationsInputSchema>
 export type IntegrationKeyInput = z.input<typeof integrationKeyInputSchema>
+
+// What the screen of the Integrations shows: the Integrations of the
+// Project, and what each tool of the server asks of a member.
+export type ProjectIntegrations = {
+  tools: ReadonlyArray<ToolForm>
+  integrations: ReadonlyArray<Integration>
+}
+
+const NO_INTEGRATIONS: ProjectIntegrations = { tools: [], integrations: [] }
 export type IntegrationAddInput = z.input<typeof integrationAddInputSchema>
 export type IntegrationChangeInput = z.infer<
   typeof integrationChangeInputSchema
 >
 
 // What the server functions of the Integrations do. Each action looks for
-// the session first. A member of the Project adds, pauses, starts and
-// removes, and gives a new key. The member who adds an Integration is its
-// Responsible. `getIntegrations` gives the operations with the tools and
-// the secret of the server.
+// the session first. A member of the Project lists, adds, pauses, starts
+// and removes, and gives a new key. The member who adds an Integration is
+// its Responsible. The answer to the add of a tool that posts to Glue
+// holds its secret. `getIntegrations` gives the operations with the tools
+// and the secret of the server.
 export function createIntegrationActions({
   getIntegrations,
   ...request
 }: Pick<ActionRequest, 'findSession' | 'getDb'> & {
   getIntegrations: (db: ConceptDb) => IntegrationOperations
 }) {
-  const { withSession, withReader, withMember } = createSessionGuard(request)
+  const { withReader, withMember } = createSessionGuard(request)
 
   return {
-    listIntegrations: withSession((db, { project }: IntegrationsInput) =>
-      getIntegrations(db).list(project),
+    // Only a member reads the tools of the team. A person who is no member
+    // gets none.
+    listIntegrations: withReader(
+      async (
+        db,
+        { project }: IntegrationsInput,
+        member,
+      ): Promise<ProjectIntegrations> => {
+        if (!member) return NO_INTEGRATIONS
+        const operations = getIntegrations(db)
+        return {
+          tools: operations.listTools(),
+          integrations: await operations.list(project),
+        }
+      },
     ),
 
     // The failed Integrations that the person is Responsible for. A person
     // who is no member has none.
     listMineIntegrations: withReader(
-      async (db, { project }: IntegrationsInput, member) =>
-        member ? getIntegrations(db).listMine(project, member.email) : [],
+      async (
+        db,
+        { project }: IntegrationsInput,
+        member,
+      ): Promise<ProjectIntegrations> => {
+        if (!member) return NO_INTEGRATIONS
+        const operations = getIntegrations(db)
+        return {
+          tools: operations.listTools(),
+          integrations: await operations.listMine(project, member.email),
+        }
+      },
     ),
 
     addIntegration: withMember(
       (db, { project, integration }: IntegrationAddInput, member) =>
         getIntegrations(db)
           .add(project, integration, member.email)
-          .then(({ id }) => ({ id }), toFailure),
+          .then(
+            ({ id, secret }): { id: number; secret?: string } => ({
+              id,
+              secret,
+            }),
+            toFailure,
+          ),
     ),
 
     setIntegrationKey: withMember(

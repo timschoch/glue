@@ -8,12 +8,13 @@ import type { SourceTools } from './signal-sources.ts'
 
 // The Signal sources of the Project, each with its tool from the settings of
 // the server. A source that the Project has an Integration for reads with
-// the key of the team. The list of the adapters: signal-sources.ts.
+// the key of the team, and each webhook of the Project is one more source.
+// The list of the adapters: signal-sources.ts.
 export function createSignalSources(
   github: GithubClient,
   db: ConceptDb,
   projectSlug: string,
-): ReadonlyArray<SignalSource> {
+): Promise<ReadonlyArray<SignalSource>> {
   const tools: SourceTools = {
     github,
     analytics: {

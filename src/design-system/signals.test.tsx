@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { shownSources } from '../test/signal-sources.ts'
 import './theme.scss'
 import { Signals } from './signals.tsx'
 import type { SignalRow } from './signals.tsx'
@@ -70,6 +71,7 @@ function renderSignals(props: Partial<Parameters<typeof Signals>[0]> = {}) {
   const toSignals = (changed: typeof props) => (
     <Signals
       signals={[SLOW, LOST, GROWN]}
+      sources={shownSources}
       onMakeInsight={onMakeInsight}
       onMakeHunch={onMakeHunch}
       {...changed}
@@ -367,6 +369,17 @@ describe('Signals', () => {
     within(row(SLOW.title)).getByText('GitHub')
     within(row(TICKET.title)).getByText('Support')
     within(row(ANSWER.title)).getByText('Analytics')
+  })
+
+  it('shows the source of a tool that it never saw with the label that it gets', () => {
+    const ALERT = { ...TICKET, source: 'pager' }
+    renderSignals({
+      signals: [SLOW, ALERT],
+      sources: [...shownSources, { name: 'pager', label: 'Pager' }],
+    })
+
+    within(row(ALERT.title)).getByText('Pager')
+    expect(filter('Pager').getAttribute('aria-pressed')).toBe('false')
   })
 
   it('shows the Signals of the picked source only', async () => {

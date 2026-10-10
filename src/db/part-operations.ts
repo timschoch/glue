@@ -186,7 +186,7 @@ export function createPartOperations({
       const wasAccepted = await isAccepted(project, recordId)
       // The Signals come live from their tools: a raise reads them.
       const listLevelSignals = async () => {
-        const sources = createSignalSources(github, db, project)
+        const sources = await createSignalSources(github, db, project)
         const { signals } = await listSignals(db, sources, project)
         return signals.filter(({ insight }) => insight?.id === recordId)
       }
@@ -217,7 +217,7 @@ export function createPartOperations({
         project,
         await addSignalInsight(
           db,
-          createSignalSources(github, db, project),
+          await createSignalSources(github, db, project),
           project,
           insight,
         ),

@@ -147,6 +147,38 @@ describe('pnpm concept integration', () => {
     ])
   })
 
+  it('add makes a webhook with no key, and prints its secret one time', async () => {
+    await run(
+      [
+        'integration',
+        'add',
+        '--tool',
+        'webhook',
+        '--address',
+        'Helpdesk',
+        '--project',
+        'glue',
+      ],
+      '',
+    )
+    await run(['integration', 'list', '--project', 'glue'])
+
+    expect(listPrinted()).toEqual([
+      '1  webhook  Helpdesk  ...abcd  active',
+      'secret  secret-of-the-webhook-abcd',
+      '1  webhook  Helpdesk  ...abcd  active',
+    ])
+  })
+
+  it('tools prints what each tool asks for', async () => {
+    await run(['integration', 'tools'])
+
+    expect(listPrinted()).toEqual([
+      'github  GitHub  Repository  key',
+      'webhook  Webhook  Name  no key',
+    ])
+  })
+
   it.each(['first', undefined])('pause refuses the id %s', async (id) => {
     await expect(
       run(['integration', 'pause', ...(id ? [id] : []), '--project', 'glue']),

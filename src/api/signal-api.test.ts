@@ -67,12 +67,22 @@ async function call(
   return { status: response.status, body: await response.json() }
 }
 
+// The sources of the server, each with the name that a person reads.
+const sources = [
+  { name: 'github', label: 'GitHub' },
+  { name: 'support', label: 'Support' },
+  { name: 'analytics', label: 'Analytics' },
+  { name: 'social', label: 'Social' },
+  { name: 'market', label: 'Market' },
+]
+
 describe('GET /projects/{project}/signals', () => {
   it('lists the Signals of the Project', async () => {
     const { status, body } = await call(handleListSignals, 'GET')
 
     expect(status).toBe(200)
     expect(body).toEqual({
+      sources,
       failures: [],
       signals: [
         {
@@ -97,7 +107,7 @@ describe('GET /projects/{project}/signals', () => {
     )
 
     expect(status).toBe(200)
-    expect(body).toEqual({ failures: [], signals: [], groups: [] })
+    expect(body).toEqual({ sources, failures: [], signals: [], groups: [] })
   })
 
   it('answers 400 for a source that Glue does not have', async () => {
@@ -143,6 +153,7 @@ describe('GET /projects/{project}/signals', () => {
 
     expect(status).toBe(200)
     expect(body).toEqual({
+      sources,
       signals: [],
       failures: [{ source: 'github', reason: 'GitHub answered 503' }],
       groups: [],

@@ -2,10 +2,15 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { joinProject } from '../db/members.ts'
 import { addProject } from '../db/part-records.ts'
+import { addProjectReference } from '../db/projects.ts'
 import * as schema from '../db/schema.ts'
 import { createTestDatabase } from '../db/test-database.ts'
 import { createToken } from '../db/tokens.ts'
-import { TEAM_KEY, createFakeIntegrations } from '../test/integrations.ts'
+import {
+  TEAM_KEY,
+  WEBHOOK_SECRET,
+  createFakeIntegrations,
+} from '../test/integrations.ts'
 import {
   handleAddIntegration,
   handleChangeIntegration,
@@ -209,6 +214,45 @@ describe('a token of another Project', () => {
 
     expect(status).toBe(404)
     expect(await list()).toEqual({ status: 200, body: [active] })
+  })
+})
+
+describe('a token of a Project that may reference the Project', () => {
+  it('gets 404 on the list', async () => {
+    await add()
+    await addProject(db, 'flexibeck')
+    await addProjectReference(db, 'flexibeck', 'glue')
+    const other = await createToken(db, 'flexibeck', 'orchestrator')
+
+    const { status } = await call(
+      handleListIntegrations,
+      'GET',
+      {},
+      other.token,
+    )
+
+    expect(status).toBe(404)
+  })
+})
+
+describe('POST a webhook', () => {
+  it('answers the secret one time, and the list holds its last four characters', async () => {
+    const webhook = {
+      id: 1,
+      tool: 'webhook',
+      address: 'Helpdesk',
+      keyLastFour: 'abcd',
+      state: 'active',
+      lastRead: null,
+    }
+
+    const added = await add({ tool: 'webhook', address: 'Helpdesk' })
+
+    expect(added).toEqual({
+      status: 201,
+      body: { ...webhook, secret: WEBHOOK_SECRET },
+    })
+    expect(await list()).toEqual({ status: 200, body: [webhook] })
   })
 })
 

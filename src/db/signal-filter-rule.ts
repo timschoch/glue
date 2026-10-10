@@ -3,8 +3,6 @@
 // The module reads no database: the server and the screen use the same rule.
 import { z } from 'zod'
 
-import { toolNames } from '../signals/integration-tool-names.ts'
-import { sourceNames } from '../signals/signal-source-names.ts'
 import { groupSignals } from './signal-groups.ts'
 import type { SignalGroup } from './signal-groups.ts'
 import type { Signal } from './signals.ts'
@@ -41,22 +39,21 @@ const wordsSchema = z
   .max(MAX_WORDS, { error: `A list has at most ${MAX_WORDS} words` })
   .default([])
 
-// A filter names a source of the server or a tool of an Integration: the
-// Signals of a tool show under its name. Both lists hold names only.
-const filterSources = new Set<string>([...sourceNames, ...toolNames])
-
+// A filter names sources of its Project. Each Project has its own: the
+// sources of the server, the tools of its Integrations and the ones that
+// post to Glue. So the rule knows no list of names: the form gives the
+// sources of the Project, and a name of no source passes no Signal.
 const sources = z
   .array(
-    z.string({ error: 'A source is a name' }).check((context) => {
-      if (!filterSources.has(context.value))
-        context.issues.push({
-          code: 'custom',
-          message: `"${context.value}" is no source`,
-          input: context.value,
-        })
-    }),
+    z
+      .string({ error: 'A source is a name' })
+      .min(1, { error: 'A source is a name' })
+      .max(MAX_NAME_LENGTH, {
+        error: `A source has at most ${MAX_NAME_LENGTH} characters`,
+      }),
     { error: 'The sources are a list' },
   )
+  .max(MAX_WORDS, { error: `A filter has at most ${MAX_WORDS} sources` })
   .default([])
 
 export const signalFilterSchema = z

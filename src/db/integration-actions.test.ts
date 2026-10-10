@@ -36,7 +36,8 @@ describe('the actions of the Integrations', () => {
     expect(isRedirect(refused)).toBe(true)
   })
 
-  it('lets a person who is no member read only', async () => {
+  it('gives a person who is no member no Integration, and no write', async () => {
+    await createFakeIntegrations(db).add(project, integration)
     session = { user: ada }
 
     const answers = [
@@ -54,8 +55,14 @@ describe('the actions of the Integrations', () => {
     expect(answers).toEqual(
       Array(5).fill({ message: 'Only a member of the Project can change it.' }),
     )
-    expect(await actions.listIntegrations({ project })).toEqual([])
-    expect(await actions.listMineIntegrations({ project })).toEqual([])
+    expect(await actions.listIntegrations({ project })).toEqual({
+      tools: [],
+      integrations: [],
+    })
+    expect(await actions.listMineIntegrations({ project })).toEqual({
+      tools: [],
+      integrations: [],
+    })
   })
 
   it('makes the member who adds an Integration its Responsible: Mine has it when it failed', async () => {
@@ -68,7 +75,11 @@ describe('the actions of the Integrations', () => {
 
     const mine = await actions.listMineIntegrations({ project })
 
-    expect(mine).toMatchObject([
+    expect(mine.tools.map(({ name, label }) => [name, label])).toEqual([
+      ['github', 'GitHub'],
+      ['webhook', 'Webhook'],
+    ])
+    expect(mine.integrations).toMatchObject([
       { id: 1, state: 'failed', lastRead: { error: 'GitHub refused the key' } },
     ])
   })
@@ -123,7 +134,46 @@ describe('the actions of the Integrations', () => {
     expect(paused).toEqual({ id: 1 })
     expect(started).toEqual({ id: 1 })
     expect(removed).toBeUndefined()
-    expect(await actions.listIntegrations({ project })).toEqual([])
+    expect(await actions.listIntegrations({ project })).toEqual({
+      tools: [
+        {
+          name: 'github',
+          label: 'GitHub',
+          addressFields: [{ label: 'Repository' }],
+          needsKey: true,
+        },
+        {
+          name: 'webhook',
+          label: 'Webhook',
+          addressFields: [{ label: 'Name' }],
+          needsKey: false,
+        },
+      ],
+      integrations: [],
+    })
+  })
+
+  it('gives the secret of a new webhook one time, and its last four characters to a member', async () => {
+    session = { user: ada }
+    await joinProject(db, project, ada)
+
+    const added = await actions.addIntegration({
+      project,
+      integration: { tool: 'webhook', address: 'Helpdesk' },
+    })
+
+    expect(added).toEqual({ id: 1, secret: 'secret-of-the-webhook-abcd' })
+    const { integrations } = await actions.listIntegrations({ project })
+    expect(integrations).toEqual([
+      {
+        id: 1,
+        tool: 'webhook',
+        address: 'Helpdesk',
+        keyLastFour: 'abcd',
+        state: 'active',
+        lastRead: null,
+      },
+    ])
   })
 
   it('gives no key back, open or encrypted', async () => {

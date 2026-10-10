@@ -25,13 +25,24 @@ describe('the Signal sources of Glue', () => {
     ])
   })
 
-  it('give the saved filter its sources: each adapter, and no other name', () => {
+  it('have each the name that a person reads', () => {
+    const labels = Object.values(signalSources).map(
+      (create) => create(tools).label,
+    )
+
+    expect(labels).toEqual([
+      'GitHub',
+      'Support',
+      'Analytics',
+      'Social',
+      'Market',
+    ])
+  })
+
+  it('give the saved filter its sources: each adapter', () => {
     const filter = { name: 'All', sources: sourceNames }
 
     expect(Object.keys(signalSources)).toEqual([...sourceNames])
     expect(signalFilterSchema.safeParse(filter).success).toBe(true)
-    expect(
-      signalFilterSchema.safeParse({ name: 'Fax', sources: ['fax'] }).success,
-    ).toBe(false)
   })
 })
