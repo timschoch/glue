@@ -628,7 +628,9 @@ export type IntegrationState = (typeof integrationStates)[number]
 // the Signals of the tool at `address` with the key. Only the encrypted key
 // is stored (glue/D71), and its last four characters for the member who
 // looks for it. The last read: its time, the count of its Signals, and the
-// reason when it failed.
+// reason when it failed. `failedReadCount` counts the failed reads in a row
+// (glue/D73). `responsibleMemberId` is the member who added the Integration:
+// a failed Integration shows in the Mine of this member.
 export const integrations = pgTable(
   'integrations',
   {
@@ -644,6 +646,11 @@ export const integrations = pgTable(
     lastReadAt: timestamp('last_read_at', { withTimezone: true }),
     lastReadSignalCount: integer('last_read_signal_count'),
     lastReadError: text('last_read_error'),
+    failedReadCount: integer('failed_read_count').notNull().default(0),
+    responsibleMemberId: integer('responsible_member_id').references(
+      () => members.id,
+      { onDelete: 'set null' },
+    ),
   },
   (table) => [
     unique().on(table.projectId, table.tool, table.address),

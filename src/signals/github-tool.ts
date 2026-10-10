@@ -12,9 +12,14 @@ const UNAUTHORIZED = 401
 const FORBIDDEN = 403
 const NOT_FOUND = 404
 
-// What the member changes after GitHub refused the read.
+// What the member changes after GitHub refused the read. A rate limit
+// goes away with no change: it names no place.
 function toReadError(error: unknown, repository: string) {
   if (!(error instanceof GithubError)) return error
+  if (error.isRateLimited)
+    return new Error(
+      'GitHub limits the reads with this key for now. A later read works again.',
+    )
   if (error.status === UNAUTHORIZED)
     return new IntegrationReadError('GitHub refused the key', 'key')
   if (error.status === FORBIDDEN)

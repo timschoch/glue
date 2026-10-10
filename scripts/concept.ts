@@ -650,11 +650,12 @@ function formatHelp() {
     'pnpm concept token create --project <slug> --name <name> [--member <e-mail>]',
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
-    'INTEGRATION_KEY=<key> pnpm concept integration add --tool <tool> --address <address>',
+    'INTEGRATION_KEY=<key> pnpm concept integration add --tool <tool> --address <address> [--member <e-mail>]',
     'pnpm concept integration list',
-    'pnpm concept integration pause <id>',
-    'pnpm concept integration start <id>',
-    'pnpm concept integration remove <id>',
+    'pnpm concept integration pause <id> [--member <e-mail>]',
+    'pnpm concept integration start <id> [--member <e-mail>]',
+    'INTEGRATION_KEY=<key> pnpm concept integration key <id> [--member <e-mail>]',
+    'pnpm concept integration remove <id> [--member <e-mail>]',
     '',
     'list, show, add, set, move, downstream, answer, mine, ask, signals, builds, member, assign, watch, unwatch, watchers, concept, kind, contract, joint and integration take --project <slug>. The default is GLUE_PROJECT, then glue-build when that Project exists, then glue.',
     '',
@@ -1621,9 +1622,11 @@ async function handleTokenCommand(db: ConceptDb, [command, ...rest]: string[]) {
   }
 }
 
-// The Integrations of a Project (glue/D70). `add` takes the key from the
-// environment variable INTEGRATION_KEY: an argument stays in the history of
-// the shell. No command prints a key, only its last four characters.
+// The Integrations of a Project (glue/D70). `add` and `key` take the key
+// from the environment variable INTEGRATION_KEY: an argument stays in the
+// history of the shell. No command prints a key, only its last four
+// characters. `--member` names who writes: only a member of the Project,
+// and the member who adds an Integration is its Responsible (glue/D73).
 async function handleIntegrationCommand(
   db: ConceptDb,
   integrations: IntegrationOperations,
@@ -1637,6 +1640,19 @@ async function handleIntegrationCommand(
     if (!/^\d+$/.test(id))
       throw new Error(`integration ${command} needs the id of the Integration`)
     return Number(id)
+  }
+  // The Project of a write, and the e-mail address of `--member`.
+  const readWrite = async (flags: Flags) => {
+    const project = await readProject(db, flags)
+    const member = flags.member as string | undefined
+    const members = member === undefined ? [] : await listMembers(db, project)
+    if (
+      member !== undefined &&
+      !members.some(({ email }) => email.toLowerCase() === member.toLowerCase())
+    ) {
+      throw new Error(`${member} is no member of ${project}.`)
+    }
+    return { project, member }
   }
   switch (command) {
     case 'list': {
@@ -1655,20 +1671,29 @@ async function handleIntegrationCommand(
           'integration add needs --tool, --address and the key in INTEGRATION_KEY',
         )
       }
-      const project = await readProject(db, flags)
-      print(await integrations.add(project, { tool, address, key }))
+      const { project, member } = await readWrite(flags)
+      print(await integrations.add(project, { tool, address, key }, member))
       return
     }
     case 'pause':
     case 'start': {
       const integrationId = readId()
-      const project = await readProject(db, parseFlags(flagArgs))
+      const { project } = await readWrite(parseFlags(flagArgs))
       print(await integrations[command](project, integrationId))
+      return
+    }
+    case 'key': {
+      const integrationId = readId()
+      if (!key) {
+        throw new Error('integration key needs the key in INTEGRATION_KEY')
+      }
+      const { project } = await readWrite(parseFlags(flagArgs))
+      print(await integrations.setKey(project, integrationId, key))
       return
     }
     case 'remove': {
       const integrationId = readId()
-      const project = await readProject(db, parseFlags(flagArgs))
+      const { project } = await readWrite(parseFlags(flagArgs))
       await integrations.remove(project, integrationId)
       return
     }

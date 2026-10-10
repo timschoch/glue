@@ -86,6 +86,67 @@ describe('pnpm concept integration', () => {
     )
   })
 
+  it('key gives the Integration the key from INTEGRATION_KEY', async () => {
+    await add()
+    printed.mockClear()
+
+    await expect(
+      run(['integration', 'key', '1', '--project', 'glue'], 'another-key'),
+    ).rejects.toThrow('GitHub refused the key')
+    await run(['integration', 'key', '1', '--project', 'glue'])
+
+    expect(listPrinted()).toEqual(['1  github  acme/shop  ...1234  active'])
+  })
+
+  it('add takes --member: that member is the Responsible', async () => {
+    await run(['member', 'add-agent', 'Scout', '--project', 'glue'])
+
+    await run([
+      'integration',
+      'add',
+      '--tool',
+      'github',
+      '--address',
+      'acme/shop',
+      '--project',
+      'glue',
+      '--member',
+      'scout@agent.invalid',
+    ])
+
+    const [{ responsibleMemberId }] = await db
+      .select()
+      .from(schema.integrations)
+    expect(responsibleMemberId).toBe(1)
+  })
+
+  it.each([
+    ['add', '--tool', 'github', '--address', 'acme/web'],
+    ['pause', '1'],
+    ['start', '1'],
+    ['key', '1'],
+    ['remove', '1'],
+  ])('%s refuses a person who is no member of the Project', async (...args) => {
+    await add()
+    printed.mockClear()
+
+    await expect(
+      run([
+        'integration',
+        ...args,
+        '--project',
+        'glue',
+        '--member',
+        'eve@example.com',
+      ]),
+    ).rejects.toThrow('eve@example.com is no member of glue.')
+
+    expect(listPrinted()).toEqual([])
+    expect(await db.select().from(schema.integrations)).toMatchObject([
+      { address: 'acme/shop', state: 'active' },
+    ])
+  })
+
   it.each(['first', undefined])('pause refuses the id %s', async (id) => {
     await expect(
       run(['integration', 'pause', ...(id ? [id] : []), '--project', 'glue']),

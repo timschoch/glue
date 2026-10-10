@@ -25,7 +25,7 @@ export const savedIntegrationSchema = z
     }),
     state: z.enum(integrationStates).meta({
       description:
-        'active: Glue reads the Signals of the tool. paused: a member stopped the reads. failed: the last read failed, and Glue reads no more until a member starts it again',
+        'active: Glue reads the Signals of the tool. paused: a member stopped the reads. failed: three reads in a row failed, and Glue reads no more until a member starts it again',
     }),
     lastRead: z
       .object({
@@ -45,12 +45,20 @@ export const integrationInputSchema = integrationSchema.meta({
 })
 
 export const integrationChangeSchema = z
-  .strictObject({
-    state: z.enum(['active', 'paused']).meta({
-      description:
-        'paused: Glue reads the tool no more. active: Glue reads the tool one time, and only a read that works starts the Integration again',
+  .union([
+    z.strictObject({
+      state: z.enum(['active', 'paused']).meta({
+        description:
+          'paused: Glue reads the tool no more. active: Glue reads the tool one time, and only a read that works starts the Integration again',
+      }),
     }),
-  })
+    z.strictObject({
+      key: integrationSchema.shape.key.meta({
+        description:
+          'A new key. Glue reads the tool one time with it, and only a read that works saves it in the place of the old key',
+      }),
+    }),
+  ])
   .meta({ id: 'IntegrationChange' })
 
 const INTEGRATION_ID = /^\d+$/
@@ -63,7 +71,9 @@ function parseIntegrationId({ integrationId = '' }: ApiRequest['params']) {
 }
 
 // Only a member changes the Integrations of the Project.
-function validateMember(member: TokenMember | undefined) {
+function validateMember(
+  member: TokenMember | undefined,
+): asserts member is TokenMember {
   if (!member)
     throw new ApiError(
       'unauthorized',
@@ -82,9 +92,10 @@ export function handleAddIntegration(input: IntegrationRequest) {
     validateMember(member)
     const { integrations, request, params } = input
     const integration = integrationInputSchema.parse(await parseJson(request))
-    return Response.json(await integrations.add(params.project, integration), {
-      status: 201,
-    })
+    return Response.json(
+      await integrations.add(params.project, integration, member.email),
+      { status: 201 },
+    )
   })
 }
 
@@ -93,9 +104,13 @@ export function handleChangeIntegration(input: IntegrationRequest) {
     validateMember(member)
     const { integrations, request, params } = input
     const id = parseIntegrationId(params)
-    const { state } = integrationChangeSchema.parse(await parseJson(request))
+    const change = integrationChangeSchema.parse(await parseJson(request))
+    if ('key' in change)
+      return Response.json(
+        await integrations.setKey(params.project, id, change.key),
+      )
     return Response.json(
-      state === 'paused'
+      change.state === 'paused'
         ? await integrations.pause(params.project, id)
         : await integrations.start(params.project, id),
     )

@@ -32,7 +32,7 @@ export const fakeGithubTool: IntegrationTool = {
 export const createFakeIntegrations = (db: ConceptDb) =>
   createIntegrationOperations({
     db,
-    secret: 'secret-of-the-server',
+    secret: 'secret-of-the-server-0123456789ab',
     tools: { github: fakeGithubTool },
     now: () => new Date('2026-10-10T08:00:00.000Z'),
   })

@@ -15,9 +15,10 @@ const signedIn = getRouteApi('/_signed-in')
 
 // Each screen of a Project is below this route. It reads the tree of the
 // Concepts for the left panel, the Parts for the titles of the trail, of
-// the pins and of the record ids in a text, the Parts, the Asks and the open
-// questions of Mine, the count of the new flags, the Parts that the person
-// watches, the readings of Use and the people of the Project.
+// the pins and of the record ids in a text, the Parts, the Asks, the open
+// questions and the failed Integrations of Mine, the count of the new flags,
+// the Parts that the person watches, the readings of Use and the people of
+// the Project.
 export const Route = createFileRoute('/_signed-in/$project')({
   validateSearch: parseProjectSearch,
   loader: async ({ context, params }) => {
@@ -31,6 +32,7 @@ export const Route = createFileRoute('/_signed-in/$project')({
       measured,
       people,
       questions,
+      failedIntegrations,
     ] = await Promise.all([
       context.fetchProject(params.project),
       context.fetchParts(params.project),
@@ -41,6 +43,7 @@ export const Route = createFileRoute('/_signed-in/$project')({
       context.fetchMeasured(params.project),
       context.fetchPeople(params.project),
       context.fetchMineContractQuestions(params.project),
+      context.fetchMineIntegrations(params.project),
     ])
     if (!project) throw notFound()
     return {
@@ -53,6 +56,7 @@ export const Route = createFileRoute('/_signed-in/$project')({
       measured,
       people,
       questions,
+      failedIntegrations,
     }
   },
   head: ({ match, params, loaderData }) => ({

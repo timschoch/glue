@@ -46,6 +46,7 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
     ),
     fetchSignalFilters: vi.fn(() => Promise.resolve([])),
     fetchIntegrations: vi.fn(() => Promise.resolve([])),
+    fetchMineIntegrations: vi.fn(() => Promise.resolve([])),
     fetchBuilds: vi.fn(() => Promise.resolve({ builds: [], reason: null })),
     fetchPeople: vi.fn(() => Promise.resolve(people)),
     fetchMineAsks: vi.fn(() => Promise.resolve([])),
@@ -73,6 +74,9 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
       Promise.resolve({ id: integrationId }),
     ),
     startIntegration: vi.fn(({ integrationId }) =>
+      Promise.resolve({ id: integrationId }),
+    ),
+    setIntegrationKey: vi.fn(({ integrationId }) =>
       Promise.resolve({ id: integrationId }),
     ),
     removeIntegration: vi.fn(() => Promise.resolve(undefined)),

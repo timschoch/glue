@@ -45,7 +45,9 @@ export type GithubClient = {
 }
 
 const API_URL = 'https://api.github.com'
+const FORBIDDEN = 403
 const NOT_FOUND = 404
+const TOO_MANY_REQUESTS = 429
 // A new label takes the colour GitHub shows for ready work.
 const LABEL_COLOR = '0e8a16'
 // The most issues, pull requests or checks that GitHub gives in one answer.
@@ -100,13 +102,26 @@ function toPullRequests(listed: ListedPullRequest[]): PullRequest[] {
 }
 
 // GitHub refused a request. `status` is the status of its answer.
+// `isRateLimited`: the token asked too often, and a later request works.
 export class GithubError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly isRateLimited = false,
   ) {
     super(message)
   }
+}
+
+// GitHub answers a rate limit with 429, or with 403 and one of these
+// headers: no request is left, or the time to wait.
+function isRateLimit({ status, headers }: Response) {
+  return (
+    status === TOO_MANY_REQUESTS ||
+    (status === FORBIDDEN &&
+      (headers.get('x-ratelimit-remaining') === '0' ||
+        headers.has('retry-after')))
+  )
 }
 
 // `getToken` gives the token of each request. With none, it is the token of
@@ -133,6 +148,7 @@ export function createGithubClient(
     throw new GithubError(
       `GitHub ${action}: ${response.status} ${detail}`,
       response.status,
+      isRateLimit(response),
     )
   }
 

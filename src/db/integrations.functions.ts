@@ -12,6 +12,7 @@ import {
   createIntegrationActions,
   integrationAddInputSchema,
   integrationChangeInputSchema,
+  integrationKeyInputSchema,
   integrationsInputSchema,
 } from './integration-actions.ts'
 
@@ -27,6 +28,14 @@ const actions = createIntegrationActions({
 export const fetchIntegrations = createServerFn({ method: 'GET' })
   .validator(integrationsInputSchema)
   .handler(({ data }) => actions.listIntegrations(data))
+
+export const fetchMineIntegrations = createServerFn({ method: 'GET' })
+  .validator(integrationsInputSchema)
+  .handler(({ data }) => actions.listMineIntegrations(data))
+
+export const submitSetIntegrationKey = createServerFn({ method: 'POST' })
+  .validator(integrationKeyInputSchema)
+  .handler(({ data }) => actions.setIntegrationKey(data))
 
 export const submitAddIntegration = createServerFn({ method: 'POST' })
   .validator(integrationAddInputSchema)

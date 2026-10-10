@@ -29,7 +29,10 @@ import { findConceptFlow, findSignalsFlow } from './common-flow.ts'
 import { ContractQuestionsSection } from './contract-questions-section.tsx'
 import type { NextStep } from './common-flow.ts'
 import { ContractSection, useVersionHref } from './contract-screen.tsx'
-import { IntegrationsScreen } from './integrations-screen.tsx'
+import {
+  FailedIntegrationsSection,
+  IntegrationsScreen,
+} from './integrations-screen.tsx'
 import { KindFormScreen } from './kind-form-screen.tsx'
 import { LinkedBuilds } from './linked-builds.tsx'
 import { MapPanelScreen, MapScreen } from './map-screen.tsx'
@@ -104,6 +107,7 @@ export function ConceptScreen({
     watched,
     measured,
     questions: mineQuestions,
+    failedIntegrations,
   } = projectRoute.useLoaderData()
   const {
     updateConcept,
@@ -445,8 +449,16 @@ export function ConceptScreen({
         }))}
         onOpen={({ href }, event) => open(href, event)}
       >
-        {mineQuestions.length > 0 && (
-          <ContractQuestionsSection questions={mineQuestions} />
+        {/* One child or none: with none, Mine says that it is empty. */}
+        {mineQuestions.length + failedIntegrations.length > 0 && (
+          <>
+            {mineQuestions.length > 0 && (
+              <ContractQuestionsSection questions={mineQuestions} />
+            )}
+            {failedIntegrations.length > 0 && (
+              <FailedIntegrationsSection integrations={failedIntegrations} />
+            )}
+          </>
         )}
       </PartCards>
     )

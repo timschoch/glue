@@ -1,0 +1,3 @@
+ALTER TABLE "integrations" ADD COLUMN "failed_read_count" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "integrations" ADD COLUMN "responsible_member_id" integer;--> statement-breakpoint
+ALTER TABLE "integrations" ADD CONSTRAINT "integrations_responsible_member_id_members_id_fk" FOREIGN KEY ("responsible_member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;

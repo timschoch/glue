@@ -88,6 +88,24 @@ describe('listIssues', () => {
     ).rejects.toMatchObject({ status: 401 })
   })
 
+  it.each([
+    [429, {}, true],
+    [403, { 'x-ratelimit-remaining': '0' }, true],
+    [403, { 'retry-after': '60' }, true],
+    [403, { 'x-ratelimit-remaining': '4999' }, false],
+  ])(
+    'tells a rate limit from a refusal: %i with %o',
+    async (status, headers, isRateLimited) => {
+      vi.stubGlobal('fetch', async () =>
+        Response.json({ message: 'refused' }, { status, headers }),
+      )
+
+      await expect(
+        createGithubClient().listIssues('timschoch/glue', 'user-feedback'),
+      ).rejects.toMatchObject({ status, isRateLimited })
+    },
+  )
+
   it('asks with the token of the server, or with the token it was made with', async () => {
     const sent: unknown[] = []
     vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {

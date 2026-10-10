@@ -14,10 +14,15 @@ const issue = {
 }
 
 // GitHub that answers each read with this status.
-const createRefusingGithub = (status: number): GithubClient => ({
+const createRefusingGithub = (
+  status: number,
+  isRateLimited = false,
+): GithubClient => ({
   ...createFakeGithub().github,
   listIssues: () =>
-    Promise.reject(new GithubError(`GitHub list issues: ${status}`, status)),
+    Promise.reject(
+      new GithubError(`GitHub list issues: ${status}`, status, isRateLimited),
+    ),
 })
 
 describe('createGithubTool', () => {
@@ -62,6 +67,20 @@ describe('createGithubTool', () => {
 
       await expect(refused).rejects.toThrow(IntegrationReadError)
       await expect(refused).rejects.toMatchObject({ message, place })
+    },
+  )
+
+  it.each([403, 429])(
+    'says that GitHub limits the reads when it answers %i for a rate limit, and names no place to change',
+    async (status) => {
+      const tool = createGithubTool(() => createRefusingGithub(status, true))
+
+      const failed = tool.listSignals('acme/shop', 'key-of-the-team')
+
+      await expect(failed).rejects.toThrow(
+        'GitHub limits the reads with this key for now',
+      )
+      await expect(failed).rejects.not.toThrow(IntegrationReadError)
     },
   )
 
