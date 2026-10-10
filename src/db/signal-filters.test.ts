@@ -160,8 +160,8 @@ describe('addSignalFilter', () => {
       field: 'mustNotHold',
     },
     {
-      filter: { name: 'Slow lists', sources: ['github', 'fax'] },
-      reason: '"fax" is no source',
+      filter: { name: 'Slow lists', sources: ['github', 's'.repeat(61)] },
+      reason: 'A source has at most 60 characters',
       field: 'sources',
     },
   ])('refuses a filter: $reason', async ({ filter, reason, field }) => {
@@ -275,6 +275,7 @@ describe('listSignals with a saved filter', () => {
     const found = await listSignals(db, sources, 'glue', { filter: 1 })
 
     expect(found).toEqual({
+      sources: sources.map(({ name }) => ({ name, label: name })),
       failures: [],
       signals: [
         {

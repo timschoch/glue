@@ -5,8 +5,13 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { sourceNames } from '../signals/signal-source-names.ts'
 import type { ConceptDb } from './client.ts'
-import { decryptKey, encryptKey } from './integration-key.ts'
+import {
+  createWebhookSecret as createRandomSecret,
+  decryptKey,
+  encryptKey,
+} from './integration-key.ts'
 import { getProjectId } from './projects.ts'
 import {
   IntegrationNotFoundError,
@@ -16,22 +21,64 @@ import {
 import * as schema from './schema.ts'
 import type { IntegrationState } from './schema.ts'
 import type { SignalSource, SourceSignal } from './signals.ts'
+import { createWebhookOperations } from './webhook-signals.ts'
 
 const { integrations, members } = schema
 
 // The states of an Integration, for the callers outside src/db.
 export const { integrationStates } = schema
 
-// The seam to a tool of a team. An adapter reads the tool at the address
-// with the key of the team. Its name in the list of the tools is the name
-// of the Signal source that its Signals show under.
+// One value that a member gives for the address of a tool.
+export type AddressField = {
+  label: string
+  // The values to pick from. None: the member types the value.
+  options?: ReadonlyArray<{ value: string; label: string }>
+}
+
+type ListSignals = (address: string, key: string) => Promise<SourceSignal[]>
+
+// The seam to a tool of a team (glue/R9). All that differs between two
+// tools is behind it, in the adapter of the tool. Its name in the list of
+// the tools is the name of the Signal source that its Signals show under.
 export type IntegrationTool = {
+  // The name of the tool as a person reads it.
+  label: string
+  // The Signal source that its Signals show under, when that source has
+  // another name than the tool.
+  source?: string
+  // What a member gives for the address. The address is these values in
+  // their order, with "/" between them.
+  addressFields: ReadonlyArray<AddressField>
   // Why the address is none of the tool. Nothing: the address fits.
   findAddressProblem: (address: string) => string | undefined
-  // The Signals at the address. A read that the tool refuses throws an
-  // IntegrationReadError.
-  listSignals: (address: string, key: string) => Promise<SourceSignal[]>
+  // Glue reads the tool: the Signals at the address, with the key that the
+  // member gave. A read that the tool refuses throws an
+  // IntegrationReadError. A tool with no read posts its Signals to Glue:
+  // the member gives no key, Glue makes the secret, and each Integration
+  // of the tool is a Signal source under its address.
+  listSignals?: ListSignals
 }
+
+// A tool that Glue reads.
+export type ReadTool = IntegrationTool & { listSignals: ListSignals }
+
+// What a tool asks of a member. The form, the HTTP API and the CLI take it
+// from the adapter of the tool.
+export type ToolForm = Pick<IntegrationTool, 'label' | 'addressFields'> & {
+  name: string
+  // The member gives the key. If not, Glue makes it.
+  needsKey: boolean
+}
+
+export const toToolForms = (
+  tools: Readonly<Record<string, IntegrationTool>>,
+): ToolForm[] =>
+  Object.entries(tools).map(([name, tool]) => ({
+    name,
+    label: tool.label,
+    addressFields: tool.addressFields,
+    needsKey: tool.listSignals !== undefined,
+  }))
 
 // The tool refused a read, and the reason names what to change: the
 // address or the key.
@@ -64,6 +111,10 @@ export type Integration = {
   } | null
 }
 
+// A new Integration. `secret` is the secret of a tool that posts to Glue:
+// Glue made it, and only this answer holds it.
+export type AddedIntegration = Integration & { secret?: string }
+
 const LAST_CHARACTERS = 4
 // The failed reads in a row that set an Integration to failed. One failed
 // read can be the network or a limit of the tool, and it goes away.
@@ -72,27 +123,30 @@ const MAX_FAILED_READS = 3
 const MIN_KEY_LENGTH = 8
 const MIN_SECRET_LENGTH = 32
 
+// The key of the team for a tool that Glue reads.
+export const integrationKeySchema = z
+  .string({ error: 'An Integration needs a key' })
+  .trim()
+  .min(MIN_KEY_LENGTH, {
+    error: `A key has at least ${MIN_KEY_LENGTH} characters`,
+  })
+
 export const integrationSchema = z.strictObject({
   tool: z.string({ error: 'An Integration needs a tool' }).meta({
-    description: 'The name of the tool: github',
+    description: 'The name of the tool',
   }),
   address: z
     .string({ error: 'An Integration needs an address' })
     .trim()
     .min(1, { error: 'An Integration needs an address' })
     .meta({
-      description: 'Where the tool is. github: a repository, owner/name',
-    }),
-  key: z
-    .string({ error: 'An Integration needs a key' })
-    .trim()
-    .min(MIN_KEY_LENGTH, {
-      error: `A key has at least ${MIN_KEY_LENGTH} characters`,
-    })
-    .meta({
       description:
-        'The secret that reads from the tool. Glue stores it encrypted and gives it back to nobody',
+        'Where the tool is: the values that the tool asks for, with "/" between them',
     }),
+  key: integrationKeySchema.optional().meta({
+    description:
+      'The secret that reads from the tool. Glue stores it encrypted and gives it back to nobody. A tool that posts to Glue takes none: Glue makes its secret',
+  }),
 })
 
 export type NewIntegration = z.input<typeof integrationSchema>
@@ -117,12 +171,12 @@ function parseIntegration(input: NewIntegration) {
 // One read from the tool. A read that fails is an answer for the member:
 // the reason, and the field to change when the tool names one.
 async function readSignals(
-  tool: IntegrationTool,
+  listSignals: ListSignals,
   address: string,
   key: string,
 ) {
   try {
-    return await tool.listSignals(address, key)
+    return await listSignals(address, key)
   } catch (error) {
     throw new InvalidRecordError(
       error instanceof Error ? error.message : String(error),
@@ -163,12 +217,20 @@ export function createIntegrationOperations({
   secret,
   tools,
   now = () => new Date(),
+  createWebhookSecret = createRandomSecret,
 }: {
   db: ConceptDb
   secret: string | undefined
   tools: Readonly<Record<string, IntegrationTool>>
   now?: () => Date
+  createWebhookSecret?: () => string
 }) {
+  const webhooks = createWebhookOperations({
+    db,
+    now,
+    createSecret: createWebhookSecret,
+  })
+
   const listRows = (projectId: number) =>
     db
       .select()
@@ -248,14 +310,14 @@ export function createIntegrationOperations({
   // the failed reads back. The third failed read in a row marks the
   // Integration as failed, so the next read leaves it out (glue/D73). A
   // read that the tool limits shows as the last error and counts as none.
-  async function readActive(rows: Row[], tool: IntegrationTool) {
+  async function readActive(rows: Row[], listSignals: ListSignals) {
     const openSecret = getSecret()
     const signals: SourceSignal[] = []
     for (const row of rows.filter(({ state }) => state === 'active')) {
       const key = decryptKey(openSecret, row.encryptedKey)
       const byId = eq(integrations.id, row.id)
       try {
-        const read = await tool.listSignals(row.address, key)
+        const read = await listSignals(row.address, key)
         await db
           .update(integrations)
           .set({
@@ -298,6 +360,9 @@ export function createIntegrationOperations({
   }
 
   return {
+    // What each tool of the server asks of a member.
+    listTools: () => toToolForms(tools),
+
     // The Integrations of the Project, by tool and address.
     async list(projectSlug: string): Promise<Integration[]> {
       const rows = await listRows(await getProjectId(db, projectSlug))
@@ -328,26 +393,67 @@ export function createIntegrationOperations({
 
     // Reads from the tool one time as a test. Only a read that works saves
     // the Integration. `responsible` is the e-mail address of the member who
-    // adds it: that member is its Responsible.
+    // adds it: that member is its Responsible. A tool that posts to Glue
+    // has no read and no key of the team: Glue makes its secret, and this
+    // answer alone holds it.
     async add(
       projectSlug: string,
       input: NewIntegration,
       responsible?: string,
-    ) {
+    ): Promise<AddedIntegration> {
       const { tool: name, address, key } = parseIntegration(input)
       const tool = getTool(name)
       const problem = tool.findAddressProblem(address)
       if (problem) throw new InvalidRecordError(problem, { field: 'address' })
+      const toNoDuplicate = (error: unknown) => {
+        if (isUniqueViolation(error)) throw toDuplicateError(address)
+        throw error
+      }
+      // The Project and the Responsible of the new Integration. A Project
+      // that has the tool at the address takes no second one for it.
+      const getPlace = async () => {
+        const projectId = await getProjectId(db, projectSlug)
+        const responsibleMemberId =
+          responsible === undefined
+            ? undefined
+            : await getMemberId(projectId, projectSlug, responsible)
+        const rows = await listRows(projectId)
+        if (rows.some((row) => row.tool === name && row.address === address))
+          throw toDuplicateError(address)
+        return { projectId, responsibleMemberId }
+      }
+      if (!tool.listSignals) {
+        // The address is the name of its Signal source: it takes the name
+        // of no other source.
+        const taken = [
+          ...sourceNames,
+          ...Object.entries(tools).flatMap(([other, { source }]) => [
+            other,
+            ...(source ? [source] : []),
+          ]),
+        ]
+        if (taken.includes(address.toLowerCase()))
+          throw new InvalidRecordError(
+            `"${address}" is the name of a Signal source already`,
+            { field: 'address' },
+          )
+        if (key !== undefined)
+          throw new InvalidRecordError(
+            `Glue makes the secret of ${tool.label}`,
+            { field: 'key' },
+          )
+        const { row, secret: made } = await webhooks
+          .add({ ...(await getPlace()), tool: name, address })
+          .catch(toNoDuplicate)
+        return { ...toIntegration(row), secret: made }
+      }
+      if (key === undefined)
+        throw new InvalidRecordError('An Integration needs a key', {
+          field: 'key',
+        })
       const openSecret = getSecret()
-      const projectId = await getProjectId(db, projectSlug)
-      const responsibleMemberId =
-        responsible === undefined
-          ? undefined
-          : await getMemberId(projectId, projectSlug, responsible)
-      const rows = await listRows(projectId)
-      if (rows.some((row) => row.tool === name && row.address === address))
-        throw toDuplicateError(address)
-      const signals = await readSignals(tool, address, key)
+      const { projectId, responsibleMemberId } = await getPlace()
+      const signals = await readSignals(tool.listSignals, address, key)
       // A second add of the address at the same time passed the check
       // above: the unique rule of the table refuses it.
       const [added] = await db
@@ -364,10 +470,7 @@ export function createIntegrationOperations({
           responsibleMemberId,
         })
         .returning()
-        .catch((error: unknown) => {
-          if (isUniqueViolation(error)) throw toDuplicateError(address)
-          throw error
-        })
+        .catch(toNoDuplicate)
       return toIntegration(added)
     },
 
@@ -379,8 +482,11 @@ export function createIntegrationOperations({
     // works makes the Integration active again.
     async start(projectSlug: string, id: number) {
       const row = await getRow(projectSlug, id)
+      const { listSignals } = getTool(row.tool)
+      // A tool that posts to Glue has no read: Glue takes its posts again.
+      if (!listSignals) return update(projectSlug, id, { state: 'active' })
       const key = decryptKey(getSecret(), row.encryptedKey)
-      const signals = await readSignals(getTool(row.tool), row.address, key)
+      const signals = await readSignals(listSignals, row.address, key)
       return update(projectSlug, id, {
         state: 'active',
         lastReadAt: now(),
@@ -394,7 +500,7 @@ export function createIntegrationOperations({
     // it: only a read that works saves it, in the place of the old key, and
     // makes a failed Integration active. A paused one stays paused.
     async setKey(projectSlug: string, id: number, input: string) {
-      const parsed = integrationSchema.shape.key.safeParse(input)
+      const parsed = integrationKeySchema.safeParse(input)
       if (!parsed.success)
         throw new InvalidRecordError(parsed.error.issues[0].message, {
           field: 'key',
@@ -402,7 +508,12 @@ export function createIntegrationOperations({
       const key = parsed.data
       const openSecret = getSecret()
       const row = await getRow(projectSlug, id)
-      const signals = await readSignals(getTool(row.tool), row.address, key)
+      const tool = getTool(row.tool)
+      if (!tool.listSignals)
+        throw new InvalidRecordError(`Glue makes the secret of ${tool.label}`, {
+          field: 'key',
+        })
+      const signals = await readSignals(tool.listSignals, row.address, key)
       return update(projectSlug, id, {
         encryptedKey: encryptKey(openSecret, key),
         keyLastFour: key.slice(-LAST_CHARACTERS),
@@ -427,40 +538,55 @@ export function createIntegrationOperations({
     // The Signal sources as the Project reads them. A source with the name
     // of a tool reads the active Integrations of that tool with their keys.
     // A Project with no Integration of the tool keeps the source as it is.
-    // A tool with no source of the server gets its own source, so a new
-    // tool needs no entry in the sources.
-    toSources(
+    // A tool that Glue reads and that has no source of the server gets its
+    // own source, under its name and with its label, so a new tool needs no
+    // entry in the sources. Each Integration of a tool that posts to Glue
+    // is one more source, under its address.
+    async toSources(
       projectSlug: string,
       sources: ReadonlyArray<SignalSource>,
-    ): ReadonlyArray<SignalSource> {
+    ): Promise<ReadonlyArray<SignalSource>> {
+      const projectId = await getProjectId(db, projectSlug)
+      const reading = Object.entries(tools).flatMap(
+        ([name, { label, source = name, listSignals }]) =>
+          listSignals ? [{ name, label, source, listSignals }] : [],
+      )
       const toToolSource = (
-        name: string,
+        tool: (typeof reading)[number],
         serverSource?: SignalSource,
       ): SignalSource => ({
-        name,
+        name: tool.source,
+        label: serverSource ? serverSource.label : tool.label,
         async listSignals(project) {
-          const projectId = await getProjectId(db, projectSlug)
           const rows = (await listRows(projectId)).filter(
-            (row) => row.tool === name,
+            (row) => row.tool === tool.name,
           )
           if (rows.length === 0)
             return serverSource ? serverSource.listSignals(project) : []
-          return readActive(rows, tools[name])
+          return readActive(rows, tool.listSignals)
         },
       })
-      const sourceNames = new Set(sources.map(({ name }) => name))
+      const serverNames = new Set(sources.map(({ name }) => name))
+      const posting = (await listRows(projectId)).filter(
+        (row) => Object.hasOwn(tools, row.tool) && !tools[row.tool].listSignals,
+      )
 
       return [
-        ...sources.map((source) =>
-          Object.hasOwn(tools, source.name)
-            ? toToolSource(source.name, source)
-            : source,
-        ),
-        ...Object.keys(tools)
-          .filter((name) => !sourceNames.has(name))
-          .map((name) => toToolSource(name)),
+        ...sources.map((source) => {
+          const tool = reading.find((read) => read.source === source.name)
+          return tool ? toToolSource(tool, source) : source
+        }),
+        ...reading
+          .filter((tool) => !serverNames.has(tool.source))
+          .map((tool) => toToolSource(tool)),
+        ...webhooks.toSources(posting),
       ]
     },
+
+    // Stores the Signals that a tool posts to the Project. `secret` names
+    // the Integration: a post with another one throws a WebhookSecretError
+    // and stores nothing. A paused Integration stores nothing.
+    addWebhookSignals: webhooks.addSignals,
   }
 }
 

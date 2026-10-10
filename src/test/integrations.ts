@@ -8,9 +8,14 @@ import type { IntegrationTool } from '../db/integrations.ts'
 // No real key: the fake tool takes this one only.
 export const TEAM_KEY = 'key-of-the-team-1234'
 
+// No real secret: the fake Integrations give this one to each new webhook.
+export const WEBHOOK_SECRET = 'secret-of-the-webhook-abcd'
+
 // GitHub as an Integration tool, with no request. It has one Signal, and it
 // refuses each key that is not TEAM_KEY.
 export const fakeGithubTool: IntegrationTool = {
+  label: 'GitHub',
+  addressFields: [{ label: 'Repository' }],
   findAddressProblem: (address) =>
     address.includes('/') ? undefined : 'A repository is owner/name',
   listSignals: async (address, key) => {
@@ -27,12 +32,20 @@ export const fakeGithubTool: IntegrationTool = {
   },
 }
 
-// The Integrations with the fake tool, a test secret and a clock that
-// stands still.
+// A webhook as an Integration tool: it has no read, so it posts to Glue.
+export const fakeWebhookTool: IntegrationTool = {
+  label: 'Webhook',
+  addressFields: [{ label: 'Name' }],
+  findAddressProblem: () => undefined,
+}
+
+// The Integrations with the fake tools, a test secret, a clock that stands
+// still and one secret for each new webhook.
 export const createFakeIntegrations = (db: ConceptDb) =>
   createIntegrationOperations({
     db,
     secret: 'secret-of-the-server-0123456789ab',
-    tools: { github: fakeGithubTool },
+    tools: { github: fakeGithubTool, webhook: fakeWebhookTool },
     now: () => new Date('2026-10-10T08:00:00.000Z'),
+    createWebhookSecret: () => WEBHOOK_SECRET,
   })

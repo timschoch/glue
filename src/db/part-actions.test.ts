@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Session } from '../authentication/session.ts'
 import type { GithubClient } from '../github/client.ts'
 import { createFakeGithub, failingGithub } from '../test/github.ts'
+import { shownSources } from '../test/signal-sources.ts'
 import { addAsk, pickAsk } from './asks.ts'
 import { addProjectReference, setProductRepository } from './projects.ts'
 import {
@@ -278,6 +279,7 @@ describe('a server function of the Part model with a session', () => {
       issueMissing: false,
     })
     expect(await actions.listSignals({ project })).toEqual({
+      sources: shownSources,
       failures: [],
       signals: [
         {

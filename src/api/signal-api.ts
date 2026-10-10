@@ -29,8 +29,7 @@ export const projectSignalsSchema = z
         }),
         date: z.iso.date().meta({ description: 'The day it came in' }),
         source: z.string().meta({
-          description:
-            'The source: github, support, analytics, social or market',
+          description: 'The name of its source: one of `sources`',
         }),
         insight: z
           .object({ id: z.string(), title: z.string() })
@@ -38,6 +37,10 @@ export const projectSignalsSchema = z
           .meta({ description: 'The Insight that grew from the Signal' }),
       }),
     ),
+    sources: z.array(z.object({ name: z.string(), label: z.string() })).meta({
+      description:
+        'Each Signal source of the Project: its name, and the name that a person reads',
+    }),
     failures: z
       .array(z.object({ source: z.string(), reason: z.string() }))
       .meta({ description: 'The sources that did not answer, and why' }),
@@ -78,7 +81,7 @@ export function handleListSignals(input: ChangeRequest) {
     return Response.json(
       await listSignals(
         input.db,
-        createSignalSources(input.github, input.db, input.params.project),
+        await createSignalSources(input.github, input.db, input.params.project),
         input.params.project,
         { source, filter },
       ),

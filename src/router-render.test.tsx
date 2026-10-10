@@ -36,7 +36,8 @@ import {
   people,
 } from './test/project.ts'
 import './test/render.tsx'
-import { createMemoryServer } from './test/server.ts'
+import { createMemoryServer, toolForms } from './test/server.ts'
+import { shownSources } from './test/signal-sources.ts'
 
 // jsdom has no layout, Carbon's dropdown scrolls to the highlighted item.
 Element.prototype.scrollIntoView = () => {}
@@ -85,7 +86,12 @@ const signedOut = () => ({
 async function renderPage(path: string, changed: Partial<Server> = {}) {
   const server = createMemoryServer({
     fetchSignals: vi.fn(() =>
-      Promise.resolve({ signals, failures: [], groups: [] }),
+      Promise.resolve({
+        signals,
+        sources: shownSources,
+        failures: [],
+        groups: [],
+      }),
     ),
     ...changed,
   })
@@ -532,6 +538,7 @@ describe('a section', () => {
         fetchSignals: vi.fn(() =>
           Promise.resolve({
             signals: [signals[0], again, signals[1]],
+            sources: shownSources,
             failures: [],
             groups: [
               {
@@ -576,6 +583,7 @@ describe('a section', () => {
       fetchSignals: vi.fn(() =>
         Promise.resolve({
           signals: [signals[0], again, signals[1]],
+          sources: shownSources,
           failures: [],
           groups: [
             {
@@ -618,6 +626,7 @@ describe('a section', () => {
       fetchSignals: vi.fn(() =>
         Promise.resolve({
           signals: [signals[0], again, ...lost, signals[1]],
+          sources: shownSources,
           failures: [],
           groups: [
             {
@@ -736,7 +745,9 @@ describe('a section', () => {
   // The Integrations of Glue, opened from its Signals.
   async function renderIntegrations(changed: Partial<Server> = {}) {
     const page = await renderPage('/glue?section=Understand', {
-      fetchIntegrations: vi.fn(() => Promise.resolve([shop, web])),
+      fetchIntegrations: vi.fn(() =>
+        Promise.resolve({ tools: toolForms, integrations: [shop, web] }),
+      ),
       ...changed,
     })
     await userEvent.click(button('Integrations'))
@@ -744,7 +755,7 @@ describe('a section', () => {
   }
 
   const typeIntegration = async () => {
-    await userEvent.type(screen.getByLabelText('Address'), 'acme/app')
+    await userEvent.type(screen.getByLabelText('Repository'), 'acme/app')
     await userEvent.type(screen.getByLabelText('Key'), 'key-of-the-team')
     await userEvent.click(button('Add integration'))
   }
@@ -774,7 +785,7 @@ describe('a section', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('Key')).toHaveProperty('value', ''),
     )
-    expect(screen.getByLabelText('Address')).toHaveProperty('value', '')
+    expect(screen.getByLabelText('Repository')).toHaveProperty('value', '')
     expect(vi.mocked(server.addIntegration).mock.calls).toEqual([
       [
         {
@@ -805,7 +816,43 @@ describe('a section', () => {
     expect(screen.getByLabelText('Key').getAttribute('aria-invalid')).toBe(
       'true',
     )
-    expect(screen.getByLabelText('Address')).toHaveProperty('value', 'acme/app')
+    expect(screen.getByLabelText('Repository')).toHaveProperty(
+      'value',
+      'acme/app',
+    )
+  })
+
+  it('adds a webhook, and shows its URL and its secret', async () => {
+    const { server } = await renderIntegrations({
+      addIntegration: vi.fn(() =>
+        Promise.resolve({ id: 3, secret: 'secret-of-the-webhook-abcd' }),
+      ),
+    })
+
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Tool' }),
+      'Webhook',
+    )
+    await userEvent.type(screen.getByLabelText('Name'), 'Helpdesk')
+    await userEvent.click(button('Add integration'))
+
+    const group = within(
+      await screen.findByRole('group', { name: 'Webhook Helpdesk' }),
+    )
+    expect(group.getByRole('textbox', { name: 'Secret' }).textContent).toBe(
+      'secret-of-the-webhook-abcd',
+    )
+    expect(group.getByRole('textbox', { name: 'URL' }).textContent).toBe(
+      'http://localhost:3000/api/v1/projects/glue/webhook',
+    )
+    expect(vi.mocked(server.addIntegration).mock.calls).toEqual([
+      [
+        {
+          project: 'glue',
+          integration: { tool: 'webhook', address: 'Helpdesk' },
+        },
+      ],
+    ])
   })
 
   it('pauses, starts and removes an Integration of the Project', async () => {
@@ -933,17 +980,20 @@ describe('a section', () => {
   it('shows in Mine the failed Integrations that the person is Responsible for, and starts one there', async () => {
     const { server } = await renderPage('/glue?section=Mine', {
       fetchMineIntegrations: vi.fn(() =>
-        Promise.resolve([
-          {
-            ...web,
-            state: 'failed' as const,
-            lastRead: {
-              at: '2026-10-10T07:05:00.000Z',
-              signalCount: null,
-              error: 'GitHub refused the key',
+        Promise.resolve({
+          tools: toolForms,
+          integrations: [
+            {
+              ...web,
+              state: 'failed' as const,
+              lastRead: {
+                at: '2026-10-10T07:05:00.000Z',
+                signalCount: null,
+                error: 'GitHub refused the key',
+              },
             },
-          },
-        ]),
+          ],
+        }),
       ),
     })
     const mine = within(screen.getByRole('region', { name: 'Integrations' }))
@@ -992,6 +1042,7 @@ describe('a section', () => {
       fetchSignals: vi.fn(() =>
         Promise.resolve({
           signals: [signals[0], again, phone, signals[1]],
+          sources: shownSources,
           failures: [],
           groups: [
             {
@@ -2698,6 +2749,7 @@ describe('the common flow of a record', () => {
             date: '2026-10-01',
             insight: { id: 'I3', title: I3 },
           })),
+          sources: shownSources,
           failures: [],
           groups: [],
         }),

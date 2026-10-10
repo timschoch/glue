@@ -58,6 +58,14 @@ export class IntegrationNotFoundError extends InvalidRecordError {
   }
 }
 
+// The secret of a post is the secret of no webhook of the Project. The HTTP
+// API answers it with 401.
+export class WebhookSecretError extends Error {
+  constructor() {
+    super('send the secret of the webhook as "Authorization: Bearer <secret>"')
+  }
+}
+
 // The Joint of the request does not exist. The HTTP API answers it with 404.
 export class JointNotFoundError extends InvalidRecordError {
   constructor(jointId: number) {

@@ -17,10 +17,11 @@ const projectRoute = getRouteApi('/_signed-in/$project')
 // Project, or changes or deletes the saved filter. After the write the
 // screen shows the Signals again.
 export function SignalFilterFormScreen({
+  sources,
   filter,
   filters,
   onClose,
-}: {
+}: Pick<SignalFilterFormProps, 'sources'> & {
   // The saved filter that the form changes. None: the form adds a filter.
   filter?: SignalFilter
   // The saved filters of the Project: a name is free or taken.
@@ -41,6 +42,7 @@ export function SignalFilterFormScreen({
 
   return (
     <SignalFilterForm
+      sources={sources}
       filter={filter}
       errors={failedField ? { [failedField]: failure } : errors}
       serverError={failedField ? undefined : failure}

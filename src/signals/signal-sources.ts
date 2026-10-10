@@ -18,13 +18,20 @@ export type SourceTools = {
   social: MockTool
 }
 
-// The Signal sources of Glue, each adapter under its name. A new tool is
-// one more name in signal-source-names.ts and one more adapter in this
-// list: the screen takes the names alone.
+// The Signal sources that Glue has with no Integration, each adapter under
+// its name and with the name that a person reads. A tool of a team is no
+// entry here: it is an Integration tool (integration-tools.ts) and gets its
+// source from there.
 export const signalSources = {
-  github: ({ github }) => createGithubSource(github),
-  support: () => createSupportSource(),
-  analytics: ({ analytics }) => createAnalyticsSource(analytics),
-  social: ({ social }) => createSocialSource(social),
-  market: () => createMarketSource(),
+  github: ({ github }) => ({
+    ...createGithubSource(github),
+    label: 'GitHub',
+  }),
+  support: () => ({ ...createSupportSource(), label: 'Support' }),
+  analytics: ({ analytics }) => ({
+    ...createAnalyticsSource(analytics),
+    label: 'Analytics',
+  }),
+  social: ({ social }) => ({ ...createSocialSource(social), label: 'Social' }),
+  market: () => ({ ...createMarketSource(), label: 'Market' }),
 } satisfies Record<SourceName, (tools: SourceTools) => SignalSource>

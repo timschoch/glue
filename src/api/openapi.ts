@@ -3,6 +3,8 @@
 import { z } from 'zod'
 import { createDocument } from 'zod-openapi'
 
+import { toToolForms } from '../db/integrations.ts'
+import { integrationTools } from '../signals/integration-tools.ts'
 import { errorSchema } from './api-request.ts'
 import {
   addedAskSchema,
@@ -62,6 +64,7 @@ import {
   savedIntegrationSchema,
 } from './integration-api.ts'
 import { projectSignalsSchema, signalInsightInputSchema } from './signal-api.ts'
+import { webhookAnswerSchema, webhookPostInputSchema } from './webhook-api.ts'
 import {
   savedSignalFilterSchema,
   signalFilterInputSchema,
@@ -93,6 +96,21 @@ const errorResponses = {
     ...jsonContent(errorSchema),
   },
 }
+
+// What each tool asks for, from the list of the tools.
+const toolTexts = toToolForms(integrationTools)
+  .map(({ name, addressFields, needsKey }) => {
+    const address = addressFields
+      .map(({ label, options }) =>
+        options
+          ? `${label} ${options.map(({ value }) => value).join(' or ')}`
+          : label,
+      )
+      .join(' / ')
+    const key = needsKey ? 'with a key' : 'no key, Glue makes the secret'
+    return `${name} (address: ${address}; ${key})`
+  })
+  .join(', ')
 
 const readErrorResponses = {
   401: errorResponses[401],
@@ -573,7 +591,7 @@ function listPartPaths() {
       get: {
         operationId: 'listIntegrations',
         summary:
-          'List the Integrations of the Project: the tools of the team that Glue reads Signals from',
+          'List the Integrations of the Project: the tools of the team that Glue reads Signals from. Needs a token of this Project',
         requestParams: { path },
         responses: {
           200: {
@@ -588,11 +606,13 @@ function listPartPaths() {
         operationId: 'addIntegration',
         summary:
           'Add an Integration. Glue reads from the tool one time, and saves only when the read works. Needs the token of a member',
+        description: `The tools: ${toolTexts}`,
         requestParams: { path },
         requestBody: jsonContent(integrationInputSchema),
         responses: {
           201: {
-            description: 'The saved Integration',
+            description:
+              'The saved Integration. For a tool that posts to Glue, with its secret',
             ...jsonContent(savedIntegrationSchema),
           },
           400: errorResponses[400],
@@ -624,6 +644,31 @@ function listPartPaths() {
         responses: {
           204: { description: 'The Integration and its key are gone' },
           ...readErrorResponses,
+        },
+      },
+    },
+    [`${root}/webhook`]: {
+      post: {
+        operationId: 'postWebhookSignals',
+        summary:
+          'Post Signals from a tool of the team. Needs the secret of a webhook of the Project, not a token. A paused webhook stores nothing',
+        security: [{ webhookSecret: [] }],
+        requestParams: { path },
+        requestBody: jsonContent(webhookPostInputSchema),
+        responses: {
+          201: {
+            description: 'The count of the stored Signals',
+            ...jsonContent(webhookAnswerSchema),
+          },
+          400: errorResponses[400],
+          401: {
+            description: 'No secret of a webhook of the Project',
+            ...jsonContent(errorSchema),
+          },
+          413: {
+            description: 'The post is too big',
+            ...jsonContent(errorSchema),
+          },
         },
       },
     },
@@ -921,6 +966,12 @@ const openApiDocument = createDocument({
         scheme: 'bearer',
         description:
           'A token belongs to one member of its Project: a person or an agent. Each write of a Part with the token is a write of that member. The member owns the Parts that it adds, the activity names the member, and only the owner of a Part answers its flag. A token with no member writes as nobody',
+      },
+      webhookSecret: {
+        type: 'http',
+        scheme: 'bearer',
+        description:
+          'The secret of a webhook of the Project. Glue gives it one time, in the answer to the add of the webhook',
       },
     },
   },

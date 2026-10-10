@@ -4,12 +4,14 @@ import {
   IntegrationLimitError,
   IntegrationReadError,
 } from '../db/integrations.ts'
-import type { IntegrationTool } from '../db/integrations.ts'
-import { GithubError } from '../github/client.ts'
+import type { ReadTool } from '../db/integrations.ts'
+import { GithubError, createGithubClient } from '../github/client.ts'
 import type { GithubClient } from '../github/client.ts'
 import { listGithubSignals } from './github-source.ts'
 
-const REPOSITORY = /^[\w.-]+\/[\w.-]+$/
+// A part with dots only is a step in a path, not a name: "../.." would
+// read another address of GitHub.
+const REPOSITORY = /^(?!\.+\/)[\w.-]+\/(?!\.+$)[\w.-]+$/
 
 const UNAUTHORIZED = 401
 const FORBIDDEN = 403
@@ -38,11 +40,15 @@ function toReadError(error: unknown, repository: string) {
   return error
 }
 
-// `createClient` gives GitHub with the key of the team as its token.
+// `createClient` gives GitHub with the key of the team as its token. A test
+// gives a fake one.
 export function createGithubTool(
-  createClient: (key: string) => GithubClient,
-): IntegrationTool {
+  createClient: (key: string) => GithubClient = (key) =>
+    createGithubClient(() => key),
+): ReadTool {
   return {
+    label: 'GitHub',
+    addressFields: [{ label: 'Repository' }],
     findAddressProblem: (address) =>
       REPOSITORY.test(address)
         ? undefined

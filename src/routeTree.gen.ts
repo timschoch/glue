@@ -40,6 +40,7 @@ import { Route as ApiV1ProjectsProjectQuestionsRouteImport } from './routes/api/
 import { Route as ApiV1ProjectsProjectSignalFiltersRouteImport } from './routes/api/v1.projects.$project.signal-filters'
 import { Route as ApiV1ProjectsProjectSignalsRouteImport } from './routes/api/v1.projects.$project.signals'
 import { Route as ApiV1ProjectsProjectWatchersRouteImport } from './routes/api/v1.projects.$project.watchers'
+import { Route as ApiV1ProjectsProjectWebhookRouteImport } from './routes/api/v1.projects.$project.webhook'
 import { Route as ApiV1ProjectsProjectAsksAskIdRouteImport } from './routes/api/v1.projects.$project.asks.$askId'
 import { Route as ApiV1ProjectsProjectConceptsConceptRouteImport } from './routes/api/v1.projects.$project.concepts.$concept'
 import { Route as ApiV1ProjectsProjectIntegrationsIntegrationIdRouteImport } from './routes/api/v1.projects.$project.integrations.$integrationId'
@@ -229,6 +230,12 @@ const ApiV1ProjectsProjectWatchersRoute =
     path: '/api/v1/projects/$project/watchers',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1ProjectsProjectWebhookRoute =
+  ApiV1ProjectsProjectWebhookRouteImport.update({
+    id: '/api/v1/projects/$project/webhook',
+    path: '/api/v1/projects/$project/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1ProjectsProjectAsksAskIdRoute =
   ApiV1ProjectsProjectAsksAskIdRouteImport.update({
     id: '/$askId',
@@ -338,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/projects/$project/signal-filters': typeof ApiV1ProjectsProjectSignalFiltersRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   '/api/v1/projects/$project/watchers': typeof ApiV1ProjectsProjectWatchersRoute
+  '/api/v1/projects/$project/webhook': typeof ApiV1ProjectsProjectWebhookRoute
   '/api/v1/projects/$project/': typeof ApiV1ProjectsProjectIndexRoute
   '/api/v1/projects/$project/asks/$askId': typeof ApiV1ProjectsProjectAsksAskIdRoute
   '/api/v1/projects/$project/concepts/$concept': typeof ApiV1ProjectsProjectConceptsConceptRouteWithChildren
@@ -382,6 +390,7 @@ export interface FileRoutesByTo {
   '/api/v1/projects/$project/signal-filters': typeof ApiV1ProjectsProjectSignalFiltersRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   '/api/v1/projects/$project/watchers': typeof ApiV1ProjectsProjectWatchersRoute
+  '/api/v1/projects/$project/webhook': typeof ApiV1ProjectsProjectWebhookRoute
   '/api/v1/projects/$project': typeof ApiV1ProjectsProjectIndexRoute
   '/api/v1/projects/$project/asks/$askId': typeof ApiV1ProjectsProjectAsksAskIdRoute
   '/api/v1/projects/$project/concepts/$concept': typeof ApiV1ProjectsProjectConceptsConceptRouteWithChildren
@@ -429,6 +438,7 @@ export interface FileRoutesById {
   '/api/v1/projects/$project/signal-filters': typeof ApiV1ProjectsProjectSignalFiltersRouteWithChildren
   '/api/v1/projects/$project/signals': typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   '/api/v1/projects/$project/watchers': typeof ApiV1ProjectsProjectWatchersRoute
+  '/api/v1/projects/$project/webhook': typeof ApiV1ProjectsProjectWebhookRoute
   '/api/v1/projects/$project/': typeof ApiV1ProjectsProjectIndexRoute
   '/api/v1/projects/$project/asks/$askId': typeof ApiV1ProjectsProjectAsksAskIdRoute
   '/api/v1/projects/$project/concepts/$concept': typeof ApiV1ProjectsProjectConceptsConceptRouteWithChildren
@@ -476,6 +486,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/signal-filters'
     | '/api/v1/projects/$project/signals'
     | '/api/v1/projects/$project/watchers'
+    | '/api/v1/projects/$project/webhook'
     | '/api/v1/projects/$project/'
     | '/api/v1/projects/$project/asks/$askId'
     | '/api/v1/projects/$project/concepts/$concept'
@@ -520,6 +531,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/signal-filters'
     | '/api/v1/projects/$project/signals'
     | '/api/v1/projects/$project/watchers'
+    | '/api/v1/projects/$project/webhook'
     | '/api/v1/projects/$project'
     | '/api/v1/projects/$project/asks/$askId'
     | '/api/v1/projects/$project/concepts/$concept'
@@ -566,6 +578,7 @@ export interface FileRouteTypes {
     | '/api/v1/projects/$project/signal-filters'
     | '/api/v1/projects/$project/signals'
     | '/api/v1/projects/$project/watchers'
+    | '/api/v1/projects/$project/webhook'
     | '/api/v1/projects/$project/'
     | '/api/v1/projects/$project/asks/$askId'
     | '/api/v1/projects/$project/concepts/$concept'
@@ -606,6 +619,7 @@ export interface RootRouteChildren {
   ApiV1ProjectsProjectSignalFiltersRoute: typeof ApiV1ProjectsProjectSignalFiltersRouteWithChildren
   ApiV1ProjectsProjectSignalsRoute: typeof ApiV1ProjectsProjectSignalsRouteWithChildren
   ApiV1ProjectsProjectWatchersRoute: typeof ApiV1ProjectsProjectWatchersRoute
+  ApiV1ProjectsProjectWebhookRoute: typeof ApiV1ProjectsProjectWebhookRoute
   ApiV1ProjectsProjectIndexRoute: typeof ApiV1ProjectsProjectIndexRoute
 }
 
@@ -826,6 +840,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/projects/$project/watchers'
       fullPath: '/api/v1/projects/$project/watchers'
       preLoaderRoute: typeof ApiV1ProjectsProjectWatchersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/projects/$project/webhook': {
+      id: '/api/v1/projects/$project/webhook'
+      path: '/api/v1/projects/$project/webhook'
+      fullPath: '/api/v1/projects/$project/webhook'
+      preLoaderRoute: typeof ApiV1ProjectsProjectWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/projects/$project/asks/$askId': {
@@ -1155,6 +1176,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1ProjectsProjectSignalsRoute:
     ApiV1ProjectsProjectSignalsRouteWithChildren,
   ApiV1ProjectsProjectWatchersRoute: ApiV1ProjectsProjectWatchersRoute,
+  ApiV1ProjectsProjectWebhookRoute: ApiV1ProjectsProjectWebhookRoute,
   ApiV1ProjectsProjectIndexRoute: ApiV1ProjectsProjectIndexRoute,
 }
 export const routeTree = rootRouteImport

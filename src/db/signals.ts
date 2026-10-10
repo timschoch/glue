@@ -42,6 +42,8 @@ export type SignalProject = Pick<
 // Project. A Project with no setting for the tool has no Signals there.
 export type SignalSource = {
   name: string
+  // The name as a person reads it. None: the name itself.
+  label?: string
   listSignals: (project: SignalProject) => Promise<SourceSignal[]>
 }
 
@@ -58,6 +60,8 @@ export type SignalFailure = { source: string; reason: string }
 // The Signals of the sources that answered, the newest first, and the
 // groups of the ones that say the same thing.
 export type ProjectSignals = {
+  // Each source of the Project, with the name that a person reads.
+  sources: Array<{ name: string; label: string }>
   signals: Signal[]
   failures: SignalFailure[]
   groups: SignalGroup[]
@@ -92,7 +96,9 @@ async function getProject(db: ConceptDb, projectSlug: string) {
   return project
 }
 
-// Reads each source. One source that fails does not stop the others.
+// Reads each source. One source that fails does not stop the others. The
+// address of a Signal names it: the first source that has an address keeps
+// it, and a later source cannot give a Signal with it.
 async function readSources(
   sources: ReadonlyArray<SignalSource>,
   project: SignalProject,
@@ -102,10 +108,13 @@ async function readSources(
   )
   const found: Array<SourceSignal & { source: string }> = []
   const failures: SignalFailure[] = []
+  const taken = new Set<string>()
   answers.forEach((answer, index) => {
     const { name } = sources[index]
     if (answer.status === 'fulfilled') {
-      found.push(...answer.value.map((signal) => ({ ...signal, source: name })))
+      const own = answer.value.filter(({ url }) => !taken.has(url))
+      own.forEach(({ url }) => taken.add(url))
+      found.push(...own.map((signal) => ({ ...signal, source: name })))
     } else {
       const { reason } = answer
       failures.push({
@@ -154,7 +163,11 @@ export async function listSignals(
     // A day as yyyy-mm-dd sorts as text. Signals of one day keep the
     // order of the sources.
     .sort((first, second) => second.date.localeCompare(first.date))
-  return { failures, ...applySignalFilters(listed, filters) }
+  return {
+    sources: sources.map(({ name, label = name }) => ({ name, label })),
+    failures,
+    ...applySignalFilters(listed, filters),
+  }
 }
 
 // Adds an Insight as a draft that grows from the Signals. Its level is

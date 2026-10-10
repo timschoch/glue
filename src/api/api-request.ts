@@ -12,6 +12,7 @@ import {
   PartNotFoundError,
   ProductNotFoundError,
   SignalFilterNotFoundError,
+  WebhookSecretError,
 } from '../db/record-errors.ts'
 import { canReference } from '../db/projects.ts'
 import { findToken } from '../db/tokens.ts'
@@ -43,6 +44,7 @@ const errorCodes = [
   'unauthorized',
   'not-found',
   'conflict',
+  'too-large',
 ] as const
 
 type ErrorCode = (typeof errorCodes)[number]
@@ -52,6 +54,7 @@ const ERROR_STATUSES: Record<ErrorCode, number> = {
   unauthorized: 401,
   'not-found': 404,
   conflict: 409,
+  'too-large': 413,
 }
 
 export const errorSchema = z
@@ -90,6 +93,9 @@ function toApiError(error: unknown): ApiError {
   if (error instanceof InvalidRecordError) {
     return new ApiError('invalid-request', error.message)
   }
+  if (error instanceof WebhookSecretError) {
+    return new ApiError('unauthorized', error.message)
+  }
   if (isUniqueViolation(error)) {
     return new ApiError(
       'conflict',
@@ -99,7 +105,7 @@ function toApiError(error: unknown): ApiError {
   throw error
 }
 
-function toErrorResponse(error: unknown): Response {
+export function toErrorResponse(error: unknown): Response {
   const { code, message } = toApiError(error)
   return Response.json(
     { error: { code, message } },
@@ -109,16 +115,22 @@ function toErrorResponse(error: unknown): Response {
 
 const BEARER = /^Bearer (\S+)$/i
 
+// The secret that the request sends as its bearer: a token, or the secret
+// of a webhook.
+export function findBearer(request: Request): string | undefined {
+  return request.headers.get('authorization')?.match(BEARER)?.[1]
+}
+
 // A token opens the Concept of its own Project. It also reads a Project
 // that its Project may reference (D45). Each other Project answers 404, so
 // a token does not reveal which Projects exist. Gives back the member that
 // the token belongs to (glue/D67), or undefined for a token of no member.
-async function validateToken({
-  db,
-  request,
-  params,
-}: ApiRequest): Promise<TokenMember | undefined> {
-  const token = request.headers.get('authorization')?.match(BEARER)?.[1]
+// `ownOnly`: the read is for the own Project of the token alone.
+async function validateToken(
+  { db, request, params }: ApiRequest,
+  ownOnly: boolean,
+): Promise<TokenMember | undefined> {
+  const token = findBearer(request)
   const found = token ? await findToken(db, token) : undefined
   if (!found) {
     throw new ApiError(
@@ -129,6 +141,7 @@ async function validateToken({
   const member = found.member ?? undefined
   if (found.project === params.project) return member
   const reads =
+    !ownOnly &&
     request.method === 'GET' &&
     (await canReference(db, found.project, params.project))
   if (!reads) {
@@ -139,12 +152,15 @@ async function validateToken({
 
 // `respond` gets the member that the token belongs to. A write is a write
 // of this member: the handler hands the e-mail address to the operation.
+// `ownOnly`: a token of a Project that references this one reads nothing
+// here.
 export async function handleApiRequest(
   input: ApiRequest,
   respond: (member?: TokenMember) => Promise<Response>,
+  { ownOnly = false }: { ownOnly?: boolean } = {},
 ): Promise<Response> {
   try {
-    return await respond(await validateToken(input))
+    return await respond(await validateToken(input, ownOnly))
   } catch (error) {
     return toErrorResponse(error)
   }

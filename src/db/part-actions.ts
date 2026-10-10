@@ -361,8 +361,12 @@ export function createPartActions(request: ActionRequest) {
       },
     ),
 
-    listSignals: withSession((db, { project }: ProjectInput) =>
-      listSignals(db, createSignalSources(getGithub(), db, project), project),
+    listSignals: withSession(async (db, { project }: ProjectInput) =>
+      listSignals(
+        db,
+        await createSignalSources(getGithub(), db, project),
+        project,
+      ),
     ),
 
     listBuilds: withSession((db, { project, named }: BuildsInput) =>

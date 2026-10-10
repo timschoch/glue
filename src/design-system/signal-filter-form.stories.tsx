@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
+import { shownSources } from '../test/signal-sources.ts'
 import styles from './part-form.stories.module.scss'
 import { SignalFilterForm } from './signal-filter-form.tsx'
 
@@ -15,6 +16,7 @@ const meta = {
     ),
   ],
   args: {
+    sources: shownSources,
     onSave: () => {},
     onCancel: () => {},
   },

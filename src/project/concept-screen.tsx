@@ -12,7 +12,7 @@ import type {
 } from '../db/parts.ts'
 import type { ContractQuestion } from '../db/contract-questions.ts'
 import type { ContractState } from '../db/contracts.ts'
-import type { Integration } from '../db/integrations.ts'
+import type { ProjectIntegrations } from '../db/integration-actions.ts'
 import { applySignalFilters } from '../db/signal-filter-rule.ts'
 import type { SignalFilter } from '../db/signal-filters.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
@@ -73,7 +73,7 @@ export function ConceptScreen({
   contract,
   signals,
   signalFilters = [],
-  integrations = [],
+  integrations = { tools: [], integrations: [] },
   builds,
   mapJoints,
   panelPart,
@@ -88,7 +88,7 @@ export function ConceptScreen({
   // The saved filters of the Signals of the Project.
   signalFilters?: ReadonlyArray<SignalFilter>
   // The Integrations of the Project: the tools that bring its Signals.
-  integrations?: ReadonlyArray<Integration>
+  integrations?: ProjectIntegrations
   // In the section Build: the builds of the Project. With no section: the
   // builds that name the Contract of the Concept.
   builds?: ProjectBuilds
@@ -186,6 +186,7 @@ export function ConceptScreen({
   if (filterForm) {
     return (
       <SignalFilterFormScreen
+        sources={signals?.sources ?? []}
         filter={signalFilters.find(({ id }) => id === filterForm.id)}
         filters={signalFilters}
         // The filter that the form saved is on.
@@ -199,7 +200,7 @@ export function ConceptScreen({
   if (showsIntegrations && search.section === 'Understand') {
     return (
       <IntegrationsScreen
-        integrations={integrations}
+        {...integrations}
         onClose={() => setShowsIntegrations(false)}
       />
     )
@@ -256,6 +257,7 @@ export function ConceptScreen({
       {signals && passed && listed && (
         <Signals
           signals={listed}
+          sources={signals.sources}
           failures={signals.failures}
           groups={passed.groups}
           savedFilters={signalFilters.map(({ id, name }) => ({
@@ -450,13 +452,13 @@ export function ConceptScreen({
         onOpen={({ href }, event) => open(href, event)}
       >
         {/* One child or none: with none, Mine says that it is empty. */}
-        {mineQuestions.length + failedIntegrations.length > 0 && (
+        {mineQuestions.length + failedIntegrations.integrations.length > 0 && (
           <>
             {mineQuestions.length > 0 && (
               <ContractQuestionsSection questions={mineQuestions} />
             )}
-            {failedIntegrations.length > 0 && (
-              <FailedIntegrationsSection integrations={failedIntegrations} />
+            {failedIntegrations.integrations.length > 0 && (
+              <FailedIntegrationsSection {...failedIntegrations} />
             )}
           </>
         )}

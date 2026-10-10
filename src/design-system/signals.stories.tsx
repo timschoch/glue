@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
+import { shownSources } from '../test/signal-sources.ts'
 import { PlainFrame } from './frame.tsx'
 import { Signals } from './signals.tsx'
 
@@ -15,6 +16,7 @@ const meta = {
     ),
   ],
   args: {
+    sources: shownSources,
     signals: [
       {
         url: 'https://github.com/timschoch/glue/issues/7',

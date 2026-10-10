@@ -661,6 +661,25 @@ export const integrations = pgTable(
   ],
 )
 
+// A Signal that a tool of the team posted to a webhook (glue/D72). Glue can
+// read no tool for it later, so Glue stores it. `tool` is the name of the
+// tool that the post names. A second post of the same `url` stores nothing.
+export const webhookSignals = pgTable(
+  'webhook_signals',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    integrationId: integer('integration_id')
+      .notNull()
+      .references(() => integrations.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    title: text('title').notNull(),
+    text: text('text').notNull(),
+    tool: text('tool').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull(),
+  },
+  (table) => [unique().on(table.integrationId, table.url)],
+)
+
 // A Part as a Contract Version holds it: its content at the time of the
 // sign-off. `needs` has the record ids of the Parts that it needs.
 export type FrozenPart = {

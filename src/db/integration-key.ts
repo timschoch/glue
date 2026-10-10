@@ -4,9 +4,24 @@
 import {
   createCipheriv,
   createDecipheriv,
+  createHash,
   hkdfSync,
   randomBytes,
 } from 'node:crypto'
+
+const SECRET_BYTES = 32
+
+// The secret of a webhook. Glue makes it, so it is long and random.
+export function createWebhookSecret(): string {
+  return randomBytes(SECRET_BYTES).toString('base64url')
+}
+
+// The secret of a webhook as Glue stores it (glue/D72): its hash. Glue
+// checks a post with it, and nobody reads the secret back. The secret is
+// random, so a hash with no salt is enough.
+export function hashWebhookSecret(secret: string): string {
+  return `sha256.${createHash('sha256').update(secret).digest('hex')}`
+}
 
 const ALGORITHM = 'aes-256-gcm'
 const CIPHER_KEY_BYTES = 32

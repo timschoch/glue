@@ -4,15 +4,32 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import './theme.scss'
-import { IntegrationForm, Integrations } from './integrations.tsx'
-import type { IntegrationsProps } from './integrations.tsx'
+import {
+  IntegrationForm,
+  IntegrationSecret,
+  Integrations,
+} from './integrations.tsx'
+import type {
+  IntegrationFormProps,
+  IntegrationsProps,
+} from './integrations.tsx'
+
+// Carbon's code snippet watches its size, which jsdom can not do.
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+)
 
 afterEach(cleanup)
 
 const INTEGRATIONS: IntegrationsProps['integrations'] = [
   {
     id: 1,
-    tool: 'github',
+    tool: 'GitHub',
     address: 'acme/shop',
     keyLastFour: '1234',
     state: 'active',
@@ -20,14 +37,14 @@ const INTEGRATIONS: IntegrationsProps['integrations'] = [
   },
   {
     id: 2,
-    tool: 'github',
+    tool: 'GitHub',
     address: 'acme/web',
     keyLastFour: 'wxyz',
     state: 'paused',
   },
   {
     id: 3,
-    tool: 'github',
+    tool: 'GitHub',
     address: 'acme/app',
     keyLastFour: '9876',
     state: 'failed',
@@ -335,15 +352,92 @@ describe('Integrations', () => {
   })
 })
 
+describe('IntegrationSecret', () => {
+  it('shows the name, the URL and the whole secret of the new Integration, to read only', () => {
+    render(
+      <IntegrationSecret
+        name="Webhook Helpdesk"
+        address="https://glue.example.com/api/v1/projects/glue/webhook"
+        secret="Zk3vQ1example-secret-not-real-9fLm2abcd-wxyz"
+      />,
+    )
+
+    const group = within(
+      screen.getByRole('group', { name: 'Webhook Helpdesk' }),
+    )
+    const address = group.getByRole('textbox', { name: 'URL' })
+    const secret = group.getByRole('textbox', { name: 'Secret' })
+    expect(group.getByRole('heading').textContent).toBe('Webhook Helpdesk')
+    expect(address.textContent).toBe(
+      'https://glue.example.com/api/v1/projects/glue/webhook',
+    )
+    expect(secret.textContent).toBe(
+      'Zk3vQ1example-secret-not-real-9fLm2abcd-wxyz',
+    )
+    expect(
+      [address, secret].map((value) => value.getAttribute('aria-readonly')),
+    ).toEqual(['true', 'true'])
+  })
+
+  it('wraps the URL and the secret, so a narrow screen cuts neither', () => {
+    render(
+      <IntegrationSecret
+        name="Webhook Helpdesk"
+        address="https://glue.example.com/api/v1/projects/glue/webhook"
+        secret="Zk3vQ1example-secret-not-real-9fLm2abcd-wxyz"
+      />,
+    )
+
+    const wraps = ['URL', 'Secret'].map((name) => {
+      const code = screen.getByRole('textbox', { name }).querySelector('pre')
+      return code && getComputedStyle(code).whiteSpace
+    })
+    expect(wraps).toEqual(['pre-wrap', 'pre-wrap'])
+  })
+})
+
+// What the adapters of the three tools ask of a member. The form knows no
+// tool: it shows what it gets.
+const GITHUB = {
+  name: 'github',
+  label: 'GitHub',
+  addressFields: [{ label: 'Repository' }],
+  needsKey: true,
+}
+const TOOLS: IntegrationFormProps['tools'] = [
+  GITHUB,
+  {
+    name: 'posthog',
+    label: 'PostHog',
+    addressFields: [
+      {
+        label: 'Region',
+        options: [
+          { value: 'us', label: 'US' },
+          { value: 'eu', label: 'EU' },
+        ],
+      },
+      { label: 'Project ID' },
+    ],
+    needsKey: true,
+  },
+  {
+    name: 'webhook',
+    label: 'Webhook',
+    addressFields: [{ label: 'Name' }],
+    needsKey: false,
+  },
+]
+
 describe('IntegrationForm', () => {
   it('adds the tool, the address and the key, without the spaces around them', async () => {
     const user = userEvent.setup()
     const onAdd = vi.fn()
-    render(<IntegrationForm tools={['github']} onAdd={onAdd} />)
+    render(<IntegrationForm tools={[GITHUB]} onAdd={onAdd} />)
     const add = screen.getByRole('button', { name: 'Add integration' })
 
     expect((add as HTMLButtonElement).disabled).toBe(true)
-    await user.type(screen.getByLabelText('Address'), ' acme/shop ')
+    await user.type(screen.getByLabelText('Repository'), ' acme/shop ')
     await user.type(screen.getByLabelText('Key'), ' key-of-the-team ')
     await user.click(add)
 
@@ -357,7 +451,7 @@ describe('IntegrationForm', () => {
   })
 
   it('never shows the key as text', () => {
-    render(<IntegrationForm tools={['github']} onAdd={() => {}} />)
+    render(<IntegrationForm tools={[GITHUB]} onAdd={() => {}} />)
 
     expect(screen.getByLabelText('Key').getAttribute('type')).toBe('password')
   })
@@ -365,7 +459,7 @@ describe('IntegrationForm', () => {
   it('says at the control why the server refused the address or the key', () => {
     render(
       <IntegrationForm
-        tools={['github']}
+        tools={[GITHUB]}
         errors={{ key: 'GitHub refused the key' }}
         onAdd={() => {}}
       />,
@@ -376,14 +470,133 @@ describe('IntegrationForm', () => {
     )
     expect(screen.getByText('GitHub refused the key')).toBeDefined()
     expect(
-      screen.getByLabelText('Address').getAttribute('aria-invalid'),
+      screen.getByLabelText('Repository').getAttribute('aria-invalid'),
     ).not.toBe('true')
   })
+
+  it('shows the controls that a tool asks for, with no word of its own for a tool', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    render(
+      <IntegrationForm
+        tools={[
+          GITHUB,
+          {
+            name: 'board',
+            label: 'Idea board',
+            addressFields: [
+              { label: 'Workspace' },
+              {
+                label: 'Lane',
+                options: [
+                  { value: 'new', label: 'New ideas' },
+                  { value: 'top', label: 'Top ideas' },
+                ],
+              },
+              { label: 'Board' },
+            ],
+            needsKey: true,
+          },
+        ]}
+        errors={{ address: 'The board is closed' }}
+        onAdd={onAdd}
+      />,
+    )
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Tool' }),
+      'Idea board',
+    )
+    await user.type(screen.getByLabelText('Workspace'), 'acme')
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Lane' }),
+      'Top ideas',
+    )
+    await user.type(screen.getByLabelText('Board'), '7')
+    await user.type(screen.getByLabelText('Key'), 'key-of-the-team')
+    await user.click(screen.getByRole('button', { name: 'Add integration' }))
+
+    expect(screen.queryByLabelText('Repository')).toBe(null)
+    expect(screen.getByLabelText('Board').getAttribute('aria-invalid')).toBe(
+      'true',
+    )
+    expect(onAdd.mock.calls).toEqual([
+      [{ tool: 'board', address: 'acme/top/7', key: 'key-of-the-team' }],
+    ])
+  })
+
+  it('shows the controls of PostHog, and adds its region and its project as the address', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    render(<IntegrationForm tools={TOOLS} onAdd={onAdd} />)
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Tool' }),
+      'PostHog',
+    )
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Region' }),
+      'EU',
+    )
+    await user.type(screen.getByLabelText('Project ID'), ' 12345 ')
+    await user.type(screen.getByLabelText('Key'), 'key-of-the-team')
+    await user.click(screen.getByRole('button', { name: 'Add integration' }))
+
+    expect(screen.queryByLabelText('Repository')).toBe(null)
+    expect(onAdd.mock.calls).toEqual([
+      [{ tool: 'posthog', address: 'eu/12345', key: 'key-of-the-team' }],
+    ])
+  })
+
+  it('shows only a name for a webhook, and adds it with no key', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    render(<IntegrationForm tools={TOOLS} onAdd={onAdd} />)
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Tool' }),
+      'Webhook',
+    )
+    await user.type(screen.getByLabelText('Name'), ' Helpdesk ')
+    await user.click(screen.getByRole('button', { name: 'Add integration' }))
+
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+    expect(screen.queryByLabelText('Key')).toBe(null)
+    expect(onAdd.mock.calls).toEqual([
+      [{ tool: 'webhook', address: 'Helpdesk' }],
+    ])
+  })
+
+  it.each([
+    ['PostHog', 'Project ID', 'PostHog has no project 12345'],
+    ['Webhook', 'Name', '"Helpdesk" is an Integration already'],
+  ])(
+    'says at the control of %s why the server refused the address',
+    async (tool, label, reason) => {
+      render(
+        <IntegrationForm
+          tools={TOOLS}
+          errors={{ address: reason }}
+          onAdd={() => {}}
+        />,
+      )
+
+      await userEvent
+        .setup()
+        .selectOptions(screen.getByRole('combobox', { name: 'Tool' }), tool)
+
+      expect(screen.getByLabelText(label).getAttribute('aria-invalid')).toBe(
+        'true',
+      )
+      expect(screen.getByText(reason)).toBeDefined()
+    },
+  )
 
   it('shows that the write runs in the place of its button, and another reason under the fields', () => {
     render(
       <IntegrationForm
-        tools={['github']}
+        tools={[GITHUB]}
         pending="Adding"
         serverError="This server cannot store a key."
         onAdd={() => {}}

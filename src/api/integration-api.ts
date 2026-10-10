@@ -2,8 +2,15 @@
 // a key (glue/D71). The schemas here document the answers in openapi.ts.
 import { z } from 'zod'
 
-import { integrationSchema, integrationStates } from '../db/integrations.ts'
-import type { Integration, IntegrationOperations } from '../db/integrations.ts'
+import {
+  integrationKeySchema,
+  integrationSchema,
+  integrationStates,
+} from '../db/integrations.ts'
+import type {
+  AddedIntegration,
+  IntegrationOperations,
+} from '../db/integrations.ts'
 import { IntegrationNotFoundError } from '../db/record-errors.ts'
 import type { TokenMember } from '../db/tokens.ts'
 import { ApiError, handleApiRequest, parseJson } from './api-request.ts'
@@ -21,7 +28,7 @@ export const savedIntegrationSchema = z
     address: z.string(),
     keyLastFour: z.string().meta({
       description:
-        'The last four characters of the key. Glue gives no more of the key back',
+        'The last four characters of the key, or of the secret that Glue made. Glue gives no more of it back',
     }),
     state: z.enum(integrationStates).meta({
       description:
@@ -37,8 +44,12 @@ export const savedIntegrationSchema = z
           .meta({ description: 'Why the read failed' }),
       })
       .nullable(),
+    secret: z.string().optional().meta({
+      description:
+        'The secret that Glue made for a tool that posts to Glue. Only the answer to the add holds it, one time',
+    }),
   })
-  .meta({ id: 'Integration' }) satisfies z.ZodType<Integration>
+  .meta({ id: 'Integration' }) satisfies z.ZodType<AddedIntegration>
 
 export const integrationInputSchema = integrationSchema.meta({
   id: 'IntegrationInput',
@@ -53,7 +64,7 @@ export const integrationChangeSchema = z
       }),
     }),
     z.strictObject({
-      key: integrationSchema.shape.key.meta({
+      key: integrationKeySchema.meta({
         description:
           'A new key. Glue reads the tool one time with it, and only a read that works saves it in the place of the old key',
       }),
@@ -81,9 +92,14 @@ function validateMember(
     )
 }
 
+// Only a token of the Project reads its Integrations: a Project that may
+// reference this one does not see the tools of this team.
 export function handleListIntegrations(input: IntegrationRequest) {
-  return handleApiRequest(input, async () =>
-    Response.json(await input.integrations.list(input.params.project)),
+  return handleApiRequest(
+    input,
+    async () =>
+      Response.json(await input.integrations.list(input.params.project)),
+    { ownOnly: true },
   )
 }
 

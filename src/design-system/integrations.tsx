@@ -1,5 +1,6 @@
 import {
   Button,
+  CodeSnippet,
   Form,
   InlineLoading,
   InlineNotification,
@@ -14,10 +15,6 @@ import type { FormEvent, ReactNode } from 'react'
 
 import viewStyles from './concept-view.module.scss'
 import styles from './integrations.module.scss'
-import { sourceLabels } from './signals.tsx'
-
-// A tool has the name of the Signal source that its Signals show under.
-const toToolLabel = (tool: string) => sourceLabels[tool] ?? tool
 
 const stateLabels = {
   active: 'Active',
@@ -32,6 +29,7 @@ const MINUTE_LENGTH = 16
 // stays on the server, only its last four characters show.
 export type IntegrationRow = {
   id: number
+  // The name of the tool as a person reads it.
   tool: string
   address: string
   keyLastFour: string
@@ -145,7 +143,7 @@ function IntegrationRows({
           {integrations.map(
             ({ id, tool, address, keyLastFour, state, lastRead }) => {
               const own = change?.id === id ? change : undefined
-              const name = `${toToolLabel(tool)} ${address}`
+              const name = `${tool} ${address}`
               const restart = state === 'active' ? onPause : onStart
               const hasKeyForm = keyOf === id && onSetKey !== undefined
               // The form of the new key shows its own write. Each other
@@ -155,7 +153,7 @@ function IntegrationRows({
                 ownKey?.field === 'key' ? ownKey.failure : undefined
               return (
                 <li key={id} className={styles.row}>
-                  <span className={styles.tool}>{toToolLabel(tool)}</span>
+                  <span className={styles.tool}>{tool}</span>
                   <span className={styles.address}>{address}</span>
                   <span className={styles.label}>••••{keyLastFour}</span>
                   <span className={styles.label}>{stateLabels[state]}</span>
@@ -313,10 +311,53 @@ function KeyForm({
   )
 }
 
+// The name of a new Integration, the URL that its tool posts to and the
+// secret that Glue made for it. The secret shows this one time: the server
+// gives it back no more. So each value wraps, and no screen cuts it.
+export function IntegrationSecret({
+  name,
+  address,
+  secret,
+}: {
+  // The tool and the address of the Integration.
+  name: string
+  address: string
+  secret: string
+}) {
+  const titleId = useId()
+  return (
+    <div role="group" aria-labelledby={titleId} className={styles.secret}>
+      <h2 id={titleId} className={styles.tool}>
+        {name}
+      </h2>
+      {[
+        { label: 'URL', value: address },
+        { label: 'Secret', value: secret },
+      ].map(({ label, value }) => (
+        <div key={label} className={styles.value}>
+          <span className={styles.label}>{label}</span>
+          <CodeSnippet
+            type="multi"
+            wrapText
+            aria-label={label}
+            copyButtonDescription={`Copy ${label}`}
+            minCollapsedNumberOfRows={1}
+            maxCollapsedNumberOfRows={0}
+            className={styles.code}
+          >
+            {value}
+          </CodeSnippet>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// A tool that Glue makes the secret for has no key.
 export type IntegrationFormValues = {
   tool: string
   address: string
-  key: string
+  key?: string
 }
 
 // The fields that the server names when it refuses an Integration: each one
@@ -325,19 +366,31 @@ export const integrationFormFields = ['tool', 'address', 'key'] as const
 type IntegrationFormField = (typeof integrationFormFields)[number]
 
 export type IntegrationFormProps = {
-  // The names of the tools that a member can connect.
-  tools: ReadonlyArray<string>
+  // The tools that a member can connect, each with what it asks for: the
+  // values of its address, and a key or none.
+  tools: ReadonlyArray<{
+    name: string
+    label: string
+    addressFields: ReadonlyArray<{
+      label: string
+      // The values to pick from. None: the member types the value.
+      options?: ReadonlyArray<{ value: string; label: string }>
+    }>
+    needsKey: boolean
+  }>
   // The reason of each field with a wrong value.
   errors?: Partial<Record<IntegrationFormField, string>>
   serverError?: string
   // The words of the write that runs: the form takes no second one.
   pending?: string
-  // Gets the address and the key without the spaces around them.
+  // Gets the address and the key without the spaces around them. The
+  // address is the values that the tool asks for, with "/" between them.
   onAdd: (integration: IntegrationFormValues) => void
 }
 
-// The form that adds an Integration: its tool, its address there and the
-// key of the team. The key never shows as text.
+// The form that adds an Integration: its tool, then the controls that this
+// tool asks for and no other. The key never shows as text. The reason for
+// a refused address shows at the last control of the address.
 export function IntegrationForm({
   tools,
   errors = {},
@@ -346,11 +399,23 @@ export function IntegrationForm({
   onAdd,
 }: IntegrationFormProps) {
   const formId = useId()
-  const [tool, setTool] = useState(tools[0])
-  const [address, setAddress] = useState('')
+  const [toolName, setToolName] = useState(tools[0].name)
+  // The values of the address that the member gave, by the label of each.
+  const [given, setGiven] = useState<Partial<Record<string, string>>>({})
   const [key, setKey] = useState('')
-  const values = { tool, address: address.trim(), key: key.trim() }
-  const canAdd = values.address !== '' && values.key !== ''
+  const tool = tools.find(({ name }) => name === toolName) ?? tools[0]
+  const { addressFields, needsKey } = tool
+  const parts = addressFields.map(({ label, options }) =>
+    (given[label] ?? options?.[0].value ?? '').trim(),
+  )
+  const values: IntegrationFormValues = {
+    tool: tool.name,
+    address: parts.join('/'),
+    ...(needsKey ? { key: key.trim() } : {}),
+  }
+  const canAdd = parts.every((part) => part !== '') && values.key !== ''
+  const give = (label: string, value: string) =>
+    setGiven((before) => ({ ...before, [label]: value }))
 
   const add = (event: FormEvent) => {
     event.preventDefault()
@@ -364,30 +429,60 @@ export function IntegrationForm({
         labelText="Tool"
         invalid={errors.tool !== undefined}
         invalidText={errors.tool}
-        value={tool}
-        onChange={({ target }) => setTool(target.value)}
+        value={tool.name}
+        onChange={({ target }) => {
+          setToolName(target.value)
+          setGiven({})
+        }}
       >
-        {tools.map((name) => (
-          <SelectItem key={name} value={name} text={toToolLabel(name)} />
+        {tools.map(({ name, label }) => (
+          <SelectItem key={name} value={name} text={label} />
         ))}
       </Select>
-      <TextInput
-        id={`${formId}-address`}
-        labelText="Address"
-        invalid={errors.address !== undefined}
-        invalidText={errors.address}
-        value={address}
-        onChange={({ target }) => setAddress(target.value)}
-      />
-      <PasswordInput
-        id={`${formId}-key`}
-        labelText="Key"
-        autoComplete="off"
-        invalid={errors.key !== undefined}
-        invalidText={errors.key}
-        value={key}
-        onChange={({ target }) => setKey(target.value)}
-      />
+      {addressFields.map(({ label, options }, index) => {
+        const id = `${formId}-${tool.name}-address-${index}`
+        const error =
+          index === addressFields.length - 1 ? errors.address : undefined
+        const control = {
+          id,
+          labelText: label,
+          invalid: error !== undefined,
+          invalidText: error,
+          value: given[label] ?? options?.[0].value ?? '',
+        }
+        return options ? (
+          <Select
+            key={id}
+            {...control}
+            onChange={({ target }) => give(label, target.value)}
+          >
+            {options.map((option) => (
+              <SelectItem
+                key={option.value}
+                value={option.value}
+                text={option.label}
+              />
+            ))}
+          </Select>
+        ) : (
+          <TextInput
+            key={id}
+            {...control}
+            onChange={({ target }) => give(label, target.value)}
+          />
+        )
+      })}
+      {needsKey && (
+        <PasswordInput
+          id={`${formId}-key`}
+          labelText="Key"
+          autoComplete="off"
+          invalid={errors.key !== undefined}
+          invalidText={errors.key}
+          value={key}
+          onChange={({ target }) => setKey(target.value)}
+        />
+      )}
       {serverError && (
         <InlineNotification
           kind="error"

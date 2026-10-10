@@ -1,9 +1,44 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
-import { IntegrationForm, Integrations } from './integrations.tsx'
+import {
+  IntegrationForm,
+  IntegrationSecret,
+  Integrations,
+} from './integrations.tsx'
+import type { IntegrationFormProps } from './integrations.tsx'
 import styles from './part-form.stories.module.scss'
 
-const form = <IntegrationForm tools={['github']} onAdd={() => {}} />
+const tools: IntegrationFormProps['tools'] = [
+  {
+    name: 'github',
+    label: 'GitHub',
+    addressFields: [{ label: 'Repository' }],
+    needsKey: true,
+  },
+  {
+    name: 'posthog',
+    label: 'PostHog',
+    addressFields: [
+      {
+        label: 'Region',
+        options: [
+          { value: 'us', label: 'US' },
+          { value: 'eu', label: 'EU' },
+        ],
+      },
+      { label: 'Project ID' },
+    ],
+    needsKey: true,
+  },
+  {
+    name: 'webhook',
+    label: 'Webhook',
+    addressFields: [{ label: 'Name' }],
+    needsKey: false,
+  },
+]
+
+const form = <IntegrationForm tools={tools} onAdd={() => {}} />
 
 const meta = {
   title: 'Integrations',
@@ -20,7 +55,7 @@ const meta = {
     integrations: [
       {
         id: 1,
-        tool: 'github',
+        tool: 'GitHub',
         address: 'acme/shop',
         keyLastFour: '1234',
         state: 'active',
@@ -32,14 +67,14 @@ const meta = {
       },
       {
         id: 2,
-        tool: 'github',
-        address: 'acme/web',
+        tool: 'PostHog',
+        address: 'eu/12345',
         keyLastFour: 'wxyz',
         state: 'paused',
       },
       {
         id: 3,
-        tool: 'github',
+        tool: 'GitHub',
         address: 'acme/app',
         keyLastFour: '9876',
         state: 'failed',
@@ -48,6 +83,13 @@ const meta = {
           signalCount: null,
           error: 'GitHub refused the key',
         },
+      },
+      {
+        id: 4,
+        tool: 'Webhook',
+        address: 'Helpdesk',
+        keyLastFour: 'abcd',
+        state: 'active',
       },
     ],
     onPause: () => {},
@@ -109,10 +151,25 @@ export const RefusedKey: Story = {
     integrations: [],
     children: (
       <IntegrationForm
-        tools={['github']}
+        tools={tools}
         errors={{ key: 'GitHub refused the key' }}
         onAdd={() => {}}
       />
+    ),
+  },
+}
+
+export const NewWebhook: Story = {
+  args: {
+    children: (
+      <>
+        <IntegrationSecret
+          name="Webhook Helpdesk"
+          address="https://glue.example.com/api/v1/projects/glue/webhook"
+          secret="secret-of-the-webhook-abcd"
+        />
+        {form}
+      </>
     ),
   },
 }

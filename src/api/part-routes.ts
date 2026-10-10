@@ -62,6 +62,7 @@ import {
   handleUpdateSignalFilter,
 } from './signal-filter-api.ts'
 import { handleValidateBuild, handleListBuilds } from './build-api.ts'
+import { handlePostWebhook } from './webhook-api.ts'
 
 type PathParams = {
   recordId?: string
@@ -211,6 +212,10 @@ export const integrationHandlers = {
     handleChangeIntegration(toIntegrationRequest(route)),
   DELETE: (route: RouteRequest) =>
     handleRemoveIntegration(toIntegrationRequest(route)),
+}
+
+export const webhookHandlers = {
+  POST: (route: RouteRequest) => handlePostWebhook(toIntegrationRequest(route)),
 }
 
 export const buildsHandlers = {
