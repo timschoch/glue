@@ -876,6 +876,60 @@ describe('a section', () => {
     )
   })
 
+  it('says at the row why a start failed when the tool refused the stored key, and not at the open form of the new key', async () => {
+    await renderIntegrations({
+      startIntegration: vi.fn(() =>
+        Promise.resolve({
+          message: 'GitHub refused the key',
+          place: { field: 'key' },
+        }),
+      ),
+    })
+
+    const [, row] = within(
+      screen.getByRole('list', { name: 'Integrations' }),
+    ).getAllByRole('listitem')
+    // The reason in the notification of the row.
+    const findReason = async () =>
+      within(await within(row).findByRole('alert')).getByText(
+        'GitHub refused the key',
+      )
+
+    await userEvent.click(button('Start GitHub acme/web'))
+
+    expect(await findReason()).toBeDefined()
+
+    await userEvent.click(button('New key GitHub acme/web'))
+    await userEvent.click(button('Start GitHub acme/web'))
+
+    expect(await findReason()).toBeDefined()
+    expect(screen.getByLabelText('New key').getAttribute('aria-invalid')).toBe(
+      null,
+    )
+  })
+
+  it('shows the refused new key no more after Cancel closed its form', async () => {
+    await renderIntegrations({
+      setIntegrationKey: vi.fn(() =>
+        Promise.resolve({
+          message: 'GitHub refused the key',
+          place: { field: 'key' },
+        }),
+      ),
+    })
+    await userEvent.click(button('New key GitHub acme/web'))
+    await userEvent.type(
+      screen.getByLabelText('New key'),
+      'new-key-of-the-team',
+    )
+    await userEvent.click(button('Save key'))
+    await screen.findByText('GitHub refused the key')
+
+    await userEvent.click(button('Cancel'))
+
+    expect(screen.queryByText('GitHub refused the key')).toBeNull()
+  })
+
   it('shows in Mine the failed Integrations that the person is Responsible for, and starts one there', async () => {
     const { server } = await renderPage('/glue?section=Mine', {
       fetchMineIntegrations: vi.fn(() =>

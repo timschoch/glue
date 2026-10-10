@@ -44,6 +44,10 @@ export class IntegrationReadError extends Error {
   }
 }
 
+// The tool limits the reads for now. A later read works with no change, so
+// the read is none of the failed reads in a row.
+export class IntegrationLimitError extends Error {}
+
 // An Integration as each reader gets it. The key stays in the database:
 // only its last four characters show.
 export type Integration = {
@@ -242,7 +246,8 @@ export function createIntegrationOperations({
   // The Signals of the active Integrations of one tool. Each read keeps its
   // time and its count, or why it failed. One good read sets the count of
   // the failed reads back. The third failed read in a row marks the
-  // Integration as failed, so the next read leaves it out (glue/D73).
+  // Integration as failed, so the next read leaves it out (glue/D73). A
+  // read that the tool limits shows as the last error and counts as none.
   async function readActive(rows: Row[], tool: IntegrationTool) {
     const openSecret = getSecret()
     const signals: SourceSignal[] = []
@@ -262,11 +267,12 @@ export function createIntegrationOperations({
           .where(byId)
         signals.push(...read)
       } catch (error) {
+        const failedReads = error instanceof IntegrationLimitError ? 0 : 1
         await db
           .update(integrations)
           .set({
-            state: sql`case when ${integrations.failedReadCount} + 1 >= ${MAX_FAILED_READS} then 'failed' else ${integrations.state} end`,
-            failedReadCount: sql`${integrations.failedReadCount} + 1`,
+            state: sql`case when ${integrations.failedReadCount} + ${failedReads} >= ${MAX_FAILED_READS} then 'failed' else ${integrations.state} end`,
+            failedReadCount: sql`${integrations.failedReadCount} + ${failedReads}`,
             lastReadAt: now(),
             lastReadSignalCount: null,
             lastReadError:
@@ -386,7 +392,7 @@ export function createIntegrationOperations({
 
     // Gives the Integration a new key. Reads from the tool one time with
     // it: only a read that works saves it, in the place of the old key, and
-    // makes the Integration active.
+    // makes a failed Integration active. A paused one stays paused.
     async setKey(projectSlug: string, id: number, input: string) {
       const parsed = integrationSchema.shape.key.safeParse(input)
       if (!parsed.success)
@@ -400,7 +406,7 @@ export function createIntegrationOperations({
       return update(projectSlug, id, {
         encryptedKey: encryptKey(openSecret, key),
         keyLastFour: key.slice(-LAST_CHARACTERS),
-        state: 'active',
+        state: row.state === 'paused' ? 'paused' : 'active',
         lastReadAt: now(),
         lastReadSignalCount: signals.length,
         lastReadError: null,

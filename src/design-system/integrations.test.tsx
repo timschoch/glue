@@ -225,7 +225,7 @@ describe('Integrations', () => {
       <Integrations
         integrations={INTEGRATIONS}
         keyOf={2}
-        change={{ id: 2, pending: 'Saving' }}
+        change={{ id: 2, pending: 'Saving', isKey: true }}
         onEditKey={() => {}}
         onSetKey={() => {}}
         onClose={() => {}}
@@ -240,7 +240,12 @@ describe('Integrations', () => {
       <Integrations
         integrations={INTEGRATIONS}
         keyOf={2}
-        change={{ id: 2, failure: 'GitHub refused the key', field: 'key' }}
+        change={{
+          id: 2,
+          failure: 'GitHub refused the key',
+          field: 'key',
+          isKey: true,
+        }}
         onEditKey={() => {}}
         onSetKey={() => {}}
         onClose={() => {}}
@@ -289,6 +294,33 @@ describe('Integrations', () => {
     const [, row] = screen.getAllByRole('listitem')
     expect(within(row).getByText('GitHub refused the key')).toBeDefined()
   })
+
+  it.each([
+    ['closed', undefined],
+    ['open', 2],
+  ])(
+    'says at its row why a start failed when the server refused the stored key, with the form of the new key %s',
+    (_form, keyOf) => {
+      render(
+        <Integrations
+          integrations={INTEGRATIONS}
+          keyOf={keyOf}
+          change={{ id: 2, failure: 'GitHub refused the key', field: 'key' }}
+          onStart={() => {}}
+          onEditKey={() => {}}
+          onSetKey={() => {}}
+          onClose={() => {}}
+        />,
+      )
+
+      const [, row] = screen.getAllByRole('listitem')
+      expect(
+        within(within(row).getByRole('alert')).getByText(
+          'GitHub refused the key',
+        ),
+      ).toBeDefined()
+    },
+  )
 
   it('goes back to the Signals', async () => {
     const onClose = vi.fn()

@@ -50,8 +50,15 @@ type IntegrationRowsProps = {
   titleId: string
   integrations: ReadonlyArray<IntegrationRow>
   // The write of one Integration that runs, or why it failed, with the field
-  // that the server refused. While one runs, no second one starts.
-  change?: { id: number; pending?: string; failure?: string; field?: string }
+  // that the server refused. `isKey`: the form of the new key started it and
+  // shows it. While one runs, no second one starts.
+  change?: {
+    id: number
+    pending?: string
+    failure?: string
+    field?: string
+    isKey?: boolean
+  }
   // The Integration that shows the form for a new key.
   keyOf?: number
   // Without them, the person reads only.
@@ -140,9 +147,12 @@ function IntegrationRows({
               const own = change?.id === id ? change : undefined
               const name = `${toToolLabel(tool)} ${address}`
               const restart = state === 'active' ? onPause : onStart
-              // The form of the new key shows its own write.
               const hasKeyForm = keyOf === id && onSetKey !== undefined
-              const keyError = own?.field === 'key' ? own.failure : undefined
+              // The form of the new key shows its own write. Each other
+              // write shows at the row.
+              const ownKey = hasKeyForm && own?.isKey ? own : undefined
+              const keyError =
+                ownKey?.field === 'key' ? ownKey.failure : undefined
               return (
                 <li key={id} className={styles.row}>
                   <span className={styles.tool}>{toToolLabel(tool)}</span>
@@ -150,7 +160,7 @@ function IntegrationRows({
                   <span className={styles.label}>••••{keyLastFour}</span>
                   <span className={styles.label}>{stateLabels[state]}</span>
                   <div className={styles.actions}>
-                    {own?.pending !== undefined && !hasKeyForm ? (
+                    {own?.pending !== undefined && !ownKey ? (
                       <InlineLoading
                         description={own.pending}
                         className={styles.pending}
@@ -212,7 +222,7 @@ function IntegrationRows({
                   {hasKeyForm && (
                     <KeyForm
                       error={keyError}
-                      pending={own?.pending}
+                      pending={ownKey?.pending}
                       onSave={(key) => onSetKey(id, key)}
                       onCancel={() => onEditKey?.()}
                     />

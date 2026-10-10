@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { IntegrationReadError } from '../db/integrations.ts'
+import {
+  IntegrationLimitError,
+  IntegrationReadError,
+} from '../db/integrations.ts'
 import { GithubError } from '../github/client.ts'
 import type { GithubClient } from '../github/client.ts'
 import { createFakeGithub } from '../test/github.ts'
@@ -80,7 +83,7 @@ describe('createGithubTool', () => {
       await expect(failed).rejects.toThrow(
         'GitHub limits the reads with this key for now',
       )
-      await expect(failed).rejects.not.toThrow(IntegrationReadError)
+      await expect(failed).rejects.toThrow(IntegrationLimitError)
     },
   )
 

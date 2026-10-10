@@ -1,6 +1,9 @@
 // The Integration tool for GitHub: the address is a repository and the key
 // is a token of the team. Its Signals are the Signals of the GitHub source.
-import { IntegrationReadError } from '../db/integrations.ts'
+import {
+  IntegrationLimitError,
+  IntegrationReadError,
+} from '../db/integrations.ts'
 import type { IntegrationTool } from '../db/integrations.ts'
 import { GithubError } from '../github/client.ts'
 import type { GithubClient } from '../github/client.ts'
@@ -17,7 +20,7 @@ const NOT_FOUND = 404
 function toReadError(error: unknown, repository: string) {
   if (!(error instanceof GithubError)) return error
   if (error.isRateLimited)
-    return new Error(
+    return new IntegrationLimitError(
       'GitHub limits the reads with this key for now. A later read works again.',
     )
   if (error.status === UNAUTHORIZED)

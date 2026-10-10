@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  IntegrationLimitError,
   IntegrationReadError,
   createIntegrationOperations,
 } from './integrations.ts'
@@ -310,6 +311,16 @@ describe('setKey', () => {
     expect(changed).toMatchObject({ state: 'active', keyLastFour: '9876' })
   })
 
+  it('keeps a paused Integration paused', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    await operations.pause('glue', 1)
+
+    const changed = await operations.setKey('glue', 1, NEW_KEY)
+
+    expect(changed).toMatchObject({ state: 'paused', keyLastFour: '9876' })
+  })
+
   it('keeps the old key when the read with the new key fails, and gives the reason at the key', async () => {
     const operations = createOperations()
     await operations.add('glue', input)
@@ -595,6 +606,33 @@ describe('toSources', () => {
 
     expect(await operations.list('glue')).toEqual([
       { ...active, lastRead: failedRead },
+    ])
+  })
+
+  it('shows a read that the tool limits as the last error, and does not count it as a failed read', async () => {
+    const operations = createOperations()
+    await operations.add('glue', input)
+    clock = new Date('2026-10-11T09:00:00.000Z')
+    readError = new IntegrationReadError('GitHub refused the key', 'key')
+    await failRead(operations)
+    await failRead(operations)
+    readError = new IntegrationLimitError('GitHub limits the reads for now')
+
+    const limited = listGithub(operations)
+
+    await expect(limited).rejects.toThrow('GitHub limits the reads for now')
+    expect(await operations.list('glue')).toEqual([
+      {
+        ...active,
+        lastRead: { ...failedRead, error: 'GitHub limits the reads for now' },
+      },
+    ])
+    // The two failed reads before the limit still count: one more is the
+    // third.
+    readError = new IntegrationReadError('GitHub refused the key', 'key')
+    await failRead(operations)
+    expect(await operations.list('glue')).toEqual([
+      { ...active, state: 'failed', lastRead: failedRead },
     ])
   })
 

@@ -27,7 +27,9 @@ function useIntegrationWrites() {
   } = projectRoute.useRouteContext()
   const { project } = useProjectLinks()
   const { pending, failure, failurePlace, write } = useWrite()
-  const [changed, setChanged] = useState<number>()
+  // The Integration of the last write. `isKey`: the form of the new key
+  // started it, so the write shows in that form.
+  const [changed, setChanged] = useState<{ id: number; isKey: boolean }>()
   // The Integration that shows the form for a new key.
   const [keyOf, setKeyOf] = useState<number>()
   if (people.me === null) return {}
@@ -35,7 +37,7 @@ function useIntegrationWrites() {
   const change =
     (name: string, send: typeof pauseIntegration | typeof removeIntegration) =>
     (integrationId: number) => {
-      setChanged(integrationId)
+      setChanged({ id: integrationId, isKey: false })
       void write(name, () => send({ project, integrationId }))
     }
 
@@ -43,14 +45,24 @@ function useIntegrationWrites() {
     change:
       changed === undefined
         ? undefined
-        : { id: changed, pending, failure, field: failurePlace?.field },
+        : {
+            id: changed.id,
+            pending,
+            failure,
+            field: failurePlace?.field,
+            isKey: changed.isKey,
+          },
     keyOf,
     onPause: change('Pausing', pauseIntegration),
     onStart: change('Starting', startIntegration),
     onRemove: change('Removing', removeIntegration),
-    onEditKey: setKeyOf,
+    onEditKey: (integrationId?: number) => {
+      setKeyOf(integrationId)
+      // A form that closes takes its refused key with it.
+      if (changed?.isKey) setChanged(undefined)
+    },
     onSetKey: (integrationId: number, key: string) => {
-      setChanged(integrationId)
+      setChanged({ id: integrationId, isKey: true })
       void write(
         'Saving',
         () => setIntegrationKey({ project, integrationId, key }),

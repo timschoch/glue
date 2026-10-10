@@ -3,6 +3,7 @@
 // The module reads no database: the server and the screen use the same rule.
 import { z } from 'zod'
 
+import { toolNames } from '../signals/integration-tool-names.ts'
 import { sourceNames } from '../signals/signal-source-names.ts'
 import { groupSignals } from './signal-groups.ts'
 import type { SignalGroup } from './signal-groups.ts'
@@ -40,10 +41,14 @@ const wordsSchema = z
   .max(MAX_WORDS, { error: `A list has at most ${MAX_WORDS} words` })
   .default([])
 
+// A filter names a source of the server or a tool of an Integration: the
+// Signals of a tool show under its name. Both lists hold names only.
+const filterSources = new Set<string>([...sourceNames, ...toolNames])
+
 const sources = z
   .array(
     z.string({ error: 'A source is a name' }).check((context) => {
-      if (!sourceNames.some((name) => name === context.value))
+      if (!filterSources.has(context.value))
         context.issues.push({
           code: 'custom',
           message: `"${context.value}" is no source`,
