@@ -5,6 +5,7 @@ import { z } from 'zod'
 import type { ConceptDb } from '../db/client.ts'
 import {
   ConceptNotFoundError,
+  IntegrationNotFoundError,
   InvalidRecordError,
   isUniqueViolation,
   JointNotFoundError,
@@ -29,6 +30,7 @@ export type ApiRequest = {
     askId?: string
     questionId?: string
     filterId?: string
+    integrationId?: string
   }
 }
 
@@ -80,7 +82,8 @@ function toApiError(error: unknown): ApiError {
     error instanceof ProductNotFoundError ||
     error instanceof JointNotFoundError ||
     error instanceof ConceptNotFoundError ||
-    error instanceof SignalFilterNotFoundError
+    error instanceof SignalFilterNotFoundError ||
+    error instanceof IntegrationNotFoundError
   ) {
     return new ApiError('not-found', error.message)
   }

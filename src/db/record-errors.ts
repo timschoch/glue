@@ -50,6 +50,14 @@ export class SignalFilterNotFoundError extends InvalidRecordError {
   }
 }
 
+// The Integration of the request does not exist. The HTTP API answers it
+// with 404.
+export class IntegrationNotFoundError extends InvalidRecordError {
+  constructor(integrationId: number | string) {
+    super(`integration ${integrationId} not found`)
+  }
+}
+
 // The Joint of the request does not exist. The HTTP API answers it with 404.
 export class JointNotFoundError extends InvalidRecordError {
   constructor(jointId: number) {

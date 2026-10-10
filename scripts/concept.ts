@@ -85,6 +85,11 @@ import type { GithubClient } from '../src/github/client.ts'
 import { createDownstreamIssue } from '../src/github/downstream-issue.ts'
 import type { DownstreamIssue } from '../src/github/downstream-issue.ts'
 import { listSignals } from '../src/db/signals.ts'
+import type {
+  Integration,
+  IntegrationOperations,
+} from '../src/db/integrations.ts'
+import { createServerIntegrations } from '../src/signals/integrations.server.ts'
 import { createSignalSources } from '../src/signals/signal-sources.server.ts'
 import { evidenceTypes, isEvidence, partFields } from '../src/part-fields.ts'
 import type { PartField } from '../src/part-fields.ts'
@@ -175,6 +180,8 @@ const KNOWN_FIELDS = new Set([
   'question',
   'required',
   'optional',
+  'tool',
+  'address',
 ])
 
 // The steps of a Flow or the fields of an Entity, as the flag has them. The
@@ -643,8 +650,13 @@ function formatHelp() {
     'pnpm concept token create --project <slug> --name <name> [--member <e-mail>]',
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
+    'INTEGRATION_KEY=<key> pnpm concept integration add --tool <tool> --address <address>',
+    'pnpm concept integration list',
+    'pnpm concept integration pause <id>',
+    'pnpm concept integration start <id>',
+    'pnpm concept integration remove <id>',
     '',
-    'list, show, add, set, move, downstream, answer, mine, ask, signals, builds, member, assign, watch, unwatch, watchers, concept, kind, contract and joint take --project <slug>. The default is GLUE_PROJECT, then glue-build when that Project exists, then glue.',
+    'list, show, add, set, move, downstream, answer, mine, ask, signals, builds, member, assign, watch, unwatch, watchers, concept, kind, contract, joint and integration take --project <slug>. The default is GLUE_PROJECT, then glue-build when that Project exists, then glue.',
     '',
     'Types, and the flags that add needs:',
     ...types,
@@ -760,6 +772,13 @@ export async function runConcept(
   db: ConceptDb,
   getGithub: () => GithubClient,
   [command, ...rest]: string[],
+  {
+    getIntegrations = createServerIntegrations,
+    environment = process.env,
+  }: {
+    getIntegrations?: (db: ConceptDb) => IntegrationOperations
+    environment?: Record<string, string | undefined>
+  } = {},
 ) {
   switch (command) {
     case 'list': {
@@ -1039,6 +1058,14 @@ export async function runConcept(
     case 'token':
       await handleTokenCommand(db, rest)
       return
+    case 'integration':
+      await handleIntegrationCommand(
+        db,
+        getIntegrations(db),
+        rest,
+        environment.INTEGRATION_KEY,
+      )
+      return
     default:
       throw new Error(`unknown command "${command}". See pnpm concept --help`)
   }
@@ -1070,7 +1097,7 @@ async function handleSignalsCommand(
   }
   const { signals, failures, groups } = await listSignals(
     db,
-    createSignalSources(getGithub()),
+    createSignalSources(getGithub(), db, project),
     project,
     { source: flags.source as string | undefined },
   )
@@ -1591,6 +1618,62 @@ async function handleTokenCommand(db: ConceptDb, [command, ...rest]: string[]) {
     }
     default:
       throw new Error(`unknown token command "${command}"`)
+  }
+}
+
+// The Integrations of a Project (glue/D70). `add` takes the key from the
+// environment variable INTEGRATION_KEY: an argument stays in the history of
+// the shell. No command prints a key, only its last four characters.
+async function handleIntegrationCommand(
+  db: ConceptDb,
+  integrations: IntegrationOperations,
+  [command, ...rest]: string[],
+  key: string | undefined,
+) {
+  const print = ({ id, tool, address, keyLastFour, state }: Integration) =>
+    console.log([id, tool, address, `...${keyLastFour}`, state].join('  '))
+  const [id, ...flagArgs] = rest
+  const readId = () => {
+    if (!/^\d+$/.test(id))
+      throw new Error(`integration ${command} needs the id of the Integration`)
+    return Number(id)
+  }
+  switch (command) {
+    case 'list': {
+      const project = await readProject(db, parseFlags(rest))
+      for (const integration of await integrations.list(project)) {
+        print(integration)
+      }
+      return
+    }
+    case 'add': {
+      const flags = parseFlags(rest)
+      const tool = flags.tool as string | undefined
+      const address = flags.address as string | undefined
+      if (!tool || !address || !key) {
+        throw new Error(
+          'integration add needs --tool, --address and the key in INTEGRATION_KEY',
+        )
+      }
+      const project = await readProject(db, flags)
+      print(await integrations.add(project, { tool, address, key }))
+      return
+    }
+    case 'pause':
+    case 'start': {
+      const integrationId = readId()
+      const project = await readProject(db, parseFlags(flagArgs))
+      print(await integrations[command](project, integrationId))
+      return
+    }
+    case 'remove': {
+      const integrationId = readId()
+      const project = await readProject(db, parseFlags(flagArgs))
+      await integrations.remove(project, integrationId)
+      return
+    }
+    default:
+      throw new Error(`unknown integration command "${command}"`)
   }
 }
 

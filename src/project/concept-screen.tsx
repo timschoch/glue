@@ -12,6 +12,7 @@ import type {
 } from '../db/parts.ts'
 import type { ContractQuestion } from '../db/contract-questions.ts'
 import type { ContractState } from '../db/contracts.ts'
+import type { Integration } from '../db/integrations.ts'
 import { applySignalFilters } from '../db/signal-filter-rule.ts'
 import type { SignalFilter } from '../db/signal-filters.ts'
 import type { ProjectSignals, Signal } from '../db/signals.ts'
@@ -28,6 +29,7 @@ import { findConceptFlow, findSignalsFlow } from './common-flow.ts'
 import { ContractQuestionsSection } from './contract-questions-section.tsx'
 import type { NextStep } from './common-flow.ts'
 import { ContractSection, useVersionHref } from './contract-screen.tsx'
+import { IntegrationsScreen } from './integrations-screen.tsx'
 import { KindFormScreen } from './kind-form-screen.tsx'
 import { LinkedBuilds } from './linked-builds.tsx'
 import { MapPanelScreen, MapScreen } from './map-screen.tsx'
@@ -61,12 +63,14 @@ function listSlugs(concepts: ReadonlyArray<ConceptNode>): Array<string> {
 // members of the Project. The form that the address names takes the place of
 // the screen: a new Part, a new Concept, a new Project, or a Kind. So does
 // the form of the Insight that grows from the picked Signals, and the form
-// of a saved filter of the Signals. The Map keeps the lens of the section.
+// of a saved filter of the Signals, and the Integrations that bring the
+// Signals. The Map keeps the lens of the section.
 export function ConceptScreen({
   concept,
   contract,
   signals,
   signalFilters = [],
+  integrations = [],
   builds,
   mapJoints,
   panelPart,
@@ -80,6 +84,8 @@ export function ConceptScreen({
   signals?: ProjectSignals
   // The saved filters of the Signals of the Project.
   signalFilters?: ReadonlyArray<SignalFilter>
+  // The Integrations of the Project: the tools that bring its Signals.
+  integrations?: ReadonlyArray<Integration>
   // In the section Build: the builds of the Project. With no section: the
   // builds that name the Contract of the Concept.
   builds?: ProjectBuilds
@@ -140,6 +146,8 @@ export function ConceptScreen({
   // saved one with its id, a new one with none.
   const [filtersOn, setFiltersOn] = useState<ReadonlySet<number>>(new Set())
   const [filterForm, setFilterForm] = useState<{ id?: number }>()
+  // The Integrations take the place of the Signals that they bring.
+  const [showsIntegrations, setShowsIntegrations] = useState(false)
   const setFilterOn = (id: number, on: boolean) =>
     setFiltersOn((current) => {
       const next = new Set(current)
@@ -181,6 +189,14 @@ export function ConceptScreen({
           if (saved !== undefined) setFilterOn(saved, true)
           setFilterForm(undefined)
         }}
+      />
+    )
+  }
+  if (showsIntegrations && search.section === 'Understand') {
+    return (
+      <IntegrationsScreen
+        integrations={integrations}
+        onClose={() => setShowsIntegrations(false)}
       />
     )
   }
@@ -246,6 +262,7 @@ export function ConceptScreen({
           onSavedFilterChange={setFilterOn}
           onAddFilter={() => setFilterForm({})}
           onEditFilter={(id) => setFilterForm({ id })}
+          onOpenIntegrations={() => setShowsIntegrations(true)}
           hunch={
             hunchGroup === undefined
               ? undefined

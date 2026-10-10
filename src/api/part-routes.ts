@@ -4,6 +4,13 @@ import { createGithubClient } from '../github/client.ts'
 import { createMetricSource } from '../measure/metric-source.server.ts'
 import { getSetting } from '../settings.server.ts'
 import type { ApiRequest } from './api-request.ts'
+import { createServerIntegrations } from '../signals/integrations.server.ts'
+import {
+  handleAddIntegration,
+  handleChangeIntegration,
+  handleListIntegrations,
+  handleRemoveIntegration,
+} from './integration-api.ts'
 import { handleMeasureProject } from './measure-api.ts'
 import {
   handleAddAsk,
@@ -64,6 +71,7 @@ type PathParams = {
   askId?: string
   questionId?: string
   filterId?: string
+  integrationId?: string
 } & ({ project: string } | { product: string })
 
 type RouteRequest = { request: Request; params: PathParams }
@@ -184,6 +192,25 @@ export const signalFilterHandlers = {
   PATCH: (route: RouteRequest) => handleUpdateSignalFilter(toApiRequest(route)),
   DELETE: (route: RouteRequest) =>
     handleRemoveSignalFilter(toApiRequest(route)),
+}
+
+function toIntegrationRequest(route: RouteRequest) {
+  const request = toApiRequest(route)
+  return { ...request, integrations: createServerIntegrations(request.db) }
+}
+
+export const integrationsHandlers = {
+  GET: (route: RouteRequest) =>
+    handleListIntegrations(toIntegrationRequest(route)),
+  POST: (route: RouteRequest) =>
+    handleAddIntegration(toIntegrationRequest(route)),
+}
+
+export const integrationHandlers = {
+  PATCH: (route: RouteRequest) =>
+    handleChangeIntegration(toIntegrationRequest(route)),
+  DELETE: (route: RouteRequest) =>
+    handleRemoveIntegration(toIntegrationRequest(route)),
 }
 
 export const buildsHandlers = {

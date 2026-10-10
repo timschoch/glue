@@ -723,6 +723,115 @@ describe('a section', () => {
     screen.getByRole('heading', { name: 'Signals' })
   })
 
+  const shop = {
+    id: 1,
+    tool: 'github',
+    address: 'acme/shop',
+    keyLastFour: '1234',
+    state: 'active' as const,
+    lastRead: null,
+  }
+  const web = { ...shop, id: 2, address: 'acme/web', state: 'paused' as const }
+
+  // The Integrations of Glue, opened from its Signals.
+  async function renderIntegrations(changed: Partial<Server> = {}) {
+    const page = await renderPage('/glue?section=Understand', {
+      fetchIntegrations: vi.fn(() => Promise.resolve([shop, web])),
+      ...changed,
+    })
+    await userEvent.click(button('Integrations'))
+    return page
+  }
+
+  const typeIntegration = async () => {
+    await userEvent.type(screen.getByLabelText('Address'), 'acme/app')
+    await userEvent.type(screen.getByLabelText('Key'), 'key-of-the-team')
+    await userEvent.click(button('Add integration'))
+  }
+
+  it('shows the Integrations in the place of the Signals, and the Signals again', async () => {
+    await renderIntegrations()
+
+    expect(
+      within(screen.getByRole('list', { name: 'Integrations' }))
+        .getAllByRole('listitem')
+        .map((row) => row.textContent),
+    ).toEqual([
+      'GitHubacme/shop••••1234ActivePauseRemove',
+      'GitHubacme/web••••1234PausedStartRemove',
+    ])
+
+    await userEvent.click(button('Signals'))
+
+    screen.getByRole('heading', { name: 'Signals' })
+  })
+
+  it('adds an Integration, and the form is empty again', async () => {
+    const { server } = await renderIntegrations()
+
+    await typeIntegration()
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Key')).toHaveProperty('value', ''),
+    )
+    expect(screen.getByLabelText('Address')).toHaveProperty('value', '')
+    expect(vi.mocked(server.addIntegration).mock.calls).toEqual([
+      [
+        {
+          project: 'glue',
+          integration: {
+            tool: 'github',
+            address: 'acme/app',
+            key: 'key-of-the-team',
+          },
+        },
+      ],
+    ])
+  })
+
+  it('says at the key why the tool refused it, and keeps the form', async () => {
+    await renderIntegrations({
+      addIntegration: vi.fn(() =>
+        Promise.resolve({
+          message: 'GitHub refused the key',
+          place: { field: 'key' },
+        }),
+      ),
+    })
+
+    await typeIntegration()
+
+    await screen.findByText('GitHub refused the key')
+    expect(screen.getByLabelText('Key').getAttribute('aria-invalid')).toBe(
+      'true',
+    )
+    expect(screen.getByLabelText('Address')).toHaveProperty('value', 'acme/app')
+  })
+
+  it('pauses, starts and removes an Integration of the Project', async () => {
+    const { server } = await renderIntegrations()
+
+    await userEvent.click(button('Pause GitHub acme/shop'))
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Start GitHub acme/web' }),
+    )
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Remove GitHub acme/web' }),
+    )
+
+    await waitFor(() =>
+      expect(vi.mocked(server.removeIntegration).mock.calls).toEqual([
+        [{ project: 'glue', integrationId: 2 }],
+      ]),
+    )
+    expect(vi.mocked(server.pauseIntegration).mock.calls).toEqual([
+      [{ project: 'glue', integrationId: 1 }],
+    ])
+    expect(vi.mocked(server.startIntegration).mock.calls).toEqual([
+      [{ project: 'glue', integrationId: 2 }],
+    ])
+  })
+
   const noPhone = {
     id: 1,
     name: 'No phone',

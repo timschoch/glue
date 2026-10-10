@@ -99,13 +99,27 @@ function toPullRequests(listed: ListedPullRequest[]): PullRequest[] {
     }))
 }
 
-export function createGithubClient(): GithubClient {
+// GitHub refused a request. `status` is the status of its answer.
+export class GithubError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+  }
+}
+
+// `getToken` gives the token of each request. With none, it is the token of
+// the server.
+export function createGithubClient(
+  getToken: () => string = () => getSetting('GITHUB_TOKEN'),
+): GithubClient {
   async function fetchGithub(path: string, init: RequestInit = {}) {
     return fetch(`${API_URL}${path}`, {
       ...init,
       headers: {
         accept: 'application/vnd.github+json',
-        authorization: `Bearer ${getSetting('GITHUB_TOKEN')}`,
+        authorization: `Bearer ${getToken()}`,
         'content-type': 'application/json',
         'user-agent': 'glue',
         'x-github-api-version': '2022-11-28',
@@ -116,7 +130,10 @@ export function createGithubClient(): GithubClient {
   async function validateResponse(response: Response, action: string) {
     if (response.ok) return
     const detail = await response.text()
-    throw new Error(`GitHub ${action}: ${response.status} ${detail}`)
+    throw new GithubError(
+      `GitHub ${action}: ${response.status} ${detail}`,
+      response.status,
+    )
   }
 
   async function addLabel(repository: string, name: string) {

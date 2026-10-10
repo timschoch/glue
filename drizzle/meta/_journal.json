@@ -267,6 +267,13 @@
       "when": 1791371380110,
       "tag": "0037_responsible_from_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791652246804,
+      "tag": "0038_integrations",
+      "breakpoints": true
     }
   ]
 }

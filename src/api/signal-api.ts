@@ -78,7 +78,7 @@ export function handleListSignals(input: ChangeRequest) {
     return Response.json(
       await listSignals(
         input.db,
-        createSignalSources(input.github),
+        createSignalSources(input.github, input.db, input.params.project),
         input.params.project,
         { source, filter },
       ),

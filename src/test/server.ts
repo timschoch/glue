@@ -22,7 +22,8 @@ const saved = (id: string) => ({ id, issueMissing: false })
 
 // The server for the tests of the routes, in memory: Ada is signed in, each
 // read answers from the Project of project.ts, each write succeeds and saves
-// nothing. GitHub has no Signals and no builds. No filter is saved. Each member is a spy. A test
+// nothing. GitHub has no Signals and no builds. No filter is saved, and the
+// Project has no Integration. Each member is a spy. A test
 // gives its own member for another answer.
 export function createMemoryServer(changed: Partial<Server> = {}): Server {
   return {
@@ -44,6 +45,7 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
       Promise.resolve({ signals: [], failures: [], groups: [] }),
     ),
     fetchSignalFilters: vi.fn(() => Promise.resolve([])),
+    fetchIntegrations: vi.fn(() => Promise.resolve([])),
     fetchBuilds: vi.fn(() => Promise.resolve({ builds: [], reason: null })),
     fetchPeople: vi.fn(() => Promise.resolve(people)),
     fetchMineAsks: vi.fn(() => Promise.resolve([])),
@@ -66,6 +68,14 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
       Promise.resolve({ id: filterId }),
     ),
     removeSignalFilter: vi.fn(() => Promise.resolve(undefined)),
+    addIntegration: vi.fn(() => Promise.resolve({ id: 1 })),
+    pauseIntegration: vi.fn(({ integrationId }) =>
+      Promise.resolve({ id: integrationId }),
+    ),
+    startIntegration: vi.fn(({ integrationId }) =>
+      Promise.resolve({ id: integrationId }),
+    ),
+    removeIntegration: vi.fn(() => Promise.resolve(undefined)),
     fetchContractState: vi.fn((concept) =>
       Promise.resolve(findContractState(concept)),
     ),

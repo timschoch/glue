@@ -22,6 +22,7 @@ export const Route = createFileRoute('/_signed-in/$project/')({
       builds,
       signals,
       signalFilters,
+      integrations,
       mapJoints,
       panelPart,
     ] = await Promise.all([
@@ -42,6 +43,10 @@ export const Route = createFileRoute('/_signed-in/$project/')({
       deps.section === 'Understand'
         ? context.fetchSignalFilters(project)
         : undefined,
+      // The Integrations bring Signals: they show with them.
+      deps.section === 'Understand'
+        ? context.fetchIntegrations(project)
+        : undefined,
       // Only the Map reads the Joints of the Project, and the record of its
       // panel.
       isMap ? context.fetchMapJoints(project) : undefined,
@@ -55,6 +60,7 @@ export const Route = createFileRoute('/_signed-in/$project/')({
       contract,
       signals,
       signalFilters,
+      integrations,
       builds,
       mapJoints,
       panelPart,

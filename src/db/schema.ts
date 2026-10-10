@@ -620,6 +620,40 @@ export const signalFilters = pgTable(
   (table) => [unique().on(table.projectId, table.name)],
 )
 
+// A read from the tool of a paused or a failed Integration does not happen.
+export const integrationStates = ['active', 'paused', 'failed'] as const
+export type IntegrationState = (typeof integrationStates)[number]
+
+// An Integration of a Project with a tool of its team (glue/D70). Glue reads
+// the Signals of the tool at `address` with the key. Only the encrypted key
+// is stored (glue/D71), and its last four characters for the member who
+// looks for it. The last read: its time, the count of its Signals, and the
+// reason when it failed.
+export const integrations = pgTable(
+  'integrations',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    projectId: integer('project_id')
+      .notNull()
+      .references(() => projects.id),
+    tool: text('tool').notNull(),
+    address: text('address').notNull(),
+    encryptedKey: text('encrypted_key').notNull(),
+    keyLastFour: text('key_last_four').notNull(),
+    state: text('state').notNull().$type<IntegrationState>(),
+    lastReadAt: timestamp('last_read_at', { withTimezone: true }),
+    lastReadSignalCount: integer('last_read_signal_count'),
+    lastReadError: text('last_read_error'),
+  },
+  (table) => [
+    unique().on(table.projectId, table.tool, table.address),
+    check(
+      'integrations_state_check',
+      sql`${table.state} in ('active', 'paused', 'failed')`,
+    ),
+  ],
+)
+
 // A Part as a Contract Version holds it: its content at the time of the
 // sign-off. `needs` has the record ids of the Parts that it needs.
 export type FrozenPart = {

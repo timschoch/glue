@@ -67,6 +67,8 @@ export type SignalsProps = {
   // Opens the form of a new filter, or of the saved filter of the id.
   onAddFilter?: () => void
   onEditFilter?: (id: number) => void
+  // Opens the Integrations: the tools that bring the Signals.
+  onOpenIntegrations?: () => void
   // The addresses of the picked Signals, in the order of the list.
   onMakeInsight: (urls: Array<string>) => void
   // The addresses of the Signals of a group, in the order of the list.
@@ -81,7 +83,7 @@ export type SignalsProps = {
 // one button makes an Insight from the picks. The filters show the Signals
 // of the picked sources. No filter picked: all Signals. The saved filters
 // stand beside them. A saved filter that is on has a button that opens its
-// form. The groups come first, each under its title, with the button that
+// form. The button Integrations opens the tools that bring the Signals. The groups come first, each under its title, with the button that
 // turns it into a Hunch. A group shows when the filters show two of its
 // Signals or more. The step bar of the flow and the box Next stand under
 // the title. The next step makes a Hunch too: while it saves, no group
@@ -96,6 +98,7 @@ export function Signals({
   onSavedFilterChange,
   onAddFilter,
   onEditFilter,
+  onOpenIntegrations,
   onMakeInsight,
   onMakeHunch,
   onOpenInsight,
@@ -247,7 +250,7 @@ export function Signals({
           />
         )
       })}
-      {(sources.length > 1 || hasSaved || canAdd) && (
+      {(sources.length > 1 || hasSaved || canAdd || onOpenIntegrations) && (
         <div className={styles.filterRow}>
           {sources.length > 1 && (
             <div role="group" aria-label="Source" className={styles.filters}>
@@ -295,6 +298,11 @@ export function Signals({
           {canAdd && (
             <Button size="sm" kind="ghost" onClick={onAddFilter}>
               Add filter
+            </Button>
+          )}
+          {onOpenIntegrations && (
+            <Button size="sm" kind="ghost" onClick={onOpenIntegrations}>
+              Integrations
             </Button>
           )}
         </div>
