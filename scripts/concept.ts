@@ -72,6 +72,7 @@ import {
   addProjectReference,
   findBuildProject,
   getProjectId,
+  renameProject,
   setAnalyticsProject,
   setMarketUrl,
   setProductRepository,
@@ -182,6 +183,7 @@ const KNOWN_FIELDS = new Set([
   'optional',
   'tool',
   'address',
+  'slug',
 ])
 
 // The steps of a Flow or the fields of an Entity, as the flag has them. The
@@ -646,7 +648,7 @@ function formatHelp() {
     'pnpm concept joint add <id> <project>/<needed id>',
     'pnpm concept joint remove <id> <needed id>',
     'pnpm concept project add <slug>',
-    'pnpm concept project set <slug> [--analytics-project <key>] [--repository <owner/name>] [--social-handle <handle>] [--support <url>] [--market <url>] [--references <slug>]',
+    'pnpm concept project set <slug> [--name <name>] [--slug <new slug>] [--analytics-project <key>] [--repository <owner/name>] [--social-handle <handle>] [--support <url>] [--market <url>] [--references <slug>]',
     'pnpm concept token create --project <slug> --name <name> [--member <e-mail>]',
     'pnpm concept token list',
     'pnpm concept token revoke <id>',
@@ -1530,6 +1532,8 @@ async function handleJointCommand(
 // help desk, and the address of its market analysis. An empty key, handle
 // or address removes it.
 // `--references <slug>`: a Part of the Project may need a Part of that one.
+// `--name <name> --slug <new slug>`: the new name and the new address. They
+// come last, so the other flags find the Project at its old address.
 async function handleProjectCommand(
   db: ConceptDb,
   [command, slug, ...rest]: string[],
@@ -1549,9 +1553,13 @@ async function handleProjectCommand(
   const supportUrl = flags.support as string | undefined
   const marketUrl = flags.market as string | undefined
   const references = flags.references as string | undefined
+  const name = flags.name as string | undefined
+  const nextSlug = flags.slug as string | undefined
   if (
     !slug ||
-    (analyticsProject === undefined &&
+    (name === undefined &&
+      nextSlug === undefined &&
+      analyticsProject === undefined &&
       !repository &&
       socialHandle === undefined &&
       supportUrl === undefined &&
@@ -1559,7 +1567,7 @@ async function handleProjectCommand(
       !references)
   ) {
     throw new Error(
-      'project set needs <slug> and --analytics-project, --repository owner/name, --social-handle, --support, --market or --references',
+      'project set needs <slug> and --name, --slug, --analytics-project, --repository owner/name, --social-handle, --support, --market or --references',
     )
   }
   if (supportUrl !== undefined) {
@@ -1575,6 +1583,9 @@ async function handleProjectCommand(
   if (repository) await setProductRepository(db, slug, repository)
   if (socialHandle !== undefined) {
     await setSocialHandle(db, slug, socialHandle || null)
+  }
+  if (name !== undefined || nextSlug !== undefined) {
+    await renameProject(db, slug, { name, slug: nextSlug })
   }
 }
 

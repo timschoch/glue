@@ -38,6 +38,7 @@ import type {
   PartReadInput,
   PartUpdateInput,
   ProjectAddInput,
+  ProjectRenameInput,
   QuestionAnswerInput,
   SignalInsightAddInput,
   UnassignInput,
@@ -75,6 +76,7 @@ import {
   submitQuestionAnswer,
   submitRemoveConcept,
   submitRemoveJoint,
+  submitRenameProject,
   submitSetFlagsSeen,
   submitSetLoopSteps,
   submitUnassign,
@@ -160,6 +162,9 @@ export const server = {
   // The writes. A Failure is an answer for the person: the write did not
   // happen and the message says why.
   addProject: (project: ProjectAddInput) => submitAddProject({ data: project }),
+  // The answer has the address that the Project has now.
+  renameProject: (project: ProjectRenameInput) =>
+    submitRenameProject({ data: project }),
   addConcept: (concept: ConceptAddInput) => submitAddConcept({ data: concept }),
   updateConcept: (concept: ConceptUpdateInput) =>
     submitUpdateConcept({ data: concept }),

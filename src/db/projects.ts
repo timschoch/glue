@@ -1,7 +1,13 @@
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
+import { z } from 'zod'
 
 import type { ConceptDb } from './client.ts'
-import { InvalidRecordError, ProductNotFoundError } from './record-errors.ts'
+import {
+  InvalidRecordError,
+  isUniqueViolation,
+  ProductNotFoundError,
+} from './record-errors.ts'
+import { parseInput, slug as slugSchema } from './record-input.ts'
 import * as schema from './schema.ts'
 
 // A Project as a row, and its settings: the repository, the analytics
@@ -22,6 +28,112 @@ export async function getProjectId(db: ConceptDb, projectSlug: string) {
   const project = await findProduct(db, projectSlug)
   if (!project) throw new ProductNotFoundError(projectSlug)
   return project.id
+}
+
+export const projectChangeSchema = z.strictObject({
+  name: z.string().optional(),
+  slug: z.string().optional().meta({
+    description:
+      'The new address of the Project: lower case letters, digits and "-". The root Concept takes it too',
+  }),
+})
+
+export type ProjectChange = z.input<typeof projectChangeSchema>
+
+// The first words of an address of the app that is no Project. No Project
+// takes one as its address.
+const FIXED_PATHS = ['api', 'sign-in', 'sign-up']
+
+function escapeRegExp(text: string) {
+  return text.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+}
+
+// Gives the Project a new name, a new address, or both (glue/D74). Its
+// Parts, Joints, members and tokens stay with it: they hold its row id. In
+// the same write, what holds the address as text follows: the root Concept,
+// which has the slug of its Project, and the body of each Part that names a
+// record of the Project, as `old#D12` or as `#old/D12`. A root Concept with
+// the old name takes the new name. Gives back the address and the name that
+// the Project has now.
+export async function renameProject(
+  db: ConceptDb,
+  projectSlug: string,
+  change: ProjectChange,
+): Promise<{ slug: string; name: string }> {
+  const input = parseInput(projectChangeSchema, change)
+  if (input.name === undefined && input.slug === undefined)
+    throw new InvalidRecordError('send at least one field')
+  const name = input.name?.trim()
+  if (name === '')
+    throw new InvalidRecordError('a Project needs a name', { field: 'name' })
+  const { slug } = input
+  if (slug !== undefined && !slugSchema.safeParse(slug).success)
+    throw new InvalidRecordError(
+      'an address has lower case letters, digits and "-" only',
+      { field: 'slug' },
+    )
+  if (slug !== undefined && FIXED_PATHS.includes(slug))
+    throw new InvalidRecordError(`Glue uses the address "${slug}" itself`, {
+      field: 'slug',
+    })
+  const project = await findProduct(db, projectSlug)
+  if (!project) throw new ProductNotFoundError(projectSlug)
+
+  const nextSlug = slug ?? project.slug
+  const nextName = name ?? project.name
+  const old = escapeRegExp(project.slug)
+  // A mention ends where its record id ends, so the address before `#` is
+  // the whole word.
+  const mentions =
+    nextSlug === project.slug
+      ? sql``
+      : sql`,
+    mentions as (
+      update "parts" set "body" = regexp_replace(
+        regexp_replace(
+          "body",
+          ${`(^|[^a-z0-9-])${old}(#[a-z][0-9]+)`}::text,
+          ${`\\1${nextSlug}\\2`}::text,
+          'gi'
+        ),
+        ${`#${old}(/[a-z][0-9]+)`}::text,
+        ${`#${nextSlug}\\1`}::text,
+        'gi'
+      )
+      where "body" ~* ${`${old}#|#${old}/`}::text
+    )`
+  try {
+    await db.execute(sql`
+      with project as (
+        update "projects"
+        set "slug" = ${nextSlug}::text, "name" = ${nextName}::text
+        where "id" = ${project.id}::integer
+        returning "id"
+      ),
+      root as (
+        update "concepts" set
+          "slug" = ${nextSlug}::text,
+          "title" = case
+            when "title" = ${project.name}::text then ${nextName}::text
+            else "title"
+          end
+        where "project_id" = ${project.id}::integer and "parent_id" is null
+      )${mentions}
+      select "id" from project
+    `)
+  } catch (error) {
+    if (isUniqueViolation(error, 'projects_slug_unique'))
+      throw new InvalidRecordError(`project "${nextSlug}" exists already`, {
+        field: 'slug',
+      })
+    if (isUniqueViolation(error, 'concepts_project_id_slug_unique'))
+      throw new InvalidRecordError(
+        `concept "${nextSlug}" exists already in the Project`,
+        { field: 'slug' },
+      )
+    throw error
+  }
+  return { slug: nextSlug, name: nextName }
 }
 
 // The slugs of the Projects with the repository. Two or more share it:

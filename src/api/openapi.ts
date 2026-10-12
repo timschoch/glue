@@ -47,6 +47,7 @@ import {
   partUpdateSchema,
   projectConceptSchema,
   projectSchema,
+  projectUpdateSchema,
   questionAnswerInputSchema,
 } from './part-api.ts'
 import {
@@ -167,6 +168,21 @@ function listPartPaths() {
         requestParams: { path },
         responses: {
           200: { description: 'The Project', ...jsonContent(projectSchema) },
+          ...readErrorResponses,
+        },
+      },
+      patch: {
+        operationId: 'updateProject',
+        summary:
+          'Give the Project a new name or a new address. The old address answers 404 from then on',
+        requestParams: { path },
+        requestBody: jsonContent(projectUpdateSchema),
+        responses: {
+          200: {
+            description: 'The Project after the change',
+            ...jsonContent(projectSchema),
+          },
+          400: errorResponses[400],
           ...readErrorResponses,
         },
       },

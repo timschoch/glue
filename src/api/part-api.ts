@@ -47,6 +47,7 @@ import {
   workStates,
 } from '../db/parts.ts'
 import type { Concept, Part, PartSummary, Project } from '../db/parts.ts'
+import { projectChangeSchema, renameProject } from '../db/projects.ts'
 import { ApiError, handleApiRequest, parseJson } from './api-request.ts'
 import type { ApiRequest, ChangeRequest } from './api-request.ts'
 
@@ -433,6 +434,10 @@ export const conceptUpdateSchema = conceptChangeSchema.meta({
   id: 'ConceptUpdate',
   description: 'One field or more',
 })
+export const projectUpdateSchema = projectChangeSchema.meta({
+  id: 'ProjectUpdate',
+  description: 'One field or more',
+})
 export const kindInputSchema = newKindSchema.meta({ id: 'KindInput' })
 export const kindUpdateSchema = kindChangeSchema.meta({
   id: 'KindUpdate',
@@ -477,6 +482,16 @@ export function handleGetProject(input: ApiRequest) {
     const project = await findProject(input.db, input.params.project)
     if (!project) throw toNotFound('project', input.params.project)
     return Response.json(project)
+  })
+}
+
+// The answer is the Project at its new address. The token goes with it.
+export function handleUpdateProject(input: ApiRequest) {
+  return handleApiRequest(input, async () => {
+    const { db, request, params } = input
+    const change = projectChangeSchema.parse(await parseJson(request))
+    const { slug } = await renameProject(db, params.project, change)
+    return Response.json(await findProject(db, slug))
   })
 }
 

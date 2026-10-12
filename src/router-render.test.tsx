@@ -3471,6 +3471,55 @@ describe('a new Concept and a new Project', () => {
     })
   })
 
+  it('renames the Project from its page, and opens its new address', async () => {
+    const { expectAddress, server } = await renderPage('/glue')
+
+    await userEvent.click(button('Rename Project'))
+    await expectAddress('/glue', { edit: true })
+    expect(field('Name')).toHaveProperty('value', 'Glue')
+    expect(field('Address')).toHaveProperty('value', 'glue')
+    await userEvent.clear(field('Name'))
+    await userEvent.type(field('Name'), 'Glue UX')
+    await userEvent.clear(field('Address'))
+    await userEvent.type(field('Address'), 'glue-ux')
+    await userEvent.click(button('Save'))
+
+    await expectAddress('/glue-ux')
+    expect(server.renameProject).toHaveBeenCalledExactlyOnceWith({
+      project: 'glue',
+      change: { name: 'Glue UX', slug: 'glue-ux' },
+    })
+  })
+
+  it('shows why the server refused an address at the field Address', async () => {
+    await renderPage('/glue?edit=true', {
+      renameProject: vi.fn(() =>
+        Promise.resolve({
+          message: 'project "flexibeck" exists already',
+          place: { field: 'slug' },
+        }),
+      ),
+    })
+    await userEvent.clear(field('Address'))
+    await userEvent.type(field('Address'), 'flexibeck')
+
+    await userEvent.click(button('Save'))
+
+    const address = await screen.findByRole('textbox', {
+      name: 'Address',
+      description: 'project "flexibeck" exists already',
+    })
+    expect(address.getAttribute('aria-invalid')).toBe('true')
+    expect(field('Name').getAttribute('aria-invalid')).not.toBe('true')
+    expect(alerts()).toEqual([])
+  })
+
+  it('has no button that renames the Project at a Concept inside it', async () => {
+    await renderPage('/glue/part-model')
+
+    expect(screen.queryByRole('button', { name: 'Rename Project' })).toBeNull()
+  })
+
   it.each([
     ['Project', '/glue?add=project', 'Name', 'Enter a name with a letter.'],
     [

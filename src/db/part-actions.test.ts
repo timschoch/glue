@@ -144,6 +144,8 @@ const requests = {
     actions.addJoint({ project, joint: { part: 'I1', needs: 'G1' } }),
   removeJoint: () => actions.removeJoint({ project, jointId: 1 }),
   addProject: () => actions.addProject({ slug: 'bakeday', name: 'Bake day' }),
+  renameProject: () =>
+    actions.renameProject({ project, change: { slug: 'bakeday' } }),
   findPeople: () => actions.findPeople({ project }),
   addMember: () => actions.addMember({ project, email: 'bo@example.com' }),
   setLoopSteps: () => actions.setLoopSteps({ project, loopSteps: ['build'] }),
@@ -633,6 +635,29 @@ describe('a server function of the Part model with a session', () => {
     })
   })
 
+  it('gives the Project a new name and a new address', async () => {
+    expect(
+      await actions.renameProject({
+        project,
+        change: { name: 'Bake day', slug: 'bakeday' },
+      }),
+    ).toEqual({ slug: 'bakeday' })
+    expect(await findProject(db, 'bakeday')).toMatchObject({
+      name: 'Bake day',
+    })
+  })
+
+  it('answers an address that another Project has as a failure at the address', async () => {
+    await addProject(db, 'glue')
+
+    expect(
+      await actions.renameProject({ project, change: { slug: 'glue' } }),
+    ).toEqual({
+      message: 'project "glue" exists already',
+      place: { field: 'slug' },
+    })
+  })
+
   it('glues two Parts with a Joint, then removes the Joint', async () => {
     const added = await requests.addJoint()
     const glued = await findPart(db, project, 'I1')
@@ -806,6 +831,7 @@ describe('an Ask to another Project', () => {
 
 const writes = [
   'addConcept',
+  'renameProject',
   'addPart',
   'updatePart',
   'answerPart',
