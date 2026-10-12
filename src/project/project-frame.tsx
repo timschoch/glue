@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 
 import type { ConceptNode, PartSummary, Project } from '../db/parts.ts'
 import { Frame } from '../design-system/frame.tsx'
+import { listLoopSteps } from './loop-steps.ts'
 import { changePin } from './project-search.ts'
 import { useProjectLinks } from './use-project-links.ts'
 import { useWrite } from './use-write.ts'
@@ -32,6 +33,7 @@ export function ProjectFrame({
   project,
   projects,
   parts,
+  measured,
   newFlagCount,
   children,
 }: {
@@ -39,6 +41,8 @@ export function ProjectFrame({
   projects: ReadonlyArray<Pick<Project, 'slug' | 'name'>>
   // The Parts of the Project: the trail and the pins take their titles here.
   parts: ReadonlyArray<PartSummary>
+  // The Parts that the section Use lists.
+  measured: ReadonlyArray<Pick<PartSummary, 'concept'>>
   // The count of the flags that the person did not see yet (glue/D61).
   newFlagCount: number
   children: ReactNode
@@ -55,10 +59,16 @@ export function ProjectFrame({
     open,
     changeSearch,
   } = useProjectLinks()
+  // Mine and People belong to the Project: a Concept opens without them.
+  const isOfProject = search.section === 'Mine' || search.section === 'People'
   const toLink = (node: ConceptNode) => ({
     name: node.title,
-    href: conceptHref(node.slug),
+    href: isOfProject
+      ? conceptHref(node.slug, { pins: search.pins })
+      : conceptHref(node.slug),
   })
+  const conceptPath = findConceptPath(project.concept, concept)
+  const openConcept = conceptPath.at(-1) ?? project.concept
   const found = (recordIds: ReadonlyArray<string> = []) =>
     recordIds.flatMap((id) => parts.find((part) => part.id === id) ?? [])
   const opened = found(recordId ? [recordId] : [])
@@ -74,20 +84,38 @@ export function ProjectFrame({
       }}
       section={search.section}
       newFlagCount={newFlagCount}
-      // A second click on the section takes the lens away.
-      sectionHref={(section) =>
-        conceptHref(concept, {
-          section: section === search.section ? undefined : section,
+      mineHref={conceptHref(project.slug, {
+        section: 'Mine',
+        pins: search.pins,
+      })}
+      peopleHref={conceptHref(project.slug, {
+        section: 'People',
+        pins: search.pins,
+      })}
+      // The Project itself opens as the map of the whole Project. It keeps
+      // the loop step.
+      rootHref={conceptHref(project.slug, {
+        section: isOfProject ? undefined : search.section,
+        pins: search.pins,
+        view: 'map',
+      })}
+      // The steps belong to the open Concept. Mine and People open on the
+      // Project, so there the steps are the ones of the whole Project.
+      steps={listLoopSteps(openConcept, parts, measured).map((step) => ({
+        ...step,
+        // A second click on the step takes the lens away.
+        href: conceptHref(concept, {
+          section: step.name === search.section ? undefined : step.name,
           pins: search.pins,
           view: search.view,
-        })
-      }
+        }),
+      }))}
       concepts={project.concept.concepts.map((node) => ({
         ...toLink(node),
         concepts:
           node.concepts.length > 0 ? node.concepts.map(toLink) : undefined,
       }))}
-      conceptPath={findConceptPath(project.concept, concept).map(toLink)}
+      conceptPath={conceptPath.map(toLink)}
       trail={[...found(opened.length > 0 ? search.trail : []), ...opened].map(
         (part) => ({ name: part.title, href: recordHref(part) }),
       )}

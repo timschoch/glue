@@ -3,13 +3,7 @@ import { useEffect, useState } from 'react'
 
 import type { Ask, AskPart } from '../db/asks.ts'
 import type { ProjectBuilds } from '../db/builds.ts'
-import type {
-  Concept,
-  ConceptNode,
-  MapJoint,
-  Part,
-  PartSummary,
-} from '../db/parts.ts'
+import type { Concept, MapJoint, Part, PartSummary } from '../db/parts.ts'
 import type { ContractQuestion } from '../db/contract-questions.ts'
 import type { ContractState } from '../db/contracts.ts'
 import type { ProjectIntegrations } from '../db/integration-actions.ts'
@@ -35,6 +29,7 @@ import {
 } from './integrations-screen.tsx'
 import { KindFormScreen } from './kind-form-screen.tsx'
 import { LinkedBuilds } from './linked-builds.tsx'
+import { listSlugs } from './loop-steps.ts'
 import { MapPanelScreen, MapScreen } from './map-screen.tsx'
 import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
@@ -48,11 +43,6 @@ import { useProjectLinks } from './use-project-links.ts'
 import { useWrite } from './use-write.ts'
 
 const projectRoute = getRouteApi('/_signed-in/$project')
-
-// The slugs of the Concepts and of each Concept in them.
-function listSlugs(concepts: ReadonlyArray<ConceptNode>): Array<string> {
-  return concepts.flatMap((node) => [node.slug, ...listSlugs(node.concepts)])
-}
 
 // One Concept in the main window, or one section. The Concept in the address
 // is the filter of a section: the section lists the Parts of the Concept and

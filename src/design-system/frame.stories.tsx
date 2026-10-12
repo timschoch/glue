@@ -18,7 +18,28 @@ const meta = {
     onUnpin: () => {},
     onOpen: (_href, event) => event.preventDefault(),
     section: 'Decide',
-    sectionHref: (section) => `/bakeday?section=${section}`,
+    mineHref: '/bakeday?section=Mine',
+    peopleHref: '/bakeday?section=People',
+    rootHref: '/bakeday',
+    steps: [
+      {
+        name: 'Understand',
+        href: '/bakeday/step-videos?section=Understand',
+        hasParts: true,
+      },
+      { name: 'Decide', href: '/bakeday/step-videos', hasParts: true },
+      {
+        name: 'Design',
+        href: '/bakeday/step-videos?section=Design',
+        hasParts: false,
+      },
+      {
+        name: 'Build',
+        href: '/bakeday/step-videos?section=Build',
+        hasParts: false,
+      },
+      { name: 'Use', href: '/bakeday/step-videos?section=Use', hasParts: true },
+    ],
     concepts: [
       {
         name: 'Technique videos',
@@ -70,6 +91,30 @@ export const Pinned: StoryObj<typeof meta> = {
 // No section is chosen: the main window shows every Part type.
 export const NoSection: StoryObj<typeof meta> = {
   args: { section: undefined },
+}
+
+// The Project itself is open: its item in the left panel is the current one.
+export const ProjectOpen: StoryObj<typeof meta> = {
+  args: { section: undefined, conceptPath: [], trail: [] },
+}
+
+// A Concept with no Parts: each loop step is empty.
+export const NoParts: StoryObj<typeof meta> = {
+  args: {
+    section: undefined,
+    steps: meta.args.steps.map((step) => ({ ...step, hasParts: false })),
+  },
+}
+
+// Mine belongs to the Project: no Concept is open and no loop step is
+// current.
+export const Mine: StoryObj<typeof meta> = {
+  args: {
+    section: 'Mine',
+    newFlagCount: 2,
+    conceptPath: [],
+    trail: [],
+  },
 }
 
 // The section Use: the Metrics and the measured Goals of the Project, each

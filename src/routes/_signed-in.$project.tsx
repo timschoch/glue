@@ -83,13 +83,14 @@ export const Route = createFileRoute('/_signed-in/$project')({
 })
 
 function ProjectScreens() {
-  const { project, parts, newFlagCount } = Route.useLoaderData()
+  const { project, parts, measured, newFlagCount } = Route.useLoaderData()
 
   return (
     <ProjectFrame
       project={project}
       projects={signedIn.useLoaderData()}
       parts={parts}
+      measured={measured}
       newFlagCount={newFlagCount}
     >
       <Outlet />

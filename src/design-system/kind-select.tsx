@@ -1,16 +1,18 @@
-import { Select, SelectItem } from '@carbon/react'
 import { useId } from 'react'
+
+import { AddDropdown } from './add-dropdown.tsx'
 
 export type KindOption = { slug: string; name: string }
 
 // The field that picks the Kind of a Concept: one of the Kinds of the
-// Project, or none.
+// Project, or none. Its last item adds a Kind.
 export function KindSelect({
   kinds,
   value,
   size,
   failure,
   onChange,
+  onAdd,
 }: {
   kinds: ReadonlyArray<KindOption>
   // The slug of the Kind.
@@ -19,23 +21,24 @@ export function KindSelect({
   // Why the last pick was not saved.
   failure?: string
   onChange: (kind: string | null) => void
+  onAdd?: () => void
 }) {
   const id = useId()
 
   return (
-    <Select
+    <AddDropdown
       id={id}
-      labelText="Kind"
-      size={size}
+      label="Kind"
+      options={[
+        { value: '', name: 'None' },
+        ...kinds.map(({ slug, name }) => ({ value: slug, name })),
+      ]}
       value={value ?? ''}
-      invalid={failure !== undefined}
-      invalidText={failure}
-      onChange={({ target }) => onChange(target.value || null)}
-    >
-      <SelectItem value="" text="None" />
-      {kinds.map(({ slug, name }) => (
-        <SelectItem key={slug} value={slug} text={name} />
-      ))}
-    </Select>
+      thing="Kind"
+      size={size}
+      failure={failure}
+      onChange={(kind) => onChange(kind || null)}
+      onAdd={onAdd}
+    />
   )
 }
