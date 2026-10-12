@@ -94,7 +94,7 @@ Build the smallest Glue that runs the whole [loop](docs/concept.md#1-the-loop), 
 
 ### Design
 
-- The look and its rules live in Glue, in the Project `design-system`: `pnpm concept list --project design-system`. Read its Guardrails before a UI ticket.
+- The look and its rules live in Glue, in the Project `glue-ux`: `pnpm concept list --project glue-ux`. Read its Guardrails before a UI ticket.
 - No text that describes the UI: no legends, hints or explaining sentences. One style, one meaning.
 - Build UI with the `better-*` skills. Use `break` and `variant` for stress tests and options.
 
