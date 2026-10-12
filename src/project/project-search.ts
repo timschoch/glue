@@ -30,7 +30,13 @@ export type ProjectSearch = {
   // What the panel beside the Map shows: a record id or the slug of a
   // Concept.
   panel?: string
+  // PROTOTYPE (design-system/D16): the variant of the Concept document.
+  variant?: Variant
 }
+
+export const variants = ['A', 'B', 'C'] as const
+
+export type Variant = (typeof variants)[number]
 
 const nameForms = ['concept', 'project', 'kind'] as const
 
@@ -127,6 +133,7 @@ export function parseProjectSearch(
       (typeof search.panel === 'string' && isRecordId(search.panel))
         ? search.panel
         : undefined,
+    variant: variants.find((variant) => variant === search.variant),
   }
 }
 

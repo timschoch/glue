@@ -85,6 +85,9 @@ export const Route = createFileRoute('/_signed-in/$project')({
 function ProjectScreens() {
   const { project, parts, newFlagCount } = Route.useLoaderData()
 
+  // PROTOTYPE (design-system/D16): a variant brings its own navigation.
+  if (Route.useSearch().variant) return <Outlet />
+
   return (
     <ProjectFrame
       project={project}

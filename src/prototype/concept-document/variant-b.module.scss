@@ -1,0 +1,87 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// PROTOTYPE, throwaway (design-system/D16). Variant B, Canvas.
+
+.canvas {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-07;
+}
+
+.title {
+  @include type-style('heading-05');
+}
+
+// The sheet: the Goal and its Metric on top, then the areas from the
+// evidence on the left to the builds on the right.
+.sheet {
+  display: grid;
+  gap: $spacing-05;
+  grid-template-areas:
+    'goal goal goal metric'
+    'insight decision flow build'
+    'insight guardrail entity build';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.box,
+.emptyBox,
+.nextBox {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid transparent;
+  background-color: $layer;
+  min-block-size: $spacing-12;
+  padding-block-end: $spacing-03;
+}
+
+// An empty area: a dashed box at its place.
+.emptyBox,
+.nextBox {
+  border: 1px dashed $border-strong-01;
+  background-color: transparent;
+}
+
+// The box of the next step.
+.nextBox {
+  border: 2px dashed $border-interactive;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: $spacing-05 $spacing-05 $spacing-03;
+
+  h2 {
+    @include type-style('heading-compact-01');
+  }
+}
+
+.count,
+.more {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+  font-variant-numeric: tabular-nums;
+}
+
+.more {
+  padding: $spacing-03 $spacing-05;
+}
+
+.goal {
+  @include type-style('heading-03');
+
+  padding: 0 $spacing-05 $spacing-05;
+  color: $text-primary;
+  max-inline-size: 40rem;
+  text-decoration: none;
+}
+
+.action {
+  align-self: flex-start;
+  margin: 0 $spacing-05 $spacing-03;
+}

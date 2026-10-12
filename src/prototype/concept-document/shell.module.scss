@@ -1,0 +1,171 @@
+@use '@carbon/react/scss/breakpoint' as *;
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+@use '@carbon/react/scss/utilities/focus-outline' as *;
+
+// PROTOTYPE, throwaway (design-system/D16).
+
+// The width of Carbon's side nav.
+$panel-width: $spacing-10 * 4;
+
+.breadcrumb {
+  padding-inline: $spacing-05;
+}
+
+.switcher {
+  padding: $spacing-05 $spacing-05 0;
+}
+
+// The room at the end is for the floating bar of the variants.
+.content {
+  background-color: $background;
+  // The header takes the rest of the window.
+  min-block-size: calc(100dvh - #{$spacing-09});
+  padding-block-end: $spacing-13;
+
+  @include breakpoint('lg') {
+    margin-inline-start: $panel-width;
+  }
+}
+
+.loop {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+// Five columns: a variant can put its content below a step.
+.steps {
+  display: grid;
+  gap: $spacing-05;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+// A filled step: a solid line. An empty step: a dashed line.
+.step,
+.emptyStep {
+  @include type-style('heading-compact-01');
+
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: $spacing-04 $spacing-05;
+  border-block-start: 2px solid $border-inverse;
+  color: $text-primary;
+  gap: $spacing-03;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $layer-hover;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
+
+  // The current step: the layer state and the blue line.
+  &[aria-current] {
+    border-block-start-color: $border-interactive;
+    background-color: $layer-selected;
+  }
+}
+
+.emptyStep {
+  border-block-start-style: dashed;
+  border-block-start-color: $border-strong-01;
+}
+
+.count {
+  @include type-style('label-01');
+
+  color: $text-secondary;
+  font-variant-numeric: tabular-nums;
+}
+
+.sign {
+  flex-shrink: 0;
+  block-size: $spacing-05;
+  inline-size: $spacing-05;
+  margin-block-start: 1px;
+}
+
+.entry {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  align-items: flex-start;
+  padding: $spacing-03 $spacing-05;
+  color: $text-primary;
+  gap: $spacing-03;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $layer-hover;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
+}
+
+.entryId {
+  flex-shrink: 0;
+  color: $text-secondary;
+  font-variant-numeric: tabular-nums;
+  min-inline-size: $spacing-08;
+}
+
+.entryTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  flex: 1;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  min-inline-size: 0;
+}
+
+.entryNeeds {
+  flex-shrink: 0;
+  color: $text-secondary;
+  font-variant-numeric: tabular-nums;
+}
+
+.reading {
+  @include type-style('heading-04');
+
+  display: flex;
+  align-items: baseline;
+  padding: 0 $spacing-05 $spacing-05;
+  font-variant-numeric: tabular-nums;
+  gap: $spacing-03;
+}
+
+.target {
+  @include type-style('body-compact-01');
+
+  color: $text-secondary;
+}
+
+// The bar of the variants floats over the page.
+.variants {
+  @include type-style('code-02');
+
+  position: fixed;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  padding: $spacing-03 $spacing-05;
+  background-color: $background-inverse;
+  box-shadow: 0 $spacing-01 $spacing-03 $shadow;
+  color: $text-inverse;
+  gap: $spacing-05;
+  inset-block-end: $spacing-05;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+
+  a {
+    display: flex;
+    color: $icon-inverse;
+  }
+}

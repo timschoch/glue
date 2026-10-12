@@ -4,6 +4,7 @@ import { isRecordId } from '../db/record-id.ts'
 import { PageState } from '../design-system/page-state.tsx'
 import { ConceptScreen } from '../project/concept-screen.tsx'
 import { LoadError } from '../project/load-error.tsx'
+import { ConceptDocument } from '../prototype/concept-document/concept-document.tsx'
 
 export const Route = createFileRoute('/_signed-in/$project/$concept/')({
   loaderDeps: ({ search: { section, view, panel } }) => ({
@@ -89,7 +90,14 @@ export const Route = createFileRoute('/_signed-in/$project/$concept/')({
       },
     ],
   }),
-  component: () => <ConceptScreen {...Route.useLoaderData()} />,
+  // PROTOTYPE (design-system/D16): three variants of the Concept as one
+  // document, on this route, picked by `?variant=A|B|C`.
+  component: () =>
+    Route.useSearch().variant ? (
+      <ConceptDocument {...Route.useLoaderData()} />
+    ) : (
+      <ConceptScreen {...Route.useLoaderData()} />
+    ),
   errorComponent: () => <LoadError name="the Concept" />,
   notFoundComponent: MissingConcept,
 })

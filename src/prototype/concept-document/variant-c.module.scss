@@ -1,0 +1,91 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// PROTOTYPE, throwaway (design-system/D16). Variant C, Threads.
+
+.threads {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-07;
+}
+
+.title {
+  @include type-style('heading-05');
+}
+
+// The five columns of the step bar. The Goal and its threads use the first
+// four, the Metric of the Goal the last one.
+.group {
+  display: grid;
+  align-items: start;
+  gap: $spacing-03 $spacing-05;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.goal {
+  @include type-style('heading-03');
+
+  padding: $spacing-05;
+  color: $text-primary;
+  grid-column: 1 / 5;
+  text-decoration: none;
+}
+
+.goalGap {
+  grid-column: 1 / 5;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  grid-column: 5;
+  grid-row-start: 1;
+}
+
+// One line of reasoning: one band through four steps.
+.thread,
+.emptyThread {
+  display: grid;
+  align-items: stretch;
+  background-color: $layer;
+  grid-column: 1 / 5;
+  grid-template-columns: subgrid;
+}
+
+// A thread with no Decision: only gaps, so no band.
+.emptyThread {
+  background-color: transparent;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  background-color: $layer;
+  padding-block: $spacing-03;
+}
+
+// A Part that is missing.
+.gap,
+.nextGap {
+  @include type-style('body-compact-01');
+
+  display: flex;
+  align-items: center;
+  padding: $spacing-03 $spacing-05;
+  border: 1px dashed $border-strong-01;
+  background-color: $background;
+  color: $text-secondary;
+  min-block-size: $spacing-09;
+}
+
+// The gap of the next step.
+.nextGap {
+  padding: $spacing-03;
+  border: 2px dashed $border-interactive;
+}
+
+.action {
+  align-self: flex-start;
+  margin: 0 $spacing-05 $spacing-03;
+}

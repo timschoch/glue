@@ -23,7 +23,13 @@ export default defineConfig({
       enforce: 'pre',
       resolveId: (source, importer) =>
         source === './router-server.ts' && importer?.endsWith('/src/router.tsx')
-          ? path.join(here, 'memory-server.ts')
+          ? // PROTOTYPE (design-system/D16): `pnpm prototype` sets the variable.
+            path.join(
+              here,
+              process.env.GLUE_PROTOTYPE
+                ? 'prototype-server.ts'
+                : 'memory-server.ts',
+            )
           : undefined,
     },
     nitro(),

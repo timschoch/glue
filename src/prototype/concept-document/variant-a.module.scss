@@ -1,0 +1,79 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// PROTOTYPE, throwaway (design-system/D16). Variant A, Page.
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-07;
+  max-inline-size: 60rem;
+}
+
+.title {
+  @include type-style('heading-05');
+}
+
+// The step bar stays in view while the document scrolls.
+.loop {
+  position: sticky;
+  z-index: 1;
+  background-color: $background;
+  inset-block-start: $spacing-09;
+}
+
+// The name of the step in the first column, its areas in the other four.
+.chapter {
+  display: grid;
+  gap: $spacing-05;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  scroll-margin-block-start: $spacing-12;
+}
+
+.step {
+  @include type-style('heading-compact-01');
+
+  padding: $spacing-04 $spacing-05;
+  color: $text-secondary;
+}
+
+.areas {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  grid-column: 2 / -1;
+}
+
+.area,
+.slot,
+.nextSlot {
+  border: 1px solid transparent;
+  background-color: $layer;
+  padding-block-end: $spacing-03;
+}
+
+// An empty area: the dashed slot at its place.
+.slot,
+.nextSlot {
+  border: 1px dashed $border-strong-01;
+  background-color: transparent;
+  padding-block-end: 0;
+}
+
+// The slot of the next step.
+.nextSlot {
+  border: 2px dashed $border-interactive;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $spacing-03 $spacing-03 $spacing-03 $spacing-05;
+  min-block-size: $spacing-09;
+
+  h3 {
+    @include type-style('heading-compact-01');
+  }
+}
