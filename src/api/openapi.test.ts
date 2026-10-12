@@ -17,6 +17,7 @@ describe('GET /api/v1/openapi.json', () => {
         .concat(
           [
             'get ',
+            'patch ',
             'get /concepts/{concept}',
             'patch /concepts/{concept}',
             'delete /concepts/{concept}',
@@ -354,6 +355,20 @@ describe('GET /api/v1/openapi.json', () => {
 
     expect(new Set(ids).size).toBe(ids.length)
     expect(ids).toContain('getProjectConcept')
+  })
+
+  it('describes the change of a Project: its name and its address', async () => {
+    const document = await handleGetOpenApi().json()
+    const { patch } = document.paths['/api/v1/projects/{project}']
+
+    expect(patch.operationId).toBe('updateProject')
+    expect(patch.requestBody.content['application/json'].schema).toEqual({
+      $ref: '#/components/schemas/ProjectUpdate',
+    })
+    expect(
+      Object.keys(document.components.schemas.ProjectUpdate.properties),
+    ).toEqual(['name', 'slug'])
+    expect(Object.keys(patch.responses)).toEqual(['200', '400', '401', '404'])
   })
 
   it('describes the bearer token and the shared schemas', async () => {

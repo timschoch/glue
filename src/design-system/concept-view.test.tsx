@@ -223,6 +223,22 @@ describe('ConceptView', () => {
     expect(onAddKind).toHaveBeenCalledOnce()
   })
 
+  it('has the button that renames the Project only with its callback', async () => {
+    const onRename = vi.fn()
+    renderView({ onRename })
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Rename Project' }),
+    )
+
+    expect(onRename).toHaveBeenCalledOnce()
+
+    cleanup()
+    renderView()
+
+    expect(screen.queryByRole('button', { name: 'Rename Project' })).toBeNull()
+  })
+
   it('has no button that changes the Kind of a Concept without one', () => {
     renderView({
       kinds: KINDS,

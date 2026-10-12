@@ -86,6 +86,9 @@ export function createMemoryServer(changed: Partial<Server> = {}): Server {
     fetchMineAsks: vi.fn(() => Promise.resolve([])),
     fetchAskState: vi.fn(() => Promise.resolve({ ask: null, projects: [] })),
     addProject: vi.fn(({ slug }) => Promise.resolve({ slug })),
+    renameProject: vi.fn(({ project, change }) =>
+      Promise.resolve({ slug: change.slug ?? project }),
+    ),
     addConcept: vi.fn(({ concept }) => Promise.resolve({ slug: concept.slug })),
     updateConcept: vi.fn(() => Promise.resolve(undefined)),
     removeConcept: vi.fn(() => Promise.resolve(undefined)),

@@ -68,6 +68,7 @@ import {
   listProjects,
   listWatched,
 } from './parts.ts'
+import { projectChangeSchema, renameProject } from './projects.ts'
 import * as schema from './schema.ts'
 import { createSessionGuard, toFailure } from './session-actions.ts'
 import type { ActionRequest } from './session-actions.ts'
@@ -130,6 +131,10 @@ export const partUpdateInputSchema = partReadInputSchema.extend({
 export const projectAddInputSchema = z.object({
   slug: newConceptSchema.shape.slug,
   name: newConceptSchema.shape.title,
+})
+
+export const projectRenameInputSchema = projectInputSchema.extend({
+  change: projectChangeSchema,
 })
 
 export const answerInputSchema = partReadInputSchema.extend({
@@ -209,6 +214,7 @@ export type KindUpdateInput = z.infer<typeof kindUpdateInputSchema>
 export type PartAddInput = z.infer<typeof partAddInputSchema>
 export type PartUpdateInput = z.infer<typeof partUpdateInputSchema>
 export type ProjectAddInput = z.infer<typeof projectAddInputSchema>
+export type ProjectRenameInput = z.infer<typeof projectRenameInputSchema>
 export type AnswerInput = z.infer<typeof answerInputSchema>
 export type QuestionAnswerInput = z.infer<typeof questionAnswerInputSchema>
 export type JointAddInput = z.infer<typeof jointAddInputSchema>
@@ -359,6 +365,13 @@ export function createPartActions(request: ActionRequest) {
         await joinProject(db, slug, user)
         return { slug }
       },
+    ),
+
+    renameProject: withMember((db, { project, change }: ProjectRenameInput) =>
+      renameProject(db, project, change).then(
+        ({ slug }) => ({ slug }),
+        toFailure,
+      ),
     ),
 
     listSignals: withSession(async (db, { project }: ProjectInput) =>

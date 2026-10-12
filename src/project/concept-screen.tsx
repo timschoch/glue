@@ -40,6 +40,7 @@ import { NameFormScreen } from './name-form-screen.tsx'
 import { PartFormScreen } from './part-form-screen.tsx'
 import { toReading } from './part-views.ts'
 import { PeopleScreen } from './people-screen.tsx'
+import { ProjectFormScreen } from './project-form-screen.tsx'
 import { UNKNOWN_CONCEPT, isPartType, lensTypes } from './project-search.ts'
 import { SignalFilterFormScreen } from './signal-filter-form-screen.tsx'
 import { SignalInsightScreen } from './signal-insight-screen.tsx'
@@ -174,6 +175,8 @@ export function ConceptScreen({
   if (search.add === 'kind' || search.kind)
     return <KindFormScreen key={search.kind} slug={search.kind} />
   if (search.add) return <NameFormScreen key={search.add} added={search.add} />
+  // The root Concept has the address of the Project: `edit` renames it.
+  if (search.edit && concept.slug === project) return <ProjectFormScreen />
   if (picked) {
     return (
       <SignalInsightScreen
@@ -584,6 +587,11 @@ export function ConceptScreen({
         void changeSearch({ ...search, kind: concept.kind ?? undefined })
       }
       onAddKind={() => void changeSearch({ ...search, add: 'kind' })}
+      onRename={
+        concept.slug === project
+          ? () => void changeSearch({ ...search, edit: true })
+          : undefined
+      }
       view={search.view ?? 'list'}
       onViewChange={(view) =>
         void changeSearch({

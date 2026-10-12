@@ -8,7 +8,7 @@ import {
   addProject,
   answerPart,
 } from '../src/db/part-records.ts'
-import { findPart } from '../src/db/parts.ts'
+import { findPart, findProject } from '../src/db/parts.ts'
 import * as schema from '../src/db/schema.ts'
 import { createTestDatabase } from '../src/db/test-database.ts'
 import { createFakeGithub } from '../src/test/github.ts'
@@ -129,6 +129,26 @@ describe('runConcept across Projects', () => {
     await run('joint', 'remove', 'F1', 'glue/F1', '--project', 'glue-build')
 
     expect((await findPart(db, 'glue-build', 'F1'))?.needs).toEqual([])
+  })
+
+  it('gives a Project the name of --name and the address of --slug', async () => {
+    await run('project', 'add', 'design-system')
+
+    await run(
+      'project',
+      'set',
+      'design-system',
+      '--name',
+      'Glue UX',
+      '--slug',
+      'glue-ux',
+    )
+
+    expect(await findProject(db, 'glue-ux')).toMatchObject({
+      slug: 'glue-ux',
+      name: 'Glue UX',
+    })
+    expect(await findProject(db, 'design-system')).toBeUndefined()
   })
 
   it('takes Project glue when the build Project does not exist', async () => {

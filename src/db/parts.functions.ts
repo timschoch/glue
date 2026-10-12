@@ -33,6 +33,7 @@ import {
   partUpdateInputSchema,
   projectAddInputSchema,
   projectInputSchema,
+  projectRenameInputSchema,
   signalInsightAddInputSchema,
   unassignInputSchema,
 } from './part-actions.ts'
@@ -129,6 +130,10 @@ export const submitQuestionAnswer = createServerFn({ method: 'POST' })
 export const submitAddProject = createServerFn({ method: 'POST' })
   .validator(projectAddInputSchema)
   .handler(({ data }) => actions.addProject(data))
+
+export const submitRenameProject = createServerFn({ method: 'POST' })
+  .validator(projectRenameInputSchema)
+  .handler(({ data }) => actions.renameProject(data))
 
 export const fetchSignals = createServerFn({ method: 'GET' })
   .validator(projectInputSchema)

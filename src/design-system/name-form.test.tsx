@@ -112,6 +112,16 @@ describe('NameForm', () => {
     expect(onSave).toHaveBeenCalledExactlyOnceWith('Step videos')
   })
 
+  it('starts with the value that it gets, and saves it', async () => {
+    const { onSave } = renderForm({ value: 'Glue' })
+
+    expect(field().value).toBe('Glue')
+
+    await userEvent.click(saveButton())
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith('Glue')
+  })
+
   it('saves with the Enter key', async () => {
     const { onSave } = renderForm()
 

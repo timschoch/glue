@@ -32,6 +32,10 @@ export const AddProject: Story = {
   args: { heading: 'Project', label: 'Name' },
 }
 
+export const RenameProject: Story = {
+  args: { ...AddProject.args, value: 'Glue' },
+}
+
 export const Saving: Story = { args: { pending: true } }
 
 export const WithErrors: Story = {

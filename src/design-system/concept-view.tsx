@@ -194,6 +194,9 @@ export type ConceptViewProps = {
   // Concept, and the one that adds a Kind.
   onEditKind?: () => void
   onAddKind?: () => void
+  // With the callback the head holds the button that renames the Project.
+  // Only the root Concept has it.
+  onRename?: () => void
   // The list of the Parts in their type groups, or the Map.
   view?: 'list' | 'map'
   // The Map, and the panel beside it that shows what the Map opened.
@@ -257,6 +260,7 @@ export function ConceptView({
   kindFailure,
   onEditKind,
   onAddKind,
+  onRename,
   view = 'list',
   map,
   panel,
@@ -348,6 +352,11 @@ export function ConceptView({
           )}
         </div>
         <div className={styles.buttons}>
+          {onRename && (
+            <Button kind="ghost" size="sm" onClick={onRename}>
+              Rename Project
+            </Button>
+          )}
           {/* The button stays while the removal runs: it keeps the keyboard
               focus, and it says itself that the removal runs. */}
           {onRemove && (

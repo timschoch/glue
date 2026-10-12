@@ -42,6 +42,7 @@ import {
   handleRemoveJoint,
   handleUpdateConcept,
   handleUpdateKind,
+  handleUpdateProject,
   handleUpdatePart,
 } from './part-api.ts'
 import {
@@ -98,6 +99,7 @@ function toChangeRequest(route: RouteRequest) {
 // The routes of the Part model. They have no deprecated `products` path.
 export const projectHandlers = {
   GET: (route: RouteRequest) => handleGetProject(toApiRequest(route)),
+  PATCH: (route: RouteRequest) => handleUpdateProject(toApiRequest(route)),
 }
 
 export const projectConceptsHandlers = {

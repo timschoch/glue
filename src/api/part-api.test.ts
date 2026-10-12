@@ -38,6 +38,7 @@ import {
   handleUpdateConcept,
   handleUpdateKind,
   handleUpdatePart,
+  handleUpdateProject,
 } from './part-api.ts'
 import { handleAssign, handleUnassign } from './people-api.ts'
 
@@ -143,6 +144,11 @@ const funnel = {
 describe('every endpoint of the Part model', () => {
   const calls: Record<string, [Handler, string, Call]> = {
     'GET the Project': [handleGetProject, 'GET', {}],
+    'PATCH the Project': [
+      handleUpdateProject,
+      'PATCH',
+      { body: { name: 'Bakeday' } },
+    ],
     'GET a Concept': [
       handleGetProjectConcept,
       'GET',
@@ -289,6 +295,34 @@ describe('GET the Project', () => {
         },
       ],
     })
+  })
+})
+
+describe('PATCH the Project', () => {
+  it('gives the Project a new name and a new address', async () => {
+    const changed = await call(handleUpdateProject, 'PATCH', {
+      body: { name: 'Bakeday', slug: 'bakeday' },
+    })
+    const read = await call(handleGetProject, 'GET', {
+      params: { project: 'bakeday' },
+    })
+
+    expect(changed.status).toBe(200)
+    expect(changed.body).toMatchObject({
+      slug: 'bakeday',
+      name: 'Bakeday',
+      concept: { slug: 'bakeday', title: 'Bakeday', partCount: 3 },
+    })
+    expect(read).toEqual(changed)
+  })
+
+  it('answers 400 for the address of another Project', async () => {
+    const response = await call(handleUpdateProject, 'PATCH', {
+      body: { slug: 'glue' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.message).toBe('project "glue" exists already')
   })
 })
 

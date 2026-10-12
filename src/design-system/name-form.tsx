@@ -10,6 +10,8 @@ export type NameFormProps = {
   heading: string
   // The label of the one field.
   label: string
+  // The value that the field starts with: the name of the thing to rename.
+  value?: string
   // The reason of a wrong value.
   error?: string
   serverError?: string
@@ -23,10 +25,12 @@ export type NameFormProps = {
 }
 
 // The form that adds a thing by its name: a Concept by its title, a Project
-// by its name. It looks like the Part form.
+// by its name. With a value it renames the thing. It looks like the Part
+// form.
 export function NameForm({
   heading,
   label,
+  value: initialValue = '',
   error,
   serverError,
   pending = false,
@@ -36,7 +40,7 @@ export function NameForm({
 }: NameFormProps) {
   const formId = useId()
   const fieldId = `${formId}-field`
-  const [value, setValue] = useState('')
+  const [value, setValue] = useState(initialValue)
   const name = value.trim()
   const canSave = name !== ''
 

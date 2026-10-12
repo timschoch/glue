@@ -1301,7 +1301,7 @@ describe('main', () => {
       'move <id> [<id> ...] --concept <slug>',
       'concept set <slug>',
       'downstream <id>',
-      'project set <slug>',
+      'project set <slug> [--name <name>] [--slug <new slug>]',
       'project add <slug>',
       'concept add <slug>',
       'concept remove <slug>',
