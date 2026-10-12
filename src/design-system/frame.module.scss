@@ -44,9 +44,38 @@ $pinned-breakpoint: 'lg';
   padding: $spacing-05 $spacing-05 0;
 }
 
-// The loop steps of the open Concept, above all that the main window shows.
-.loop {
+// Mine, the loop steps and People on one line, above all that the main
+// window shows. What has no room starts a new row.
+.sections {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03 $spacing-06;
   margin-block-end: $spacing-07;
+}
+
+// Mine and People are plain words with no box: they are no step of the
+// loop. The current one has the blue line below it (S4, S5).
+.section {
+  @include type-style('body-compact-01');
+
+  border-block-end: 2px solid transparent;
+  color: $text-secondary;
+  padding-block: $spacing-03;
+  text-decoration: none;
+
+  &:hover {
+    color: $text-primary;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
+
+  &[aria-current='page'] {
+    border-block-end-color: $border-interactive;
+    color: $text-primary;
+  }
 }
 
 // The steps are one chain, in loop order. The steps that have no room start

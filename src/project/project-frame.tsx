@@ -99,20 +99,17 @@ export function ProjectFrame({
         pins: search.pins,
         view: 'map',
       })}
-      // The steps belong to the open Concept: Mine and People have none.
-      steps={
-        isOfProject
-          ? undefined
-          : listLoopSteps(openConcept, parts, measured).map((step) => ({
-              ...step,
-              // A second click on the step takes the lens away.
-              href: conceptHref(concept, {
-                section: step.name === search.section ? undefined : step.name,
-                pins: search.pins,
-                view: search.view,
-              }),
-            }))
-      }
+      // The steps belong to the open Concept. Mine and People open on the
+      // Project, so there the steps are the ones of the whole Project.
+      steps={listLoopSteps(openConcept, parts, measured).map((step) => ({
+        ...step,
+        // A second click on the step takes the lens away.
+        href: conceptHref(concept, {
+          section: step.name === search.section ? undefined : step.name,
+          pins: search.pins,
+          view: search.view,
+        }),
+      }))}
       concepts={project.concept.concepts.map((node) => ({
         ...toLink(node),
         concepts:

@@ -106,12 +106,12 @@ export const NoParts: StoryObj<typeof meta> = {
   },
 }
 
-// Mine belongs to the Project: no Concept is open, so no loop steps.
+// Mine belongs to the Project: no Concept is open and no loop step is
+// current.
 export const Mine: StoryObj<typeof meta> = {
   args: {
     section: 'Mine',
     newFlagCount: 2,
-    steps: undefined,
     conceptPath: [],
     trail: [],
   },

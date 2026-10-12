@@ -38,7 +38,8 @@ export const loopSections = [
 
 export type LoopSection = (typeof loopSections)[number]
 
-// Mine and People belong to the Project: they are no step of the loop.
+// Mine and People belong to the Project: they are no step of the loop,
+// and they do not look like one.
 export type Section = LoopSection | 'Mine' | 'People'
 
 // A place the frame links to: its name and its address.
@@ -82,9 +83,9 @@ export type FrameProps = {
   peopleHref: string
   // The Project itself: the first item of the Concepts.
   rootHref: string
-  // The loop steps of the open Concept, above the content. None: the main
-  // window shows no Concept.
-  steps?: ReadonlyArray<FrameStep>
+  // The loop steps of the open Concept, above the content, between Mine
+  // and People.
+  steps: ReadonlyArray<FrameStep>
   // The count of the flags that the person did not see yet, beside Mine.
   // Zero does not show.
   newFlagCount?: number
@@ -112,12 +113,11 @@ function current(isCurrent: boolean) {
 }
 
 // The frame of every screen: the header with the breadcrumb, the left panel
-// with the Project switcher, Mine, People, the Concepts and the sign-out,
-// the main window with the loop steps and the trail, and the right column
-// while a record is
-// pinned. A window too narrow for the column shows the count of pins in the
-// trail row, and keeps the left panel closed until the menu button of the
-// header opens it.
+// with the Project switcher, the Concepts and the sign-out, the main window
+// with Mine, the loop steps and People on one line and the trail below it,
+// and the right column while a record is pinned. A window too narrow for
+// the column shows the count of pins in the trail row, and keeps the left
+// panel closed until the menu button of the header opens it.
 export function Frame({
   project,
   projects,
@@ -247,16 +247,6 @@ export function Frame({
               />
             </Layer>
             <SideNavItems>
-              <SideNavLink {...link(mineHref)} {...current(section === 'Mine')}>
-                {newFlagCount > 0 ? `Mine ${newFlagCount}` : 'Mine'}
-              </SideNavLink>
-              <SideNavLink
-                {...link(peopleHref)}
-                {...current(section === 'People')}
-              >
-                People
-              </SideNavLink>
-              <SideNavDivider />
               <SideNavLink
                 {...link(rootHref)}
                 {...current(rootHref === currentConcept)}
@@ -349,26 +339,38 @@ export function Frame({
           isPinned ? `${styles.content} ${styles.besidePinned}` : styles.content
         }
       >
-        {steps && (
-          <nav aria-label="Loop" className={styles.loop}>
-            <ol className={styles.steps}>
-              {steps.map(({ name, href, hasParts }, index) => (
-                <li key={name} className={styles.step}>
-                  <a
-                    {...link(href)}
-                    aria-current={name === section ? 'step' : undefined}
-                    className={hasParts ? styles.filled : styles.empty}
-                  >
-                    {name}
-                  </a>
-                  {index === steps.length - 1 && (
-                    <ArrowRight className={styles.glyph} />
-                  )}
-                </li>
-              ))}
-            </ol>
-          </nav>
-        )}
+        <nav aria-label="Sections" className={styles.sections}>
+          <a
+            {...link(mineHref)}
+            aria-current={section === 'Mine' ? 'page' : undefined}
+            className={styles.section}
+          >
+            {newFlagCount > 0 ? `Mine ${newFlagCount}` : 'Mine'}
+          </a>
+          <ol aria-label="Loop" className={styles.steps}>
+            {steps.map(({ name, href, hasParts }, index) => (
+              <li key={name} className={styles.step}>
+                <a
+                  {...link(href)}
+                  aria-current={name === section ? 'step' : undefined}
+                  className={hasParts ? styles.filled : styles.empty}
+                >
+                  {name}
+                </a>
+                {index === steps.length - 1 && (
+                  <ArrowRight className={styles.glyph} />
+                )}
+              </li>
+            ))}
+          </ol>
+          <a
+            {...link(peopleHref)}
+            aria-current={section === 'People' ? 'page' : undefined}
+            className={styles.section}
+          >
+            People
+          </a>
+        </nav>
         {(hasTrail || isPinned) && (
           <div className={styles.trail}>
             {hasTrail && (

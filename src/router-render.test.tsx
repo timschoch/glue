@@ -171,13 +171,12 @@ function pinned(): Array<string | undefined> {
     .map((link) => /[A-Z]\d+/.exec(link.textContent)?.[0])
 }
 
-// Mine and People are in the left panel, the loop steps above the content.
+// Mine, the loop steps and People are on one line above the content.
 function section(name: string): HTMLElement {
-  return within(
-    screen.getByRole('navigation', {
-      name: /^(Mine|People)/.test(name) ? 'Main' : 'Loop',
-    }),
-  ).getByRole('link', { name })
+  return within(screen.getByRole('navigation', { name: 'Sections' })).getByRole(
+    'link',
+    { name },
+  )
 }
 
 describe('the start of a Project', () => {
@@ -1926,9 +1925,11 @@ describe('the section Mine', () => {
 
     await expectAddress('/glue', { section: 'Mine' })
     expect(pageTitle()).toBe('Mine')
-    expect(within(screen.getByRole('main')).getAllByRole('link')).toHaveLength(
-      2,
-    )
+    expect(
+      within(screen.getByRole('main'))
+        .getAllByRole('link')
+        .filter((link) => !link.closest('nav')),
+    ).toHaveLength(2)
     expect(card('D4').textContent).toContain('To check')
     expect(card('I3').textContent).toContain('Draft')
 
@@ -1979,14 +1980,20 @@ describe('the section Mine', () => {
 
     expect(pageTitle()).toBe('Mine')
     expect(section('Mine').getAttribute('aria-current')).toBe('page')
-    expect(main.queryByRole('link')).toBeNull()
+    expect(
+      main.queryAllByRole('link').filter((link) => !link.closest('nav')),
+    ).toEqual([])
     expect(main.getByText('No Parts')).toBeTruthy()
   })
 
-  it('has no loop steps in Mine, and opens a Concept from Mine without it', async () => {
+  it('marks no loop step in Mine, opens a step of the Project from there, and opens a Concept without Mine', async () => {
     const { expectAddress } = await renderPage('/glue?section=Mine')
+    const loop = within(screen.getByRole('list', { name: 'Loop' }))
 
-    expect(screen.queryByRole('navigation', { name: 'Loop' })).toBeNull()
+    expect(loop.queryAllByRole('link', { current: 'step' })).toEqual([])
+    expect(
+      loop.getByRole('link', { name: 'Decide' }).getAttribute('href'),
+    ).toBe('/glue?section=Decide')
 
     await userEvent.click(
       within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
@@ -1996,7 +2003,6 @@ describe('the section Mine', () => {
     )
 
     await expectAddress('/glue/flows')
-    screen.getByRole('navigation', { name: 'Loop' })
   })
 
   it('opens the map of the whole Project with the first item of the Concepts, and keeps the loop step', async () => {

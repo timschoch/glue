@@ -447,7 +447,7 @@ describe('Frame', () => {
     expect(hiddenAt(count)).toEqual([FROM_LG])
   })
 
-  it('lists Mine and People, then the Project itself and its Concepts', () => {
+  it('lists the Project itself and its Concepts in the left panel', () => {
     renderFrame()
 
     const links = within(screen.getByRole('navigation', { name: 'Main' }))
@@ -455,8 +455,6 @@ describe('Frame', () => {
       .map((link) => link.textContent)
 
     expect(links).toEqual([
-      'Mine',
-      'People',
       'Concept',
       'Step videos',
       'Creator videos',
@@ -475,25 +473,64 @@ describe('Frame', () => {
   })
 
   it.each(['Mine', 'People'] as const)(
-    'marks %s alone in the left panel while it is open',
+    'marks %s alone while it is open: no Concept and no loop step',
     (section) => {
       renderFrame([], undefined, undefined, { section })
 
-      const current = within(screen.getByRole('navigation', { name: 'Main' }))
-        .getAllByRole('link', { current: 'page' })
-        .map((link) => link.textContent)
+      const current = (name: string) =>
+        [
+          ...screen
+            .getByRole('navigation', { name })
+            .querySelectorAll('[aria-current]'),
+        ].map((link) => link.textContent)
 
-      expect(current).toEqual([section])
+      expect(current('Sections')).toEqual([section])
+      expect(current('Main')).toEqual([])
     },
   )
 
-  it('lists the five loop steps in loop order above the content', () => {
+  it('lists Mine, the loop steps and People on one line above the content', () => {
     renderFrame()
 
     const main = screen.getByRole('main')
-    const loop = within(main).getByRole('navigation', { name: 'Loop' })
+    const sections = within(main).getByRole('navigation', { name: 'Sections' })
 
-    expect(main.firstElementChild).toBe(loop)
+    expect(main.firstElementChild).toBe(sections)
+    expect(
+      within(sections)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual([
+      'Mine',
+      'Understand',
+      'Decide',
+      'Design',
+      'Build',
+      'Use',
+      'People',
+    ])
+  })
+
+  it('draws Mine and People with no box: they are no step of the loop', () => {
+    renderFrame()
+
+    const sections = within(
+      screen.getByRole('navigation', { name: 'Sections' }),
+    )
+    const loop = screen.getByRole('list', { name: 'Loop' })
+
+    for (const name of ['Mine', 'People']) {
+      const link = sections.getByRole('link', { name })
+      expect(loop.contains(link)).toBe(false)
+      expect(['', 'none']).toContain(getComputedStyle(link).borderTopStyle)
+    }
+  })
+
+  it('lists the five loop steps in loop order', () => {
+    renderFrame()
+
+    const loop = screen.getByRole('list', { name: 'Loop' })
+
     expect(
       within(loop)
         .getAllByRole('link')
@@ -504,7 +541,7 @@ describe('Frame', () => {
   it('marks the one current loop step', () => {
     renderFrame()
 
-    const loop = within(screen.getByRole('navigation', { name: 'Loop' }))
+    const loop = within(screen.getByRole('list', { name: 'Loop' }))
 
     expect(
       loop
@@ -516,7 +553,7 @@ describe('Frame', () => {
   it('draws a loop step that has Parts with a solid border and one with no Parts with a dashed border', () => {
     renderFrame()
 
-    const loop = within(screen.getByRole('navigation', { name: 'Loop' }))
+    const loop = within(screen.getByRole('list', { name: 'Loop' }))
 
     expect(
       loop
@@ -528,18 +565,12 @@ describe('Frame', () => {
   it('ends the loop steps with one arrow', () => {
     renderFrame()
 
-    const loop = screen.getByRole('navigation', { name: 'Loop' })
+    const loop = screen.getByRole('list', { name: 'Loop' })
 
     expect(loop.querySelectorAll('svg')).toHaveLength(1)
     expect(
       within(loop).getAllByRole('listitem').at(-1)?.querySelector('svg'),
     ).not.toBeNull()
-  })
-
-  it('has no loop steps without them', () => {
-    renderFrame([], undefined, undefined, { steps: undefined })
-
-    expect(screen.queryByRole('navigation', { name: 'Loop' })).toBeNull()
   })
 
   it('holds the menu button, the breadcrumb of the Concept path and the left panel in the header', () => {
@@ -586,7 +617,7 @@ describe('Frame', () => {
 
     expect(panel.queryByRole('button', { name: 'Add Concept' })).toBeNull()
     expect(panel.queryByRole('button', { name: 'Sign out' })).toBeNull()
-    expect(panel.getAllByRole('separator', { hidden: true })).toHaveLength(1)
+    expect(panel.queryAllByRole('separator', { hidden: true })).toEqual([])
   })
 
   it('lists the Projects alone in the switcher without the callback that adds one', async () => {
@@ -614,7 +645,7 @@ describe('Frame', () => {
       [...panel.querySelectorAll('a, button')].map(
         ({ textContent }) => textContent,
       )[1],
-    ).toBe('Mine')
+    ).toBe('Concept')
 
     await userEvent.click(switcher)
     const options = screen.getAllByRole('option')
@@ -768,7 +799,7 @@ describe('Frame', () => {
 
     const menu = screen.getByRole('button', { name: 'Menu' })
     await userEvent.click(menu)
-    screen.getByRole('link', { name: 'People' }).focus()
+    screen.getByRole('link', { name: 'First bake' }).focus()
     await userEvent.keyboard('{Escape}')
 
     expect(document.activeElement).toBe(menu)
@@ -786,7 +817,7 @@ describe('Frame', () => {
     ['a click outside', () => userEvent.click(overlay())],
     [
       'a choice in the panel',
-      () => userEvent.click(screen.getByRole('link', { name: 'People' })),
+      () => userEvent.click(screen.getByRole('link', { name: 'First bake' })),
     ],
   ])('closes the open left panel on %s', async (_name, close) => {
     // Escape in the Project switcher starts a timer of 3 s in Carbon. The
@@ -814,13 +845,14 @@ describe('Frame', () => {
     const address = (name: string, within_: HTMLElement) =>
       within(within_).getByRole('link', { name }).getAttribute('href')
     const panel = screen.getByRole('navigation', { name: 'Main' })
+    const sections = screen.getByRole('navigation', { name: 'Sections' })
 
-    expect(address('Mine', panel)).toBe('/bakeday?section=Mine')
-    expect(address('People', panel)).toBe('/bakeday?section=People')
+    expect(address('Mine', sections)).toBe('/bakeday?section=Mine')
+    expect(address('People', sections)).toBe('/bakeday?section=People')
     expect(address('Concept', panel)).toBe('/bakeday')
-    expect(
-      address('Design', screen.getByRole('navigation', { name: 'Loop' })),
-    ).toBe('/bakeday/step-videos?section=Design')
+    expect(address('Design', screen.getByRole('list', { name: 'Loop' }))).toBe(
+      '/bakeday/step-videos?section=Design',
+    )
     expect(address('Step videos', panel)).toBe('/bakeday/step-videos')
     expect(address('First bake', panel)).toBe('/bakeday/first-bake')
     expect(
@@ -843,9 +875,14 @@ describe('Frame', () => {
   })
 
   it.each([
-    ['People', 'Main', 'People', '/bakeday?section=People'],
+    ['People', 'Sections', 'People', '/bakeday?section=People'],
     ['the Project itself', 'Main', 'Concept', '/bakeday'],
-    ['a loop step', 'Loop', 'Design', '/bakeday/step-videos?section=Design'],
+    [
+      'a loop step',
+      'Sections',
+      'Design',
+      '/bakeday/step-videos?section=Design',
+    ],
     ['a Concept', 'Main', 'First bake', '/bakeday/first-bake'],
     [
       'a Concept inside a Concept',
@@ -898,7 +935,7 @@ describe('Frame', () => {
     renderFrame([], undefined, undefined, { section: undefined })
 
     expect(
-      within(screen.getByRole('navigation', { name: 'Loop' })).queryAllByRole(
+      within(screen.getByRole('list', { name: 'Loop' })).queryAllByRole(
         'link',
         { current: 'step' },
       ),
@@ -908,18 +945,21 @@ describe('Frame', () => {
   it('shows the count of the new flags as a plain number beside Mine', () => {
     renderFrame([], undefined, undefined, { newFlagCount: 3 })
 
-    const panel = within(screen.getByRole('navigation', { name: 'Main' }))
+    const sections = within(
+      screen.getByRole('navigation', { name: 'Sections' }),
+    )
 
-    panel.getByRole('link', { name: 'Mine 3' })
-    panel.getByRole('link', { name: 'People' })
+    sections.getByRole('link', { name: 'Mine 3' })
+    sections.getByRole('link', { name: 'People' })
   })
 
   it('shows no count beside Mine at zero', () => {
     renderFrame([], undefined, undefined, { newFlagCount: 0 })
 
-    within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', {
-      name: 'Mine',
-    })
+    within(screen.getByRole('navigation', { name: 'Sections' })).getByRole(
+      'link',
+      { name: 'Mine' },
+    )
   })
 
   it.each([
