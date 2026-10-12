@@ -69,55 +69,56 @@ export function VariantC({ document }: { document: ConceptDocumentShape }) {
         stepCounts={stepCounts}
         current={next?.step}
         next={open && <Button size="sm">{open.label}</Button>}
-      />
-      {rows.map(({ goal, goalNext, metrics, metricNext, lines }) => (
-        <section key={goal?.id ?? 'none'} className={styles.group}>
-          {goal ? (
-            <a href={goal.href} className={styles.goal}>
-              {goal.title}
-            </a>
-          ) : (
-            <Gap name="Goal" next={goalNext} className={styles.goalGap} />
-          )}
-          <div
-            className={styles.metric}
-            style={{ gridRowEnd: `span ${lines.length + 1}` }}
-          >
-            {metrics.map((metric) => (
-              <div key={metric.id} className={styles.cell}>
-                <EntryRow entry={metric} />
-                <ReadingValue entry={metric} />
-                {metricNext && (
-                  <Button size="sm" className={styles.action}>
-                    {metricNext.label}
-                  </Button>
+      >
+        {rows.map(({ goal, goalNext, metrics, metricNext, lines }) => (
+          <section key={goal?.id ?? 'none'} className={styles.group}>
+            {goal ? (
+              <a href={goal.href} className={styles.goal}>
+                {goal.title}
+              </a>
+            ) : (
+              <Gap name="Goal" next={goalNext} className={styles.goalGap} />
+            )}
+            <div
+              className={styles.metric}
+              style={{ gridRowEnd: `span ${lines.length + 1}` }}
+            >
+              {metrics.map((metric) => (
+                <div key={metric.id} className={styles.cell}>
+                  <EntryRow entry={metric} />
+                  <ReadingValue entry={metric} />
+                  {metricNext && (
+                    <Button size="sm" className={styles.action}>
+                      {metricNext.label}
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {metrics.length === 0 && <Gap name="Metric" next={metricNext} />}
+            </div>
+            {lines.map((line) => (
+              <div
+                key={line.id}
+                className={
+                  line.id === 'none' ? styles.emptyThread : styles.thread
+                }
+              >
+                {line.cells.map((cell) =>
+                  cell.entries.length > 0 ? (
+                    <div key={cell.key} className={styles.cell}>
+                      {cell.entries.map((entry) => (
+                        <EntryRow key={entry.id} entry={entry} />
+                      ))}
+                    </div>
+                  ) : (
+                    <Gap key={cell.key} name={cell.missing} next={cell.next} />
+                  ),
                 )}
               </div>
             ))}
-            {metrics.length === 0 && <Gap name="Metric" next={metricNext} />}
-          </div>
-          {lines.map((line) => (
-            <div
-              key={line.id}
-              className={
-                line.id === 'none' ? styles.emptyThread : styles.thread
-              }
-            >
-              {line.cells.map((cell) =>
-                cell.entries.length > 0 ? (
-                  <div key={cell.key} className={styles.cell}>
-                    {cell.entries.map((entry) => (
-                      <EntryRow key={entry.id} entry={entry} />
-                    ))}
-                  </div>
-                ) : (
-                  <Gap key={cell.key} name={cell.missing} next={cell.next} />
-                ),
-              )}
-            </div>
-          ))}
-        </section>
-      ))}
+          </section>
+        ))}
+      </LoopSteps>
     </article>
   )
 }

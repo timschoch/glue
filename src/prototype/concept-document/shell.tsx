@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight } from '@carbon/icons-react'
+import { Add, ArrowLeft, ArrowRight } from '@carbon/icons-react'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -19,6 +19,7 @@ import type { Trust } from '../../design-system/card.tsx'
 import type { Variant } from '../../project/project-search.ts'
 import { variants } from '../../project/project-search.ts'
 import type { Entry, NextStep, Step } from './document.ts'
+import { mineCount } from './seed.ts'
 import styles from './shell.module.scss'
 
 // PROTOTYPE, throwaway (design-system/D16). A copy of the navigation of
@@ -32,7 +33,8 @@ export const variantNames: Record<Variant, string> = {
 
 type ShellLink = { name: string; href: string; current?: boolean }
 
-// The left panel lists the Concepts, with the Project as the first item.
+// The left panel has the Project and its Concepts. The first item is the
+// Concept of the Project itself.
 export function Shell({
   project,
   concept,
@@ -63,10 +65,7 @@ export function Shell({
             />
           </Layer>
           <SideNavItems>
-            <SideNavLink href="#mine">Mine</SideNavLink>
-            <SideNavLink href="#people">People</SideNavLink>
-            <SideNavDivider />
-            <SideNavLink href="#project">{project}</SideNavLink>
+            <SideNavLink href="#concept">Concept</SideNavLink>
             {concepts.map(({ name, href, current = false }) => (
               <SideNavLink
                 key={href}
@@ -77,6 +76,11 @@ export function Shell({
                 {name}
               </SideNavLink>
             ))}
+            <SideNavLink href="#add-concept" renderIcon={Add}>
+              Add Concept
+            </SideNavLink>
+            <SideNavDivider />
+            <SideNavLink href="#sign-out">Sign out</SideNavLink>
           </SideNavItems>
         </SideNav>
       </Header>
@@ -85,47 +89,57 @@ export function Shell({
   )
 }
 
-// The five steps of the loop above the content. A step with a record is
-// filled, a step with none is empty, and one step is current. The next step
-// lies below the current one.
+// One line above the content: Mine, the five steps of the loop as a chain,
+// then People. A step with a record is filled, a step with none is empty,
+// and one step is current. Mine and People are no steps: they have no line.
+// The next step lies below the current one. The children lie below the
+// chain, in its five columns.
 export function LoopSteps({
   stepCounts,
   current,
   next,
   className,
+  children,
 }: {
   stepCounts: ReadonlyArray<{ step: Step; count: number }>
   current?: Step
   next?: ReactNode
   className?: string
+  children?: ReactNode
 }) {
   const position = stepCounts.findIndex(({ step }) => step === current)
 
   return (
-    <nav
-      aria-label="Loop"
-      className={className ? `${styles.loop} ${className}` : styles.loop}
-    >
-      <ol className={styles.steps}>
-        {stepCounts.map(({ step, count }) => (
-          <li key={step}>
-            <a
-              href={`#${step}`}
-              aria-current={step === current ? 'step' : undefined}
-              className={count > 0 ? styles.step : styles.emptyStep}
-            >
-              <span>{step}</span>
-              {count > 0 && <span className={styles.count}>{count}</span>}
-            </a>
-          </li>
-        ))}
-      </ol>
+    <div className={className ? `${styles.loop} ${className}` : styles.loop}>
+      <nav aria-label="Main" className={styles.line}>
+        <a href="#mine" className={styles.beside}>
+          <span>Mine</span>
+          <span className={styles.count}>{mineCount}</span>
+        </a>
+        <ol className={styles.steps}>
+          {stepCounts.map(({ step, count }) => (
+            <li key={step}>
+              <a
+                href={`#${step}`}
+                aria-current={step === current ? 'step' : undefined}
+                className={count > 0 ? styles.step : styles.emptyStep}
+              >
+                <span>{step}</span>
+                {count > 0 && <span className={styles.count}>{count}</span>}
+              </a>
+            </li>
+          ))}
+        </ol>
+        <a href="#people" className={styles.beside}>
+          People
+        </a>
+      </nav>
       {next && position >= 0 && (
-        <div className={styles.steps}>
-          <div style={{ gridColumnStart: position + 1 }}>{next}</div>
-        </div>
+        // The first column of the line is Mine.
+        <div style={{ gridColumnStart: position + 2 }}>{next}</div>
       )}
-    </nav>
+      {children && <div className={styles.below}>{children}</div>}
+    </div>
   )
 }
 

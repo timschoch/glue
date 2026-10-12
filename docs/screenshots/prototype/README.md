@@ -18,6 +18,15 @@ The left panel opens the other two Concepts. The bar at the bottom and the arrow
 
 Take the pictures again with `node e2e/prototype-screenshots.mjs`.
 
+## Navigation
+
+All three variants use the same navigation, in [shell.tsx](../../../src/prototype/concept-document/shell.tsx).
+
+- One line above the content has Mine with its count, then the five loop steps, then People.
+- A loop step has a line on top. A solid line is a step with records, a dashed line is an empty step, and a blue line is the current step.
+- Mine and People are no loop steps, so they have no line.
+- The left panel has the Project, its Concepts, Add Concept and Sign out.
+
 ## A, Page
 
 ![A full](a-full.png)
@@ -52,5 +61,6 @@ Take the pictures again with `node e2e/prototype-screenshots.mjs`.
 
 - The Metric "Missed readings that become an Insight" and its reading are made up. The other records come from the Project `glue`.
 - The Concept "Onboarding" is made up, to show a new Concept.
+- The count of Mine is made up.
 - The buttons do nothing. No variant writes.
 - Only the next step has a button. The other empty areas have none, to keep the screen calm.

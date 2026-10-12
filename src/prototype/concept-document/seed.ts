@@ -304,6 +304,9 @@ export function findBuilds(concept?: string): ProjectBuilds {
   return { builds: concept ? (builds[concept] ?? []) : [], reason: null }
 }
 
+// The count of Mine. It is made up.
+export const mineCount = 3
+
 // The reading of M1 misses its target.
 export const measured: MeasuredPart[] = [
   {

@@ -19,8 +19,9 @@
 .group {
   display: grid;
   align-items: start;
-  gap: $spacing-03 $spacing-05;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: $spacing-03;
 }
 
 .goal {

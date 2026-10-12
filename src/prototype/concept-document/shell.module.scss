@@ -29,17 +29,51 @@ $panel-width: $spacing-10 * 4;
   }
 }
 
+// Mine, the five columns of the chain, People.
 .loop {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-05;
-}
-
-// Five columns: a variant can put its content below a step.
-.steps {
   display: grid;
   gap: $spacing-05;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: auto repeat(5, minmax(0, 1fr)) auto;
+}
+
+.line {
+  display: contents;
+}
+
+// The chain and what lies below it share the five columns: a variant can
+// put its content below a step.
+.steps,
+.below {
+  display: grid;
+  grid-column: 2 / 7;
+  grid-template-columns: subgrid;
+}
+
+.below {
+  margin-block-start: $spacing-05;
+  row-gap: $spacing-07;
+}
+
+// Mine and People are no steps of the loop: no line.
+.beside {
+  @include type-style('heading-compact-01');
+
+  display: flex;
+  align-items: baseline;
+  align-self: start;
+  padding: $spacing-04 $spacing-05;
+  border-block-start: 2px solid transparent;
+  color: $text-primary;
+  gap: $spacing-03;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $layer-hover;
+  }
+
+  &:focus {
+    @include focus-outline('outline');
+  }
 }
 
 // A filled step: a solid line. An empty step: a dashed line.
