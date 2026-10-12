@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.30.0](https://github.com/timschoch/glue/compare/v1.29.0...v1.30.0) (2026-10-12)
+
+
+### Features
+
+* **frame:** the loop steps sit above the content ([#407](https://github.com/timschoch/glue/issues/407)) ([4790172](https://github.com/timschoch/glue/commit/4790172f77d6b65d6e08b813b521ebe621de082f))
+* **projects:** a member renames a Project ([#406](https://github.com/timschoch/glue/issues/406)) ([74b85e3](https://github.com/timschoch/glue/commit/74b85e32f089959e20a503be2af37abc3cf1a9d3)), closes [#405](https://github.com/timschoch/glue/issues/405)
+
 ## [1.29.0](https://github.com/timschoch/glue/compare/v1.28.1...v1.29.0) (2026-10-10)
 
 
