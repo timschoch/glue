@@ -71,6 +71,13 @@ describe('the search parameters of a Project', () => {
     expect(parseProjectSearch({ view: 'list' })).toEqual({})
   })
 
+  it('reads the Integrations screen from the address', () => {
+    expect(parseProjectSearch({ integrations: true })).toEqual({
+      integrations: true,
+    })
+    expect(parseProjectSearch({ integrations: 'yes' })).toEqual({})
+  })
+
   it.each([[{ add: 'record' }], [{ add: true }], [{ edit: 'yes' }]])(
     'drops %o, which names no form',
     (search) => {
