@@ -171,11 +171,13 @@ function pinned(): Array<string | undefined> {
     .map((link) => /[A-Z]\d+/.exec(link.textContent)?.[0])
 }
 
+// Mine and People are in the left panel, the loop steps above the content.
 function section(name: string): HTMLElement {
-  return within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
-    'link',
-    { name },
-  )
+  return within(
+    screen.getByRole('navigation', {
+      name: /^(Mine|People)/.test(name) ? 'Main' : 'Loop',
+    }),
+  ).getByRole('link', { name })
 }
 
 describe('the start of a Project', () => {
@@ -193,7 +195,9 @@ describe('the start of a Project', () => {
     ).toBe('Glue')
     panel.getByRole('button', { name: 'Part model' })
     panel.getByRole('link', { name: 'Flows' })
-    expect(panel.queryByRole('link', { current: 'page' })).toBeNull()
+    expect(panel.getByRole('link', { current: 'page' }).textContent).toBe(
+      'Concept',
+    )
   })
 
   it('has no trail and no pinned column, and a button in the empty slot', async () => {
@@ -366,7 +370,7 @@ describe('a section', () => {
     // The one Insight is Strategic: it is in a row, with no group.
     expect(groups()).toEqual(['Signals'])
     button('Add Insight')
-    expect(section('Understand').getAttribute('aria-current')).toBe('page')
+    expect(section('Understand').getAttribute('aria-current')).toBe('step')
 
     await userEvent.click(section('Understand'))
 
@@ -381,6 +385,7 @@ describe('a section', () => {
     const cards = () =>
       within(screen.getByRole('main'))
         .queryAllByRole('link')
+        .filter((link) => !link.closest('nav'))
         .map((link) => link.textContent)
 
     expect(pageTitle()).toBe('Decide')
@@ -439,7 +444,7 @@ describe('a section', () => {
 
     await expectAddress('/glue', { section: 'Decide' })
     expect(pageTitle()).toBe('Decide')
-    expect(section('Decide').getAttribute('aria-current')).toBe('page')
+    expect(section('Decide').getAttribute('aria-current')).toBe('step')
 
     await userEvent.click(section('Decide'))
 
@@ -453,7 +458,7 @@ describe('a section', () => {
     const { expectAddress } = await renderPage('/glue?section=Build')
     const main = within(screen.getByRole('main'))
 
-    expect(main.queryByRole('link')).toBeNull()
+    expect(main.queryByRole('link', { name: /R1/ })).toBeNull()
     expect(main.getByRole('button', { expanded: false }).textContent).toBe(
       'Solid Read model 1',
     )
@@ -1919,7 +1924,7 @@ describe('the section Mine', () => {
 
     await userEvent.click(section('Mine'))
 
-    await expectAddress('/glue/read-model', { section: 'Mine' })
+    await expectAddress('/glue', { section: 'Mine' })
     expect(pageTitle()).toBe('Mine')
     expect(within(screen.getByRole('main')).getAllByRole('link')).toHaveLength(
       2,
@@ -1976,6 +1981,35 @@ describe('the section Mine', () => {
     expect(section('Mine').getAttribute('aria-current')).toBe('page')
     expect(main.queryByRole('link')).toBeNull()
     expect(main.getByText('No Parts')).toBeTruthy()
+  })
+
+  it('has no loop steps in Mine, and opens a Concept from Mine without it', async () => {
+    const { expectAddress } = await renderPage('/glue?section=Mine')
+
+    expect(screen.queryByRole('navigation', { name: 'Loop' })).toBeNull()
+
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
+        'link',
+        { name: 'Flows' },
+      ),
+    )
+
+    await expectAddress('/glue/flows')
+    screen.getByRole('navigation', { name: 'Loop' })
+  })
+
+  it('opens the map of the whole Project with the first item of the Concepts, and keeps the loop step', async () => {
+    const { expectAddress } = await renderPage('/glue/flows?section=Decide')
+
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
+        'link',
+        { name: 'Concept' },
+      ),
+    )
+
+    await expectAddress('/glue', { section: 'Decide', view: 'map' })
   })
 })
 
@@ -3455,10 +3489,11 @@ describe('a new Concept and a new Project', () => {
 
     await userEvent.click(
       within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
-        'button',
-        { name: 'Add Project' },
+        'combobox',
+        { name: 'Project' },
       ),
     )
+    await userEvent.click(screen.getByRole('option', { name: 'Add Project' }))
     await expectAddress('/glue', { add: 'project' })
     expect(field('Name').getAttribute('placeholder')).toBeNull()
     await userEvent.type(field('Name'), 'My Project')
@@ -4403,6 +4438,10 @@ describe('the study of an Ask', () => {
 describe('the Kinds of a Project', () => {
   const main = () => within(screen.getByRole('main'))
   const kindSelect = () => main().getByRole('combobox', { name: 'Kind' })
+  const pickKind = async (name: string) => {
+    await userEvent.click(kindSelect())
+    await userEvent.click(screen.getByRole('option', { name }))
+  }
   const slotSelect = (type: string) =>
     within(main().getByRole('group', { name: type })).getByRole('combobox')
 
@@ -4412,7 +4451,7 @@ describe('the Kinds of a Project', () => {
     )
 
     await userEvent.type(field('Title'), 'Write model')
-    await userEvent.selectOptions(kindSelect(), 'PRD')
+    await pickKind('PRD')
     await userEvent.click(button('Save'))
 
     await expectAddress('/glue/write-model')
@@ -4430,9 +4469,9 @@ describe('the Kinds of a Project', () => {
   it('gives a Concept another Kind, then reads the Concept again', async () => {
     const { server } = await renderPage('/glue/part-model')
 
-    expect(kindSelect()).toHaveProperty('value', 'brief')
+    expect(kindSelect().textContent).toContain('Brief')
 
-    await userEvent.selectOptions(kindSelect(), 'PRD')
+    await pickKind('PRD')
 
     expect(server.updateConcept).toHaveBeenCalledWith({
       project: 'glue',
@@ -4453,7 +4492,7 @@ describe('the Kinds of a Project', () => {
       ),
     })
 
-    await userEvent.selectOptions(kindSelect(), 'PRD')
+    await pickKind('PRD')
 
     expect(main().queryByRole('combobox', { name: 'Kind' })).toBeNull()
     main().getByText('Saving')
@@ -4470,22 +4509,21 @@ describe('the Kinds of a Project', () => {
       ),
     })
 
-    await userEvent.selectOptions(kindSelect(), 'PRD')
+    await pickKind('PRD')
 
     await waitFor(() =>
-      expect(kindSelect().getAttribute('aria-invalid')).toBe('true'),
+      expect(
+        document.getElementById(
+          kindSelect().getAttribute('aria-describedby') ?? '',
+        )?.textContent,
+      ).toBe('kind "prd" not found'),
     )
-    expect(
-      document.getElementById(
-        kindSelect().getAttribute('aria-describedby') ?? '',
-      )?.textContent,
-    ).toBe('kind "prd" not found')
   })
 
   it('adds a Kind with its slots, then shows the Concept again', async () => {
     const { expectAddress, server } = await renderPage('/glue/part-model')
 
-    await userEvent.click(button('Add Kind'))
+    await pickKind('Add Kind')
     await expectAddress('/glue/part-model', { add: 'kind' })
     await userEvent.type(field('Name'), 'Tech spec')
     await userEvent.selectOptions(slotSelect('Entity'), 'Required')

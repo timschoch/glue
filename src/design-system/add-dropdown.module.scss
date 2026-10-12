@@ -1,0 +1,19 @@
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+
+// The list is as wide as the field: the field has room for the add action.
+.withAdd {
+  min-inline-size: $spacing-13;
+}
+
+// The divider before the add action: the last item of the list.
+.withAdd :global(.cds--list-box__menu-item:last-child) {
+  border-block-start: 1px solid $border-strong;
+}
+
+// The words and the glyph of the add action are one group.
+.add {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}

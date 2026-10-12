@@ -191,7 +191,7 @@ export type ConceptViewProps = {
   // Why the last pick of a Kind was not saved.
   kindFailure?: string
   // With the callbacks the head holds the button that opens the Kind of the
-  // Concept, and the one that adds a Kind.
+  // Concept, and the Kind field ends with the item that adds a Kind.
   onEditKind?: () => void
   onAddKind?: () => void
   // With the callback the head holds the button that renames the Project.
@@ -335,6 +335,7 @@ export function ConceptView({
                   size="sm"
                   failure={kindFailure}
                   onChange={onKindChange}
+                  onAdd={onAddKind}
                 />
               ) : (
                 <InlineLoading
@@ -347,7 +348,6 @@ export function ConceptView({
                   Edit Kind
                 </Button>
               )}
-              {onAddKind && <AddButton thing="Kind" onClick={onAddKind} />}
             </div>
           )}
         </div>

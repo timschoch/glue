@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import './theme.scss'
 import { Frame, PlainFrame } from './frame.tsx'
-import type { FramePin, FrameProps } from './frame.tsx'
+import type { FramePin, FrameProps, FrameStep } from './frame.tsx'
 
 // The g10 values of the two layers, from Carbon's theme table.
 const BACKGROUND = '#f4f4f4'
@@ -48,6 +48,27 @@ const PINNED: ReadonlyArray<FramePin> = [
   },
 ]
 
+// The loop steps of the open Concept: three have Parts, two have none.
+const STEPS: ReadonlyArray<FrameStep> = [
+  {
+    name: 'Understand',
+    href: '/bakeday/step-videos?section=Understand',
+    hasParts: true,
+  },
+  { name: 'Decide', href: '/bakeday/step-videos', hasParts: true },
+  {
+    name: 'Design',
+    href: '/bakeday/step-videos?section=Design',
+    hasParts: false,
+  },
+  {
+    name: 'Build',
+    href: '/bakeday/step-videos?section=Build',
+    hasParts: false,
+  },
+  { name: 'Use', href: '/bakeday/step-videos?section=Use', hasParts: true },
+]
+
 // The texts of the two pinned cards, in the order of the document.
 const PINNED_TEXTS = [
   ['Insight', 'I7', 'Videos are too long'],
@@ -83,7 +104,10 @@ function renderFrame(
       projects={['Bakeday', 'Flexibeck']}
       onProjectChange={onProjectChange}
       section="Decide"
-      sectionHref={(section) => `/bakeday?section=${section}`}
+      mineHref="/bakeday?section=Mine"
+      peopleHref="/bakeday?section=People"
+      rootHref="/bakeday"
+      steps={STEPS}
       concepts={[
         {
           name: 'Technique videos',
@@ -423,7 +447,7 @@ describe('Frame', () => {
     expect(hiddenAt(count)).toEqual([FROM_LG])
   })
 
-  it('lists the seven sections in loop order, then the Concepts', () => {
+  it('lists Mine and People, then the Project itself and its Concepts', () => {
     renderFrame()
 
     const links = within(screen.getByRole('navigation', { name: 'Main' }))
@@ -432,26 +456,90 @@ describe('Frame', () => {
 
     expect(links).toEqual([
       'Mine',
-      'Understand',
-      'Decide',
-      'Design',
-      'Build',
-      'Use',
       'People',
+      'Concept',
       'Step videos',
       'Creator videos',
       'First bake',
     ])
   })
 
-  it('marks one current section and one current Concept', () => {
+  it('marks the open Concept alone in the left panel while a loop step is open', () => {
     renderFrame()
 
     const current = within(screen.getByRole('navigation', { name: 'Main' }))
       .getAllByRole('link', { current: 'page' })
       .map((link) => link.textContent)
 
-    expect(current).toEqual(['Decide', 'Step videos'])
+    expect(current).toEqual(['Step videos'])
+  })
+
+  it.each(['Mine', 'People'] as const)(
+    'marks %s alone in the left panel while it is open',
+    (section) => {
+      renderFrame([], undefined, undefined, { section })
+
+      const current = within(screen.getByRole('navigation', { name: 'Main' }))
+        .getAllByRole('link', { current: 'page' })
+        .map((link) => link.textContent)
+
+      expect(current).toEqual([section])
+    },
+  )
+
+  it('lists the five loop steps in loop order above the content', () => {
+    renderFrame()
+
+    const main = screen.getByRole('main')
+    const loop = within(main).getByRole('navigation', { name: 'Loop' })
+
+    expect(main.firstElementChild).toBe(loop)
+    expect(
+      within(loop)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['Understand', 'Decide', 'Design', 'Build', 'Use'])
+  })
+
+  it('marks the one current loop step', () => {
+    renderFrame()
+
+    const loop = within(screen.getByRole('navigation', { name: 'Loop' }))
+
+    expect(
+      loop
+        .getAllByRole('link', { current: 'step' })
+        .map((link) => link.textContent),
+    ).toEqual(['Decide'])
+  })
+
+  it('draws a loop step that has Parts with a solid border and one with no Parts with a dashed border', () => {
+    renderFrame()
+
+    const loop = within(screen.getByRole('navigation', { name: 'Loop' }))
+
+    expect(
+      loop
+        .getAllByRole('link')
+        .map((link) => getComputedStyle(link).borderTopStyle),
+    ).toEqual(['solid', 'solid', 'dashed', 'dashed', 'solid'])
+  })
+
+  it('ends the loop steps with one arrow', () => {
+    renderFrame()
+
+    const loop = screen.getByRole('navigation', { name: 'Loop' })
+
+    expect(loop.querySelectorAll('svg')).toHaveLength(1)
+    expect(
+      within(loop).getAllByRole('listitem').at(-1)?.querySelector('svg'),
+    ).not.toBeNull()
+  })
+
+  it('has no loop steps without them', () => {
+    renderFrame([], undefined, undefined, { steps: undefined })
+
+    expect(screen.queryByRole('navigation', { name: 'Loop' })).toBeNull()
   })
 
   it('holds the menu button, the breadcrumb of the Concept path and the left panel in the header', () => {
@@ -491,39 +579,57 @@ describe('Frame', () => {
     expect(onProjectChange).toHaveBeenCalledWith('Flexibeck')
   })
 
-  it('has no button to add a Project or a Concept and none to sign out without their callbacks', () => {
+  it('has no button to add a Concept and none to sign out without their callbacks', () => {
     renderFrame()
 
     const panel = within(screen.getByRole('navigation', { name: 'Main' }))
 
-    expect(panel.queryByRole('button', { name: 'Add Project' })).toBeNull()
     expect(panel.queryByRole('button', { name: 'Add Concept' })).toBeNull()
     expect(panel.queryByRole('button', { name: 'Sign out' })).toBeNull()
     expect(panel.getAllByRole('separator', { hidden: true })).toHaveLength(1)
   })
 
-  it('adds a Project with the one ghost button below the Project switcher, and closes the left panel', async () => {
+  it('lists the Projects alone in the switcher without the callback that adds one', async () => {
+    renderFrame()
+
+    await userEvent.click(screen.getByRole('combobox', { name: /Project/ }))
+
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual(['Bakeday', 'Flexibeck'])
+  })
+
+  it('adds a Project with the last item of the switcher, keeps the Project and closes the left panel', async () => {
     const onAddProject = vi.fn()
-    renderFrame([], undefined, undefined, { onAddProject })
+    const onProjectChange = vi.fn()
+    renderFrame([], onProjectChange, undefined, { onAddProject })
 
     const menu = screen.getByRole('button', { name: 'Menu' })
     const panel = screen.getByRole('navigation', { name: 'Main' })
     const switcher = within(panel).getByRole('combobox', { name: /Project/ })
     await userEvent.click(menu)
-    const add = within(panel).getByRole('button', { name: 'Add Project' })
 
-    // The first controls of the panel: the switcher, then the button.
-    expect([...panel.querySelectorAll('a, button')].slice(0, 2)).toEqual([
-      switcher,
-      add,
+    // No button beside the switcher: the first link comes next.
+    expect(
+      [...panel.querySelectorAll('a, button')].map(
+        ({ textContent }) => textContent,
+      )[1],
+    ).toBe('Mine')
+
+    await userEvent.click(switcher)
+    const options = screen.getAllByRole('option')
+
+    expect(options.map((option) => option.textContent)).toEqual([
+      'Bakeday',
+      'Flexibeck',
+      'Add Project',
     ])
-    expect(add.className).toContain('btn--ghost')
-    expect(add.className).toContain('btn--sm')
-    expect(add.querySelectorAll('svg')).toHaveLength(1)
 
-    await userEvent.click(add)
+    await userEvent.click(options[2])
 
     expect(onAddProject).toHaveBeenCalledOnce()
+    expect(onProjectChange).not.toHaveBeenCalled()
+    within(switcher).getByText('Bakeday')
     expect(menu.getAttribute('aria-expanded')).toBe('false')
   })
 
@@ -576,14 +682,11 @@ describe('Frame', () => {
     expect(onSignOut).toHaveBeenCalledOnce()
   })
 
-  it.each(['Add Project', 'Sign out'])(
+  it.each(['Sign out'])(
     'reaches the button %s with the keyboard in the open left panel',
     async (name) => {
       const onPress = vi.fn()
-      renderFrame([], undefined, undefined, {
-        onAddProject: onPress,
-        onSignOut: onPress,
-      })
+      renderFrame([], undefined, undefined, { onSignOut: onPress })
 
       await userEvent.click(screen.getByRole('button', { name: 'Menu' }))
       const button = screen.getByRole('button', { name })
@@ -665,7 +768,7 @@ describe('Frame', () => {
 
     const menu = screen.getByRole('button', { name: 'Menu' })
     await userEvent.click(menu)
-    screen.getByRole('link', { name: 'Design' }).focus()
+    screen.getByRole('link', { name: 'People' }).focus()
     await userEvent.keyboard('{Escape}')
 
     expect(document.activeElement).toBe(menu)
@@ -683,7 +786,7 @@ describe('Frame', () => {
     ['a click outside', () => userEvent.click(overlay())],
     [
       'a choice in the panel',
-      () => userEvent.click(screen.getByRole('link', { name: 'Design' })),
+      () => userEvent.click(screen.getByRole('link', { name: 'People' })),
     ],
   ])('closes the open left panel on %s', async (_name, close) => {
     // Escape in the Project switcher starts a timer of 3 s in Carbon. The
@@ -712,7 +815,12 @@ describe('Frame', () => {
       within(within_).getByRole('link', { name }).getAttribute('href')
     const panel = screen.getByRole('navigation', { name: 'Main' })
 
-    expect(address('Design', panel)).toBe('/bakeday?section=Design')
+    expect(address('Mine', panel)).toBe('/bakeday?section=Mine')
+    expect(address('People', panel)).toBe('/bakeday?section=People')
+    expect(address('Concept', panel)).toBe('/bakeday')
+    expect(
+      address('Design', screen.getByRole('navigation', { name: 'Loop' })),
+    ).toBe('/bakeday/step-videos?section=Design')
     expect(address('Step videos', panel)).toBe('/bakeday/step-videos')
     expect(address('First bake', panel)).toBe('/bakeday/first-bake')
     expect(
@@ -735,7 +843,9 @@ describe('Frame', () => {
   })
 
   it.each([
-    ['a section', 'Main', 'Design', '/bakeday?section=Design'],
+    ['People', 'Main', 'People', '/bakeday?section=People'],
+    ['the Project itself', 'Main', 'Concept', '/bakeday'],
+    ['a loop step', 'Loop', 'Design', '/bakeday/step-videos?section=Design'],
     ['a Concept', 'Main', 'First bake', '/bakeday/first-bake'],
     [
       'a Concept inside a Concept',
@@ -784,16 +894,15 @@ describe('Frame', () => {
     )
   })
 
-  it('marks no section while none is chosen', () => {
+  it('marks no loop step while none is chosen', () => {
     renderFrame([], undefined, undefined, { section: undefined })
 
-    const panel = within(screen.getByRole('navigation', { name: 'Main' }))
-
     expect(
-      panel
-        .getAllByRole('link', { current: 'page' })
-        .map((link) => link.textContent),
-    ).toEqual(['Step videos'])
+      within(screen.getByRole('navigation', { name: 'Loop' })).queryAllByRole(
+        'link',
+        { current: 'step' },
+      ),
+    ).toEqual([])
   })
 
   it('shows the count of the new flags as a plain number beside Mine', () => {
@@ -802,7 +911,7 @@ describe('Frame', () => {
     const panel = within(screen.getByRole('navigation', { name: 'Main' }))
 
     panel.getByRole('link', { name: 'Mine 3' })
-    panel.getByRole('link', { name: 'Decide' })
+    panel.getByRole('link', { name: 'People' })
   })
 
   it('shows no count beside Mine at zero', () => {
@@ -825,8 +934,16 @@ describe('Frame', () => {
       ['Step videos'],
     ],
     [
-      'no Concept while the path has none of the panel',
+      'the Project itself while the path has no Concept of the panel',
       [{ name: 'Bakeday', href: '/bakeday' }],
+      ['Concept'],
+    ],
+    [
+      'no link while the open Concept is the title of a menu of the panel',
+      [
+        { name: 'Bakeday', href: '/bakeday' },
+        { name: 'Technique videos', href: '/bakeday/technique-videos' },
+      ],
       [],
     ],
   ])('marks %s', (_name, conceptPath, marked) => {

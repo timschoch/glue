@@ -4,7 +4,6 @@ import {
   BreadcrumbItem,
   Button,
   Content,
-  Dropdown,
   Header,
   HeaderMenuButton,
   InlineLoading,
@@ -23,27 +22,38 @@ import {
 import { useRef, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 
+import { AddDropdown } from './add-dropdown.tsx'
 import { Card } from './card.tsx'
 import type { CardProps } from './card.tsx'
 import styles from './frame.module.scss'
 
-export const sections = [
-  'Mine',
+// The sections that are a step of the loop, in loop order.
+export const loopSections = [
   'Understand',
   'Decide',
   'Design',
   'Build',
   'Use',
-  'People',
 ] as const
 
-export type Section = (typeof sections)[number]
+export type LoopSection = (typeof loopSections)[number]
+
+// Mine and People belong to the Project: they are no step of the loop.
+export type Section = LoopSection | 'Mine' | 'People'
 
 // A place the frame links to: its name and its address.
 export type FrameLink = { name: string; href: string }
 
 // A Concept of the Project, with the Concepts one level inside it.
 export type FrameConcept = FrameLink & { concepts?: ReadonlyArray<FrameLink> }
+
+// A step of the loop for the open Concept: its address, and if the Concept
+// has a Part of the step.
+export type FrameStep = {
+  name: LoopSection
+  href: string
+  hasParts: boolean
+}
 
 // A pinned record: what its minimal card shows.
 export type FramePin = Pick<
@@ -55,7 +65,7 @@ export type FrameProps = {
   project: string
   projects: ReadonlyArray<string>
   onProjectChange: (project: string) => void
-  // With the callback the switcher holds one button that adds a Project.
+  // With the callback the switcher ends with the item that adds a Project.
   onAddProject?: () => void
   // With the callback the Concepts end with one button that adds a Concept
   // at the top level.
@@ -68,10 +78,16 @@ export type FrameProps = {
   signOutFailure?: string
   // No section while the main window shows every Part type.
   section?: Section
+  mineHref: string
+  peopleHref: string
+  // The Project itself: the first item of the Concepts.
+  rootHref: string
+  // The loop steps of the open Concept, above the content. None: the main
+  // window shows no Concept.
+  steps?: ReadonlyArray<FrameStep>
   // The count of the flags that the person did not see yet, beside Mine.
   // Zero does not show.
   newFlagCount?: number
-  sectionHref: (section: Section) => string
   concepts: ReadonlyArray<FrameConcept>
   // The open Concept and the Concepts around it, outermost first.
   conceptPath: ReadonlyArray<FrameLink>
@@ -96,8 +112,9 @@ function current(isCurrent: boolean) {
 }
 
 // The frame of every screen: the header with the breadcrumb, the left panel
-// with the Project switcher, the sections, the Concepts and the sign-out,
-// the main window with the trail, and the right column while a record is
+// with the Project switcher, Mine, People, the Concepts and the sign-out,
+// the main window with the loop steps and the trail, and the right column
+// while a record is
 // pinned. A window too narrow for the column shows the count of pins in the
 // trail row, and keeps the left panel closed until the menu button of the
 // header opens it.
@@ -112,7 +129,10 @@ export function Frame({
   signOutFailure,
   section,
   newFlagCount = 0,
-  sectionHref,
+  mineHref,
+  peopleHref,
+  rootHref,
+  steps,
   concepts,
   conceptPath,
   trail = [],
@@ -148,12 +168,19 @@ export function Frame({
   ))
   const isOnPath = (concept: FrameLink) =>
     conceptPath.some(({ href }) => href === concept.href)
+  // Mine and People are of the Project: while one is open, no Concept is.
+  const showsConcept = section !== 'Mine' && section !== 'People'
   // The left panel shows two levels of Concepts. The current one is the
-  // innermost Concept of the path that the panel has a link for.
-  const currentConcept = concepts
-    .flatMap((concept) => concept.concepts ?? [concept])
-    .filter(isOnPath)
-    .at(-1)?.href
+  // innermost Concept of the path that the panel has a link for. The
+  // Project itself is current while the path has no Concept of the panel.
+  const currentConcept = showsConcept
+    ? concepts.some(isOnPath)
+      ? concepts
+          .flatMap((concept) => concept.concepts ?? [concept])
+          .filter(isOnPath)
+          .at(-1)?.href
+      : rootHref
+    : undefined
 
   return (
     <>
@@ -199,47 +226,43 @@ export function Frame({
             }}
           >
             <Layer className={styles.switcher}>
-              <Dropdown
+              <AddDropdown
                 id="project"
-                titleText="Project"
-                hideLabel
                 label="Project"
-                items={[...projects]}
-                selectedItem={project}
-                onChange={({ selectedItem }) => {
-                  if (!selectedItem) return
-                  onProjectChange(selectedItem)
+                hideLabel
+                options={projects.map((name) => ({ value: name, name }))}
+                value={project}
+                thing="Project"
+                onChange={(name) => {
+                  onProjectChange(name)
                   setPanelOpen(false)
                 }}
-              />
-              {onAddProject && (
-                <Button
-                  kind="ghost"
-                  size="sm"
-                  renderIcon={Add}
-                  className={styles.addProject}
-                  onClick={() => {
+                onAdd={
+                  onAddProject &&
+                  (() => {
                     onAddProject()
                     setPanelOpen(false)
-                  }}
-                >
-                  Add Project
-                </Button>
-              )}
+                  })
+                }
+              />
             </Layer>
             <SideNavItems>
-              {sections.map((name) => (
-                <SideNavLink
-                  key={name}
-                  {...link(sectionHref(name))}
-                  {...current(name === section)}
-                >
-                  {name === 'Mine' && newFlagCount > 0
-                    ? `${name} ${newFlagCount}`
-                    : name}
-                </SideNavLink>
-              ))}
+              <SideNavLink {...link(mineHref)} {...current(section === 'Mine')}>
+                {newFlagCount > 0 ? `Mine ${newFlagCount}` : 'Mine'}
+              </SideNavLink>
+              <SideNavLink
+                {...link(peopleHref)}
+                {...current(section === 'People')}
+              >
+                People
+              </SideNavLink>
               <SideNavDivider />
+              <SideNavLink
+                {...link(rootHref)}
+                {...current(rootHref === currentConcept)}
+              >
+                Concept
+              </SideNavLink>
               {concepts.map((concept) =>
                 concept.concepts ? (
                   <SideNavMenu
@@ -326,6 +349,26 @@ export function Frame({
           isPinned ? `${styles.content} ${styles.besidePinned}` : styles.content
         }
       >
+        {steps && (
+          <nav aria-label="Loop" className={styles.loop}>
+            <ol className={styles.steps}>
+              {steps.map(({ name, href, hasParts }, index) => (
+                <li key={name} className={styles.step}>
+                  <a
+                    {...link(href)}
+                    aria-current={name === section ? 'step' : undefined}
+                    className={hasParts ? styles.filled : styles.empty}
+                  >
+                    {name}
+                  </a>
+                  {index === steps.length - 1 && (
+                    <ArrowRight className={styles.glyph} />
+                  )}
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )}
         {(hasTrail || isPinned) && (
           <div className={styles.trail}>
             {hasTrail && (

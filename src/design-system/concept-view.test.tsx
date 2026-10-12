@@ -7,6 +7,9 @@ import './theme.scss'
 import { ConceptView } from './concept-view.tsx'
 import type { ConceptViewProps } from './concept-view.tsx'
 
+// jsdom has no layout, Carbon's dropdown scrolls to the highlighted item.
+Element.prototype.scrollIntoView = () => {}
+
 type Concept = ConceptViewProps['concept']
 type Part = Concept['parts'][number]
 
@@ -160,21 +163,46 @@ describe('ConceptView', () => {
   it('changes the Kind with the select of the head', async () => {
     const onKindChange = vi.fn()
     renderView({ concept: BRIEF, kinds: KINDS, onKindChange })
-    const select = screen.getByRole<HTMLSelectElement>('combobox', {
-      name: 'Kind',
-    })
+    const select = screen.getByRole('combobox', { name: /Kind/ })
 
-    expect(select.value).toBe('brief')
+    within(select).getByText('Brief')
+
+    await userEvent.click(select)
+
     expect(
-      within(select)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
+      screen.getAllByRole('option').map((option) => option.textContent),
     ).toEqual(['None', 'Brief', 'PRD'])
 
-    await userEvent.selectOptions(select, 'PRD')
-    await userEvent.selectOptions(select, 'None')
+    await userEvent.click(screen.getByRole('option', { name: 'PRD' }))
+    await userEvent.click(select)
+    await userEvent.click(screen.getByRole('option', { name: 'None' }))
 
     expect(onKindChange.mock.calls).toEqual([['prd'], [null]])
+  })
+
+  it('adds a Kind with the last item of the Kind field, and keeps the Kind', async () => {
+    const onKindChange = vi.fn()
+    const onAddKind = vi.fn()
+    renderView({ concept: BRIEF, kinds: KINDS, onKindChange, onAddKind })
+    const select = screen.getByRole('combobox', { name: /Kind/ })
+
+    expect(screen.queryByRole('button', { name: 'Add Kind' })).toBeNull()
+
+    await userEvent.click(select)
+    const options = screen.getAllByRole('option')
+
+    expect(options.map((option) => option.textContent)).toEqual([
+      'None',
+      'Brief',
+      'PRD',
+      'Add Kind',
+    ])
+
+    await userEvent.click(options[3])
+
+    expect(onAddKind).toHaveBeenCalledOnce()
+    expect(onKindChange).not.toHaveBeenCalled()
+    within(select).getByText('Brief')
   })
 
   it('shows the save of the Kind in place of its select', () => {
@@ -185,7 +213,7 @@ describe('ConceptView', () => {
       kindPending: 'Saving',
     })
 
-    expect(screen.queryByRole('combobox', { name: 'Kind' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: /Kind/ })).toBeNull()
     screen.getByText('Saving')
   })
 
@@ -196,31 +224,26 @@ describe('ConceptView', () => {
       onKindChange: vi.fn(),
       kindFailure: 'kind "prd" not found',
     })
-    const select = screen.getByRole('combobox', { name: 'Kind' })
+    const select = screen.getByRole('combobox', { name: /Kind/ })
 
-    expect(select.getAttribute('aria-invalid')).toBe('true')
     expect(
       document.getElementById(select.getAttribute('aria-describedby') ?? '')
         ?.textContent,
     ).toBe('kind "prd" not found')
   })
 
-  it('has one button that changes the Kind of the Concept, and one that adds a Kind', async () => {
+  it('has one button that changes the Kind of the Concept', async () => {
     const onEditKind = vi.fn()
-    const onAddKind = vi.fn()
     renderView({
       concept: BRIEF,
       kinds: KINDS,
       onKindChange: vi.fn(),
       onEditKind,
-      onAddKind,
     })
 
     await userEvent.click(screen.getByRole('button', { name: 'Edit Kind' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Add Kind' }))
 
     expect(onEditKind).toHaveBeenCalledOnce()
-    expect(onAddKind).toHaveBeenCalledOnce()
   })
 
   it('has the button that renames the Project only with its callback', async () => {
@@ -248,7 +271,6 @@ describe('ConceptView', () => {
     })
 
     expect(screen.queryByRole('button', { name: 'Edit Kind' })).toBeNull()
-    screen.getByRole('button', { name: 'Add Kind' })
   })
 
   it('shows a slot that is not required and has no Part as no empty slot', () => {
