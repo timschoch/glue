@@ -382,7 +382,7 @@
       "ref": "main",
       "sourceType": "github",
       "skillPath": "packages/router-core/skills/router-core/SKILL.md",
-      "computedHash": "605884918fb968d0ea9fb4f4b950ebb6e4092930207a127af75acf8d3cdcd15a"
+      "computedHash": "640c0c32c82bb0a15bd91e4db136a4598835c3406d923cb15952674c2fd20f9c"
     },
     "router-query": {
       "source": "TanStack/router",
@@ -402,14 +402,14 @@
       "ref": "main",
       "sourceType": "github",
       "skillPath": "packages/start-client-core/skills/start-core/SKILL.md",
-      "computedHash": "cfeffe68b82aa6aa0f70d1ee0184d517423385a7b55917fc91aeedd160109d9f"
+      "computedHash": "fbe6b9a003a7e3340858f6ab74d5945fe084a7b89a4580e74c0b394bcad381aa"
     },
     "start-server-core": {
       "source": "TanStack/router",
       "ref": "main",
       "sourceType": "github",
       "skillPath": "packages/start-server-core/skills/start-server-core/SKILL.md",
-      "computedHash": "1ababf4f17a9bc6ecde76c226043e109b7700fbe710e0d2347846e137bc6ea72"
+      "computedHash": "9f0fa7794ec0d33632f8935e91f63bc4a24a0d8660db3c582fbaf39609a58568"
     },
     "step-by-step": {
       "source": "timschoch/skilly",
