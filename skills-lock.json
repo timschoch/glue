@@ -17,7 +17,7 @@
       "source": "cursor/plugins",
       "sourceType": "github",
       "skillPath": "pstack/skills/arena/SKILL.md",
-      "computedHash": "63c0ca0d21981ea275b9a6ae2218147b804ca7517cbe992f503b46965aec10d8"
+      "computedHash": "980c2e5a3cf0ea871288fcc392e978573ce23e457cd4162af50e41c0d6f9c69a"
     },
     "ask-matt": {
       "source": "timschoch/mattpocock-skills",
@@ -203,7 +203,7 @@
       "source": "cursor/plugins",
       "sourceType": "github",
       "skillPath": "pstack/skills/how/SKILL.md",
-      "computedHash": "251ff9088ee0b7f8fec82c024282a9c74407b6d0326385b0a19b7a040a49c0ba"
+      "computedHash": "1eedca26dced34439d87e9e636fe161cfeea0d3143e61983aa8567c6b99f8294"
     },
     "implement": {
       "source": "timschoch/mattpocock-skills",
@@ -271,7 +271,7 @@
       "source": "neondatabase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/neon-postgres/SKILL.md",
-      "computedHash": "b9763d379a3c5039e5555540a1333b1c529e2365d4f0b8fe2998ba41509814c5"
+      "computedHash": "346d6b69e4097402ee4c7719d68a5329463b0f8b6ebd2d8034f36a1769ff7fcd"
     },
     "neon-postgres-branches": {
       "source": "neondatabase/agent-skills",
@@ -319,7 +319,7 @@
       "source": "cursor/plugins",
       "sourceType": "github",
       "skillPath": "pstack/skills/principle-fix-root-causes/SKILL.md",
-      "computedHash": "a6fe6d14109670ba52904a95a18711816b7cf464f2730fa6d34ed5d9f362edb6"
+      "computedHash": "abfe87067873d1648129d2bfc7f25a89b1b5d25f293e972c3f97f5b812436162"
     },
     "principle-guard-the-context-window": {
       "source": "cursor/plugins",
@@ -548,7 +548,7 @@
       "source": "cursor/plugins",
       "sourceType": "github",
       "skillPath": "pstack/skills/why/SKILL.md",
-      "computedHash": "fdda2567c16ef50ba341a4ada10190c79f46bc19b9b2a3c5ac75f66afc11537a"
+      "computedHash": "250259b852c857557dd0fdd5ee26cf9d9c802ca77a28753f9a1b9f66ac4e9297"
     },
     "wizard": {
       "source": "timschoch/mattpocock-skills",
