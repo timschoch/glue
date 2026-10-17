@@ -58,6 +58,16 @@ The file is optional. Check the result with `--config` or `<stage> --steps`.
 
 A step's `target` is a path relative to the repo root; missing, the step is skipped. That is how one stage list fits repos that do not all have an `e2e/` or a Dockerfile.
 
+## Audit
+
+The `audit` step ([scripts/audit.mjs](scripts/audit.mjs)) fails on every high or critical advisory. It runs `yarn audit` (yarn 1) when `yarn.lock` exists, else `npm audit`. An advisory with no patched version goes on the step's `accept` list in `.skilly/verify.json`:
+
+```json
+{ "stages": { "ci": { "steps": [{ "name": "audit", "accept": [{ "id": "GHSA-vfj7-8cjw-p6xm", "why": "braces, no fix, dev only" }] }] } } }
+```
+
+An entry needs an `id` and a `why`; without both it accepts nothing. It fails the step once GitHub lists a patched version for the range the audit matched, or once the audit no longer finds the advisory. Remove it then. The step never edits the file, so the local gate and CI give the same answer.
+
 ## Adding a check
 
 One step, never a line in a hook or a workflow. A check for this repo only goes in `.skilly/verify.json`. A check every Consumer needs goes in the hub's `bundles/workflow/skills/verify/references/verify.json`. Give it a `why`: it prints the moment the step goes red, when the reader is least likely to go looking for it.
