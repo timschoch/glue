@@ -37,9 +37,9 @@
         { "name": "build", "run": "npm run --if-present build" },
         {
           "name": "audit",
-          "run": "npm audit --audit-level=high",
+          "run": "node .agents/skills/verify/scripts/audit.mjs",
           "tier": "tool",
-          "why": "High and critical advisories only. Lower levels fire on transitive dev dependencies and train everyone to ignore the check."
+          "why": "High and critical advisories only: lower levels fire on transitive dev dependencies and train everyone to ignore the check. Accept list: the verify skill's Audit section."
         },
         {
           "name": "e2e smoke",

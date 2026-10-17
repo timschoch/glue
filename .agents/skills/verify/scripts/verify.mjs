@@ -142,7 +142,8 @@ const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !ke
 for (const step of steps) {
   const stepStartedAt = Date.now();
   process.stdout.write(`\n> ${stageName}: ${step.name}\n`);
-  const result = spawnSync(step.run, { cwd: root, shell: true, stdio: 'inherit', env });
+  // VERIFY_STEP hands a step script its own config, e.g. the audit step's accept list.
+  const result = spawnSync(step.run, { cwd: root, shell: true, stdio: 'inherit', env: { ...env, VERIFY_STEP: JSON.stringify(step) } });
   const seconds = (Date.now() - stepStartedAt) / 1000;
   timings.push({ name: step.name, seconds });
   if (result.status !== 0) {
