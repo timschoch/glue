@@ -13,7 +13,8 @@ Set `model` and `effort` in every agent definition. If you leave them out, the a
 | Orchestration: splitting work that does not fit in one context window across other agents | `opus` | `medium` |
 | Visual work: UI, design system components, frontend polish, visual prototypes | `opus` | `high` |
 | Small coding tasks, research, writing tests | `sonnet` | `medium` |
-| Workers under an orchestrator, simple lookups, classification | `sonnet` | `low` |
+| Workers under an orchestrator that edit files | `sonnet` | `low` |
+| Read-only work: lookups, codebase search, classification, summaries | `haiku` | `medium` |
 
 If no row fits, use `opus` with `medium`.
 
@@ -28,7 +29,8 @@ If no row fits, use `opus` with `medium`.
    - a second review, free from your own bias
 
    The subagent returns its conclusion, not its raw output.
-5. **Sonnet stops at `high`.** When `high` is not enough, use `opus` with `medium`. It scores the same as `sonnet` with `xhigh` at half the cost.
+5. **Haiku and Sonnet stop at `high`.** When `high` is not enough, go one model up at `medium`: `haiku` → `sonnet`, `sonnet` → `opus`.
+6. **Use Haiku only at `medium` or `high`.** At `low` it skips searches and stops early. Above `high` it can spend all its tokens on thinking and return no answer.
 
 ## Example
 
@@ -36,7 +38,7 @@ If no row fits, use `opus` with `medium`.
 ---
 name: bulk-worker
 description: Does one small task that an orchestrator hands to it.
-model: sonnet     # sonnet | opus | full model ID | inherit
+model: sonnet     # haiku | sonnet | opus | full model ID | inherit
 effort: low       # low | medium | high | xhigh | max
 ---
 ```
