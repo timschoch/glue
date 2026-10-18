@@ -6,6 +6,8 @@ disable-model-invocation: true
 
 Implement the work described by the user in the spec or tickets on a separate worktree, based off of the current branch.
 
+If the user passes a ticket reference, fetch it from the issue tracker and state its title before starting. If the reference is ambiguous, ask.
+
 ## Claim the issue first
 
 Before editing any files, claim the issue you are implementing so a colliding agent skips it (see `docs/agents/triage-labels.md`). If the work maps to an issue number `N`:
@@ -25,12 +27,10 @@ Idempotent: re-running `/implement` on the same issue must not error: adding a p
 
 When you open the PR (work handed to review), release the claim: `gh issue edit N --remove-label in-progress`. If the flow ends without opening a PR, leave the label; the `cleanup-merged-branches` reaper releases abandoned claims. Do not restore `ready-for-agent` on success; the issue closes on merge.
 
-Use /tdd where possible, at pre-agreed seams.
+Call the Skill tool with "tdd" where possible, at pre-agreed seams.
 
 Run typechecking regularly, single test files regularly, and the full test suite once at the end.
 
-Once done, use /code-review to review the work.
-
 Commit your work to the current branch.
 
-Close any Chrome tabs you opened during this session before creating the PR.
+Once committed, call the Skill tool with "code-review" to review the work. It reads committed work only.
