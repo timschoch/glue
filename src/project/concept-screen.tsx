@@ -141,8 +141,6 @@ export function ConceptScreen({
   // saved one with its id, a new one with none.
   const [filtersOn, setFiltersOn] = useState<ReadonlySet<number>>(new Set())
   const [filterForm, setFilterForm] = useState<{ id?: number }>()
-  // The Integrations take the place of the Signals that they bring.
-  const [showsIntegrations, setShowsIntegrations] = useState(false)
   const setFilterOn = (id: number, on: boolean) =>
     setFiltersOn((current) => {
       const next = new Set(current)
@@ -190,11 +188,15 @@ export function ConceptScreen({
       />
     )
   }
-  if (showsIntegrations && search.section === 'Understand') {
+  // The Integrations take the place of the Signals that they bring. The
+  // address names them, so a link opens them and Back closes them.
+  if (search.integrations && search.section === 'Understand') {
     return (
       <IntegrationsScreen
         {...integrations}
-        onClose={() => setShowsIntegrations(false)}
+        onClose={() =>
+          void changeSearch({ ...search, integrations: undefined })
+        }
       />
     )
   }
@@ -261,7 +263,9 @@ export function ConceptScreen({
           onSavedFilterChange={setFilterOn}
           onAddFilter={() => setFilterForm({})}
           onEditFilter={(id) => setFilterForm({ id })}
-          onOpenIntegrations={() => setShowsIntegrations(true)}
+          onOpenIntegrations={() =>
+            void changeSearch({ ...search, integrations: true })
+          }
           hunch={
             hunchGroup === undefined
               ? undefined
