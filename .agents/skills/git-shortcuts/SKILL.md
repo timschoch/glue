@@ -30,8 +30,7 @@ git ls-remote --exit-code --heads origin staging > /dev/null 2>&1 && echo LEGACY
 
 ```bash
 branch=$(git symbolic-ref --short HEAD)
-trunk=$(git symbolic-ref --short refs/remotes/origin/HEAD 2> /dev/null | sed 's|^origin/||')
-trunk=${trunk:-main}
+trunk=$(node .agents/skills/verify/scripts/default-branch.mjs)
 
 if [ -f .agents/hooks/lib/branch-name.sh ]; then
   . .agents/hooks/lib/branch-name.sh
@@ -45,7 +44,7 @@ else
 fi
 ```
 
-`$trunk` is the repo's default branch — `main` everywhere so far, but read, not assumed. `$base` is what `pr` targets: the trunk, or the epic the ticket was cut from.
+`$trunk` is the repo's default branch: read, not assumed. `$base` is what `pr` targets: the trunk, or the epic the ticket was cut from.
 
 A wrong base produces a *smaller* diff, and a small diff is what a review reports as clean — so an `epic/*` base that cannot be verified on `origin` falls back to the trunk. Never the other way round.
 

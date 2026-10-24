@@ -29,7 +29,7 @@ Types: `decision` | `question` | `blocker` | `progress`. Always the 🤖 prefix;
 
 ## Run sequence
 
-1. **Sync + fetch sub-issues.** `git fetch && git pull --ff-only` (the main checkout's branch drifts — verify `git branch --show-current`; always branch from `origin/main`). Then fetch sub-issues — GraphQL only, `gh issue view` does not render them:
+1. **Sync + fetch sub-issues.** `git fetch && git pull --ff-only` (the main checkout's branch drifts — verify `git branch --show-current`; always branch from `origin/$(node .agents/skills/verify/scripts/default-branch.mjs)`). Then fetch sub-issues — GraphQL only, `gh issue view` does not render them:
    ```
    gh api graphql -f query='query{ repository(owner:"$OWNER",name:"$REPO"){ issue(number:$N){ subIssues(first:50){ nodes{ number title state } } } } }'
    ```

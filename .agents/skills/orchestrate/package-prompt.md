@@ -35,7 +35,7 @@ the archive's equivalent hunk before requesting review — it has already fixed
 bugs you will otherwise reintroduce. Re-verify everything you take.
 
 ## Finish checklist — you are not done until the PR is open
-1. Before opening the PR: `git fetch` + rebase onto origin/main + re-run verify.
+1. Before opening the PR: `git fetch` + rebase onto `origin/$(node .agents/skills/verify/scripts/default-branch.mjs)` + re-run verify.
    If the PR later shows CONFLICTING, rebase again unprompted.
 2. Commit → push → confirm the branch exists on origin.
 3. Open the PR: "Closes #$N", verify-green.
