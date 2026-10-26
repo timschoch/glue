@@ -30,6 +30,12 @@ allowBuilds:
 minimumReleaseAge: 10080
 blockExoticSubdeps: true
 trustPolicy: no-downgrade
+# Fixes of high and critical advisories in packages below a dependency whose
+# parent still holds the old version. Drop an entry when the parent moves on.
+overrides:
+  dompurify: ^3.4.17
+  undici: ^8.12.2
+  zod: ^4.6.6
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
