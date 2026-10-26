@@ -9,9 +9,11 @@
 // own under a new name. The repo file is optional.
 //
 // Stages are cumulative through `extends`: `push` contains `commit`, `ci` contains `push`.
-// Cumulative by construction, so nobody can write a stage that skips a check the stage below it
-// runs. `tier` and `target` subtract from that: a repo runs a step only once it is big enough for
-// it, and only when the thing the step checks is there.
+// Cumulative by default, so a stage skips a check the stage below it runs only where the config
+// says so by name. `tier` and `target` subtract: a repo runs a step only once it is big enough
+// for it, and only when the thing the step checks is there. `replaces` on a step drops the step
+// it covers, so the full unit suite does not rerun the changed tests. `without` on a stage drops
+// inherited steps: `pr` is `ci` without the suites that the release PR and the nightly run.
 //
 // A budget warns and never fails. A gate that fails on slowness teaches you to bypass the gate,
 // and the bypass outlives the slowness. `budgetTicket` in the config says where a stage that has
@@ -29,6 +31,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { defaultBranch } from './default-branch.mjs';
 import { mergeConfig } from './merge-config.mjs';
 
 const TIERS = ['sandbox', 'tool', 'product'];
@@ -83,13 +86,22 @@ if (!stage) {
   fail(`unknown stage ${JSON.stringify(stageName ?? null)}.`, `known stages are ${Object.keys(stages).join(', ')}.`);
 }
 
-/** Every step of a stage, the steps of whatever it extends first. */
+const steps = [];
+const skipped = [];
+
+/** Every step of a stage, the steps of whatever it extends first, minus the inherited ones it names in `without`. */
 const stepsFor = (name, seen = []) => {
   if (seen.includes(name)) return fail(`stage ${name} extends itself.`);
   const found = stages[name];
   if (!found) return fail(`stage ${seen.at(-1)} extends unknown stage ${name}.`);
   const inherited = found.extends ? stepsFor(found.extends, [...seen, name]) : [];
-  return [...inherited, ...(found.steps ?? [])];
+  const without = found.without ?? [];
+  const kept = inherited.filter((step) => {
+    if (!without.includes(step.name)) return true;
+    skipped.push({ name: step.name, reason: `stage ${name} runs without it` });
+    return false;
+  });
+  return [...kept, ...(found.steps ?? [])];
 };
 
 const meets = (needed) => TIERS.indexOf(tier) >= TIERS.indexOf(needed);
@@ -97,15 +109,13 @@ const validateTier = (needed, where) => {
   if (!TIERS.includes(needed)) fail(`unknown tier ${JSON.stringify(needed)} on ${where}, tiers are ${TIERS.join(', ')}.`);
 };
 
-const steps = [];
-const skipped = [];
-
 if (stage.tier !== undefined) validateTier(stage.tier, `stage ${stageName}`);
 const stageBlocked = stage.tier !== undefined && !meets(stage.tier);
 
 if (stageBlocked) {
   skipped.push({ name: stageName, reason: `stage needs ${stage.tier}, repo is ${tier}` });
 } else {
+  const runnable = [];
   for (const step of stepsFor(stageName)) {
     if (step.tier !== undefined) validateTier(step.tier, `step ${step.name}`);
     if (step.tier !== undefined && !meets(step.tier)) {
@@ -116,7 +126,13 @@ if (stageBlocked) {
       skipped.push({ name: step.name, reason: `no ${step.target}` });
       continue;
     }
-    steps.push(step);
+    runnable.push(step);
+  }
+  // Only a step that runs replaces another: a replacement that was skipped covers nothing.
+  for (const step of runnable) {
+    const replacement = runnable.find((other) => other.replaces === step.name);
+    if (replacement) skipped.push({ name: step.name, reason: `replaced by ${replacement.name}` });
+    else steps.push(step);
   }
 }
 
@@ -138,6 +154,8 @@ const timings = [];
 // A git hook exports GIT_DIR and friends, which point every `git` a step runs at the hook's
 // repo, temp repos included. Steps run as they would from a shell.
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+// Resolved once, so every step agrees on the default branch.
+env.DEFAULT_BRANCH = defaultBranch(root);
 
 for (const step of steps) {
   const stepStartedAt = Date.now();

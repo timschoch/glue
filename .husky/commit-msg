@@ -1,1 +1,1 @@
-node .claude/hooks/check-commit-msg.mjs "$1"
+node .agents/skills/verify/scripts/check-commit-msg.mjs "$1"

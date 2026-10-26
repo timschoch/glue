@@ -8,11 +8,6 @@
       "extends": "commit",
       "budgetSeconds": 30,
       "steps": [
-        {
-          "name": "branch name",
-          "run": "node .claude/hooks/check-branch-name.mjs",
-          "why": "Conventional Branch: <type>/<description>. In CI it reads the PR's head branch, so --no-verify does not get past it. Bot branches pass."
-        },
         { "name": "typecheck", "run": "pnpm run --if-present typecheck" },
         {
           "name": "unit (changed)",
@@ -41,7 +36,8 @@
           "name": "unit",
           "run": "test -z \"$VERIFY_FULL\" || pnpm exec vitest run --passWithNoTests",
           "target": "vitest.config.ts",
-          "why": "The full suite, only with VERIFY_FULL: the release PR (ci.yml sets it). A PR runs unit (changed)."
+          "replaces": null,
+          "why": "The full suite, only with VERIFY_FULL: the release PR (ci.yml sets it). A PR runs unit (changed), so this step replaces nothing."
         },
         { "name": "build", "run": "pnpm run --if-present build" },
         {
