@@ -1,4 +1,16 @@
 {
+  "fullSuiteTriggers": [
+    "package.json",
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bun.lock",
+    "bun.lockb",
+    "vitest.config.*",
+    "vitest.workspace.*",
+    "vite.config.*"
+  ],
   "stages": {
     "commit": {
       "budgetSeconds": 3,
@@ -10,7 +22,7 @@
       "steps": [
         {
           "name": "branch name",
-          "run": "node .claude/hooks/check-branch-name.mjs",
+          "run": "node .agents/skills/verify/scripts/check-branch-name.mjs",
           "why": "Conventional Branch: <type>/<description>. In CI it reads the PR's head branch, so --no-verify does not get past it. Bot branches pass."
         },
         {
@@ -19,12 +31,18 @@
           "target": ".agents/skills/naming/scripts/check.mjs",
           "why": "The skilly / gate naming check on the files the branch changes, run before the push instead of after it. Fix a finding, or add an allow entry to .skilly/naming.json."
         },
+        {
+          "name": "mermaid",
+          "run": "node .agents/skills/writing-rules/scripts/check-mermaid.mjs",
+          "target": ".agents/skills/writing-rules/scripts/check-mermaid.mjs",
+          "why": "A broken mermaid diagram renders as an error box on GitHub and in chat. Setup: the writing-rules skill's Mermaid check."
+        },
         { "name": "typecheck", "run": "npm run --if-present typecheck" },
         {
           "name": "unit (changed)",
-          "run": "npx vitest run --changed origin/main --passWithNoTests",
+          "run": "node .agents/skills/verify/scripts/run-changed-tests.mjs origin/$DEFAULT_BRANCH npx vitest run --passWithNoTests",
           "target": "vitest.config.ts",
-          "why": "Only the tests the diff reaches, so the push stays inside the budget. The full suite runs in CI."
+          "why": "Only the tests the diff reaches, so the push stays inside the budget. A diff with a fullSuiteTriggers file runs the full suite: no test imports a lockfile or a test config. A repo adds its own paths, for example a migrations folder. The ci stage runs the full suite."
         }
       ]
     },
@@ -33,7 +51,13 @@
       "budgetSeconds": 300,
       "steps": [
         { "name": "lint", "run": "npm run --if-present lint" },
-        { "name": "unit", "run": "npx vitest run --passWithNoTests", "target": "vitest.config.ts" },
+        {
+          "name": "unit",
+          "run": "npx vitest run --passWithNoTests",
+          "target": "vitest.config.ts",
+          "replaces": "unit (changed)",
+          "why": "The full suite holds the changed tests, so it replaces that step and each test runs one time."
+        },
         { "name": "build", "run": "npm run --if-present build" },
         {
           "name": "audit",
@@ -50,10 +74,22 @@
         }
       ]
     },
+    "pr": {
+      "$comment": "The ci stage without the full suites. Only for a repo whose release PR runs ci and whose nightly runs: they are the net for what a PR leaves out. The ci.yml template of setup-repo picks the stage.",
+      "extends": "ci",
+      "without": ["unit", "e2e smoke"],
+      "budgetSeconds": 300
+    },
     "nightly": {
       "tier": "product",
       "budgetSeconds": 1800,
       "steps": [
+        {
+          "name": "unit",
+          "run": "npx vitest run --passWithNoTests",
+          "target": "vitest.config.ts",
+          "why": "The pr stage runs only the tests a diff reaches. The full suite each night finds a main that broke with each PR green alone."
+        },
         { "name": "e2e full", "run": "npx playwright test", "target": "playwright.config.ts" },
         {
           "name": "deps drift",

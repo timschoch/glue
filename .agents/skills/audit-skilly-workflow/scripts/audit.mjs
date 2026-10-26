@@ -117,7 +117,8 @@ function formatPath(path, { root, home }) {
 
 // Values the model compares instruction text against ("commits up to 80 chars").
 export function listGates(root, workflows) {
-  const commitHook = findText(join(root, '.claude', 'hooks', 'check-commit-msg.mjs'));
+  const commitHookPath = '.agents/skills/verify/scripts/check-commit-msg.mjs';
+  const commitHook = findText(join(root, commitHookPath));
   const types = commitHook?.match(/const TYPES = \[([^\]]*)\]/)?.[1].match(/[a-z]+/g) ?? null;
   const limit = commitHook?.match(/\\S\.\{0,(\d+)\}/)?.[1];
 
@@ -143,7 +144,7 @@ export function listGates(root, workflows) {
 
   return {
     commit: {
-      skilly: commitHook ? { file: '.claude/hooks/check-commit-msg.mjs', types, descriptionMax: limit ? Number(limit) + 1 : null } : null,
+      skilly: commitHook ? { file: commitHookPath, types, descriptionMax: limit ? Number(limit) + 1 : null } : null,
       others: commitOthers,
     },
     naming: { skilly: existsSync(join(root, '.agents', 'skills', 'naming')), others: namingOthers },

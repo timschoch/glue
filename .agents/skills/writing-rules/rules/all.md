@@ -7,6 +7,9 @@
 - 103 Write the outcome, not the debate that produced it. "Use pnpm", never "we compared npm and yarn…". The why belongs in an ADR.
 - 104 Structure beats prose: headings H1–H3, tables, keyword bullets, mermaid. Three paragraphs in a row with nothing between them is the limit.
 - 105 Order: high level → detail, happy path → edge case. Open questions go last.
+- 106 A flow of 3+ steps, or 3+ parts that talk to each other, gets a mermaid diagram. Fewer, or a bullet list already says it: no diagram.
+  - Kind by question: call order → `sequenceDiagram`; steps with choices → `flowchart`; states and transitions → `stateDiagram-v2`; data model → `erDiagram`; parts and their dependencies → `flowchart LR` with `subgraph`.
+  - Layout: a flowchart with 3+ choices runs `LR`, never `TD`. Labels 1 to 4 words. Sequence participants in the order they first speak.
 - 108 A heading names its subject and nothing else. The sentence goes in the first line below it.
 - 109 A bullet holds three sentences at most. More means a table, a sub-bullet, or a paragraph.
 

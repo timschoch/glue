@@ -35,7 +35,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/audit-skilly-workflow/SKILL.md",
-      "computedHash": "ff790d8f58bf96f7afe58e96ab65357a46870a20b34a3dbaf137ea83e5ba1c12"
+      "computedHash": "9eed73169f591a25740a073821afb472d4c08292b4930eef210615b576c3b613"
     },
     "babysit-pr": {
       "source": "timschoch/skilly",
@@ -47,7 +47,7 @@
       "source": "jakubkrehel/skills",
       "sourceType": "github",
       "skillPath": "skills/better-accessibility/SKILL.md",
-      "computedHash": "b7fffd77b6ac087d72e081c1b0afa312edc7b6c82bb3c863dd454937d4900cb3"
+      "computedHash": "7fe3f3727dc1c15b5148e1b8d47f1b025f9886348ec8a33f4c4536aa5372cbbe"
     },
     "better-auth-best-practices": {
       "source": "better-auth/skills",
@@ -65,37 +65,37 @@
       "source": "jakubkrehel/skills",
       "sourceType": "github",
       "skillPath": "skills/better-colors/SKILL.md",
-      "computedHash": "25be5683f90265ae9caad9e0f22c14607b47a0e8cd2481bdb4a498071fb5bd56"
+      "computedHash": "b24b63ebd25658a95e5f791cd83552aca6554dd6746aa6065d930a9492fb9886"
     },
     "better-interface": {
       "source": "jakubkrehel/skills",
       "sourceType": "github",
       "skillPath": "skills/better-interface/SKILL.md",
-      "computedHash": "9c73b05d59b188147335eb71308ec7f37237272202fe2298f54c322e6c318b3f"
+      "computedHash": "c4f8a7862c00e63ae0df73fa29137f01a7fdd16354919e718dcf7e9f1a3f9445"
     },
     "better-layout": {
       "source": "jakubkrehel/skills",
       "sourceType": "github",
       "skillPath": "skills/better-layout/SKILL.md",
-      "computedHash": "96568d1af89fd3b0061622b9938ce2855b74c1c11134b63f2aec45961372e7ab"
+      "computedHash": "822bb216c43ce743221b1afe42a21c7efc80d85b71847cf109c33af9513da655"
     },
     "better-typography": {
       "source": "jakubkrehel/skills",
       "sourceType": "github",
       "skillPath": "skills/better-typography/SKILL.md",
-      "computedHash": "f959c7e37cc5275dc1737090393998c546355919a14977bbf7d5f70cb6e3106b"
+      "computedHash": "6546baea71117ed05b74dd9fb4ebf25300b3a8c9fab1751fd9981701550bd1b7"
     },
     "better-ui": {
       "source": "jakubkrehel/skills",
       "sourceType": "github",
       "skillPath": "skills/better-ui/SKILL.md",
-      "computedHash": "6f69968c0d1ed034753d64aa22f2bf4332f1471164f110db720d05faf76c3551"
+      "computedHash": "8a21f243313aa3b7f6bb5e13d241eef07926fe52bc0a866d154a10f88b7c007a"
     },
     "better-writing": {
       "source": "jakubkrehel/skills",
       "sourceType": "github",
       "skillPath": "skills/better-writing/SKILL.md",
-      "computedHash": "fe296e430b1426c2b3dd8ef0e7675ebc1429ec4db5caa56dc355b24e2a1997fb"
+      "computedHash": "5dcd97f7df29f92ef99901601b2a63e2c709f49f9748fd6b61c751b667468564"
     },
     "blast-radius": {
       "source": "cursor/plugins",
@@ -107,7 +107,7 @@
       "source": "jakubkrehel/skills",
       "sourceType": "github",
       "skillPath": "skills/break/SKILL.md",
-      "computedHash": "044d70413a0961625cf05de247da12d9177a4c4d109cf7e5d0cd9bd3712ffc64"
+      "computedHash": "a31627543d546b00ee744d6cbc31889a4eef67b25f854007b99344f022fc0c05"
     },
     "cleanup-merged-branches": {
       "source": "timschoch/skilly",
@@ -179,7 +179,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/git-shortcuts/SKILL.md",
-      "computedHash": "875051f7005d599d56cf7895c96e4a9e54dc9fcda3914831fe9841347bd6eabc"
+      "computedHash": "73e78ada3e491906a15d83d4c4fc4e26c675b0d576a4001b512a070b950e5306"
     },
     "grilling": {
       "source": "timschoch/mattpocock-skills",
@@ -191,7 +191,7 @@
       "source": "nutlope/hallmark",
       "sourceType": "github",
       "skillPath": "skills/hallmark/SKILL.md",
-      "computedHash": "579f86b27cdd7eb972107f7aecedd537f472891c5fd7c7c821bea15f64e0fe86"
+      "computedHash": "32269cfda7e467ba1e2534428a1186c1b7b28d196d0f3b3227d293512fa5f7ec"
     },
     "handoff": {
       "source": "timschoch/mattpocock-skills",
@@ -241,7 +241,7 @@
       "source": "jakubkrehel/skills",
       "sourceType": "github",
       "skillPath": "skills/interface-review/SKILL.md",
-      "computedHash": "8feb4aa0e2a35b629cdff8121ccbed7ff9bfca83bd245a691d16ca9ccd3e52b5"
+      "computedHash": "3b04fd6eb5fef3b49c76b6af2b0bb542bbadcdbd88beed7ca11ab54d5a207750"
     },
     "make-pr-easy-to-review": {
       "source": "cursor/plugins",
@@ -253,7 +253,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/naming/SKILL.md",
-      "computedHash": "edde422504999aa6df2135e6fdcc313688b8d8c7aa9c8330dc9a7e07b80d8b2c"
+      "computedHash": "b77f872e004b67669f12e40aa6b22538178b375a8e9f11e2723687d92359d715"
     },
     "neon": {
       "source": "neondatabase/agent-skills",
@@ -271,7 +271,7 @@
       "source": "neondatabase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/neon-postgres/SKILL.md",
-      "computedHash": "0d936096676b18674d47828a87b21fcabf37cf0d7e3ed002e46e169eb7e0a7da"
+      "computedHash": "3c09fbeadf705429a831b7321e535a43655bddf733438b8ffa5dae2537dd6efc"
     },
     "neon-postgres-branches": {
       "source": "neondatabase/agent-skills",
@@ -283,7 +283,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/orchestrate/SKILL.md",
-      "computedHash": "e14bb24b404c71b7aa759fc9def6a024f3c98f7bcad65a8785539b5b610e9c24"
+      "computedHash": "3004432a2ee4fbe7fa922b38d69d94f5159885f619dc3f1c40ebbf1bd53adfb9"
     },
     "plan-critics": {
       "source": "timschoch/skilly",
@@ -395,7 +395,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/skilly-cli/SKILL.md",
-      "computedHash": "8f4d4725e73f0a4e7352465649de5d079c1c99d0cca3260226f756083096d591"
+      "computedHash": "aff6d6a1eb050ed86eff063140950dd5fc0c473083a71f2cd0302e02b50e817e"
     },
     "start-core": {
       "source": "TanStack/router",
@@ -494,7 +494,7 @@
       "source": "jakubkrehel/skills",
       "sourceType": "github",
       "skillPath": "skills/variant/SKILL.md",
-      "computedHash": "f075d84aab2cb07b765c933eec19d3496f302c97c635adeede4fbf04ee2c1b3d"
+      "computedHash": "c783573ebf39b02ed2dc393cc7fe3de0a2fafc5d10a9a3c76a8461889beb7c2d"
     },
     "vercel-cli": {
       "source": "timschoch/skilly",
@@ -518,7 +518,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/verify/SKILL.md",
-      "computedHash": "42a5c49b07e82e2b3591155bbce63dbd155cbc535e78ed83f59042db99bac728"
+      "computedHash": "169ab6d241315d866e536b867bb83cbcfc96b51b12747d6a7a2a326ef780062d"
     },
     "wait-what": {
       "source": "timschoch/mattpocock-skills",
@@ -566,7 +566,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/writing-rules/SKILL.md",
-      "computedHash": "7ebb21bcbc8b8d43384a1971c5622e275f878514b99e947fc8976b9e218a626d"
+      "computedHash": "f293f1566890ef7836b3cbc06f410cfcce927ab953f0e83dcb708e5c5d02c932"
     }
   }
 }
