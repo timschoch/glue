@@ -32,6 +32,7 @@ const INTEGRATIONS: IntegrationsProps['integrations'] = [
     tool: 'GitHub',
     address: 'acme/shop',
     keyLastFour: '1234',
+    needsKey: true,
     state: 'active',
     lastRead: { at: '2026-10-09T08:30:00.000Z', signalCount: 12, error: null },
   },
@@ -40,6 +41,7 @@ const INTEGRATIONS: IntegrationsProps['integrations'] = [
     tool: 'GitHub',
     address: 'acme/web',
     keyLastFour: 'wxyz',
+    needsKey: true,
     state: 'paused',
   },
   {
@@ -47,6 +49,7 @@ const INTEGRATIONS: IntegrationsProps['integrations'] = [
     tool: 'GitHub',
     address: 'acme/app',
     keyLastFour: '9876',
+    needsKey: true,
     state: 'failed',
     lastRead: {
       at: '2026-10-10T07:05:00.000Z',
@@ -235,6 +238,40 @@ describe('Integrations', () => {
 
     expect(onSetKey.mock.calls).toEqual([[2, 'new-key-of-the-team']])
     expect(onEditKey.mock.calls).toEqual([[2], []])
+  })
+
+  it('has no button for a new key at a tool that Glue makes the secret for', () => {
+    render(
+      <Integrations
+        integrations={[
+          INTEGRATIONS[0],
+          {
+            id: 4,
+            tool: 'Webhook',
+            address: 'Helpdesk',
+            keyLastFour: 'abcd',
+            needsKey: false,
+            state: 'active',
+          },
+        ]}
+        onPause={() => {}}
+        onRemove={() => {}}
+        onEditKey={() => {}}
+        onSetKey={() => {}}
+        onClose={() => {}}
+      />,
+    )
+
+    const [github, webhook] = within(
+      screen.getByRole('list', { name: 'Integrations' }),
+    ).getAllByRole('listitem')
+    const buttons = (row: HTMLElement) =>
+      within(row)
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+
+    expect(buttons(github)).toEqual(['Pause', 'New key', 'Remove'])
+    expect(buttons(webhook)).toEqual(['Pause', 'Remove'])
   })
 
   it('shows in the form of the new key that the write runs, and at the key why the server refused it', () => {

@@ -227,6 +227,32 @@ function focusOutline(element: HTMLElement): string {
   )
 }
 
+// A style value of the `::after` of an element. jsdom does not read the
+// style of a pseudo-element itself.
+function afterStyle(element: HTMLElement, property: string): string {
+  const AFTER = /::after$/
+  return (
+    [...document.styleSheets]
+      .flatMap((sheet) => [...sheet.cssRules])
+      .filter((rule) => rule instanceof CSSStyleRule)
+      // Only the selectors with the class of the element, one of a list at
+      // a time: Carbon has lists that jsdom cannot match.
+      .filter(({ selectorText }) =>
+        selectorText
+          .split(',')
+          .map((selector) => selector.trim())
+          .filter(
+            (selector) =>
+              AFTER.test(selector) && selector.includes(element.className),
+          )
+          .some((selector) => element.matches(selector.replace(AFTER, ''))),
+      )
+      .map((rule) => rule.style.getPropertyValue(property))
+      .filter((value) => value !== '')
+      .at(-1) ?? ''
+  )
+}
+
 // The overlay Carbon lays over the main window while the left panel is open.
 // It has no role and no name.
 function overlay(): Element {
@@ -560,6 +586,43 @@ describe('Frame', () => {
         .getAllByRole('link')
         .map((link) => getComputedStyle(link).borderTopStyle),
     ).toEqual(['solid', 'solid', 'dashed', 'dashed', 'solid'])
+  })
+
+  it('marks the current loop step with a bar at its bottom edge and keeps its border, so only the focus frames a step', () => {
+    renderFrame()
+
+    const loop = within(screen.getByRole('list', { name: 'Loop' }))
+    const current = loop.getByRole('link', { current: 'step' })
+    const other = loop.getByRole('link', { name: 'Understand' })
+    const border = (link: HTMLElement) =>
+      resolved(link, getComputedStyle(link).borderTopColor)
+
+    expect(border(other)).not.toBe('')
+    expect(border(current)).toBe(border(other))
+    expect(afterStyle(current, 'border')).toBe('')
+    expect(afterStyle(current, 'border-block-end')).toBe(
+      '2px solid var(--cds-border-interactive, #0f62fe)',
+    )
+  })
+
+  it('says which loop steps have no Parts, with no text on the screen', () => {
+    renderFrame()
+
+    expect(
+      within(screen.getByRole('list', { name: 'Loop' }))
+        .getAllByRole('link')
+        .map((link) => [
+          link.textContent,
+          link.getAttribute('aria-description'),
+        ]),
+    ).toEqual([
+      ['Understand', null],
+      ['Decide', null],
+      ['Design', 'No Parts'],
+      ['Build', 'No Parts'],
+      ['Use', null],
+    ])
+    expect(screen.queryByText('No Parts')).toBeNull()
   })
 
   it('ends the loop steps with one arrow', () => {
@@ -978,14 +1041,6 @@ describe('Frame', () => {
       [{ name: 'Bakeday', href: '/bakeday' }],
       ['Concept'],
     ],
-    [
-      'no link while the open Concept is the title of a menu of the panel',
-      [
-        { name: 'Bakeday', href: '/bakeday' },
-        { name: 'Technique videos', href: '/bakeday/technique-videos' },
-      ],
-      [],
-    ],
   ])('marks %s', (_name, conceptPath, marked) => {
     renderFrame([], undefined, undefined, {
       section: undefined,
@@ -997,6 +1052,32 @@ describe('Frame', () => {
         .queryAllByRole('link', { current: 'page' })
         .map((link) => link.textContent),
     ).toEqual(marked)
+  })
+
+  it('marks the menu of the open Concept alone while the Concept is the title of a menu of the panel', () => {
+    renderFrame([], undefined, undefined, {
+      section: undefined,
+      conceptPath: [
+        { name: 'Bakeday', href: '/bakeday' },
+        { name: 'Technique videos', href: '/bakeday/technique-videos' },
+      ],
+    })
+
+    const panel = within(screen.getByRole('navigation', { name: 'Main' }))
+    const [menu, ...others] = panel.getAllByRole('listitem', {
+      current: 'page',
+    })
+
+    // The menu is open, so Carbon marks nothing: the frame marks its title.
+    const title = within(menu).getByRole('button', {
+      name: 'Technique videos',
+      expanded: true,
+    })
+    expect(getComputedStyle(title).backgroundColor).toContain(
+      '--cds-background-selected',
+    )
+    expect(others).toEqual([])
+    expect(panel.queryAllByRole('link', { current: 'page' })).toEqual([])
   })
 })
 

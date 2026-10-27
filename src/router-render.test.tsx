@@ -781,6 +781,62 @@ describe('a section', () => {
     screen.getByRole('heading', { name: 'Signals' })
   })
 
+  it('gives the Integrations their own address, and the Signals theirs again', async () => {
+    const { expectAddress } = await renderIntegrations()
+
+    await expectAddress('/glue', { section: 'Understand', integrations: true })
+
+    await userEvent.click(button('Signals'))
+
+    await expectAddress('/glue', { section: 'Understand' })
+  })
+
+  it('shows the Integrations at their address', async () => {
+    await renderPage('/glue?section=Understand&integrations=true')
+
+    screen.getByRole('heading', { name: 'Integrations' })
+  })
+
+  it('takes the secret of a webhook off the screen when the webhook is removed', async () => {
+    // The Integrations of the Project, as a server keeps them.
+    let kept = [shop]
+    await renderIntegrations({
+      fetchIntegrations: vi.fn(() =>
+        Promise.resolve({ tools: toolForms, integrations: kept }),
+      ),
+      addIntegration: vi.fn(({ integration }) => {
+        kept = [...kept, { ...shop, ...integration, id: 3 }]
+        return Promise.resolve({ id: 3, secret: 'secret-of-the-webhook-abcd' })
+      }),
+      removeIntegration: vi.fn(({ integrationId }) => {
+        kept = kept.filter(({ id }) => id !== integrationId)
+        return Promise.resolve(undefined)
+      }),
+    })
+
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Tool' }),
+      'Webhook',
+    )
+    await userEvent.type(screen.getByLabelText('Name'), 'Helpdesk')
+    await userEvent.click(button('Add integration'))
+    await screen.findByRole('group', { name: 'Webhook Helpdesk' })
+
+    await userEvent.click(button('Remove Webhook Helpdesk'))
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Remove',
+      }),
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('group', { name: 'Webhook Helpdesk' }),
+      ).toBeNull(),
+    )
+    expect(screen.queryByText('secret-of-the-webhook-abcd')).toBeNull()
+  })
+
   it('adds an Integration, and the form is empty again', async () => {
     const { server } = await renderIntegrations()
 
@@ -827,7 +883,11 @@ describe('a section', () => {
   })
 
   it('adds a webhook, and shows its URL and its secret', async () => {
+    const helpdesk = { ...shop, id: 3, tool: 'webhook', address: 'Helpdesk' }
     const { server } = await renderIntegrations({
+      fetchIntegrations: vi.fn(() =>
+        Promise.resolve({ tools: toolForms, integrations: [shop, helpdesk] }),
+      ),
       addIntegration: vi.fn(() =>
         Promise.resolve({ id: 3, secret: 'secret-of-the-webhook-abcd' }),
       ),
@@ -2005,18 +2065,28 @@ describe('the section Mine', () => {
     await expectAddress('/glue/flows')
   })
 
-  it('opens the map of the whole Project with the first item of the Concepts, and keeps the loop step', async () => {
-    const { expectAddress } = await renderPage('/glue/flows?section=Decide')
+  it.each([
+    ['the list', '/glue/flows?section=Decide', { section: 'Decide' }],
+    [
+      'the map',
+      '/glue/flows?section=Decide&view=map',
+      { section: 'Decide', view: 'map' },
+    ],
+  ])(
+    'opens the Project itself with the first item of the Concepts, and keeps the loop step and %s',
+    async (_view, path, search) => {
+      const { expectAddress } = await renderPage(path)
 
-    await userEvent.click(
-      within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
-        'link',
-        { name: 'Concept' },
-      ),
-    )
+      await userEvent.click(
+        within(screen.getByRole('navigation', { name: 'Main' })).getByRole(
+          'link',
+          { name: 'Concept' },
+        ),
+      )
 
-    await expectAddress('/glue', { section: 'Decide', view: 'map' })
-  })
+      await expectAddress('/glue', search)
+    },
+  )
 })
 
 describe('the section Use', () => {

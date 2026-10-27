@@ -171,15 +171,14 @@ export function Frame({
   // Mine and People are of the Project: while one is open, no Concept is.
   const showsConcept = section !== 'Mine' && section !== 'People'
   // The left panel shows two levels of Concepts. The current one is the
-  // innermost Concept of the path that the panel has a link for. The
-  // Project itself is current while the path has no Concept of the panel.
+  // innermost Concept of the path that the panel shows: a link, or the
+  // title of a menu. The Project itself is current while the path has no
+  // Concept of the panel.
   const currentConcept = showsConcept
-    ? concepts.some(isOnPath)
-      ? concepts
-          .flatMap((concept) => concept.concepts ?? [concept])
-          .filter(isOnPath)
-          .at(-1)?.href
-      : rootHref
+    ? (concepts
+        .flatMap((concept) => [concept, ...(concept.concepts ?? [])])
+        .filter(isOnPath)
+        .at(-1)?.href ?? rootHref)
     : undefined
 
   return (
@@ -260,6 +259,12 @@ export function Frame({
                     key={`${concept.href} ${isOnPath(concept)}`}
                     title={concept.name}
                     defaultExpanded={isOnPath(concept)}
+                    {...current(concept.href === currentConcept)}
+                    className={
+                      concept.href === currentConcept
+                        ? styles.currentMenu
+                        : undefined
+                    }
                   >
                     {concept.concepts.map(({ name, href }) => (
                       <SideNavMenuItem
@@ -353,6 +358,8 @@ export function Frame({
                 <a
                   {...link(href)}
                   aria-current={name === section ? 'step' : undefined}
+                  // The border says it to the eye, this to a screen reader.
+                  aria-description={hasParts ? undefined : 'No Parts'}
                   className={hasParts ? styles.filled : styles.empty}
                 >
                   {name}

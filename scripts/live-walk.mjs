@@ -4,7 +4,11 @@
 import { chromium } from '@playwright/test'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { openFirstRecord, saveScreenshot } from './live-walk-page.mjs'
+import {
+  listWalkLinks,
+  openFirstRecord,
+  saveScreenshot,
+} from './live-walk-page.mjs'
 
 const base = process.argv[2] ?? 'https://glue-glue-glue.vercel.app'
 const accountFile = new URL('../.temp/test-account.json', import.meta.url)
@@ -86,17 +90,8 @@ where = 'project'
 await page.goto(`${base}/glue`)
 await shot('02-project')
 
-const links = await page
-  .locator('aside a, nav a')
-  .evaluateAll((anchors) => [
-    ...new Set(
-      anchors
-        .map((anchor) => anchor.getAttribute('href'))
-        .filter((href) => href?.startsWith('/')),
-    ),
-  ])
 let shotNumber = 3
-for (const href of links.slice(0, 14)) {
+for (const href of await listWalkLinks(page, 14)) {
   where = href
   await page.goto(`${base}${href}`)
   await shot(
