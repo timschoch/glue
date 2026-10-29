@@ -191,7 +191,7 @@
       "source": "nutlope/hallmark",
       "sourceType": "github",
       "skillPath": "skills/hallmark/SKILL.md",
-      "computedHash": "32269cfda7e467ba1e2534428a1186c1b7b28d196d0f3b3227d293512fa5f7ec"
+      "computedHash": "dec973b9dc9f6508eaf17447b41a1185d2a0d0fc7d6fe6ecdc7f5f75293bd107"
     },
     "handoff": {
       "source": "timschoch/mattpocock-skills",
@@ -253,7 +253,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/naming/SKILL.md",
-      "computedHash": "b77f872e004b67669f12e40aa6b22538178b375a8e9f11e2723687d92359d715"
+      "computedHash": "e3e4181c468439576468afe8714ace39b9cc6917b11d21d7836bda24365bd29a"
     },
     "neon": {
       "source": "neondatabase/agent-skills",
@@ -283,7 +283,7 @@
       "source": "timschoch/skilly",
       "sourceType": "github",
       "skillPath": "bundles/workflow/skills/orchestrate/SKILL.md",
-      "computedHash": "3004432a2ee4fbe7fa922b38d69d94f5159885f619dc3f1c40ebbf1bd53adfb9"
+      "computedHash": "3607a87b1417592ddee6a538e4aed87eddc82fe9c41a96ae6fb4b1d365573234"
     },
     "plan-critics": {
       "source": "timschoch/skilly",

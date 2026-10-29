@@ -6,12 +6,14 @@
     "env": {
       "parts": ["project", "area", "role", "consumer"],
       "case": "SCREAMING_SNAKE",
-      "roles": ["KEY", "SECRET", "URL"],
-      "shape": "<PROJECT>_<AREA>_<KEY|SECRET|URL>[_FOR_<CONSUMER>]",
+      "roles": ["KEY", "SECRET", "URL", "ENABLED"],
+      "shape": "<PROJECT>_<AREA>_<KEY|SECRET|URL|ENABLED>[_FOR_<CONSUMER>]",
       "examples": [
         { "good": "COLIN_SYNC_KEY_FOR_TWENTY", "bad": "TWENTY_API_KEY", "why": "issuer first, then what the key is for, then who holds it" },
         { "good": "COLIN_SYNC_URL", "bad": "COLIN_SYNC_URL_FOR_TWENTY", "why": "same value for every caller, so no consumer part" },
-        { "good": "GITHUB_WEBHOOK_SECRET", "bad": "GH_HOOK_KEY", "why": "full words, and a signing secret is SECRET not KEY" }
+        { "good": "GITHUB_WEBHOOK_SECRET", "bad": "GH_HOOK_KEY", "why": "full words, and a signing secret is SECRET not KEY" },
+        { "good": "LAICA_SYNC_OUTBOX_ENABLED", "bad": "DISABLE_LAICA_SYNC_OUTBOX", "why": "positive name, role last" },
+        { "good": "LAICA_SYNC_TWENTY_WRITE_ENABLED", "bad": "LAICA_SYNC_TWENTY_DRY_RUN", "why": "the area may span more words; ENABLED is an on/off switch, true turns it on, any other value is off" }
       ]
     },
     "path": {
