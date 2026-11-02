@@ -1,0 +1,15 @@
+{
+  "includes": [],
+  "rules": [],
+  "sources": [
+    {
+      "source": "https://github.com/twentyhq/twenty/tree/agent-skills",
+      "skills": [
+        "create-app",
+        "develop-app",
+        "manage-app",
+        "use-twenty-mcp"
+      ]
+    }
+  ]
+}

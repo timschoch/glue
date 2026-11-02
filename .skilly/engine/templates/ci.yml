@@ -1,0 +1,56 @@
+# Managed by skilly. The Sync writes this file from the Engine and overwrites
+# a hand edit. Change .skilly/verify.json or the tier in .skilly/config.json.
+#
+# The PR gate: one job, because Actions rounds every job up to the minute. The
+# Engine picks the stage and the toolchains its steps need. The pr stage skips
+# a step when none of its paths changed.
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: ['@{defaultBranch}']
+  workflow_dispatch: {} # release.yml starts the release PR's run this way
+
+# A newer push to the same ref cancels the run it superseded.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  statuses: write # the verify commit status of a workflow_dispatch run
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the changed-files steps diff against the default branch
+      # @{setupNode}
+      - id: plan
+        run: node .skilly/engine/verify/plan.mjs ci >> "$GITHUB_OUTPUT"
+      # Before the install, because a lifecycle script of the repo can call bun.
+      - if: contains(fromJSON(steps.plan.outputs.toolchains), 'bun')
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - run: '@{install}'
+      # The lockfile pins the Playwright version, so it keys the browser cache.
+      - if: contains(fromJSON(steps.plan.outputs.toolchains), 'playwright')
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('@{lockfile}') }}
+      - if: contains(fromJSON(steps.plan.outputs.toolchains), 'playwright')
+        run: '@{exec} playwright install --with-deps chromium'
+      - run: node .skilly/engine/verify/verify.mjs ${{ steps.plan.outputs.stage }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # the audit step checks accepted advisories for a fix
+      # A check run from workflow_dispatch does not count for the release PR, a commit status does
+      # (ADR-0009). It runs only after a green verify.
+      - if: github.event_name == 'workflow_dispatch'
+        run: gh api repos/${{ github.repository }}/statuses/${{ github.sha }} -f state=success -f context=verify
+        env:
+          GH_TOKEN: ${{ github.token }}

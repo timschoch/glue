@@ -45,6 +45,34 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/skills/writing-rules/scripts/inject-writing-rules.mjs\""
           }
         ]
+      },
+      {
+        "matcher": "Bash|mcp__lean-ctx__ctx_shell|mcp__lean-ctx__shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.skilly/engine/verify/block-destructive-git.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.skilly/engine/verify/block-invalid-branch-push.sh .skilly/engine/verify/check-branch-name.mjs"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.skilly/engine/verify/block-unverified-push.sh .skilly/engine/verify/verify.mjs"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|mcp__lean-ctx__ctx_patch|mcp__lean-ctx__ctx_call",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.skilly/engine/verify/lint-edited-file.mjs\""
+          }
+        ]
       }
     ]
   }

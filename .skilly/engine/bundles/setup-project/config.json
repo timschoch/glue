@@ -1,0 +1,14 @@
+{
+  "includes": [],
+  "rules": [],
+  "sources": [
+    {
+      "source": "timschoch/skilly",
+      "skills": ["setup-project"]
+    },
+    {
+      "source": "timschoch/mattpocock-skills",
+      "skills": ["setup-matt-pocock-skills"]
+    }
+  ]
+}

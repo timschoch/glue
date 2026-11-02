@@ -117,7 +117,7 @@ function formatPath(path, { root, home }) {
 
 // Values the model compares instruction text against ("commits up to 80 chars").
 export function listGates(root, workflows) {
-  const commitHookPath = '.agents/skills/verify/scripts/check-commit-msg.mjs';
+  const commitHookPath = '.skilly/engine/verify/check-commit-msg.mjs';
   const commitHook = findText(join(root, commitHookPath));
   const types = commitHook?.match(/const TYPES = \[([^\]]*)\]/)?.[1].match(/[a-z]+/g) ?? null;
   const limit = commitHook?.match(/\\S\.\{0,(\d+)\}/)?.[1];

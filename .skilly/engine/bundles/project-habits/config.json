@@ -1,0 +1,30 @@
+{
+  "includes": [
+    "tech-lemy",
+    "marketing",
+    "tech-react",
+    "tech-typescript",
+    "tech-tanstack",
+    "tech-neon",
+    "tech-drizzle",
+    "tech-powersync",
+    "tech-better-auth",
+    "tech-posthog",
+    "tech-vercel",
+    "tech-langfuse"
+  ],
+  "rules": [],
+  "sources": [
+    {
+      "source": "Habits-Family/habits",
+      "skills": [
+        "habits-code-and-docs-review",
+        "habits-design-system",
+        "habits-distill-context",
+        "habits-implement-vertical-slice",
+        "habits-jtbd",
+        "habits-local-dev"
+      ]
+    }
+  ]
+}

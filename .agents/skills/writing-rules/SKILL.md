@@ -15,7 +15,7 @@ The rules live in sidecar files, one per style, so only what applies gets inject
 - [rules/all.md](rules/all.md) — every file: audience, words and links, the never list, where a statement lives
 - [rules/plain.md](rules/plain.md) — a person reads it: README, docs, code comments
 - [rules/dense.md](rules/dense.md) — only an agent reads it: CLAUDE.md, AGENTS.md, skill files, agent docs; where both could apply, dense wins
-- [rules/git.md](rules/git.md) — commits, PRs, issues; the format is enforced by setup-repo's commit gate
+- [rules/git.md](rules/git.md) — commits, PRs, issues; the format is enforced by the workflow Bundle's commit-msg hook
 
 Reviewing or writing prose by hand? Read the sidecars above — this file holds no rule.
 

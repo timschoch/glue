@@ -2,7 +2,8 @@
 // PreToolUse hook: put the writing rules in front of whoever is about to write.
 // Injects the sidecars beside this script (../rules): all.md plus plain.md or
 // dense.md by path. Zero dependencies; holds no rule of its own.
-// Wired by the setup-repo skill in .claude/settings.json on every write tool.
+// The Sync wires it in .claude/settings.json on every write tool, from the
+// workflow Bundle's hook entries.
 import { readFileSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

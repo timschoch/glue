@@ -1,0 +1,32 @@
+{
+  "detect": { "dependencies": ["n8n", "n8n-workflow"] },
+  "includes": [],
+  "rules": [],
+  "sources": [
+    {
+      "source": "n8n-io/skills",
+      "skills": [
+        "using-n8n-skills-official",
+        "n8n-workflow-lifecycle-official",
+        "n8n-node-configuration-official",
+        "n8n-expressions-official",
+        "n8n-code-nodes-official",
+        "n8n-agents-official",
+        "n8n-error-handling-official",
+        "n8n-debugging-official",
+        "n8n-credentials-and-security-official",
+        "n8n-subworkflows-official",
+        "n8n-loops-official",
+        "n8n-binary-and-data-official",
+        "n8n-data-tables-official"
+      ]
+    },
+    {
+      "source": "czlonkowski/n8n-skills",
+      "skills": [
+        "n8n-workflow-patterns",
+        "n8n-self-hosting"
+      ]
+    }
+  ]
+}

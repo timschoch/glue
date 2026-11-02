@@ -1,0 +1,11 @@
+{
+  "detect": { "dependencies": ["pg", "postgres"] },
+  "includes": [],
+  "rules": [],
+  "sources": [
+    {
+      "source": "neondatabase/postgres-skills",
+      "skills": ["postgres-best-practices"]
+    }
+  ]
+}

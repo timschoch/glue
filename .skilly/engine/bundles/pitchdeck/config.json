@@ -1,0 +1,18 @@
+{
+  "includes": [],
+  "rules": [],
+  "sources": [
+    {
+      "source": "onewave-ai/claude-skills",
+      "skills": ["pitch-deck-reviewer"]
+    },
+    {
+      "source": "microck/ordinary-claude-skills",
+      "skills": ["alex-hormozi-pitch"]
+    },
+    {
+      "source": "guia-matthieu/clawfu-skills",
+      "skills": ["yc-pitch-deck"]
+    }
+  ]
+}

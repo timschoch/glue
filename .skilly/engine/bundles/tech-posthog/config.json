@@ -1,0 +1,19 @@
+{
+  "detect": { "dependencies": ["posthog-js", "posthog-node"] },
+  "includes": [],
+  "rules": [],
+  "sources": [
+    {
+      "source": "https://github.com/PostHog/skills/tree/main/skills/posthog/all",
+      "skills": [
+        "integration-nextjs-app-router",
+        "integration-tanstack-start",
+        "tools-and-features-hogql"
+      ]
+    },
+    {
+      "source": "timschoch/skilly",
+      "skills": ["posthog-cli"]
+    }
+  ]
+}

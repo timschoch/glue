@@ -7,7 +7,7 @@ description: The code-naming rules. Use before naming a variable, function, file
 
 One list, synced from the hub. The gate `naming` checks what a machine can check, on push and in CI; the rest is your judgement. [references/lint.md](references/lint.md) draws the line.
 
-Before you name anything, run `node .agents/skills/naming/scripts/config.mjs` and read its output as the current rules: it prints [references/naming.json](references/naming.json) merged with the project's overrides.
+Before you name anything, run `node .agents/skills/naming/scripts/config.mjs` and read its output as the current rules: it prints `.skilly/engine/naming/naming.json` merged with the project's overrides.
 
 ## Rules
 
@@ -111,12 +111,12 @@ Before you name anything, run `node .agents/skills/naming/scripts/config.mjs` an
 
 ## Per-project overrides
 
-Override file: `.skilly/naming.json`, same shape as [references/naming.json](references/naming.json), only the keys you change. An old `docs/agents/naming.json` is read only while `.skilly/naming.json` is missing: move it to `.skilly/naming.json`.
+Override file: `.skilly/naming.json`, same shape as `.skilly/engine/naming/naming.json`, only the keys you change. An old `docs/agents/naming.json` is read only while `.skilly/naming.json` is missing: move it to `.skilly/naming.json`.
 
 Merge order:
 
-1. [references/naming.json](references/naming.json)
-2. `references/stacks/<bundle>.json`, for each bundle listed in `.skilly/config.json` `bundles`, in that order. Missing file: skipped. Bundles reached only through `includes` do not count.
+1. `.skilly/engine/naming/naming.json`
+2. `.skilly/engine/naming/stacks/<bundle>.json`, for each bundle listed in `.skilly/config.json` `bundles`, in that order. Missing file: skipped. Bundles reached only through `includes` do not count.
 3. `.skilly/naming.json`
 
 Merge rules:
@@ -140,8 +140,8 @@ Merge rules:
 
 ## References
 
-- [references/naming.json](references/naming.json): prefixes, parts, artifacts, short words, noise words, synonyms, discriminant, allow
-- [references/stacks/](references/stacks/): per-bundle defaults, same shape
+- `.skilly/engine/naming/naming.json` (Hub: `engine/naming/`): prefixes, parts, artifacts, short words, noise words, synonyms, discriminant, allow
+- `.skilly/engine/naming/stacks/`: per-bundle defaults, same shape
 - [references/lint.md](references/lint.md): what the gate checks, what you judge, per-repo exceptions
 - [references/biome.json](references/biome.json): opt-in Biome block for consumers
 - [scripts/config.mjs](scripts/config.mjs): prints the merged config

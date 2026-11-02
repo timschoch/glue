@@ -1,0 +1,120 @@
+{
+  "fullSuiteTriggers": [
+    "package.json",
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bun.lock",
+    "bun.lockb",
+    "vitest.config.*",
+    "vitest.workspace.*",
+    "vite.config.*"
+  ],
+  "stages": {
+    "commit": {
+      "budgetSeconds": 3,
+      "steps": []
+    },
+    "push": {
+      "extends": "commit",
+      "budgetSeconds": 30,
+      "steps": [
+        {
+          "name": "branch name",
+          "run": "node .skilly/engine/verify/check-branch-name.mjs",
+          "why": "Conventional Branch: <type>/<description>. In CI it reads the PR's head branch, so --no-verify does not get past it. Bot branches pass."
+        },
+        {
+          "name": "mermaid",
+          "run": "node .agents/skills/writing-rules/scripts/check-mermaid.mjs",
+          "target": ".agents/skills/writing-rules/scripts/check-mermaid.mjs",
+          "why": "A broken mermaid diagram renders as an error box on GitHub and in chat. Setup: the writing-rules skill's Mermaid check."
+        },
+        { "name": "typecheck", "run": "npm run --if-present typecheck" },
+        {
+          "name": "unit (changed)",
+          "run": "node .skilly/engine/verify/run-changed-tests.mjs origin/$DEFAULT_BRANCH npx vitest run --passWithNoTests",
+          "dependency": "vitest",
+          "why": "Only the tests the diff reaches, so the push stays inside the budget. A diff with a fullSuiteTriggers file runs the full suite: no test imports a lockfile or a test config. A repo adds its own paths, for example a migrations folder. The ci stage runs the full suite."
+        }
+      ]
+    },
+    "ci": {
+      "extends": "push",
+      "budgetSeconds": 300,
+      "steps": [
+        { "name": "lint", "run": "npm run --if-present lint" },
+        {
+          "name": "unit",
+          "run": "npx vitest run --passWithNoTests",
+          "dependency": "vitest",
+          "replaces": "unit (changed)",
+          "why": "The full suite holds the changed tests, so it replaces that step and each test runs one time."
+        },
+        { "name": "build", "run": "npm run --if-present build" },
+        {
+          "name": "audit",
+          "run": "node .skilly/engine/verify/audit.mjs",
+          "tier": "tool",
+          "why": "High and critical advisories only: lower levels fire on transitive dev dependencies and train everyone to ignore the check. Accept list: the verify skill's Audit section."
+        },
+        {
+          "name": "e2e smoke",
+          "run": "npx playwright test --grep @smoke",
+          "tier": "product",
+          "target": "playwright.config.ts",
+          "toolchain": ["playwright"],
+          "why": "A merge gate needs the critical paths, not the suite. Tag those specs @smoke; the rest runs nightly."
+        }
+      ]
+    },
+    "pr": {
+      "$comment": "The ci stage without the full suites. Only for a repo whose release PR runs ci and whose nightly runs: they are the net for what a PR leaves out. The Engine's plan.mjs picks the stage. A step with paths runs only when one of them changed.",
+      "extends": "ci",
+      "without": ["unit", "e2e smoke"],
+      "changedOnly": true,
+      "budgetSeconds": 300
+    },
+    "nightly-scan": {
+      "$comment": "The checks that find new things without a code change. A night after no change runs only these (ADR-0004).",
+      "tier": "product",
+      "budgetSeconds": 1800,
+      "steps": [
+        {
+          "name": "deps drift",
+          "run": "npm outdated || true",
+          "why": "Reports, never fails: npm outdated exits 1 whenever anything is behind, which is always."
+        },
+        {
+          "name": "security scan",
+          "run": "pipx run semgrep scan --config auto --error --exclude .agents --exclude .skilly/engine",
+          "issueLabels": ["nightly-security", "critical"],
+          "why": "Semgrep Community Edition ships on PyPI, not npm, so the runner needs python and pipx. --error turns findings into a non-zero exit. --exclude skips the skills and the Engine that skilly vendors: the consumer cannot fix them, sync overwrites them. --exclude keeps Semgrep's default ignore list, a .semgrepignore would replace it."
+        }
+      ]
+    },
+    "nightly": {
+      "$comment": "A night after a change on the default branch: the scan plus the full suites the pr stage leaves out.",
+      "extends": "nightly-scan",
+      "tier": "product",
+      "budgetSeconds": 1800,
+      "steps": [
+        {
+          "name": "unit",
+          "run": "npx vitest run --passWithNoTests",
+          "dependency": "vitest",
+          "issueLabels": ["nightly-tests", "critical"],
+          "why": "The pr stage runs only the tests a diff reaches. The full suite each night finds a main that broke with each PR green alone."
+        },
+        {
+          "name": "e2e full",
+          "run": "npx playwright test",
+          "target": "playwright.config.ts",
+          "toolchain": ["playwright"],
+          "issueLabels": ["nightly-tests", "critical"]
+        }
+      ]
+    }
+  }
+}

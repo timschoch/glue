@@ -1,0 +1,40 @@
+# Managed by skilly. The Sync writes this file from the Engine and overwrites
+# a hand edit. Change the tier in .skilly/config.json. To keep your own
+# release.yml (for deploy steps), remove the first line. The Sync then keeps
+# the file.
+#
+# Product tier: release-please opens and updates the release PR with the
+# default token, so the release PR needs no secret. A PR that token opens
+# starts no workflow, so this run starts ci.yml on the release branch. That
+# run writes the `verify` commit status, the required check (ADR-0009).
+name: Release
+
+on:
+  push:
+    branches: ['@{defaultBranch}']
+
+# A release reads the commits in order, so a newer push waits.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write # the release commit and tag
+  pull-requests: write # the release PR
+  actions: write # start ci.yml
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          release-type: '@{releaseType}'
+      - if: steps.release.outputs.pr != ''
+        run: gh workflow run ci.yml --ref "$(jq -r .headBranchName <<< "$PR")"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ steps.release.outputs.pr }}

@@ -1,0 +1,171 @@
+{
+  "detect": { "always": true },
+  "includes": [],
+  "rules": ["conventional-commits", "naming"],
+  "hooks": {
+    "lefthook": {
+      "pre-commit": {
+        "commands": {
+          "skilly-lint": {
+            "run": "node .skilly/engine/verify/lint-edited-file.mjs {staged_files}",
+            "stage_fixed": true
+          }
+        }
+      },
+      "commit-msg": {
+        "commands": {
+          "skilly-conventional-commits": { "run": "node .skilly/engine/verify/check-commit-msg.mjs {1}" }
+        }
+      },
+      "pre-push": {
+        "piped": true,
+        "commands": {
+          "skilly-push-branch": {
+            "priority": 1,
+            "run": "node .skilly/engine/verify/check-push-branch.mjs",
+            "use_stdin": true
+          },
+          "skilly-verify": { "priority": 2, "run": "node .skilly/engine/verify/verify.mjs push" }
+        }
+      }
+    },
+    "claude": {
+      "PreToolUse": [
+        {
+          "matcher": "Write|Edit|NotebookEdit|mcp__lean-ctx__ctx_patch|mcp__lean-ctx__ctx_call",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node \"$CLAUDE_PROJECT_DIR/.claude/skills/writing-rules/scripts/inject-writing-rules.mjs\""
+            }
+          ]
+        },
+        {
+          "matcher": "Bash|mcp__lean-ctx__ctx_shell|mcp__lean-ctx__shell",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "bash \"$CLAUDE_PROJECT_DIR\"/.skilly/engine/verify/block-destructive-git.sh"
+            },
+            {
+              "type": "command",
+              "command": "bash \"$CLAUDE_PROJECT_DIR\"/.skilly/engine/verify/block-invalid-branch-push.sh .skilly/engine/verify/check-branch-name.mjs"
+            },
+            {
+              "type": "command",
+              "command": "bash \"$CLAUDE_PROJECT_DIR\"/.skilly/engine/verify/block-unverified-push.sh .skilly/engine/verify/verify.mjs"
+            }
+          ]
+        }
+      ],
+      "PostToolUse": [
+        {
+          "matcher": "Write|Edit|MultiEdit|mcp__lean-ctx__ctx_patch|mcp__lean-ctx__ctx_call",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node \"$CLAUDE_PROJECT_DIR/.skilly/engine/verify/lint-edited-file.mjs\""
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "verify": {
+    "steps": [
+      {
+        "name": "conventional-commits",
+        "stage": "push",
+        "run": "node .skilly/engine/verify/check-commit-msg.mjs --branch",
+        "why": "Every commit the branch adds over its base, checked by the commit-msg hook's own script. A commit made with --no-verify shows up here."
+      },
+      {
+        "name": "naming",
+        "stage": "push",
+        "run": "node .agents/skills/naming/scripts/check.mjs",
+        "target": ".agents/skills/naming/scripts/check.mjs",
+        "why": "The naming Rule on the files the branch changes. Fix a finding, or add an allow entry to .skilly/naming.json."
+      }
+    ]
+  },
+  "sources": [
+    {
+      "source": "timschoch/skilly",
+      "skills": [
+        "1-3-1",
+        "afk",
+        "orchestrate",
+        "step-by-step",
+        "cleanup-merged-branches",
+        "babysit-pr",
+        "progress",
+        "git-shortcuts",
+        "plan-critics",
+        "qa",
+        "term-check",
+        "naming",
+        "audit-agent-history",
+        "audit-skilly-workflow",
+        "writing-rules",
+        "skilly-cli",
+        "verify",
+        "wdyt"
+      ]
+    },
+    {
+      "source": "timschoch/mattpocock-skills",
+      "skills": [
+        "ask-matt",
+        "code-review",
+        "codebase-design",
+        "diagnosing-bugs",
+        "domain-modeling",
+        "grilling",
+        "handoff",
+        "implement",
+        "implement-spec",
+        "improve-codebase-architecture",
+        "pr",
+        "prototype",
+        "research",
+        "retro",
+        "tdd",
+        "to-questionnaire",
+        "to-spec",
+        "to-tickets",
+        "triage",
+        "wait-what",
+        "wayfinder",
+        "wizard",
+        "writing-for-agents"
+      ]
+    },
+    {
+      "source": "cursor/plugins",
+      "skills": [
+        "arena",
+        "blast-radius",
+        "how",
+        "principle-encode-lessons-in-structure",
+        "principle-fix-root-causes",
+        "principle-guard-the-context-window",
+        "principle-prove-it-works",
+        "technical-writing",
+        "unslop",
+        "why"
+      ]
+    },
+    {
+      "source": "https://github.com/cursor/plugins/tree/main/cursor-team-kit",
+      "skills": ["deslop", "make-pr-easy-to-review", "thermo-nuclear-code-quality-review"]
+    },
+    {
+      "source": "netresearch/context7-skill",
+      "skills": ["context7"]
+    },
+    {
+      "source": "nutlope/hallmark",
+      "skills": ["hallmark"]
+    }
+  ]
+}

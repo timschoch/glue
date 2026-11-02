@@ -1,0 +1,31 @@
+{
+  "pre-commit": {
+    "commands": {
+      "skilly-lint": {
+        "run": "node .skilly/engine/verify/lint-edited-file.mjs {staged_files}",
+        "stage_fixed": true
+      }
+    }
+  },
+  "commit-msg": {
+    "commands": {
+      "skilly-conventional-commits": {
+        "run": "node .skilly/engine/verify/check-commit-msg.mjs {1}"
+      }
+    }
+  },
+  "pre-push": {
+    "piped": true,
+    "commands": {
+      "skilly-push-branch": {
+        "priority": 1,
+        "run": "node .skilly/engine/verify/check-push-branch.mjs",
+        "use_stdin": true
+      },
+      "skilly-verify": {
+        "priority": 2,
+        "run": "node .skilly/engine/verify/verify.mjs push"
+      }
+    }
+  }
+}

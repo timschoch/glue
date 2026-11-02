@@ -1,0 +1,11 @@
+{
+  "detect": { "dependencies": ["drizzle-orm", "drizzle-kit"] },
+  "includes": [],
+  "rules": [],
+  "sources": [
+    {
+      "source": "timschoch/skilly",
+      "skills": ["drizzle-cli"]
+    }
+  ]
+}

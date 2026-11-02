@@ -1,0 +1,25 @@
+{
+  "includes": [
+    "tech-lemy",
+    "tech-nextjs",
+    "tech-typescript",
+    "tech-vercel",
+    "tech-neon",
+    "tech-payload",
+    "tech-trigger-dev",
+    "tech-posthog",
+    "tech-shadcn"
+  ],
+  "rules": [],
+  "sources": [
+    {
+      "source": "admin-laicadev/laica-launcher",
+      "skills": [
+        "laica-launcher",
+        "laica-tasks",
+        "laica-trigger-dev",
+        "laica-twenty"
+      ]
+    }
+  ]
+}

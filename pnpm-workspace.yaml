@@ -1,4 +1,5 @@
 allowBuilds:
+  lefthook: false
   '@carbon/colors': false
   '@carbon/feature-flags': false
   '@carbon/grid': false

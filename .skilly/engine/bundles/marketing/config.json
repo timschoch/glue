@@ -1,0 +1,17 @@
+{
+  "includes": [
+    "tech-lemy"
+  ],
+  "rules": [],
+  "sources": [
+    {
+      "source": "coreyhaines31/marketingskills",
+      "skills": [
+        "ai-seo",
+        "cro",
+        "lead-magnets",
+        "seo-audit"
+      ]
+    }
+  ]
+}

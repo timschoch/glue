@@ -1,0 +1,20 @@
+{
+  "includes": [],
+  "rules": [],
+  "hooks": {
+    "claude": {
+      "PreToolUse": [
+        {
+          "matcher": "Bash|mcp__lean-ctx__ctx_shell|mcp__lean-ctx__shell",
+          "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.skilly/engine/gdd/check-pr.mjs\"" }]
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "source": "timschoch/skilly",
+      "skills": ["gdd"]
+    }
+  ]
+}

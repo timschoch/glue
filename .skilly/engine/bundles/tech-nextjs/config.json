@@ -1,0 +1,16 @@
+{
+  "detect": { "dependencies": ["next"] },
+  "includes": ["tech-react"],
+  "rules": [],
+  "sources": [
+    {
+      "source": "vercel/next.js",
+      "skills": [
+        "next-cache-components-adoption",
+        "next-cache-components-optimizer",
+        "next-dev-loop",
+        "next-partial-prefetching-adoption"
+      ]
+    }
+  ]
+}

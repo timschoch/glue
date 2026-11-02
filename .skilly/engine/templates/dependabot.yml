@@ -1,0 +1,19 @@
+# Managed by skilly. The Sync writes this file from the Engine and overwrites
+# a hand edit. Change .skilly/verify.json or the tier in .skilly/config.json.
+#
+# Tool tier and up: dependency updates arrive as PRs, and ci / verify checks
+# them like any other. No github-actions entry: the Managed workflows pin their
+# actions in the Engine, and the next Sync would revert a bump here. The
+# cooldown waits 7 days after a release: a hijacked package is mostly found and
+# pulled by then.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      dev-dependencies:
+        dependency-type: development

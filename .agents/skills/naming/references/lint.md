@@ -4,7 +4,7 @@ Rule numbers refer to [SKILL.md](../SKILL.md).
 
 ## Machine: the gate `naming`
 
-[scripts/check.mjs](../scripts/check.mjs), on the files the branch changes over its base branch. `skilly / gate` runs it in CI; the `naming` step in the `verify` push stage runs it before the push.
+[scripts/check.mjs](../scripts/check.mjs), on the files the branch changes over its base branch. The `workflow` Bundle adds it as the `naming` step of the `verify` push stage, so it runs before the push and in CI.
 
 ```sh
 node .agents/skills/naming/scripts/check.mjs            # files changed over the base branch

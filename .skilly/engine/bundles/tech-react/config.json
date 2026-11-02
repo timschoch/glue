@@ -1,0 +1,11 @@
+{
+  "detect": { "dependencies": ["react"] },
+  "includes": [],
+  "rules": [],
+  "sources": [
+    {
+      "source": "vercel-labs/agent-skills",
+      "skills": ["vercel-react-best-practices", "vercel-composition-patterns", "web-design-guidelines"]
+    }
+  ]
+}

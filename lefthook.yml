@@ -1,0 +1,7 @@
+extends:
+  - .skilly/lefthook.json
+
+pre-commit:
+  commands:
+    husky:
+      run: pnpm exec lint-staged

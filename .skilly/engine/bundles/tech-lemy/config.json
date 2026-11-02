@@ -1,0 +1,10 @@
+{
+  "includes": [],
+  "rules": [],
+  "sources": [
+    {
+      "source": "timschoch/lemy",
+      "skills": ["lemy-write"]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "includes": [],
+  "rules": [],
+  "sources": [
+    {
+      "source": "yigitkonur/skills-by-yigitkonur",
+      "skills": ["publish-npm-package"]
+    }
+  ]
+}
