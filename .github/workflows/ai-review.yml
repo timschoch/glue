@@ -1,8 +1,10 @@
-# On-demand review: a /ai-review comment runs the repo's own code-review skill
-# on the runner. Never automatic on push — most PRs here are skill syncs, and
-# reviewing those unprompted is pure waste. Billed to the OAuth subscription.
-# Input names verified against anthropics/claude-code-action action.yml and
-# docs/solutions.md, 2026-09-15.
+# Managed by skilly. The Sync writes this file from the Engine and overwrites
+# a hand edit. Change .skilly/verify.json or the tier in .skilly/config.json.
+#
+# On-demand review, tool tier and up: a /ai-review comment runs the repo's own
+# code-review skill on the runner. Never automatic on push: most PRs here are
+# Sync PRs, and a review of those is waste. Billed to the OAuth subscription in
+# the CLAUDE_CODE_OAUTH_TOKEN secret.
 name: AI review
 
 on:
@@ -24,8 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: anthropics/claude-code-action@cab360f6565aa35a51d6ce9e43f1f4287c0a32ea # v1.0.241
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: anthropics/claude-code-action@aa8a7738e48bf30a40ee499ce818bef081c5ab5e # v1.0.257
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           trigger_phrase: '/ai-review'
