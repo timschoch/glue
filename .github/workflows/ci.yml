@@ -7,6 +7,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, edited] # edited: the pr workflow step reads the PR body
   push:
     branches: [main] # rename if the default branch is not main
+  workflow_dispatch: {} # release.yml starts the release PR's run this way
 
 # A newer push to the same ref cancels the run it superseded.
 concurrency:
@@ -34,5 +35,11 @@ jobs:
         env:
           # A PR runs only the tests its diff reaches. The release PR runs the full unit suite and the e2e smoke:
           # release-please updates it after each merge to main, so each merge gets one full run before a release.
-          VERIFY_FULL: ${{ startsWith(github.head_ref, 'release-please--') && '1' || '' }}
+          VERIFY_FULL: ${{ startsWith(github.head_ref || github.ref_name, 'release-please--') && '1' || '' }}
           GLUE_API_TOKEN: ${{ secrets.GLUE_API_TOKEN }} # read token of the Project glue: the PR gate reads Decisions over Glue's HTTP API
+      # A check run from workflow_dispatch does not count for the release PR, a commit status does.
+      # It runs only after a green verify.
+      - if: github.event_name == 'workflow_dispatch'
+        run: gh api repos/${{ github.repository }}/statuses/${{ github.sha }} -f state=success -f context=verify
+        env:
+          GH_TOKEN: ${{ github.token }}
