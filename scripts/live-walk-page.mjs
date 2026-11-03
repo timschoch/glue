@@ -38,3 +38,25 @@ export async function openFirstRecord(page) {
     .waitFor()
   return true
 }
+
+// The links of the frame that the walk opens: each link of the sections
+// (Mine, each loop step, People), then the first links of the panels, at
+// most `panelLimit` of them. A Project with many Concepts keeps its sections.
+export async function listWalkLinks(page, panelLimit) {
+  const read = (selector) =>
+    page
+      .locator(selector)
+      .evaluateAll((anchors) =>
+        anchors
+          .map((anchor) => anchor.getAttribute('href'))
+          .filter((href) => href?.startsWith('/')),
+      )
+  const sections = await read('nav[aria-label="Sections"] a')
+  const panels = (await read('aside a, nav a')).filter(
+    (href) => !sections.includes(href),
+  )
+  return [...new Set([...sections, ...panels])].slice(
+    0,
+    new Set(sections).size + panelLimit,
+  )
+}

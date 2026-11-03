@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 import { chromium } from '@playwright/test'
-import { openFirstRecord, saveScreenshot } from './live-walk-page.mjs'
+import {
+  listWalkLinks,
+  openFirstRecord,
+  saveScreenshot,
+} from './live-walk-page.mjs'
 
 const WINDOW = { width: 1440, height: 900 }
 const PAGE_HEIGHT = 3000
@@ -110,4 +114,46 @@ test('a page with no card of a Part opens no record', async () => {
   )
 
   assert.equal(await openFirstRecord(page), false)
+})
+
+// The frame of a Project with more Concepts than the walk opens: the panel
+// with the Concepts comes first in the page, the sections come after it.
+const MANY_CONCEPTS = 30
+const FRAME_PAGE = `
+  <aside>
+    <nav aria-label="Main">
+      <a href="/glue">Concept</a>
+      ${Array.from({ length: MANY_CONCEPTS }, (_, at) => `<a href="/glue/concept-${at}">Concept ${at}</a>`).join('')}
+      <a href="https://example.com/docs">Docs</a>
+    </nav>
+  </aside>
+  <nav aria-label="Sections">
+    <a href="/glue?section=Mine">Mine</a>
+    <ol>
+      <li><a href="/glue?section=Understand">Understand</a></li>
+      <li><a href="/glue?section=Decide">Decide</a></li>
+      <li><a href="/glue?section=Design">Design</a></li>
+      <li><a href="/glue?section=Build">Build</a></li>
+      <li><a href="/glue">Use</a></li>
+    </ol>
+    <a href="/glue?section=People">People</a>
+  </nav>`
+
+test('the walk opens Mine, each loop step and People in a Project with many Concepts', async () => {
+  await page.setContent(FRAME_PAGE)
+
+  const links = await listWalkLinks(page, 3)
+
+  assert.deepEqual(links, [
+    '/glue?section=Mine',
+    '/glue?section=Understand',
+    '/glue?section=Decide',
+    '/glue?section=Design',
+    '/glue?section=Build',
+    '/glue',
+    '/glue?section=People',
+    '/glue/concept-0',
+    '/glue/concept-1',
+    '/glue/concept-2',
+  ])
 })

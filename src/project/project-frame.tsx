@@ -92,12 +92,11 @@ export function ProjectFrame({
         section: 'People',
         pins: search.pins,
       })}
-      // The Project itself opens as the map of the whole Project. It keeps
-      // the loop step.
+      // The Project itself keeps the loop step and the view.
       rootHref={conceptHref(project.slug, {
         section: isOfProject ? undefined : search.section,
         pins: search.pins,
-        view: 'map',
+        view: search.view,
       })}
       // The steps belong to the open Concept. Mine and People open on the
       // Project, so there the steps are the ones of the whole Project.

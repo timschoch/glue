@@ -58,6 +58,7 @@ const meta = {
         tool: 'GitHub',
         address: 'acme/shop',
         keyLastFour: '1234',
+        needsKey: true,
         state: 'active',
         lastRead: {
           at: '2026-10-09T08:30:00.000Z',
@@ -70,6 +71,7 @@ const meta = {
         tool: 'PostHog',
         address: 'eu/12345',
         keyLastFour: 'wxyz',
+        needsKey: true,
         state: 'paused',
       },
       {
@@ -77,6 +79,7 @@ const meta = {
         tool: 'GitHub',
         address: 'acme/app',
         keyLastFour: '9876',
+        needsKey: true,
         state: 'failed',
         lastRead: {
           at: '2026-10-10T07:05:00.000Z',
@@ -89,6 +92,7 @@ const meta = {
         tool: 'Webhook',
         address: 'Helpdesk',
         keyLastFour: 'abcd',
+        needsKey: false,
         state: 'active',
       },
     ],

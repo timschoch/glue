@@ -59,3 +59,25 @@ test('the Responsible select of a Part stays in the frame on a phone', async ({
   expect(box?.x).toBeGreaterThanOrEqual(0)
   expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(PHONE_WIDTH)
 })
+
+test('each row of the loop steps starts with a step on a phone, not with a join line', async ({
+  page,
+  address,
+}) => {
+  await page.goto(address + 'glue/part-model', { waitUntil: 'networkidle' })
+
+  const boxes = await page
+    .getByRole('list', { name: 'Loop' })
+    .getByRole('link')
+    .evaluateAll((steps) =>
+      steps.map((step) => {
+        const { x, y } = step.getBoundingClientRect()
+        return { x, y }
+      }),
+    )
+  // The first step of each row: the step before it is on another row.
+  const starts = boxes.filter((box, index) => box.y !== boxes[index - 1]?.y)
+
+  expect(starts.length).toBeGreaterThan(1)
+  expect(starts.map(({ x }) => x)).toEqual(starts.map(() => boxes[0].x))
+})
