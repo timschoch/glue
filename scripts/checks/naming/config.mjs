@@ -1,9 +1,7 @@
 #!/usr/bin/env node
-// The naming config: defaults from `.agents/skills/naming/references/naming.json`, then one
-// `references/stacks/<bundle>.json` per bundle the consumer picked in
-// `.skilly/config.json`, then `.skilly/naming.json` in the consumer repo. The
-// naming skill and the naming gate both read every word list from here, so a
-// consumer changes a rule once, in one file.
+// The naming config: defaults from `naming.json` next to this file, then one
+// `stacks/<bundle>.json` per bundle the consumer picked in
+// `.skilly/config.json`, then `.skilly/naming.json` in the repo.
 //
 // Merge rules: see merge-config.mjs.
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
@@ -11,17 +9,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { isPlainObject, mergeConfig } from './merge-config.mjs'
 
-// The rule data stays in the naming skill; this copy holds only the code.
-const REFERENCES_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-  '.agents',
-  'skills',
-  'naming',
-  'references',
-)
+const REFERENCES_DIR = dirname(fileURLToPath(import.meta.url))
 const DEFAULTS_PATH = join(REFERENCES_DIR, 'naming.json')
 const STACKS_DIR = join(REFERENCES_DIR, 'stacks')
 const SKILLY_CONFIG_PATH = join('.skilly', 'config.json')

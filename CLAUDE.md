@@ -17,7 +17,7 @@ Concept hub: why a product is built the way it is. See [README.md](README.md).
 
 ## Which skill, in which order
 
-- Feature: `grilling`, `to-spec`, `to-tickets`, `implement`, `verify`, `make-pr-easy-to-review`
+- Feature: `grilling`, `to-spec`, `to-tickets`, `implement`, `make-pr-easy-to-review`
 - Bug: `diagnosing-bugs`, then `tdd`
 - All code, feature or bug: `tdd`. The test comes first.
 - Not sure which skill or flow fits: [ask-matt](.agents/skills/ask-matt/SKILL.md).
@@ -33,7 +33,7 @@ Agents build Glue in a run. The Orchestrator plans and merges, Workers build, th
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
 | Owner (human) | Set Goals and Guardrails, sign off Versions, answer proposed Decisions in Glue                                                                                                                                      |                                                                                                                                                                    | Confirms or rolls back provisional Versions                                         |
 | Orchestrator  | Plan circles, write tickets, spawn and steer Workers, pick research or build, pick free OSS, merge through the [merge gate](#merge-gate), merge the release PR at the end of a circle, sign Versions as provisional | Write product code, spend money, change Goals or Guardrails                                                                                                        | The run goal is reached, or it halts                                                |
-| Worker        | Build one ticket in its own worktree and branch, commit, push, open a PR, add free OSS dependencies, ask the Orchestrator                                                                                           | Merge, touch another worktree, change workflow files (`CLAUDE.md`, `.claude/`, `.github/`, `.husky/`, `.skilly/`, `.agents/skills/`), use secrets it was not given | PR open, `verify ci` green, tests written first, final line `RESULT: done <PR URL>` |
+| Worker        | Build one ticket in its own worktree and branch, commit, push, open a PR, add free OSS dependencies, ask the Orchestrator                                                                                           | Merge, touch another worktree, change workflow files (`CLAUDE.md`, `.claude/`, `.github/`, `.husky/`, `.skilly/`, `.agents/skills/`), use secrets it was not given | PR open, CI `checks` green, tests written first, final line `RESULT: done <PR URL>` |
 
 - Spawn and watch Workers with [t3-threads](.agents/skills/t3-threads/SKILL.md). Per repo: 3 Workers + 1 Orchestrator at most.
 - A Worker that cannot go on ends with `RESULT: blocked <why>` or `RESULT: question <question>`, never silence.
@@ -102,7 +102,7 @@ Build the smallest Glue that runs the whole [loop](docs/concept.md#1-the-loop), 
 
 The Orchestrator merges a PR only when all of these hold. [guard-workflow.mjs](.claude/hooks/guard-workflow.mjs) blocks `gh pr merge` otherwise.
 
-1. Required checks green. The `pr workflow` step of `verify` wants an issue link, a `Decision:` line and a test change with source changes: [check-pr-workflow.mjs](scripts/check-pr-workflow.mjs).
+1. Required checks green. The `pr workflow` step of CI `checks` wants an issue link, a `Decision:` line and a test change with source changes: [check-pr-workflow.mjs](scripts/check-pr-workflow.mjs).
 2. UI change (`src/**/*.tsx`, `src/**/*.css`, not `*.test.tsx`): run [interface-review](.agents/skills/interface-review/SKILL.md) `pr <n>` with a rendered review, then comment `interface-review: Approve` or `interface-review: Block` on the PR.
 3. After the merge: log review findings as Insights.
 
