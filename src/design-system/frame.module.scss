@@ -44,6 +44,22 @@ $pinned-breakpoint: 'lg';
   padding: $spacing-05 $spacing-05 0;
 }
 
+// The open menu whose title is the current Concept. Carbon marks a current
+// menu only while it is closed, so the title gets the same mark here (S3,
+// S5).
+.currentMenu > button[aria-expanded='true'] {
+  position: relative;
+  background-color: $background-selected;
+
+  &::before {
+    position: absolute;
+    border-inline-start: 3px solid $border-interactive;
+    content: '';
+    inset-block: 0;
+    inset-inline-start: 0;
+  }
+}
+
 // Mine, the loop steps and People on one line, above all that the main
 // window shows. What has no room starts a new row.
 .sections {
@@ -78,11 +94,18 @@ $pinned-breakpoint: 'lg';
   }
 }
 
+// The length of the line that joins two steps.
+$join-length: $spacing-05;
+
 // The steps are one chain, in loop order. The steps that have no room start
-// a new row, so no word is cut.
+// a new row, so no word is cut. Each step has its join line before it. The
+// list starts one line length early and cuts that length off, so the line
+// of the first step of each row does not show.
 .steps {
   display: flex;
   flex-wrap: wrap;
+  clip-path: inset(0 0 0 $join-length);
+  margin-inline-start: -$join-length;
   row-gap: $spacing-03;
 }
 
@@ -91,10 +114,10 @@ $pinned-breakpoint: 'lg';
   align-items: center;
 
   // The line that joins a step to the step before it.
-  & + &::before {
+  &::before {
     border-block-start: 1px solid $border-strong;
     content: '';
-    inline-size: $spacing-05;
+    inline-size: $join-length;
   }
 }
 
@@ -118,16 +141,22 @@ $pinned-breakpoint: 'lg';
     @include focus-outline('outline');
   }
 
-  // The current step: the blue, thicker border (S4, S5). The second line
-  // is inside the box, so the box keeps its size.
+  // The current step: the selected layer and the blue bar at its bottom
+  // edge (S3, S4, S5), the bar of Mine and People. The border stays, so
+  // only the focus frames a step. The bar is inside the box, so the box
+  // keeps its size.
   &[aria-current='step'] {
     position: relative;
-    border-color: $border-interactive;
+    background-color: $layer-selected;
+  }
+
+  &[aria-current='step']:hover {
+    background-color: $layer-selected-hover;
   }
 
   &[aria-current='step']::after {
     position: absolute;
-    border: 1px solid $border-interactive;
+    border-block-end: 2px solid $border-interactive;
     content: '';
     inset: 0;
     pointer-events: none;

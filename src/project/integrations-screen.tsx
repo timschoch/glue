@@ -18,12 +18,14 @@ const projectRoute = getRouteApi('/_signed-in/$project')
 // tool. `tools` says what each tool of the server is: the screen names no
 // tool itself.
 const toRows = ({ tools, integrations }: ProjectIntegrations) =>
-  integrations.map((integration) => ({
-    ...integration,
-    tool:
-      tools.find(({ name }) => name === integration.tool)?.label ??
-      integration.tool,
-  }))
+  integrations.map((integration) => {
+    const tool = tools.find(({ name }) => name === integration.tool)
+    return {
+      ...integration,
+      tool: tool?.label ?? integration.tool,
+      needsKey: tool?.needsKey ?? true,
+    }
+  })
 
 // The writes of the Integrations of a list: a member pauses, starts and
 // removes each one, and gives it a new key. Each write shows at its row. A
@@ -117,8 +119,12 @@ export function IntegrationsScreen({
   // A form that saved starts again with no value: the key is gone.
   const [added, setAdded] = useState(0)
   // The last add that Glue made a secret for. It shows until the next add,
-  // or until the person leaves the screen.
-  const [made, setMade] = useState<{ name: string; secret: string }>()
+  // until its Integration is removed, or until the person leaves the screen.
+  const [made, setMade] = useState<{
+    id: number
+    name: string
+    secret: string
+  }>()
   const toLabel = (tool: string) =>
     tools.find(({ name }) => name === tool)?.label ?? tool
   const failedField = integrationFormFields.find(
@@ -132,7 +138,7 @@ export function IntegrationsScreen({
       onClose={onClose}
       {...writes}
     >
-      {made && (
+      {made && integrations.some(({ id }) => id === made.id) && (
         <IntegrationSecret
           name={made.name}
           address={`${window.location.origin}/api/v1/projects/${project}/webhook`}
@@ -150,10 +156,11 @@ export function IntegrationsScreen({
             void write(
               'Adding',
               () => addIntegration({ project, integration }),
-              ({ secret }) => {
+              ({ id, secret }) => {
                 setMade(
                   secret
                     ? {
+                        id,
                         name: `${toLabel(integration.tool)} ${integration.address}`,
                         secret,
                       }

@@ -23,6 +23,9 @@ export type ProjectSearch = {
   kind?: string
   // The form with the values of the open record.
   edit?: true
+  // The Integrations of the Project in place of the Signals that they
+  // bring.
+  integrations?: true
   // The map of the Concept in place of its list.
   view?: 'map'
   // The slugs of the Concepts that are open on the Map.
@@ -120,6 +123,7 @@ export function parseProjectSearch(
     add: isAdded(search.add) ? search.add : undefined,
     kind: isSlug(search.kind) ? search.kind : undefined,
     edit: search.edit === true ? true : undefined,
+    integrations: search.integrations === true ? true : undefined,
     view: search.view === 'map' ? 'map' : undefined,
     expanded: parseSlugs(search.expanded),
     panel:

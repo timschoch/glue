@@ -33,6 +33,9 @@ export type IntegrationRow = {
   tool: string
   address: string
   keyLastFour: string
+  // The member gives the key. If not, Glue made the secret, and the member
+  // gives no new one.
+  needsKey: boolean
   state: keyof typeof stateLabels
   // The last read: its time, and the count of its Signals or why it failed.
   // None: Glue did not read the tool yet.
@@ -120,7 +123,7 @@ export function FailedIntegrations(
 
 // Each Integration with its tool, its address, the end of its key, its state
 // and its last read. A member pauses and starts each one, gives it a new
-// key, and removes it after one question.
+// key when the key is of the member, and removes it after one question.
 function IntegrationRows({
   titleId,
   integrations,
@@ -141,7 +144,7 @@ function IntegrationRows({
       {integrations.length > 0 && (
         <ul aria-labelledby={titleId} className={styles.list}>
           {integrations.map(
-            ({ id, tool, address, keyLastFour, state, lastRead }) => {
+            ({ id, tool, address, keyLastFour, needsKey, state, lastRead }) => {
               const own = change?.id === id ? change : undefined
               const name = `${tool} ${address}`
               const restart = state === 'active' ? onPause : onStart
@@ -176,7 +179,7 @@ function IntegrationRows({
                             {state === 'active' ? 'Pause' : 'Start'}
                           </Button>
                         )}
-                        {onEditKey && onSetKey && (
+                        {needsKey && onEditKey && onSetKey && (
                           <Button
                             size="sm"
                             kind="ghost"
