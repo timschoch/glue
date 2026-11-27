@@ -1,0 +1,3 @@
+# Trunk guard first, so a push at the default branch fails before any work runs.
+node scripts/checks/check-push-branch.mjs
+bash scripts/checks/push.sh

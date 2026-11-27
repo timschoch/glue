@@ -32,6 +32,10 @@ jobs:
       # Browsers cost about a minute to install, so skip it in repos without e2e.
       - if: hashFiles('playwright.config.*') != ''
         run: pnpm exec playwright install --with-deps chromium
+      - name: branch name
+        run: node scripts/checks/check-branch-name.mjs
+      - name: naming # the naming rules on the files the branch changes
+        run: node scripts/checks/naming/check.mjs
       - run: pnpm typecheck
       # A PR runs only the tests its diff reaches. A diff with a migration or the lockfile runs all tests
       # (forceRerunTriggers in vitest.config.ts). The release PR runs the full unit suite and the e2e smoke:

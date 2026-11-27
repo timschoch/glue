@@ -2,6 +2,33 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Bash|mcp__lean-ctx__ctx_shell|mcp__lean-ctx__shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/checks/block-destructive-git.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|mcp__lean-ctx__ctx_shell|mcp__lean-ctx__shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/checks/block-invalid-branch-push.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|mcp__lean-ctx__ctx_shell|mcp__lean-ctx__shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/checks/block-unverified-push.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Bash|mcp__lean-ctx__ctx_shell|mcp__lean-ctx__shell|Write|Edit|NotebookEdit|mcp__lean-ctx__ctx_patch|mcp__lean-ctx__ctx_call",
         "hooks": [
           {
