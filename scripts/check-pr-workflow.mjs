@@ -1,5 +1,5 @@
-// PR gate for the run rules in CLAUDE.md. Runs as a `ci` step in
-// .skilly/verify.json, via check-pr-workflow.ts: it loads Decisions over
+// PR gate for the run rules in CLAUDE.md. Runs as a step in
+// .github/workflows/ci.yml, via check-pr-workflow.ts: it loads Decisions over
 // Glue's HTTP API and calls `problems` below. Checks the PR body and the
 // changed files:
 //   - an issue link: "Closes #12", "Fixes #12" or "Refs #12"

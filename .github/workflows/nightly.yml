@@ -1,6 +1,5 @@
-# Product tier only: the long checks that must never gate a merge. Scheduled
-# runs get delayed under load, so keep this off the required-checks list.
-# verify exits 0 below the product tier, so an installed copy is inert elsewhere.
+# The long checks that must never gate a merge. Scheduled runs get delayed
+# under load, so keep this off the required-checks list.
 name: Nightly
 
 on:
@@ -13,7 +12,7 @@ permissions:
   issues: write # the red-night issue
 
 jobs:
-  verify:
+  checks:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -27,7 +26,11 @@ jobs:
       # Every browser here, unlike the PR gate's single chromium.
       - if: hashFiles('playwright.config.*') != ''
         run: pnpm exec playwright install --with-deps
-      - run: node .agents/skills/verify/scripts/verify.mjs nightly
+      - run: pnpm exec vitest run --passWithNoTests
+      - run: pnpm exec playwright test
+      - run: pnpm outdated || true # reports, never fails: it exits 1 whenever anything is behind
+      # Semgrep CE ships on PyPI. --error fails on findings. --exclude .agents skips the skills skilly vendors.
+      - run: pipx run semgrep scan --config auto --error --exclude .agents
       # A red night opens one issue. No second issue while one is open.
       - if: failure()
         env:

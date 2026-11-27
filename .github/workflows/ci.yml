@@ -1,5 +1,5 @@
-# The PR gate. One job running the ci stage of .skilly/verify.json: Actions
-# rounds every job up to the minute, so one 5-minute job beats five 1-minute ones.
+# The PR gate. One job with one step per check: Actions rounds every job up to
+# the minute, so one 5-minute job beats five 1-minute ones.
 name: CI
 
 on:
@@ -14,8 +14,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  checks:
     runs-on: ubuntu-latest
+    env:
+      FULL: ${{ startsWith(github.head_ref, 'release-please--') && '1' || '' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -30,9 +32,35 @@ jobs:
       # Browsers cost about a minute to install, so skip it in repos without e2e.
       - if: hashFiles('playwright.config.*') != ''
         run: pnpm exec playwright install --with-deps chromium
-      - run: node .agents/skills/verify/scripts/verify.mjs ci
+      - name: branch name
+        run: node scripts/checks/check-branch-name.mjs
+      - name: naming # the naming rules on the files the branch changes
+        run: node scripts/checks/naming/check.mjs
+      - run: pnpm typecheck
+      # A PR runs only the tests its diff reaches. A diff with a migration or the lockfile runs all tests
+      # (forceRerunTriggers in vitest.config.ts). The release PR runs the full unit suite and the e2e smoke:
+      # release-please updates it after each merge to main, so each merge gets one full run before a release.
+      - name: unit (changed)
+        if: ${{ !env.FULL }}
+        run: pnpm exec vitest run --changed origin/main --passWithNoTests
+      - name: unit
+        if: ${{ env.FULL }}
+        run: pnpm exec vitest run --passWithNoTests
+      - name: workflow guards # guard-workflow.mjs (Claude hook) and check-pr-workflow.mjs (PR gate), plain node:test
+        run: node --test 'scripts/*.test.mjs' '.claude/hooks/*.test.mjs'
+      # Issue link, a Decision line that names an existing Decision (read over Glue's HTTP API),
+      # tests with source changes. Reads the PR body; outside a pull_request build it passes.
+      - name: pr workflow
+        run: pnpm exec tsx scripts/check-pr-workflow.ts
         env:
-          # A PR runs only the tests its diff reaches. The release PR runs the full unit suite and the e2e smoke:
-          # release-please updates it after each merge to main, so each merge gets one full run before a release.
-          VERIFY_FULL: ${{ startsWith(github.head_ref, 'release-please--') && '1' || '' }}
-          GLUE_API_TOKEN: ${{ secrets.GLUE_API_TOKEN }} # read token of the Project glue: the PR gate reads Decisions over Glue's HTTP API
+          GLUE_API_TOKEN: ${{ secrets.GLUE_API_TOKEN }} # read token of the Project glue
+      - run: pnpm lint
+      - run: pnpm build
+      # The design system's Storybook deploys from main to its own Vercel project. A story that does not build fails here.
+      - run: pnpm build-storybook
+      - run: pnpm lint:styles # only Carbon tokens in src/design-system
+      # High and critical advisories only. Lower levels fire on transitive dev dependencies.
+      - run: pnpm audit --audit-level=high
+      - name: e2e smoke # the critical paths, tagged @smoke; the rest runs nightly
+        if: ${{ env.FULL }}
+        run: pnpm exec playwright test --grep @smoke
