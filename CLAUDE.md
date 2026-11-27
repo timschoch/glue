@@ -6,7 +6,7 @@ Concept hub: why a product is built the way it is. See [README.md](README.md).
 
 - `pnpm dev`: dev server, http://localhost:3000
 - `pnpm typecheck`, `pnpm lint`, `pnpm check` (Prettier), `pnpm build`
-- `node .agents/skills/verify/scripts/verify.mjs <commit|push|ci>`: the gate hooks and CI run. Add checks to [.skilly/verify.json](.skilly/verify.json), never to a hook.
+- CI checks: one step each in [ci.yml](.github/workflows/ci.yml) (PR gate) and [nightly.yml](.github/workflows/nightly.yml) (long checks).
 
 ## Rules
 

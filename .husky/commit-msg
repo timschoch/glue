@@ -1,1 +1,0 @@
-node .agents/skills/verify/scripts/check-commit-msg.mjs "$1"
