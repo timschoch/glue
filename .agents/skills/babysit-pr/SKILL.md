@@ -46,7 +46,7 @@ A login ending in `[bot]` also counts. Missing key or missing file means an empt
 
 ## CI
 
-Checks are whatever the PR reports. The repo's tier in `.skilly/config.json` decides the set (the `verify` skill explains tiers). `verify` is the one check every tier runs, so a red `verify` is always a statement about this branch.
+Checks are whatever the PR reports. The repo's CI decides the set. A red check is a statement about this branch.
 
 ## Commits
 

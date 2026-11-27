@@ -33,6 +33,6 @@ Good defaults, not law — the developer's word overrides anything here.
         - 1.1 **recommended** same dot rule for folders and files
         - 1.2 narrower fix from the issue, only for route folders
      ```
-9. Show a flow of 3+ steps, or 3+ parts that talk to each other, as a mermaid diagram. Pick the kind by [writing-rules](.agents/skills/writing-rules/rules/all.md) rule 106. Explaining a prototype you built counts.
-   - Bad: "The agent commits, then verify runs, then on green it pushes, then GitHub runs CI."
-   - Good: a `sequenceDiagram` with Agent, Verify and GitHub.
+9. Show a flow of 3+ steps, or 3+ parts that talk to each other, as a mermaid diagram. Pick the kind by [writing-rules](writing-rules-all.md) rule 106. Explaining a prototype you built counts.
+   - Bad: "The agent commits, then the hooks run, then the user approves the push, then CI decides."
+   - Good: a `sequenceDiagram` with Agent, Hooks, User and CI.
