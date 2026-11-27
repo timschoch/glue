@@ -197,9 +197,11 @@ test('bot branches skip the gate, the skilly update branch too', () => {
     'release-please--branches--main',
     'skilly/update',
     'chore/skilly-update',
+    'chore/skilly',
   ]) {
     assert.equal(isBotBranch(ref), true, ref)
   }
   assert.equal(isBotBranch('chore/skilly-update-by-hand'), false)
+  assert.equal(isBotBranch('chore/skilly-by-hand'), false)
   assert.equal(isBotBranch('feat/goal-progress-ui'), false)
 })
