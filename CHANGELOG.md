@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.30.1](https://github.com/timschoch/glue/compare/v1.30.0...v1.30.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **checks:** keep the naming rule data next to the naming check ([#440](https://github.com/timschoch/glue/issues/440)) ([2281f73](https://github.com/timschoch/glue/commit/2281f7340d2e79632ab804778b00fd0effe757e8)), closes [#436](https://github.com/timschoch/glue/issues/436)
+* **deps:** move better-auth and seroval to their security fixes ([#438](https://github.com/timschoch/glue/issues/438)) ([60bd343](https://github.com/timschoch/glue/commit/60bd343b6f4dedbc6ab2c16d4866c36ba1be3236)), closes [#433](https://github.com/timschoch/glue/issues/433)
+* **gate:** let the skilly v2 update branch through the PR gate ([#441](https://github.com/timschoch/glue/issues/441)) ([eeb9052](https://github.com/timschoch/glue/commit/eeb90527c88eca92f5e7146f1f8118b62f572d1c)), closes [#436](https://github.com/timschoch/glue/issues/436)
+* **security:** fix the GCM tag length of stored tool keys ([#443](https://github.com/timschoch/glue/issues/443)) ([f87a931](https://github.com/timschoch/glue/commit/f87a931c5004dd0f6f7641281e5d5e8625634343)), closes [#318](https://github.com/timschoch/glue/issues/318)
+
 ## [1.30.0](https://github.com/timschoch/glue/compare/v1.29.0...v1.30.0) (2026-10-12)
 
 
