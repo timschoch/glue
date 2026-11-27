@@ -139,13 +139,15 @@ function button(name: string | RegExp): HTMLElement {
   return screen.getByRole('button', { name })
 }
 
-function link(name: string | RegExp): HTMLElement {
+function link(
+  name: string | RegExp | ((name: string) => boolean),
+): HTMLElement {
   return screen.getByRole('link', { name })
 }
 
 // The card of a record.
 function card(recordId: string): HTMLElement {
-  return link(new RegExp(` ${recordId} `))
+  return link((name) => name.includes(` ${recordId} `))
 }
 
 // The line of a bundle of Joints.

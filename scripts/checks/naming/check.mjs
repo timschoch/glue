@@ -84,12 +84,15 @@ function toCheckLists(config) {
     synonyms: Object.entries(config.synonyms ?? {}).sort(
       ([left], [right]) => right.length - left.length,
     ),
+    // The words come from the repo's own naming config and are escaped.
     noiseSuffix: noiseWords.length
-      ? new RegExp(`(${noiseWords.map(escapeRegExp).join('|')})$`)
+      ? // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+        new RegExp(`(${noiseWords.map(escapeRegExp).join('|')})$`)
       : null,
     envRoles: roles,
     envFor: roles.length
-      ? new RegExp(
+      ? // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+        new RegExp(
           `^[A-Z0-9]+(_[A-Z0-9]+)*_(${roles.map(escapeRegExp).join('|')})_FOR_[A-Z0-9]+$`,
         )
       : null,
