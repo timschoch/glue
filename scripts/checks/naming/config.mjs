@@ -94,6 +94,8 @@ export function compileAllow(allow = {}) {
         throw fail(`"${field}" must be a non-empty list`)
       return entry[field].map((source) => {
         try {
+          // An allow entry of the repo's own naming config is a regex on purpose.
+          // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
           return new RegExp(source)
         } catch (failure) {
           throw fail(`"${field}" has a bad regex: ${failure.message}`)

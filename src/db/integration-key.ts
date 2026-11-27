@@ -27,6 +27,8 @@ const ALGORITHM = 'aes-256-gcm'
 const CIPHER_KEY_BYTES = 32
 // The length that GCM is built for.
 const NONCE_BYTES = 12
+// The full tag. Without it, GCM would accept a cut-short tag, which is easier to forge.
+const TAG_BYTES = 16
 // The first part of each stored key. A new way to encrypt takes a new one.
 const FORMAT = 'v1'
 const ENCODING = 'base64url'
@@ -40,7 +42,9 @@ function toCipherKey(secret: string) {
 // Each call gives another text for the same key: the nonce is random.
 export function encryptKey(secret: string, key: string): string {
   const nonce = randomBytes(NONCE_BYTES)
-  const cipher = createCipheriv(ALGORITHM, toCipherKey(secret), nonce)
+  const cipher = createCipheriv(ALGORITHM, toCipherKey(secret), nonce, {
+    authTagLength: TAG_BYTES,
+  })
   const sealed = Buffer.concat([cipher.update(key, 'utf8'), cipher.final()])
   const parts = [nonce, cipher.getAuthTag(), sealed]
   return [FORMAT, ...parts.map((part) => part.toString(ENCODING))].join('.')
@@ -51,7 +55,9 @@ export function decryptKey(secret: string, encrypted: string): string {
   const [format, ...parts] = encrypted.split('.')
   if (format !== FORMAT) throw new Error('The stored key has an unknown form.')
   const [nonce, tag, sealed] = parts.map((part) => Buffer.from(part, ENCODING))
-  const decipher = createDecipheriv(ALGORITHM, toCipherKey(secret), nonce)
+  const decipher = createDecipheriv(ALGORITHM, toCipherKey(secret), nonce, {
+    authTagLength: TAG_BYTES,
+  })
   decipher.setAuthTag(tag)
   return Buffer.concat([decipher.update(sealed), decipher.final()]).toString(
     'utf8',
