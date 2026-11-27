@@ -20,12 +20,12 @@ const GENERATED = /(^|\/)routeTree\.gen\.ts$/
 const TEST = /\.(test|spec)\.(ts|tsx|mjs|js)$|^e2e\//
 // Branches that bots open. Their PRs carry no issue link and no Decision.
 const BOT_PREFIXES = ['dependabot/', 'renovate/', 'release-please--', 'skilly/']
-// The branch that skilly's update workflow opens its PR from.
-const SKILLY_UPDATE_BRANCH = 'chore/skilly-update'
+// The branches that skilly's nightly update opens its PR from: v2, then v1.
+const SKILLY_UPDATE_BRANCHES = ['chore/skilly', 'chore/skilly-update']
 
 export function isBotBranch(ref) {
   return (
-    ref === SKILLY_UPDATE_BRANCH ||
+    SKILLY_UPDATE_BRANCHES.includes(ref) ||
     BOT_PREFIXES.some((prefix) => ref.startsWith(prefix))
   )
 }
