@@ -8,21 +8,13 @@ description: >
 
 # Writing rules
 
-One list, one copy, synced from the hub — rules update here, never in a consumer. Enforcement varies per repo; the rules do not.
+The rule files in `rules/` are the source, synced from the hub: change them in the hub, never in a consumer or its installed copies in `.claude/rules/`, where only `*.local.md` overlays are allowed (see `workflow-writing-standards`). Enforcement varies per repo; the rules do not.
 
-The rules live in sidecar files, one per style, so only what applies gets injected:
+The rules live in rule files, one per style. skilly installs them into `.claude/rules/` with `paths:` frontmatter, so a native read or write of a matching `.md` file loads them. Read `all` plus one style, unless your host already loaded them for this file:
 
-- [rules/all.md](rules/all.md) — every file: audience, words and links, the never list, where a statement lives
-- [rules/plain.md](rules/plain.md) — a person reads it: README, docs, code comments
-- [rules/dense.md](rules/dense.md) — only an agent reads it: CLAUDE.md, AGENTS.md, skill files, agent docs; where both could apply, dense wins
-- [rules/git.md](rules/git.md) — commits, PRs, issues; the format is enforced by setup-repo's commit gate
+- [rules/writing-rules-all.md](rules/writing-rules-all.md) — every file: audience, words and links, the never list, where a statement lives
+- [rules/writing-rules-plain.md](rules/writing-rules-plain.md) — a person reads it: README, docs, code comments
+- [rules/writing-rules-dense.md](rules/writing-rules-dense.md) — only an agent reads it: CLAUDE.md, AGENTS.md, skill files, agent docs; where both could apply, dense wins
+- [git.md](git.md) — commits, PRs, issues; no file write loads it, read it before you write one
 
-Reviewing or writing prose by hand? Read the sidecars above — this file holds no rule.
-
-## Injection on write actions
-
-[scripts/inject-writing-rules.mjs](scripts/inject-writing-rules.mjs) is a PreToolUse hook: on every file-writing tool call it prints the matching rules (all + plain|dense by path) as additional context, so the writer sees them without loading this skill. `/setup-repo` wires it into `.claude/settings.json`. Markdown files only; `node_modules`, `.temp/` and the synced `.claude/skills`/`.claude/rules` trees are skipped.
-
-## Mermaid check
-
-[scripts/check-mermaid.mjs](scripts/check-mermaid.mjs) parses every mermaid diagram in the `.md`, `.mdx` and `.mmd` files a branch changes. The verify skill's `push` stage runs it. It needs the repo's `mermaid` and `jsdom` devDependencies; `/setup-repo` installs them.
+Reviewing or writing prose? Read the files above — this file holds no rule.

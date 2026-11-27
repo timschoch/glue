@@ -86,8 +86,9 @@ Reference implementation: `colin`, PR #374.
 3. **Give that workflow sole ownership of production** — migrations run in it immediately before the
    build, and the provider's own Git deploys are switched off (`vercel.json`:
    `"git": { "deploymentEnabled": false }`). Exactly one thing deploys.
-4. **Record the base branch per branch** — `git config branch.<name>.laicaBase`, written by
-   `wt:add`. `epic/*` is the only non-trunk base; anything unverifiable falls back to the trunk.
+4. **Record the base branch per branch** — `git config branch.<name>.base`, written by whatever
+   creates the branch. `epic/*` is the only non-trunk base; anything unverifiable falls back to the
+   trunk, with a warning. Migration: rename git config `branch.*.laicaBase` to `branch.*.base`.
 5. **Adopt `epic/<name>`** for features spanning several tickets, and merge epics into the trunk
    with `--merge` so release-please still sees the per-ticket commits.
 6. **Retire `staging` last** — delete it on origin only after the first successful release. The
