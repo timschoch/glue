@@ -33,7 +33,11 @@ trustPolicy: no-downgrade
 # Fixes of high and critical advisories in packages below a dependency whose
 # parent still holds the old version. Drop an entry when the parent moves on.
 overrides:
+  '@better-auth/api-key': ^1.7.7
+  '@better-auth/passkey': ^1.7.7
+  better-auth: ^1.7.7
   dompurify: ^3.4.17
+  seroval: ^1.6.8
   undici: ^8.12.2
   zod: ^4.6.6
 auditConfig:
